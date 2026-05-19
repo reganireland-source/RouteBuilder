@@ -75,6 +75,7 @@ export default function App() {
             nodes={nodes}
             segments={segments}
             onSearch={handleSearch}
+            onClear={() => { setResponse(null); setSelectedRouteIds([]); setError(null) }}
             loading={loading}
           />
         </div>

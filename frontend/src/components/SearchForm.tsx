@@ -5,16 +5,27 @@ interface Props {
   nodes: CableNode[]
   segments: CableSegment[]
   onSearch: (req: RouteRequest) => void
+  onClear: () => void
   loading: boolean
 }
 
-export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
+export function SearchForm({ nodes, segments, onSearch, onClear, loading }: Props) {
   const [startNode, setStartNode] = useState('')
   const [endNode, setEndNode] = useState('')
   const [diversity, setDiversity] = useState<DiversityType>('none')
   const [mustInclude, setMustInclude] = useState<string[]>([])
   const [mustAvoidNodes, setMustAvoidNodes] = useState<string[]>([])
   const [mustAvoidSegs, setMustAvoidSegs] = useState<string[]>([])
+
+  function handleClear() {
+    setStartNode('')
+    setEndNode('')
+    setDiversity('none')
+    setMustInclude([])
+    setMustAvoidNodes([])
+    setMustAvoidSegs([])
+    onClear()
+  }
 
   const clsNodes = [...nodes].filter(n => n.type === 'cls').sort((a, b) => a.name.localeCompare(b.name))
   const popNodes = [...nodes].filter(n => n.type === 'pop').sort((a, b) => a.name.localeCompare(b.name))
@@ -147,18 +158,33 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
         </div>
       </div>
 
-      <button
-        type="submit"
-        disabled={loading || !startNode || !endNode}
-        style={{
-          padding: '8px 16px', borderRadius: 4, border: 'none',
-          background: loading ? '#444' : '#89b4fa', color: '#1e1e2e',
-          fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
-          fontSize: 14,
-        }}
-      >
-        {loading ? 'Searching...' : 'Find Routes'}
-      </button>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          type="submit"
+          disabled={loading || !startNode || !endNode}
+          style={{
+            flex: 1, padding: '8px 16px', borderRadius: 4, border: 'none',
+            background: loading ? '#444' : '#89b4fa', color: '#1e1e2e',
+            fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
+            fontSize: 14,
+          }}
+        >
+          {loading ? 'Searching...' : 'Find Routes'}
+        </button>
+        <button
+          type="button"
+          onClick={handleClear}
+          disabled={loading}
+          style={{
+            padding: '8px 12px', borderRadius: 4,
+            border: '1px solid #45475a', background: 'transparent',
+            color: '#a6adc8', cursor: loading ? 'not-allowed' : 'pointer',
+            fontSize: 13,
+          }}
+        >
+          Clear
+        </button>
+      </div>
     </form>
   )
 }
