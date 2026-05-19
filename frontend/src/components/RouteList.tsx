@@ -59,9 +59,12 @@ function RouteCard({
         transition: 'border-color 0.15s',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
         <span style={{ fontSize: 12, fontWeight: 600, color }}>
           {route.id}
+          <span style={{ fontWeight: 400, color: '#a6adc8', marginLeft: 6 }}>
+            {systems.join(' · ')}
+          </span>
         </span>
         <span style={{ fontSize: 11, color: '#6c7086' }}>
           {route.nodes.length - 1} hops
@@ -76,10 +79,6 @@ function RouteCard({
         <span>Cost: <strong style={{ color: '#cdd6f4' }}>{route.total_cost}</strong></span>
         <span>{route.total_length_km.toLocaleString()} km</span>
         <span>Avail: <strong style={{ color: '#cdd6f4' }}>{reliabilityPct}%</strong></span>
-      </div>
-
-      <div style={{ marginTop: 4, fontSize: 10, color: '#6c7086' }}>
-        {systems.join(' · ')}
       </div>
     </div>
   )
