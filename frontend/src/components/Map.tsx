@@ -16,6 +16,41 @@ const DIVERSITY_COLORS: Record<number, string> = {
   2: '#a6e3a1',
 }
 
+/**
+ * Split a geodesic segment into 1 or 2 polyline position arrays so that
+ * Leaflet always draws the shortest-arc path and handles antimeridian crossings.
+ *
+ * Strategy:
+ *  1. Normalise the end longitude so the delta is in (−180, +180].
+ *  2. If the normalised end is outside [−180, 180] the line crosses ±180°;
+ *     split it there, mirroring the crossing point onto the other side.
+ */
+function geoLines(
+  lat1: number, lng1: number,
+  lat2: number, lng2: number,
+): [number, number][][] {
+  // Shortest-arc delta
+  let d = lng2 - lng1
+  while (d >  180) d -= 360
+  while (d < -180) d += 360
+  const adjLng2 = lng1 + d
+
+  // No antimeridian crossing
+  if (adjLng2 >= -180 && adjLng2 <= 180) {
+    return [[[lat1, lng1], [lat2, adjLng2]]]
+  }
+
+  // Crosses antimeridian — find crossing latitude by linear interpolation
+  const crossLng = adjLng2 > 180 ? 180 : -180
+  const t        = (crossLng - lng1) / (adjLng2 - lng1)
+  const crossLat = lat1 + t * (lat2 - lat1)
+
+  return [
+    [[lat1, lng1],         [crossLat,  crossLng]],
+    [[crossLat, -crossLng], [lat2,     lng2]],
+  ]
+}
+
 export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems }: Props) {
   const t = useTheme()
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
@@ -79,10 +114,10 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         attribution='&copy; <a href="https://carto.com/">CARTO</a>'
       />
 
-      {segments.map(seg => {
+      {segments.flatMap(seg => {
         const start = nodesById[seg.start_node_id]
         const end = nodesById[seg.end_node_id]
-        if (!start || !end) return null
+        if (!start || !end) return []
 
         // System viewer colouring takes priority when active
         let color: string
@@ -94,7 +129,6 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
           weight = 3
           opacity = 0.9
         } else if (systemViewerActive) {
-          // Dim segments not belonging to a selected system (unless pinned/active)
           color   = segmentColor[seg.id] ?? t.mapInactiveSegment
           weight  = segmentWeight[seg.id] ?? 1
           opacity = segmentOpacity[seg.id] ?? 0.08
@@ -104,25 +138,32 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
           opacity = segmentOpacity[seg.id] ?? 0.35
         }
 
-        return (
-          <Polyline
-            key={seg.id}
-            positions={[[start.lat, start.lng], [end.lat, end.lng]]}
-            pathOptions={{ color, weight, opacity, dashArray: seg.type === 'terrestrial' ? '6 4' : undefined }}
-          >
-            <Tooltip sticky>
-              <strong>{seg.name}</strong>
-              <br />{seg.system_id} · {seg.type} · {seg.ownership}
-              <br />{start.name} → {end.name}
-              <br />{seg.length_km.toLocaleString()} km · {seg.latency} ms · Cost: {seg.cost_weight}
-              {capacityById[seg.id] && (() => {
-                const cap = capacityById[seg.id]
-                const pct = Math.round((cap.available_capacity_t / cap.total_capacity_t) * 100)
-                return <><br />Capacity: {cap.available_capacity_t}T / {cap.total_capacity_t}T available ({pct}%)</>
-              })()}
-            </Tooltip>
-          </Polyline>
+        const pathOptions = { color, weight, opacity, dashArray: seg.type === 'terrestrial' ? '6 4' : undefined }
+        const lines = geoLines(start.lat, start.lng, end.lat, end.lng)
+
+        const tooltip = (
+          <Tooltip sticky>
+            <strong>{seg.name}</strong>
+            <br />{seg.system_id} · {seg.type} · {seg.ownership}
+            <br />{start.name} → {end.name}
+            <br />{seg.length_km.toLocaleString()} km · {seg.latency} ms · Cost: {seg.cost_weight}
+            {capacityById[seg.id] && (() => {
+              const cap = capacityById[seg.id]
+              const pct = Math.round((cap.available_capacity_t / cap.total_capacity_t) * 100)
+              return <><br />Capacity: {cap.available_capacity_t}T / {cap.total_capacity_t}T available ({pct}%)</>
+            })()}
+          </Tooltip>
         )
+
+        return lines.map((positions, i) => (
+          <Polyline
+            key={`${seg.id}-${i}`}
+            positions={positions}
+            pathOptions={pathOptions}
+          >
+            {i === 0 && tooltip}
+          </Polyline>
+        ))
       })}
 
       {nodes.map(node => {
