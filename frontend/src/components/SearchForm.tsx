@@ -27,9 +27,8 @@ export function SearchForm({ nodes, segments, onSearch, onClear, loading }: Prop
     onClear()
   }
 
-  const isCls = (n: CableNode) => n.type === 'cls' || (n.type as string) === 'landing_station'
-  const clsNodes = [...nodes].filter(isCls).sort((a, b) => a.name.localeCompare(b.name))
-  const popNodes = [...nodes].filter(n => !isCls(n)).sort((a, b) => a.name.localeCompare(b.name))
+  const clsNodes = [...nodes].filter(n => n.type === 'cls').sort((a, b) => a.name.localeCompare(b.name))
+  const popNodes = [...nodes].filter(n => n.type === 'pop').sort((a, b) => a.name.localeCompare(b.name))
   const sortedNodes = [...clsNodes, ...popNodes]
 
   function toggleMulti(id: string, list: string[], setter: (v: string[]) => void) {
