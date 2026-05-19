@@ -3,6 +3,7 @@ import { Map } from './components/Map'
 import { SearchForm } from './components/SearchForm'
 import { RouteList } from './components/RouteList'
 import { SystemViewer } from './components/SystemViewer'
+import { RefDataModal } from './components/RefDataModal'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, lightTheme, type Theme } from './theme'
 import type { CableNode, CableSegment, CableSystem, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SelectedSystem } from './types'
@@ -17,6 +18,7 @@ function routeKey(r: Route) { return r.nodes.join('|') }
 export default function App() {
   const [isDark, setIsDark] = useState(true)
   const theme = isDark ? darkTheme : lightTheme
+  const [refDataOpen, setRefDataOpen] = useState(false)
 
   const [mode, setMode] = useState<AppMode>('routebuilder')
   const [nodes, setNodes] = useState<CableNode[]>([])
@@ -121,6 +123,24 @@ export default function App() {
   return (
     <ThemeContext.Provider value={theme}>
       <div style={{ display: 'flex', height: '100vh', background: theme.bgBase, color: theme.text, fontFamily: 'system-ui, sans-serif' }}>
+
+        {/* Gear / ref-data button */}
+        <button
+          onClick={() => setRefDataOpen(true)}
+          title="Reference Data Editor"
+          style={{
+            position: 'fixed', top: 12, right: 130, zIndex: 1000,
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '6px 12px', borderRadius: 20,
+            border: `1px solid ${theme.border}`, background: theme.bgPanel, color: theme.textMuted,
+            cursor: 'pointer', fontSize: 12, fontWeight: 600,
+            boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.4)' : '0 2px 8px rgba(0,0,0,0.12)',
+            transition: 'all 0.2s',
+          }}
+        >
+          <span style={{ fontSize: 14 }}>⚙</span>
+          Ref Data
+        </button>
 
         {/* Theme toggle */}
         <button
@@ -243,6 +263,20 @@ export default function App() {
         </div>
 
       </div>
+
+      {refDataOpen && (
+        <RefDataModal
+          nodes={nodes}
+          segments={segments}
+          systems={systems}
+          capacity={capacity}
+          onDataChange={() =>
+            Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems()])
+              .then(([n, s, c, sys]) => { setNodes(n); setSegments(s); setCapacity(c); setSystems(sys) })
+          }
+          onClose={() => setRefDataOpen(false)}
+        />
+      )}
     </ThemeContext.Provider>
   )
 }

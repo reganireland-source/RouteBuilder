@@ -54,12 +54,18 @@ class CableSegment(BaseModel):
     reliability: float        # 0-1, annualised availability
     cost_weight: float        # relative cost units
     ownership: Ownership
-    latency: float            # one-way propagation delay in ms (length / 200,000 km/s)
+    latency: Optional[float] = None
 
 
 class InterconnectRule(BaseModel):
     node_id: str
     disallowed_pairs: list[list[str]]  # pairs of system_ids that cannot interconnect
+
+
+class SegmentCapacity(BaseModel):
+    segment_id: str
+    total_capacity_t: float
+    available_capacity_t: float
 
 
 class RouteRequest(BaseModel):
@@ -82,7 +88,7 @@ class RouteSegmentDetail(BaseModel):
     reliability: float
     cost_weight: float
     ownership: Ownership
-    latency: float
+    latency: Optional[float] = None
 
 
 class Route(BaseModel):
@@ -91,7 +97,6 @@ class Route(BaseModel):
     segments: list[RouteSegmentDetail]
     total_cost: float
     total_length_km: float
-    total_latency: float
     end_to_end_reliability: float
     diversity_group: int = 1
 
@@ -102,7 +107,31 @@ class RouteResponse(BaseModel):
     diverse_routes: list[Route]
 
 
-class SegmentCapacity(BaseModel):
-    segment_id: str
-    total_capacity_t: float
-    available_capacity_t: float
+# ── Partial-update models (PATCH/PUT) ─────────────────────────────────────────
+
+class NodeUpdate(BaseModel):
+    name: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    type: Optional[NodeType] = None
+    country: Optional[str] = None
+
+class CableSegmentUpdate(BaseModel):
+    name: Optional[str] = None
+    system_id: Optional[str] = None
+    start_node_id: Optional[str] = None
+    end_node_id: Optional[str] = None
+    type: Optional[SegmentType] = None
+    length_km: Optional[float] = None
+    reliability: Optional[float] = None
+    cost_weight: Optional[float] = None
+    ownership: Optional[Ownership] = None
+    latency: Optional[float] = None
+
+class CableSystemUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+class SegmentCapacityUpdate(BaseModel):
+    total_capacity_t: Optional[float] = None
+    available_capacity_t: Optional[float] = None

@@ -1,30 +1,54 @@
 [
   {
-    "node_id": "GUM",
+    "node_id": "GUM1",
     "disallowed_pairs": [
-      ["PPC1", "AAG"],
-      ["AAG", "PPC1"]
+      [
+        "PPC1",
+        "AAG"
+      ],
+      [
+        "AAG",
+        "PPC1"
+      ]
     ]
   },
   {
-    "node_id": "SIN",
+    "node_id": "SIN1",
     "disallowed_pairs": [
-      ["SMW3", "SMW4"],
-      ["SMW4", "SMW3"]
+      [
+        "SMW3",
+        "SMW4"
+      ],
+      [
+        "SMW4",
+        "SMW3"
+      ]
     ]
   },
   {
-    "node_id": "BOM",
+    "node_id": "BOM1",
     "disallowed_pairs": [
-      ["SMW3", "INDIGO_W"],
-      ["INDIGO_W", "SMW3"]
+      [
+        "SMW3",
+        "INDIGO_W"
+      ],
+      [
+        "INDIGO_W",
+        "SMW3"
+      ]
     ]
   },
   {
-    "node_id": "HAW",
+    "node_id": "HAW1",
     "disallowed_pairs": [
-      ["PPC1", "AAG"],
-      ["AAG", "PPC1"]
+      [
+        "PPC1",
+        "AAG"
+      ],
+      [
+        "AAG",
+        "PPC1"
+      ]
     ]
   }
 ]
