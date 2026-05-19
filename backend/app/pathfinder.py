@@ -109,6 +109,7 @@ def find_routes(
     must_include_nodes: list[str],
     must_avoid_nodes: list[str],
     must_avoid_segments: list[str],
+    must_include_segments: list[str],
     diversity: DiversityType,
     segments_by_id: dict[str, CableSegment],
     rules: list[InterconnectRule],
@@ -140,6 +141,14 @@ def find_routes(
             candidates = [p for p in raw[:k * 3] if validate_interconnect_rules(working_G, p, rules)][:k]
         except nx.NetworkXNoPath:
             candidates = []
+
+    # Filter to paths that include all required segments
+    required_seg_ids = set(must_include_segments)
+    if required_seg_ids:
+        candidates = [
+            p for p in candidates
+            if required_seg_ids.issubset(set(path_to_segment_ids(working_G, p)))
+        ]
 
     if not candidates:
         return RouteResponse(routes=[], primary_routes=[], diverse_routes=[])

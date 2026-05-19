@@ -57,9 +57,11 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
   const [startNode, setStartNode] = useState('')
   const [endNode, setEndNode] = useState('')
   const [diversity, setDiversity] = useState<DiversityType>('none')
-  const [mustInclude, setMustInclude] = useState<string[]>([])
+  const [mustIncludeNodes, setMustIncludeNodes] = useState<string[]>([])
   const [mustAvoidNodes, setMustAvoidNodes] = useState<string[]>([])
   const [mustAvoidSegs, setMustAvoidSegs] = useState<string[]>([])
+  const [mustIncludeSegs, setMustIncludeSegs] = useState<string[]>([])
+  const [advancedOpen, setAdvancedOpen] = useState(false)
 
   const groups = groupByCountry(nodes)
 
@@ -73,9 +75,10 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
     onSearch({
       start_node_id: startNode,
       end_node_id: endNode,
-      must_include_nodes: mustInclude,
+      must_include_nodes: mustIncludeNodes,
       must_avoid_nodes: mustAvoidNodes,
       must_avoid_segments: mustAvoidSegs,
+      must_include_segments: mustIncludeSegs,
       diversity,
     })
   }
@@ -87,7 +90,7 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
   }
 
   const multiBoxStyle: React.CSSProperties = {
-    maxHeight: 120, overflowY: 'auto', border: `1px solid ${t.border}`,
+    maxHeight: 110, overflowY: 'auto', border: `1px solid ${t.border}`,
     borderRadius: 4, padding: '4px 0', background: t.bgInput,
   }
 
@@ -135,11 +138,7 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
           <div key={g.code}>
             <div style={groupHeaderStyle}>{g.label}</div>
             {visible.map(n => (
-              <div
-                key={n.id}
-                style={multiItemStyle(selected.includes(n.id))}
-                onClick={() => onToggle(n.id)}
-              >
+              <div key={n.id} style={multiItemStyle(selected.includes(n.id))} onClick={() => onToggle(n.id)}>
                 {nodeLabel(n)}
               </div>
             ))}
@@ -148,6 +147,8 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
       })}
     </div>
   )
+
+  const advancedCount = mustIncludeNodes.length + mustAvoidNodes.length + mustAvoidSegs.length + mustIncludeSegs.length
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -173,37 +174,68 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
         </select>
       </div>
 
-      <div>
-        <label style={labelStyle}>Must Include Nodes</label>
-        {renderGroupedMulti(
-          [startNode, endNode],
-          mustInclude,
-          id => toggleMulti(id, mustInclude, setMustInclude),
-        )}
-      </div>
+      {/* Advanced Constraints */}
+      <div style={{ borderRadius: 6, border: `1px solid ${t.border}`, overflow: 'hidden' }}>
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen(o => !o)}
+          style={{
+            width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            padding: '8px 10px', background: t.bgDeep, border: 'none', cursor: 'pointer',
+            color: t.textMuted, fontSize: 11, fontWeight: 700,
+            textTransform: 'uppercase', letterSpacing: '0.06em',
+          }}
+        >
+          <span>Advanced Constraints</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {advancedCount > 0 && (
+              <span style={{
+                fontSize: 10, fontWeight: 700, color: t.blue,
+                background: t.bgActiveSort, borderRadius: 10,
+                padding: '1px 6px',
+              }}>
+                {advancedCount}
+              </span>
+            )}
+            <span style={{ fontSize: 10, color: t.textFaint, transition: 'transform 0.2s', display: 'inline-block', transform: advancedOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▾</span>
+          </span>
+        </button>
 
-      <div>
-        <label style={labelStyle}>Must Avoid Nodes</label>
-        {renderGroupedMulti(
-          [startNode, endNode],
-          mustAvoidNodes,
-          id => toggleMulti(id, mustAvoidNodes, setMustAvoidNodes),
-        )}
-      </div>
-
-      <div>
-        <label style={labelStyle}>Must Avoid Segments</label>
-        <div style={multiBoxStyle}>
-          {segments.map(s => (
-            <div
-              key={s.id}
-              style={multiItemStyle(mustAvoidSegs.includes(s.id))}
-              onClick={() => toggleMulti(s.id, mustAvoidSegs, setMustAvoidSegs)}
-            >
-              {s.name}
+        {advancedOpen && (
+          <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: 10, borderTop: `1px solid ${t.border}` }}>
+            <div>
+              <label style={labelStyle}>Must Include Nodes</label>
+              {renderGroupedMulti([startNode, endNode], mustIncludeNodes, id => toggleMulti(id, mustIncludeNodes, setMustIncludeNodes))}
             </div>
-          ))}
-        </div>
+
+            <div>
+              <label style={labelStyle}>Must Avoid Nodes</label>
+              {renderGroupedMulti([startNode, endNode], mustAvoidNodes, id => toggleMulti(id, mustAvoidNodes, setMustAvoidNodes))}
+            </div>
+
+            <div>
+              <label style={labelStyle}>Must Avoid Segments</label>
+              <div style={multiBoxStyle}>
+                {segments.map(s => (
+                  <div key={s.id} style={multiItemStyle(mustAvoidSegs.includes(s.id))} onClick={() => toggleMulti(s.id, mustAvoidSegs, setMustAvoidSegs)}>
+                    {s.name}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Must Include Segments</label>
+              <div style={multiBoxStyle}>
+                {segments.map(s => (
+                  <div key={s.id} style={multiItemStyle(mustIncludeSegs.includes(s.id))} onClick={() => toggleMulti(s.id, mustIncludeSegs, setMustIncludeSegs)}>
+                    {s.name}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <button

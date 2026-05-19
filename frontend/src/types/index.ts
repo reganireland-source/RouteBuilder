@@ -62,6 +62,7 @@ export interface RouteRequest {
   must_include_nodes: string[]
   must_avoid_nodes: string[]
   must_avoid_segments: string[]
+  must_include_segments: string[]
   diversity: DiversityType
 }
 

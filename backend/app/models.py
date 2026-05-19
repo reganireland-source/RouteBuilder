@@ -68,6 +68,7 @@ class RouteRequest(BaseModel):
     must_include_nodes: list[str] = []
     must_avoid_nodes: list[str] = []
     must_avoid_segments: list[str] = []
+    must_include_segments: list[str] = []
     diversity: DiversityType = DiversityType.none
 
 
