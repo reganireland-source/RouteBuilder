@@ -11,22 +11,31 @@ interface Props {
   capacity: SegmentCapacity[]
 }
 
-type SortKey = 'hops' | 'latency' | 'availability' | 'cost'
+type SortKey = 'hops' | 'latency' | 'availability' | 'cost' | 'capacity'
 
 const SORT_OPTIONS: { key: SortKey; icon: string; label: string; dir: 'asc' | 'desc' }[] = [
   { key: 'hops',         icon: '⬡',  label: 'Hops',         dir: 'asc'  },
   { key: 'latency',      icon: '⚡', label: 'Latency',      dir: 'asc'  },
-  { key: 'availability', icon: '🛡', label: 'Availability', dir: 'desc' },
+  { key: 'availability', icon: '🛡', label: 'Avail',        dir: 'desc' },
   { key: 'cost',         icon: '◆',  label: 'Cost',         dir: 'asc'  },
+  { key: 'capacity',     icon: '◈',  label: 'Capacity',     dir: 'desc' },
 ]
 
-function sortRoutes(routes: Route[], key: SortKey): Route[] {
+function estimatedCapacity(route: Route, capacityById: Record<string, SegmentCapacity>): number {
+  const wetCaps = route.segments
+    .filter(s => s.type === 'wet')
+    .map(s => capacityById[s.segment_id]?.available_capacity_t ?? Infinity)
+  return wetCaps.length > 0 ? Math.min(...wetCaps) : 0
+}
+
+function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, SegmentCapacity>): Route[] {
   return [...routes].sort((a, b) => {
     switch (key) {
       case 'hops':         return (a.nodes.length - 1) - (b.nodes.length - 1)
-      case 'latency':      return ((a as any).total_latency ?? 0) - ((b as any).total_latency ?? 0)
+      case 'latency':      return a.total_latency - b.total_latency
       case 'availability': return b.end_to_end_reliability - a.end_to_end_reliability
       case 'cost':         return a.total_cost - b.total_cost
+      case 'capacity':     return estimatedCapacity(b, capacityById) - estimatedCapacity(a, capacityById)
     }
   })
 }
@@ -41,14 +50,14 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
   }
 
   const sorted = {
-    primary: sortRoutes(primaryRoutes, sortKey),
-    diverse:  sortRoutes(diverseRoutes,  sortKey),
+    primary: sortRoutes(primaryRoutes, sortKey, capacityById),
+    diverse:  sortRoutes(diverseRoutes,  sortKey, capacityById),
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {/* Sort bar */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+      <div style={{ display: 'flex', gap: 5, marginBottom: 4 }}>
         {SORT_OPTIONS.map(opt => {
           const active = sortKey === opt.key
           return (
@@ -75,7 +84,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
                 transition: 'all 0.15s',
               }}
             >
-              <span style={{ fontSize: 16, lineHeight: 1 }}>{opt.icon}</span>
+              <span style={{ fontSize: 15, lineHeight: 1 }}>{opt.icon}</span>
               <span>{opt.label}</span>
               <span style={{ fontSize: 9, opacity: 0.7 }}>
                 {opt.dir === 'asc' ? '↑ least' : '↓ most'}
@@ -128,6 +137,8 @@ function RouteCard({
 
   const wetSystems = [...new Set(route.segments.filter(s => s.type === 'wet').map(s => s.system_id))]
   const reliabilityPct = (route.end_to_end_reliability * 100).toFixed(3)
+  const estCap = estimatedCapacity(route, capacityById)
+  const estCapColor = estCap < 0.5 ? '#f38ba8' : estCap < 1.0 ? '#fab387' : '#a6e3a1'
 
   return (
     <div
@@ -154,15 +165,25 @@ function RouteCard({
         </span>
       </div>
 
-      <div style={{ fontSize: 11, color: '#cdd6f4', marginBottom: 4 }}>
+      <div style={{ fontSize: 11, color: '#cdd6f4', marginBottom: 6 }}>
         {route.nodes.map(id => nodesById[id]?.name ?? id).join(' → ')}
       </div>
 
-      <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#a6adc8' }}>
+      <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#a6adc8', marginBottom: 5 }}>
         <span>Cost: <strong style={{ color: '#cdd6f4' }}>{route.total_cost}</strong></span>
         <span>{route.total_length_km.toLocaleString()} km</span>
-        <span>Latency: <strong style={{ color: '#cdd6f4' }}>{(route as any).total_latency} ms</strong></span>
+        <span>Latency: <strong style={{ color: '#cdd6f4' }}>{route.total_latency} ms</strong></span>
         <span>Avail: <strong style={{ color: '#cdd6f4' }}>{reliabilityPct}%</strong></span>
+      </div>
+
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        padding: '4px 8px', borderRadius: 4, background: '#11111b',
+        border: '1px solid #313244', fontSize: 11,
+      }}>
+        <span style={{ color: '#6c7086' }}>◈ Est. Capacity</span>
+        <strong style={{ color: estCapColor }}>{estCap.toFixed(1)}T</strong>
+        <span style={{ color: '#45475a', fontSize: 10 }}>available (bottleneck wet segment)</span>
       </div>
 
       {hovered && createPortal(
@@ -170,7 +191,7 @@ function RouteCard({
           onClick={e => e.stopPropagation()}
           style={{
             position: 'fixed', top: tooltipPos.top, left: tooltipPos.left, zIndex: 9999,
-            width: 280, background: '#1e1e2e', border: '1px solid #45475a',
+            width: 300, background: '#1e1e2e', border: '1px solid #45475a',
             borderRadius: 6, padding: '10px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
             fontFamily: 'system-ui, sans-serif', pointerEvents: 'none',
           }}

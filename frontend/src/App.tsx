@@ -57,7 +57,7 @@ export default function App() {
     <div style={{ display: 'flex', height: '100vh', background: '#1e1e2e', color: '#cdd6f4', fontFamily: 'system-ui, sans-serif' }}>
       {/* Sidebar */}
       <div style={{
-        width: 320, flexShrink: 0, display: 'flex', flexDirection: 'column',
+        width: 420, flexShrink: 0, display: 'flex', flexDirection: 'column',
         background: '#181825', borderRight: '1px solid #313244', overflowY: 'auto',
       }}>
         <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid #313244' }}>
