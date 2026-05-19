@@ -5,8 +5,6 @@ interface Props {
   nodes: CableNode[]
   segments: CableSegment[]
   selectedRoutes: Route[]
-  primaryColor?: string
-  diverseColor?: string
 }
 
 const ROUTE_COLORS: Record<number, string> = {
