@@ -1,0 +1,30 @@
+[
+  {
+    "node_id": "GUM",
+    "disallowed_pairs": [
+      ["PPC1", "AAG"],
+      ["AAG", "PPC1"]
+    ]
+  },
+  {
+    "node_id": "SIN",
+    "disallowed_pairs": [
+      ["SMW3", "SMW4"],
+      ["SMW4", "SMW3"]
+    ]
+  },
+  {
+    "node_id": "BOM",
+    "disallowed_pairs": [
+      ["SMW3", "INDIGO_W"],
+      ["INDIGO_W", "SMW3"]
+    ]
+  },
+  {
+    "node_id": "HAW",
+    "disallowed_pairs": [
+      ["PPC1", "AAG"],
+      ["AAG", "PPC1"]
+    ]
+  }
+]

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "SXCS",
+    "name": "Southern Cross Cable System",
+    "description": "Transpacific cable connecting Australia and New Zealand to the United States via Hawaii"
+  },
+  {
+    "id": "AJC",
+    "name": "Australia-Japan Cable",
+    "description": "Cable connecting Australia to Japan via Guam"
+  },
+  {
+    "id": "PPC1",
+    "name": "PIPE Pacific Cable-1",
+    "description": "Cable connecting Australia to Guam and Hawaii"
+  },
+  {
+    "id": "TGA",
+    "name": "Tasman Global Access",
+    "description": "Cable connecting Australia and New Zealand"
+  },
+  {
+    "id": "SMW3",
+    "name": "SEA-ME-WE 3",
+    "description": "Southeast Asia - Middle East - Western Europe 3, connecting Asia to Europe"
+  },
+  {
+    "id": "SMW4",
+    "name": "SEA-ME-WE 4",
+    "description": "Southeast Asia - Middle East - Western Europe 4, connecting Asia to Europe"
+  },
+  {
+    "id": "AAG",
+    "name": "Asia America Gateway",
+    "description": "Cable connecting Southeast Asia to the United States via Guam and Hawaii"
+  },
+  {
+    "id": "INDIGO_C",
+    "name": "Indigo Central",
+    "description": "Cable connecting Australia to Singapore via Indonesia"
+  },
+  {
+    "id": "INDIGO_W",
+    "name": "Indigo West",
+    "description": "Cable connecting Australia to India via Singapore"
+  },
+  {
+    "id": "APG",
+    "name": "Asia Pacific Gateway",
+    "description": "Cable connecting Japan, Korea, Taiwan, Hong Kong, and Southeast Asia"
+  },
+  {
+    "id": "EAC",
+    "name": "East Asia Crossing",
+    "description": "Cable connecting Japan, Korea, and Southeast Asia"
+  },
+  {
+    "id": "TERRESTRIAL",
+    "name": "Terrestrial",
+    "description": "Terrestrial fibre segments"
+  }
+]

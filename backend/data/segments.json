@@ -1,0 +1,48 @@
+[
+  { "id": "SXCS-SYD-AKL", "name": "SXCS Sydney–Auckland", "system_id": "SXCS", "start_node_id": "SYD", "end_node_id": "AKL", "type": "wet", "length_km": 2150, "reliability": 0.9995, "cost_weight": 8, "ownership": "owned" },
+  { "id": "SXCS-AKL-HAW", "name": "SXCS Auckland–Hawaii", "system_id": "SXCS", "start_node_id": "AKL", "end_node_id": "HAW", "type": "wet", "length_km": 7830, "reliability": 0.9992, "cost_weight": 22, "ownership": "owned" },
+  { "id": "SXCS-SYD-HAW", "name": "SXCS Sydney–Hawaii (direct)", "system_id": "SXCS", "start_node_id": "SYD", "end_node_id": "HAW", "type": "wet", "length_km": 8900, "reliability": 0.9990, "cost_weight": 26, "ownership": "owned" },
+  { "id": "SXCS-HAW-LAX", "name": "SXCS Hawaii–Los Angeles", "system_id": "SXCS", "start_node_id": "HAW", "end_node_id": "LAX", "type": "wet", "length_km": 4150, "reliability": 0.9994, "cost_weight": 12, "ownership": "owned" },
+
+  { "id": "TGA-SYD-AKL", "name": "TGA Sydney–Auckland", "system_id": "TGA", "start_node_id": "SYD", "end_node_id": "AKL", "type": "wet", "length_km": 2230, "reliability": 0.9994, "cost_weight": 9, "ownership": "owned" },
+
+  { "id": "AJC-SYD-GUM", "name": "AJC Sydney–Guam", "system_id": "AJC", "start_node_id": "SYD", "end_node_id": "GUM", "type": "wet", "length_km": 5200, "reliability": 0.9993, "cost_weight": 16, "ownership": "owned" },
+  { "id": "AJC-GUM-TYO", "name": "AJC Guam–Tokyo", "system_id": "AJC", "start_node_id": "GUM", "end_node_id": "TYO", "type": "wet", "length_km": 2700, "reliability": 0.9995, "cost_weight": 10, "ownership": "owned" },
+  { "id": "AJC-GUM-OSA", "name": "AJC Guam–Osaka", "system_id": "AJC", "start_node_id": "GUM", "end_node_id": "OSA", "type": "wet", "length_km": 2850, "reliability": 0.9994, "cost_weight": 11, "ownership": "owned" },
+
+  { "id": "PPC1-SYD-GUM", "name": "PPC-1 Sydney–Guam", "system_id": "PPC1", "start_node_id": "SYD", "end_node_id": "GUM", "type": "wet", "length_km": 5350, "reliability": 0.9991, "cost_weight": 17, "ownership": "iru" },
+  { "id": "PPC1-GUM-HAW", "name": "PPC-1 Guam–Hawaii", "system_id": "PPC1", "start_node_id": "GUM", "end_node_id": "HAW", "type": "wet", "length_km": 5500, "reliability": 0.9990, "cost_weight": 18, "ownership": "iru" },
+
+  { "id": "AAG-SIN-HKG", "name": "AAG Singapore–Hong Kong", "system_id": "AAG", "start_node_id": "SIN", "end_node_id": "HKG", "type": "wet", "length_km": 2600, "reliability": 0.9993, "cost_weight": 10, "ownership": "consortium" },
+  { "id": "AAG-HKG-MNL", "name": "AAG Hong Kong–Manila", "system_id": "AAG", "start_node_id": "HKG", "end_node_id": "MNL", "type": "wet", "length_km": 900, "reliability": 0.9995, "cost_weight": 5, "ownership": "consortium" },
+  { "id": "AAG-MNL-GUM", "name": "AAG Manila–Guam", "system_id": "AAG", "start_node_id": "MNL", "end_node_id": "GUM", "type": "wet", "length_km": 2600, "reliability": 0.9992, "cost_weight": 10, "ownership": "consortium" },
+  { "id": "AAG-GUM-HAW", "name": "AAG Guam–Hawaii", "system_id": "AAG", "start_node_id": "GUM", "end_node_id": "HAW", "type": "wet", "length_km": 5500, "reliability": 0.9990, "cost_weight": 18, "ownership": "consortium" },
+  { "id": "AAG-HAW-LAX", "name": "AAG Hawaii–Los Angeles", "system_id": "AAG", "start_node_id": "HAW", "end_node_id": "LAX", "type": "wet", "length_km": 4150, "reliability": 0.9994, "cost_weight": 12, "ownership": "consortium" },
+
+  { "id": "INDIGO_C-PER-JAK", "name": "Indigo Central Perth–Jakarta", "system_id": "INDIGO_C", "start_node_id": "PER", "end_node_id": "JAK", "type": "wet", "length_km": 2900, "reliability": 0.9994, "cost_weight": 11, "ownership": "owned" },
+  { "id": "INDIGO_C-JAK-SIN", "name": "Indigo Central Jakarta–Singapore", "system_id": "INDIGO_C", "start_node_id": "JAK", "end_node_id": "SIN", "type": "wet", "length_km": 1100, "reliability": 0.9996, "cost_weight": 5, "ownership": "owned" },
+  { "id": "INDIGO_W-SIN-BOM", "name": "Indigo West Singapore–Mumbai", "system_id": "INDIGO_W", "start_node_id": "SIN", "end_node_id": "BOM", "type": "wet", "length_km": 4200, "reliability": 0.9992, "cost_weight": 15, "ownership": "owned" },
+  { "id": "INDIGO_W-PER-SIN", "name": "Indigo West Perth–Singapore", "system_id": "INDIGO_W", "start_node_id": "PER", "end_node_id": "SIN", "type": "wet", "length_km": 3900, "reliability": 0.9993, "cost_weight": 14, "ownership": "owned" },
+
+  { "id": "SMW3-SIN-BOM", "name": "SMW3 Singapore–Mumbai", "system_id": "SMW3", "start_node_id": "SIN", "end_node_id": "BOM", "type": "wet", "length_km": 4200, "reliability": 0.9988, "cost_weight": 16, "ownership": "consortium" },
+  { "id": "SMW3-BOM-DJI", "name": "SMW3 Mumbai–Djibouti", "system_id": "SMW3", "start_node_id": "BOM", "end_node_id": "DJI", "type": "wet", "length_km": 3100, "reliability": 0.9987, "cost_weight": 13, "ownership": "consortium" },
+  { "id": "SMW3-DJI-DXB", "name": "SMW3 Djibouti–Dubai", "system_id": "SMW3", "start_node_id": "DJI", "end_node_id": "DXB", "type": "wet", "length_km": 1700, "reliability": 0.9989, "cost_weight": 8, "ownership": "consortium" },
+  { "id": "SMW3-DXB-LON", "name": "SMW3 Dubai–London", "system_id": "SMW3", "start_node_id": "DXB", "end_node_id": "LON", "type": "wet", "length_km": 6200, "reliability": 0.9985, "cost_weight": 22, "ownership": "consortium" },
+
+  { "id": "SMW4-SIN-BOM", "name": "SMW4 Singapore–Mumbai", "system_id": "SMW4", "start_node_id": "SIN", "end_node_id": "BOM", "type": "wet", "length_km": 4100, "reliability": 0.9991, "cost_weight": 15, "ownership": "consortium" },
+  { "id": "SMW4-BOM-DXB", "name": "SMW4 Mumbai–Dubai", "system_id": "SMW4", "start_node_id": "BOM", "end_node_id": "DXB", "type": "wet", "length_km": 1900, "reliability": 0.9992, "cost_weight": 9, "ownership": "consortium" },
+  { "id": "SMW4-DXB-LON", "name": "SMW4 Dubai–London", "system_id": "SMW4", "start_node_id": "DXB", "end_node_id": "LON", "type": "wet", "length_km": 6100, "reliability": 0.9988, "cost_weight": 21, "ownership": "consortium" },
+
+  { "id": "APG-HKG-TPE", "name": "APG Hong Kong–Taipei", "system_id": "APG", "start_node_id": "HKG", "end_node_id": "TPE", "type": "wet", "length_km": 750, "reliability": 0.9994, "cost_weight": 4, "ownership": "consortium" },
+  { "id": "APG-TPE-TYO", "name": "APG Taipei–Tokyo", "system_id": "APG", "start_node_id": "TPE", "end_node_id": "TYO", "type": "wet", "length_km": 2200, "reliability": 0.9993, "cost_weight": 9, "ownership": "consortium" },
+  { "id": "APG-SIN-HKG", "name": "APG Singapore–Hong Kong", "system_id": "APG", "start_node_id": "SIN", "end_node_id": "HKG", "type": "wet", "length_km": 2600, "reliability": 0.9992, "cost_weight": 11, "ownership": "consortium" },
+
+  { "id": "EAC-TYO-ICN", "name": "EAC Tokyo–Seoul", "system_id": "EAC", "start_node_id": "TYO", "end_node_id": "ICN", "type": "wet", "length_km": 1100, "reliability": 0.9996, "cost_weight": 5, "ownership": "consortium" },
+  { "id": "EAC-ICN-HKG", "name": "EAC Seoul–Hong Kong", "system_id": "EAC", "start_node_id": "ICN", "end_node_id": "HKG", "type": "wet", "length_km": 2800, "reliability": 0.9993, "cost_weight": 11, "ownership": "consortium" },
+
+  { "id": "TERR-SYD-MEL", "name": "Terrestrial Sydney–Melbourne", "system_id": "TERRESTRIAL", "start_node_id": "SYD", "end_node_id": "MEL", "type": "terrestrial", "length_km": 880, "reliability": 0.9990, "cost_weight": 3, "ownership": "owned" },
+  { "id": "TERR-SYD-BRI", "name": "Terrestrial Sydney–Brisbane", "system_id": "TERRESTRIAL", "start_node_id": "SYD", "end_node_id": "BRI", "type": "terrestrial", "length_km": 920, "reliability": 0.9991, "cost_weight": 3, "ownership": "owned" },
+  { "id": "TERR-MEL-PER", "name": "Terrestrial Melbourne–Perth", "system_id": "TERRESTRIAL", "start_node_id": "MEL", "end_node_id": "PER", "type": "terrestrial", "length_km": 3440, "reliability": 0.9985, "cost_weight": 8, "ownership": "owned" },
+  { "id": "TERR-LON-FRA", "name": "Terrestrial London–Frankfurt", "system_id": "TERRESTRIAL", "start_node_id": "LON", "end_node_id": "FRA", "type": "terrestrial", "length_km": 760, "reliability": 0.9993, "cost_weight": 3, "ownership": "iru" },
+  { "id": "TERR-SIN-KUL", "name": "Terrestrial Singapore–Kuala Lumpur", "system_id": "TERRESTRIAL", "start_node_id": "SIN", "end_node_id": "KUL", "type": "terrestrial", "length_km": 350, "reliability": 0.9992, "cost_weight": 2, "ownership": "iru" }
+]
