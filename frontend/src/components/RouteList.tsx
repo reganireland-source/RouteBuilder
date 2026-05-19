@@ -21,11 +21,15 @@ const SORT_OPTIONS: { key: SortKey; icon: string; label: string; dir: 'asc' | 'd
   { key: 'capacity',     icon: '◈',  label: 'Capacity',     dir: 'desc' },
 ]
 
-function estimatedCapacity(route: Route, capacityById: Record<string, SegmentCapacity>): number {
-  const wetCaps = route.segments
-    .filter(s => s.type === 'wet')
-    .map(s => capacityById[s.segment_id]?.available_capacity_t ?? Infinity)
-  return wetCaps.length > 0 ? Math.min(...wetCaps) : 0
+function estimatedCapacity(route: Route, capacityById: Record<string, SegmentCapacity>): { cap: number; systemId: string | null } {
+  const wetSegs = route.segments.filter(s => s.type === 'wet')
+  if (wetSegs.length === 0) return { cap: 0, systemId: null }
+  let min = Infinity, bottleneck: string | null = null
+  for (const s of wetSegs) {
+    const avail = capacityById[s.segment_id]?.available_capacity_t ?? Infinity
+    if (avail < min) { min = avail; bottleneck = s.system_id }
+  }
+  return { cap: min === Infinity ? 0 : min, systemId: bottleneck }
 }
 
 function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, SegmentCapacity>): Route[] {
@@ -35,7 +39,7 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
       case 'latency':      return a.total_latency - b.total_latency
       case 'availability': return b.end_to_end_reliability - a.end_to_end_reliability
       case 'cost':         return a.total_cost - b.total_cost
-      case 'capacity':     return estimatedCapacity(b, capacityById) - estimatedCapacity(a, capacityById)
+      case 'capacity':     return estimatedCapacity(b, capacityById).cap - estimatedCapacity(a, capacityById).cap
     }
   })
 }
@@ -137,7 +141,7 @@ function RouteCard({
 
   const wetSystems = [...new Set(route.segments.filter(s => s.type === 'wet').map(s => s.system_id))]
   const reliabilityPct = (route.end_to_end_reliability * 100).toFixed(3)
-  const estCap = estimatedCapacity(route, capacityById)
+  const { cap: estCap, systemId: bottleneckId } = estimatedCapacity(route, capacityById)
   const estCapColor = estCap < 0.5 ? '#f38ba8' : estCap < 1.0 ? '#fab387' : '#a6e3a1'
 
   return (
@@ -183,7 +187,8 @@ function RouteCard({
       }}>
         <span style={{ color: '#6c7086' }}>◈ Est. Capacity</span>
         <strong style={{ color: estCapColor }}>{estCap.toFixed(1)}T</strong>
-        <span style={{ color: '#45475a', fontSize: 10 }}>available (bottleneck wet segment)</span>
+        <span style={{ color: '#45475a', fontSize: 10 }}>bottleneck:</span>
+        <span style={{ color: '#6c7086', fontSize: 10 }}>{bottleneckId ?? '—'}</span>
       </div>
 
       {hovered && createPortal(
