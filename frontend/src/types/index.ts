@@ -1,4 +1,4 @@
-export type NodeType = 'landing_station' | 'terrestrial_pop'
+export type NodeType = 'cls' | 'pop'
 export type SegmentType = 'wet' | 'terrestrial'
 export type Ownership = 'owned' | 'iru' | 'consortium'
 export type DiversityType = 'none' | 'wet' | 'terrestrial' | 'full'

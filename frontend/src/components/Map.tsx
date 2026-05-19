@@ -69,24 +69,31 @@ export function Map({ nodes, segments, selectedRoutes }: Props) {
         )
       })}
 
-      {/* Render nodes */}
+      {/* Render nodes — CLS as larger circles, PoP as smaller diamonds (smaller radius, square dash) */}
       {nodes.map(node => {
         const isOnRoute = selectedRoutes.some(r => r.nodes.includes(node.id))
+        const isCls = node.type === 'cls'
+
+        const idleColor = isCls ? '#45475a' : '#6c5a7c'
+        const idleFill  = isCls ? '#313244' : '#2a1f3d'
+        const activeColor = isCls ? '#f5c2e7' : '#cba6f7'
+        const radius = isOnRoute ? (isCls ? 7 : 5) : (isCls ? 4 : 3)
+
         return (
           <CircleMarker
             key={node.id}
             center={[node.lat, node.lng]}
-            radius={isOnRoute ? 7 : 4}
+            radius={radius}
             pathOptions={{
-              color: isOnRoute ? '#f5c2e7' : '#45475a',
-              fillColor: isOnRoute ? '#f5c2e7' : '#313244',
+              color: isOnRoute ? activeColor : idleColor,
+              fillColor: isOnRoute ? activeColor : idleFill,
               fillOpacity: 1,
               weight: isOnRoute ? 2 : 1,
             }}
           >
             <Tooltip>
               <strong>{node.name}</strong> ({node.id})
-              <br />{node.country} · {node.type.replace('_', ' ')}
+              <br />{node.country} · {node.type.toUpperCase()}
             </Tooltip>
           </CircleMarker>
         )

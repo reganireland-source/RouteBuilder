@@ -16,7 +16,9 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
   const [mustAvoidNodes, setMustAvoidNodes] = useState<string[]>([])
   const [mustAvoidSegs, setMustAvoidSegs] = useState<string[]>([])
 
-  const sortedNodes = [...nodes].sort((a, b) => a.name.localeCompare(b.name))
+  const clsNodes = [...nodes].filter(n => n.type === 'cls').sort((a, b) => a.name.localeCompare(b.name))
+  const popNodes = [...nodes].filter(n => n.type === 'pop').sort((a, b) => a.name.localeCompare(b.name))
+  const sortedNodes = [...clsNodes, ...popNodes]
 
   function toggleMulti(id: string, list: string[], setter: (v: string[]) => void) {
     setter(list.includes(id) ? list.filter(x => x !== id) : [...list, id])
@@ -58,9 +60,12 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
         <label style={labelStyle}>Origin</label>
         <select value={startNode} onChange={e => setStartNode(e.target.value)} style={selectStyle} required>
           <option value="">Select origin...</option>
-          {sortedNodes.map(n => (
-            <option key={n.id} value={n.id}>{n.name} ({n.id})</option>
-          ))}
+          <optgroup label="Cable Landing Stations (CLS)">
+            {clsNodes.map(n => <option key={n.id} value={n.id}>{n.name} ({n.id})</option>)}
+          </optgroup>
+          <optgroup label="Points of Presence (PoP)">
+            {popNodes.map(n => <option key={n.id} value={n.id}>{n.name} ({n.id})</option>)}
+          </optgroup>
         </select>
       </div>
 
@@ -68,9 +73,12 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
         <label style={labelStyle}>Destination</label>
         <select value={endNode} onChange={e => setEndNode(e.target.value)} style={selectStyle} required>
           <option value="">Select destination...</option>
-          {sortedNodes.map(n => (
-            <option key={n.id} value={n.id}>{n.name} ({n.id})</option>
-          ))}
+          <optgroup label="Cable Landing Stations (CLS)">
+            {clsNodes.map(n => <option key={n.id} value={n.id}>{n.name} ({n.id})</option>)}
+          </optgroup>
+          <optgroup label="Points of Presence (PoP)">
+            {popNodes.map(n => <option key={n.id} value={n.id}>{n.name} ({n.id})</option>)}
+          </optgroup>
         </select>
       </div>
 
@@ -95,6 +103,9 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
                 style={multiItemStyle(mustInclude.includes(n.id))}
                 onClick={() => toggleMulti(n.id, mustInclude, setMustInclude)}
               >
+                <span style={{ color: n.type === 'cls' ? '#89b4fa' : '#cba6f7', fontSize: 9, marginRight: 4 }}>
+                  {n.type.toUpperCase()}
+                </span>
                 {n.name} ({n.id})
               </div>
             ))}
@@ -112,6 +123,9 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
                 style={multiItemStyle(mustAvoidNodes.includes(n.id))}
                 onClick={() => toggleMulti(n.id, mustAvoidNodes, setMustAvoidNodes)}
               >
+                <span style={{ color: n.type === 'cls' ? '#89b4fa' : '#cba6f7', fontSize: 9, marginRight: 4 }}>
+                  {n.type.toUpperCase()}
+                </span>
                 {n.name} ({n.id})
               </div>
             ))}

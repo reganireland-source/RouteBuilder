@@ -4,8 +4,8 @@ from enum import Enum
 
 
 class NodeType(str, Enum):
-    landing_station = "landing_station"
-    terrestrial_pop = "terrestrial_pop"
+    cls = "cls"
+    pop = "pop"
 
 
 class SegmentType(str, Enum):

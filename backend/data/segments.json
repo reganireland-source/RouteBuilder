@@ -44,5 +44,13 @@
   { "id": "TERR-SYD-BRI", "name": "Terrestrial Sydney–Brisbane", "system_id": "TERRESTRIAL", "start_node_id": "SYD", "end_node_id": "BRI", "type": "terrestrial", "length_km": 920, "reliability": 0.9991, "cost_weight": 3, "ownership": "owned" },
   { "id": "TERR-MEL-PER", "name": "Terrestrial Melbourne–Perth", "system_id": "TERRESTRIAL", "start_node_id": "MEL", "end_node_id": "PER", "type": "terrestrial", "length_km": 3440, "reliability": 0.9985, "cost_weight": 8, "ownership": "owned" },
   { "id": "TERR-LON-FRA", "name": "Terrestrial London–Frankfurt", "system_id": "TERRESTRIAL", "start_node_id": "LON", "end_node_id": "FRA", "type": "terrestrial", "length_km": 760, "reliability": 0.9993, "cost_weight": 3, "ownership": "iru" },
-  { "id": "TERR-SIN-KUL", "name": "Terrestrial Singapore–Kuala Lumpur", "system_id": "TERRESTRIAL", "start_node_id": "SIN", "end_node_id": "KUL", "type": "terrestrial", "length_km": 350, "reliability": 0.9992, "cost_weight": 2, "ownership": "iru" }
+  { "id": "TERR-SIN-KUL", "name": "Terrestrial Singapore–Kuala Lumpur", "system_id": "TERRESTRIAL", "start_node_id": "SIN", "end_node_id": "KUL", "type": "terrestrial", "length_km": 350, "reliability": 0.9992, "cost_weight": 2, "ownership": "iru" },
+
+  { "id": "TERR-SYD-EQX", "name": "Terrestrial Sydney CLS–Equinix SY1 (southern duct)", "system_id": "TERRESTRIAL", "start_node_id": "SYD", "end_node_id": "SYD-EQX", "type": "terrestrial", "length_km": 12, "reliability": 0.9997, "cost_weight": 1, "ownership": "owned" },
+  { "id": "TERR-SYD-NDC", "name": "Terrestrial Sydney CLS–NextDC S1 (northern duct)", "system_id": "TERRESTRIAL", "start_node_id": "SYD", "end_node_id": "SYD-NDC", "type": "terrestrial", "length_km": 18, "reliability": 0.9996, "cost_weight": 1, "ownership": "iru" },
+  { "id": "TERR-SYD-XCONN", "name": "Terrestrial Equinix SY1–NextDC S1 (inter-PoP dark fibre)", "system_id": "TERRESTRIAL", "start_node_id": "SYD-EQX", "end_node_id": "SYD-NDC", "type": "terrestrial", "length_km": 14, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned" },
+
+  { "id": "TERR-TYO-POP", "name": "Terrestrial Tokyo CLS–Otemachi (single-threaded)", "system_id": "TERRESTRIAL", "start_node_id": "TYO", "end_node_id": "TYO-POP", "type": "terrestrial", "length_km": 35, "reliability": 0.9993, "cost_weight": 1, "ownership": "owned" },
+
+  { "id": "TERR-SIN-POP", "name": "Terrestrial Singapore CLS–Jurong East (single-threaded)", "system_id": "TERRESTRIAL", "start_node_id": "SIN", "end_node_id": "SIN-POP", "type": "terrestrial", "length_km": 20, "reliability": 0.9995, "cost_weight": 1, "ownership": "iru" }
 ]
