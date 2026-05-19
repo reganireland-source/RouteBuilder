@@ -62,7 +62,8 @@ export function Map({ nodes, segments, selectedRoutes, capacity }: Props) {
           >
             <Tooltip sticky>
               <strong>{seg.name}</strong>
-              <br />{seg.system_id} · {seg.type}
+              <br />{seg.system_id} · {seg.type} · {seg.ownership}
+              <br />{start.name} → {end.name}
               <br />{seg.length_km.toLocaleString()} km · {seg.latency} ms · Cost: {seg.cost_weight}
               {capacityById[seg.id] && (() => {
                 const cap = capacityById[seg.id]
