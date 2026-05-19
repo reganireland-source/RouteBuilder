@@ -17,38 +17,32 @@ const DIVERSITY_COLORS: Record<number, string> = {
 }
 
 /**
- * Split a geodesic segment into 1 or 2 polyline position arrays so that
- * Leaflet always draws the shortest-arc path and handles antimeridian crossings.
- *
- * Strategy:
- *  1. Normalise the end longitude so the delta is in (−180, +180].
- *  2. If the normalised end is outside [−180, 180] the line crosses ±180°;
- *     split it there, mirroring the crossing point onto the other side.
+ * Normalise a longitude for a Pacific-centred map view.
+ * Western Hemisphere longitudes (Americas, < −30°) are shifted +360°
+ * so they render to the RIGHT of the Pacific (e.g. LA −118° → 242°)
+ * rather than to the left of Europe, keeping all transpacific cables
+ * as single continuous lines without antimeridian splits.
+ */
+function normalizeLng(lng: number): number {
+  return lng < -30 ? lng + 360 : lng
+}
+
+/**
+ * Return Leaflet Polyline positions for a segment, always taking the
+ * shortest arc.  Both endpoints are first Pacific-normalised so that
+ * American nodes appear east of the antimeridian in the same world-copy
+ * as Asia/Pacific nodes.  The result is always a single array (no split).
  */
 function geoLines(
   lat1: number, lng1: number,
   lat2: number, lng2: number,
 ): [number, number][][] {
-  // Shortest-arc delta
-  let d = lng2 - lng1
-  while (d >  180) d -= 360
-  while (d < -180) d += 360
-  const adjLng2 = lng1 + d
-
-  // No antimeridian crossing
-  if (adjLng2 >= -180 && adjLng2 <= 180) {
-    return [[[lat1, lng1], [lat2, adjLng2]]]
-  }
-
-  // Crosses antimeridian — find crossing latitude by linear interpolation
-  const crossLng = adjLng2 > 180 ? 180 : -180
-  const t        = (crossLng - lng1) / (adjLng2 - lng1)
-  const crossLat = lat1 + t * (lat2 - lat1)
-
-  return [
-    [[lat1, lng1],         [crossLat,  crossLng]],
-    [[crossLat, -crossLng], [lat2,     lng2]],
-  ]
+  const nLng1 = normalizeLng(lng1)
+  const nLng2 = normalizeLng(lng2)
+  let d = nLng2 - nLng1
+  if (d >  180) d -= 360
+  if (d < -180) d += 360
+  return [[[lat1, nLng1], [lat2, nLng1 + d]]]
 }
 
 export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems }: Props) {
@@ -179,7 +173,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         return (
           <CircleMarker
             key={node.id}
-            center={[node.lat, node.lng]}
+            center={[node.lat, normalizeLng(node.lng)]}
             radius={radius}
             pathOptions={{
               color, fillColor, fillOpacity: isDimmed ? 0.15 : 1,
