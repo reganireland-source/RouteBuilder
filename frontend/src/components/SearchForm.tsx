@@ -157,9 +157,11 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
         <label style={labelStyle}>Diversity</label>
         <select value={diversity} onChange={e => setDiversity(e.target.value as DiversityType)} style={selectStyle}>
           <option value="none">None</option>
-          <option value="wet">Wet segment diversity</option>
-          <option value="terrestrial">Terrestrial diversity</option>
-          <option value="full">Full diversity</option>
+          <option value="terrestrial_origin">Terrestrial Diversity — Origin End Only</option>
+          <option value="terrestrial_destination">Terrestrial Diversity — Destination End Only</option>
+          <option value="terrestrial_both">Terrestrial Diversity — Both Ends</option>
+          <option value="wet">Wet Diversity</option>
+          <option value="full">Full Diversity</option>
         </select>
       </div>
 

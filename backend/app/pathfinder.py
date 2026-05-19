@@ -155,21 +155,36 @@ def find_routes(
     diverse_routes: list[Route] = []
 
     if diversity != DiversityType.none:
-        # Determine which segment types to exclude for the diverse path
-        primary_seg_ids = {s.segment_id for s in primary_route.segments}
+        # Identify origin-end and destination-end terrestrial segments
+        def end_terrestrial_ids(from_origin: bool) -> set[str]:
+            segs = primary_route.segments if from_origin else list(reversed(primary_route.segments))
+            result = set()
+            for s in segs:
+                if s.type == "terrestrial":
+                    result.add(s.segment_id)
+                else:
+                    break
+            return result
+
+        origin_terr = end_terrestrial_ids(from_origin=True)
+        dest_terr = end_terrestrial_ids(from_origin=False)
+
         edges_to_remove: list[tuple[str, str]] = []
 
-        for seg_id in primary_seg_ids:
-            seg = segments_by_id.get(seg_id)
-            if not seg:
+        for seg in primary_route.segments:
+            seg_id = seg.segment_id
+            full_seg = segments_by_id.get(seg_id)
+            if not full_seg:
                 continue
             include = (
                 diversity == DiversityType.full
                 or (diversity == DiversityType.wet and seg.type == "wet")
-                or (diversity == DiversityType.terrestrial and seg.type == "terrestrial")
+                or (diversity == DiversityType.terrestrial_origin and seg_id in origin_terr)
+                or (diversity == DiversityType.terrestrial_destination and seg_id in dest_terr)
+                or (diversity == DiversityType.terrestrial_both and seg_id in (origin_terr | dest_terr))
             )
             if include:
-                edges_to_remove.append((seg.start_node_id, seg.end_node_id))
+                edges_to_remove.append((full_seg.start_node_id, full_seg.end_node_id))
 
         diverse_G = working_G.copy()
         for u, v in edges_to_remove:

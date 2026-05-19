@@ -1,7 +1,7 @@
 export type NodeType = 'landing_station' | 'terrestrial_pop'
 export type SegmentType = 'wet' | 'terrestrial'
 export type Ownership = 'owned' | 'iru' | 'consortium'
-export type DiversityType = 'none' | 'wet' | 'terrestrial' | 'full'
+export type DiversityType = 'none' | 'terrestrial_origin' | 'terrestrial_destination' | 'terrestrial_both' | 'wet' | 'full'
 
 export interface CableNode {
   id: string

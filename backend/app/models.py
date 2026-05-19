@@ -21,8 +21,10 @@ class Ownership(str, Enum):
 
 class DiversityType(str, Enum):
     none = "none"
+    terrestrial_origin = "terrestrial_origin"
+    terrestrial_destination = "terrestrial_destination"
+    terrestrial_both = "terrestrial_both"
     wet = "wet"
-    terrestrial = "terrestrial"
     full = "full"
 
 
