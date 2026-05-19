@@ -10,27 +10,91 @@ interface Props {
   nodes: CableNode[]
 }
 
+type SortKey = 'hops' | 'latency' | 'availability' | 'cost'
+
+const SORT_OPTIONS: { key: SortKey; icon: string; label: string; dir: 'asc' | 'desc' }[] = [
+  { key: 'hops',         icon: '⬡',  label: 'Hops',         dir: 'asc'  },
+  { key: 'latency',      icon: '⚡', label: 'Latency',      dir: 'asc'  },
+  { key: 'availability', icon: '🛡', label: 'Availability', dir: 'desc' },
+  { key: 'cost',         icon: '◆',  label: 'Cost',         dir: 'asc'  },
+]
+
+function sortRoutes(routes: Route[], key: SortKey): Route[] {
+  return [...routes].sort((a, b) => {
+    switch (key) {
+      case 'hops':         return (a.nodes.length - 1) - (b.nodes.length - 1)
+      case 'latency':      return ((a as any).total_latency ?? 0) - ((b as any).total_latency ?? 0)
+      case 'availability': return b.end_to_end_reliability - a.end_to_end_reliability
+      case 'cost':         return a.total_cost - b.total_cost
+    }
+  })
+}
+
 export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes }: Props) {
+  const [sortKey, setSortKey] = useState<SortKey>('cost')
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
 
   if (primaryRoutes.length === 0 && diverseRoutes.length === 0) {
     return <p style={{ color: '#6c7086', fontSize: 13, padding: '8px 0' }}>No routes found.</p>
   }
 
+  const sorted = {
+    primary: sortRoutes(primaryRoutes, sortKey),
+    diverse:  sortRoutes(diverseRoutes,  sortKey),
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {primaryRoutes.length > 0 && (
+      {/* Sort bar */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+        {SORT_OPTIONS.map(opt => {
+          const active = sortKey === opt.key
+          return (
+            <button
+              key={opt.key}
+              onClick={() => setSortKey(opt.key)}
+              title={`Sort by ${opt.label} (${opt.dir === 'asc' ? 'lowest first' : 'highest first'})`}
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 3,
+                padding: '6px 4px',
+                borderRadius: 6,
+                border: `1px solid ${active ? '#89b4fa' : '#313244'}`,
+                background: active ? '#1e3a5f' : '#181825',
+                color: active ? '#89b4fa' : '#6c7086',
+                cursor: 'pointer',
+                fontSize: 10,
+                fontWeight: active ? 700 : 400,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                transition: 'all 0.15s',
+              }}
+            >
+              <span style={{ fontSize: 16, lineHeight: 1 }}>{opt.icon}</span>
+              <span>{opt.label}</span>
+              <span style={{ fontSize: 9, opacity: 0.7 }}>
+                {opt.dir === 'asc' ? '↑ least' : '↓ most'}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      {sorted.primary.length > 0 && (
         <div>
           <div style={sectionLabelStyle}>Primary Routes</div>
-          {primaryRoutes.map(r => (
+          {sorted.primary.map(r => (
             <RouteCard key={r.id} route={r} selected={selectedRouteIds.includes(r.id)} onSelect={onSelectRoute} nodesById={nodesById} color="#89b4fa" />
           ))}
         </div>
       )}
-      {diverseRoutes.length > 0 && (
+      {sorted.diverse.length > 0 && (
         <div>
           <div style={sectionLabelStyle}>Diverse Routes</div>
-          {diverseRoutes.map(r => (
+          {sorted.diverse.map(r => (
             <RouteCard key={r.id} route={r} selected={selectedRouteIds.includes(r.id)} onSelect={onSelectRoute} nodesById={nodesById} color="#a6e3a1" />
           ))}
         </div>
@@ -94,7 +158,7 @@ function RouteCard({
       <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#a6adc8' }}>
         <span>Cost: <strong style={{ color: '#cdd6f4' }}>{route.total_cost}</strong></span>
         <span>{route.total_length_km.toLocaleString()} km</span>
-        <span>Latency: <strong style={{ color: '#cdd6f4' }}>{route.total_latency} ms</strong></span>
+        <span>Latency: <strong style={{ color: '#cdd6f4' }}>{(route as any).total_latency} ms</strong></span>
         <span>Avail: <strong style={{ color: '#cdd6f4' }}>{reliabilityPct}%</strong></span>
       </div>
 
@@ -123,7 +187,7 @@ function RouteCard({
               </div>
               <div style={{ display: 'flex', gap: 10, fontSize: 10, color: '#a6adc8', marginTop: 2 }}>
                 <span>{seg.length_km.toLocaleString()} km</span>
-                <span>{seg.latency} ms</span>
+                <span>{(seg as any).latency} ms</span>
                 <span>Cost: {seg.cost_weight}</span>
                 <span>Avail: {(seg.reliability * 100).toFixed(2)}%</span>
               </div>
