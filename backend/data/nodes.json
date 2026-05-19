@@ -521,9 +521,9 @@
   },
   {
     "id": "JGABU1",
-    "name": "JGA Branching Unit (Timor Sea)",
-    "lat": -13.5,
-    "lng": 131.0,
+    "name": "JGA Branching Unit (Coral Sea)",
+    "lat": -22.0,
+    "lng": 156.0,
     "type": "branching_unit",
     "country": "AU"
   }

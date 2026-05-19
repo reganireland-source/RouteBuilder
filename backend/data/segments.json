@@ -1540,36 +1540,36 @@
     "start_node_id": "GUM1",
     "end_node_id": "JGABU1",
     "type": "wet",
-    "length_km": 2900,
-    "reliability": 0.9992,
-    "cost_weight": 9,
+    "length_km": 4500,
+    "reliability": 0.999,
+    "cost_weight": 14,
     "ownership": "consortium",
-    "latency": 14.5
+    "latency": 22.5
   },
   {
-    "id": "JGA-BU1-DAR",
-    "name": "JGA Branching Unit\u2013Darwin",
+    "id": "JGA-BU1-SYD",
+    "name": "JGA Branching Unit\u2013Sydney (Brookvale)",
     "system_id": "JGA",
     "start_node_id": "JGABU1",
-    "end_node_id": "DAR1",
+    "end_node_id": "SYD1",
     "type": "wet",
-    "length_km": 700,
+    "length_km": 1800,
+    "reliability": 0.9995,
+    "cost_weight": 6,
+    "ownership": "consortium",
+    "latency": 9.0
+  },
+  {
+    "id": "JGA-BU1-BRI",
+    "name": "JGA Branching Unit\u2013Maroochydore (QLD)",
+    "system_id": "JGA",
+    "start_node_id": "JGABU1",
+    "end_node_id": "BRI1",
+    "type": "wet",
+    "length_km": 800,
     "reliability": 0.9997,
-    "cost_weight": 2,
+    "cost_weight": 3,
     "ownership": "consortium",
-    "latency": 3.5
-  },
-  {
-    "id": "JGA-BU1-PER",
-    "name": "JGA Branching Unit\u2013Perth",
-    "system_id": "JGA",
-    "start_node_id": "JGABU1",
-    "end_node_id": "PER1",
-    "type": "wet",
-    "length_km": 2600,
-    "reliability": 0.9993,
-    "cost_weight": 8,
-    "ownership": "consortium",
-    "latency": 13.0
+    "latency": 4.0
   }
 ]
