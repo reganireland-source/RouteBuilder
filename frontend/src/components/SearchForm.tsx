@@ -8,6 +8,50 @@ interface Props {
   loading: boolean
 }
 
+const COUNTRY_NAMES: Record<string, string> = {
+  AE: 'United Arab Emirates',
+  AU: 'Australia',
+  DE: 'Germany',
+  DJ: 'Djibouti',
+  GB: 'United Kingdom',
+  GU: 'Guam',
+  HK: 'Hong Kong',
+  ID: 'Indonesia',
+  IN: 'India',
+  JP: 'Japan',
+  KR: 'South Korea',
+  MNL: 'Philippines',
+  MY: 'Malaysia',
+  NZ: 'New Zealand',
+  PH: 'Philippines',
+  SG: 'Singapore',
+  TW: 'Taiwan',
+  US: 'United States',
+}
+
+function countryName(code: string) {
+  return COUNTRY_NAMES[code] ?? code
+}
+
+function groupByCountry(nodes: CableNode[]) {
+  const map = new Map<string, CableNode[]>()
+  for (const n of nodes) {
+    const existing = map.get(n.country) ?? []
+    existing.push(n)
+    map.set(n.country, existing)
+  }
+  return Array.from(map.entries())
+    .sort(([a], [b]) => countryName(a).localeCompare(countryName(b)))
+    .map(([code, group]) => ({
+      code,
+      label: countryName(code),
+      nodes: group.sort((a, b) => a.name.localeCompare(b.name)),
+    }))
+}
+
+const nodeLabel = (n: CableNode) =>
+  `${n.name} (${n.id}) [${n.type === 'landing_station' ? 'CLS' : 'POP'}]`
+
 export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
   const [startNode, setStartNode] = useState('')
   const [endNode, setEndNode] = useState('')
@@ -16,10 +60,7 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
   const [mustAvoidNodes, setMustAvoidNodes] = useState<string[]>([])
   const [mustAvoidSegs, setMustAvoidSegs] = useState<string[]>([])
 
-  const sortedNodes = [...nodes].sort((a, b) => a.name.localeCompare(b.name))
-
-  const nodeLabel = (n: typeof nodes[0]) =>
-    `${n.name} (${n.id}) [${n.type === 'landing_station' ? 'CLS' : 'POP'}]`
+  const groups = groupByCountry(nodes)
 
   function toggleMulti(id: string, list: string[], setter: (v: string[]) => void) {
     setter(list.includes(id) ? list.filter(x => x !== id) : [...list, id])
@@ -50,31 +91,67 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
   }
 
   const multiItemStyle = (selected: boolean): React.CSSProperties => ({
-    padding: '3px 8px', cursor: 'pointer', fontSize: 12,
+    padding: '3px 8px 3px 16px', cursor: 'pointer', fontSize: 12,
     background: selected ? '#313244' : 'transparent',
     color: selected ? '#89b4fa' : '#cdd6f4',
   })
+
+  const groupHeaderStyle: React.CSSProperties = {
+    padding: '4px 8px 2px', fontSize: 10, fontWeight: 700,
+    color: '#6c7086', textTransform: 'uppercase', letterSpacing: '0.06em',
+    borderTop: '1px solid #313244', marginTop: 2,
+  }
+
+  const renderGroupedSelect = (placeholder: string, value: string, onChange: (v: string) => void) => (
+    <select value={value} onChange={e => onChange(e.target.value)} style={selectStyle} required>
+      <option value="">{placeholder}</option>
+      {groups.map(g => (
+        <optgroup key={g.code} label={g.label}>
+          {g.nodes.map(n => (
+            <option key={n.id} value={n.id}>{nodeLabel(n)}</option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
+  )
+
+  const renderGroupedMulti = (
+    exclude: string[],
+    selected: string[],
+    onToggle: (id: string) => void,
+  ) => (
+    <div style={multiBoxStyle}>
+      {groups.map(g => {
+        const visible = g.nodes.filter(n => !exclude.includes(n.id))
+        if (visible.length === 0) return null
+        return (
+          <div key={g.code}>
+            <div style={groupHeaderStyle}>{g.label}</div>
+            {visible.map(n => (
+              <div
+                key={n.id}
+                style={multiItemStyle(selected.includes(n.id))}
+                onClick={() => onToggle(n.id)}
+              >
+                {nodeLabel(n)}
+              </div>
+            ))}
+          </div>
+        )
+      })}
+    </div>
+  )
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div>
         <label style={labelStyle}>Origin</label>
-        <select value={startNode} onChange={e => setStartNode(e.target.value)} style={selectStyle} required>
-          <option value="">Select origin...</option>
-          {sortedNodes.map(n => (
-            <option key={n.id} value={n.id}>{nodeLabel(n)}</option>
-          ))}
-        </select>
+        {renderGroupedSelect('Select origin...', startNode, setStartNode)}
       </div>
 
       <div>
         <label style={labelStyle}>Destination</label>
-        <select value={endNode} onChange={e => setEndNode(e.target.value)} style={selectStyle} required>
-          <option value="">Select destination...</option>
-          {sortedNodes.map(n => (
-            <option key={n.id} value={n.id}>{nodeLabel(n)}</option>
-          ))}
-        </select>
+        {renderGroupedSelect('Select destination...', endNode, setEndNode)}
       </div>
 
       <div>
@@ -89,36 +166,20 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
 
       <div>
         <label style={labelStyle}>Must Include Nodes</label>
-        <div style={multiBoxStyle}>
-          {sortedNodes
-            .filter(n => n.id !== startNode && n.id !== endNode)
-            .map(n => (
-              <div
-                key={n.id}
-                style={multiItemStyle(mustInclude.includes(n.id))}
-                onClick={() => toggleMulti(n.id, mustInclude, setMustInclude)}
-              >
-                {nodeLabel(n)}
-              </div>
-            ))}
-        </div>
+        {renderGroupedMulti(
+          [startNode, endNode],
+          mustInclude,
+          id => toggleMulti(id, mustInclude, setMustInclude),
+        )}
       </div>
 
       <div>
         <label style={labelStyle}>Must Avoid Nodes</label>
-        <div style={multiBoxStyle}>
-          {sortedNodes
-            .filter(n => n.id !== startNode && n.id !== endNode)
-            .map(n => (
-              <div
-                key={n.id}
-                style={multiItemStyle(mustAvoidNodes.includes(n.id))}
-                onClick={() => toggleMulti(n.id, mustAvoidNodes, setMustAvoidNodes)}
-              >
-                {nodeLabel(n)}
-              </div>
-            ))}
-        </div>
+        {renderGroupedMulti(
+          [startNode, endNode],
+          mustAvoidNodes,
+          id => toggleMulti(id, mustAvoidNodes, setMustAvoidNodes),
+        )}
       </div>
 
       <div>
