@@ -100,7 +100,7 @@ export function Map({ nodes, segments, selectedRoutes }: Props) {
       {/* Render nodes — CLS as larger circles, PoP as smaller diamonds (smaller radius, square dash) */}
       {nodes.map(node => {
         const isOnRoute = selectedRoutes.some(r => r.nodes.includes(node.id))
-        const isCls = node.type === 'cls'
+        const isCls = node.type === 'cls' || (node.type as string) === 'landing_station'
 
         const idleColor = isCls ? '#45475a' : '#6c5a7c'
         const idleFill  = isCls ? '#313244' : '#2a1f3d'
