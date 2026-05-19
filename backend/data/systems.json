@@ -63,5 +63,25 @@
     "id": "C2C",
     "name": "City to City",
     "description": "Pacnet ring cable system connecting major East Asian cities: Hong Kong, Manila, Taipei, Tokyo, Seoul with branch to Singapore"
+  },
+  {
+    "id": "BIFROST",
+    "name": "BiFrost",
+    "description": "Meta/Amazon/Keppel/Telin Pacific cable \u2014 US West Coast to Singapore via Guam, Philippines and Indonesia. RFS Oct 2025. Main trunk 16,556 km."
+  },
+  {
+    "id": "ECHO",
+    "name": "Echo",
+    "description": "Google/Meta transpacific cable \u2014 Singapore (Changi/Telstra) to US West Coast (Eureka CA) via Indonesia and Guam. Main trunk 16,206 km. RFS 2024\u201325."
+  },
+  {
+    "id": "TOPAZ",
+    "name": "Topaz",
+    "description": "Google private cable \u2014 US Pacific Northwest (Vancouver/Port Alberni BC) to Japan (Takahagi/Ibaraki + Shima/Mie). ~10,000 km. RFS Jun 2024."
+  },
+  {
+    "id": "TABUA",
+    "name": "Tabua",
+    "description": "Google (Starfish) South Pacific cable \u2014 Los Angeles to Sydney/Queensland via Hawaii and Fiji. Main trunk 13,323 km. RFS Q1 2026."
   }
 ]

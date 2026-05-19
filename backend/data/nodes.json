@@ -502,5 +502,13 @@
     "lng": 100.3288,
     "type": "terrestrial_pop",
     "country": "MY"
+  },
+  {
+    "id": "FJI1",
+    "name": "Suva",
+    "lat": -18.1248,
+    "lng": 178.4501,
+    "type": "landing_station",
+    "country": "FJ"
   }
 ]
