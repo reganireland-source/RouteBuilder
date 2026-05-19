@@ -4,6 +4,7 @@ import { SearchForm } from './components/SearchForm'
 import { RouteList } from './components/RouteList'
 import { SystemViewer } from './components/SystemViewer'
 import { RefDataModal } from './components/RefDataModal'
+import { generateStraightLineDiagram } from './utils/generateDiagram'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, lightTheme, type Theme } from './theme'
 import type { CableNode, CableSegment, CableSystem, InterconnectRule, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SelectedSystem } from './types'
@@ -215,6 +216,15 @@ export default function App() {
             {hasPins && <span style={{ fontSize: 11, color: theme.textFaintest }}>· {pinnedRoutes.length} pinned</span>}
             {loading && <span style={{ fontSize: 11, color: theme.blue }}>Searching…</span>}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+              {hasPins && (
+                <button
+                  onClick={() => generateStraightLineDiagram(pinnedRoutes, nodes)}
+                  title="Export pinned routes as straight line diagram PDF"
+                  style={clearBtnStyle(theme)}
+                >
+                  ⬡ SLD
+                </button>
+              )}
               {hasResults && <button onClick={clearSearch} style={clearBtnStyle(theme)}>Clear Search</button>}
               {(hasResults || hasPins) && <button onClick={clearAll} style={clearBtnStyle(theme, true)}>Clear All</button>}
             </div>
