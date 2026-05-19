@@ -1,10 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Map } from './components/Map'
 import { SearchForm } from './components/SearchForm'
 import { RouteList } from './components/RouteList'
 import { api } from './api/client'
-import { ThemeContext, darkTheme, lightTheme } from './theme'
-import type { CableNode, CableSegment, Route, RouteRequest, RouteResponse, SegmentCapacity } from './types'
+import { ThemeContext, darkTheme, lightTheme, type Theme } from './theme'
+import type { CableNode, CableSegment, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity } from './types'
+
+const PIN_COLORS = ['#f9e2af', '#94e2d5', '#cba6f7', '#f2cdcd', '#eba0ac']
+
+function routeKey(r: Route) {
+  return r.nodes.join('|')
+}
 
 export default function App() {
   const [isDark, setIsDark] = useState(true)
@@ -15,8 +21,10 @@ export default function App() {
   const [capacity, setCapacity] = useState<SegmentCapacity[]>([])
   const [response, setResponse] = useState<RouteResponse | null>(null)
   const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([])
+  const [pinnedRoutes, setPinnedRoutes] = useState<PinnedRoute[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const pinCounter = useRef(0)
 
   useEffect(() => {
     Promise.all([api.getNodes(), api.getSegments(), api.getCapacity()])
@@ -50,17 +58,54 @@ export default function App() {
     )
   }
 
+  function handlePin(route: Route) {
+    const key = routeKey(route)
+    if (pinnedRoutes.some(p => routeKey(p.route) === key)) {
+      setPinnedRoutes(prev => prev.filter(p => routeKey(p.route) !== key))
+      return
+    }
+    if (pinnedRoutes.length >= 5) return
+    const usedColors = pinnedRoutes.map(p => p.color)
+    const color = PIN_COLORS.find(c => !usedColors.includes(c)) ?? PIN_COLORS[0]
+    const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+    const first = route.nodes[0]
+    const last = route.nodes[route.nodes.length - 1]
+    const searchLabel = `${nodesById[first]?.name ?? first} → ${nodesById[last]?.name ?? last}`
+    pinCounter.current += 1
+    setPinnedRoutes(prev => [...prev, { pinId: `pin-${pinCounter.current}`, route, color, searchLabel }])
+  }
+
+  function handleUnpin(pinId: string) {
+    setPinnedRoutes(prev => prev.filter(p => p.pinId !== pinId))
+  }
+
+  function clearSearch() {
+    setResponse(null)
+    setSelectedRouteIds([])
+    setError(null)
+  }
+
+  function clearAll() {
+    setResponse(null)
+    setSelectedRouteIds([])
+    setPinnedRoutes([])
+    setError(null)
+  }
+
   const selectedRoutes: Route[] = response
     ? [...response.primary_routes, ...response.diverse_routes].filter(r =>
         selectedRouteIds.includes(r.id)
       )
     : []
 
+  const hasPins = pinnedRoutes.length > 0
+  const hasResults = response !== null
+
   return (
     <ThemeContext.Provider value={theme}>
       <div style={{ display: 'flex', height: '100vh', background: theme.bgBase, color: theme.text, fontFamily: 'system-ui, sans-serif' }}>
 
-        {/* Theme toggle — fixed top-right */}
+        {/* Theme toggle */}
         <button
           onClick={() => setIsDark(d => !d)}
           title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -114,38 +159,56 @@ export default function App() {
           background: theme.bgDeep, borderRight: `1px solid ${theme.border}`,
         }}>
           <div style={{
-            padding: '12px 16px', borderBottom: `1px solid ${theme.border}`,
-            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '10px 16px', borderBottom: `1px solid ${theme.border}`,
+            display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
           }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: theme.textFaint, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               Routes
             </span>
-            {response && (
+            {hasResults && (
               <span style={{ fontSize: 11, color: theme.textFaintest }}>
-                {response.primary_routes.length + response.diverse_routes.length} found
+                {response!.primary_routes.length + response!.diverse_routes.length} found
+              </span>
+            )}
+            {hasPins && (
+              <span style={{ fontSize: 11, color: theme.textFaintest }}>
+                · {pinnedRoutes.length} pinned
               </span>
             )}
             {loading && (
-              <span style={{ fontSize: 11, color: theme.blue, marginLeft: 'auto' }}>Searching…</span>
+              <span style={{ fontSize: 11, color: theme.blue }}>Searching…</span>
             )}
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+              {hasResults && (
+                <button onClick={clearSearch} style={clearBtnStyle(theme)}>
+                  Clear Search
+                </button>
+              )}
+              {(hasResults || hasPins) && (
+                <button onClick={clearAll} style={clearBtnStyle(theme, true)}>
+                  Clear All
+                </button>
+              )}
+            </div>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
-            {!response && !loading && (
+            {!hasResults && !loading && !hasPins && (
               <p style={{ color: theme.textFaintest, fontSize: 13, marginTop: 8 }}>
                 Configure a route request on the left and press Search.
               </p>
             )}
-            {response && (
-              <RouteList
-                primaryRoutes={response.primary_routes}
-                diverseRoutes={response.diverse_routes}
-                selectedRouteIds={selectedRouteIds}
-                onSelectRoute={toggleRoute}
-                nodes={nodes}
-                capacity={capacity}
-              />
-            )}
+            <RouteList
+              primaryRoutes={response?.primary_routes ?? []}
+              diverseRoutes={response?.diverse_routes ?? []}
+              selectedRouteIds={selectedRouteIds}
+              onSelectRoute={toggleRoute}
+              nodes={nodes}
+              capacity={capacity}
+              pinnedRoutes={pinnedRoutes}
+              onPin={handlePin}
+              onUnpin={handleUnpin}
+            />
           </div>
         </div>
 
@@ -157,6 +220,7 @@ export default function App() {
               segments={segments}
               selectedRoutes={selectedRoutes}
               capacity={capacity}
+              pinnedRoutes={pinnedRoutes}
             />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.textFaint }}>
@@ -168,4 +232,13 @@ export default function App() {
       </div>
     </ThemeContext.Provider>
   )
+}
+
+function clearBtnStyle(theme: Theme, destructive = false): React.CSSProperties {
+  return {
+    padding: '4px 10px', borderRadius: 4, border: `1px solid ${theme.border}`,
+    background: 'transparent',
+    color: destructive ? theme.red : theme.textMuted,
+    cursor: 'pointer', fontSize: 11, fontWeight: 600,
+  }
 }

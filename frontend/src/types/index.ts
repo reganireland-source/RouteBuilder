@@ -77,3 +77,10 @@ export interface SegmentCapacity {
   total_capacity_t: number
   available_capacity_t: number
 }
+
+export interface PinnedRoute {
+  pinId: string
+  route: Route
+  color: string
+  searchLabel: string
+}

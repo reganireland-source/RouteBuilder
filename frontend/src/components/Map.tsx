@@ -1,5 +1,5 @@
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip } from 'react-leaflet'
-import type { CableNode, CableSegment, Route, SegmentCapacity } from '../types'
+import type { CableNode, CableSegment, PinnedRoute, Route, SegmentCapacity } from '../types'
 import { useTheme } from '../theme'
 
 interface Props {
@@ -7,21 +7,44 @@ interface Props {
   segments: CableSegment[]
   selectedRoutes: Route[]
   capacity: SegmentCapacity[]
+  pinnedRoutes: PinnedRoute[]
 }
 
-const ROUTE_COLORS: Record<number, string> = {
+const DIVERSITY_COLORS: Record<number, string> = {
   1: '#89b4fa',
   2: '#a6e3a1',
 }
 
-export function Map({ nodes, segments, selectedRoutes, capacity }: Props) {
+export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes }: Props) {
   const t = useTheme()
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
 
-  const activeSegmentIds = new Set(
-    selectedRoutes.flatMap(r => r.segments.map(s => s.segment_id))
-  )
+  // Build segment colour lookup: pinned first, then active search (active takes precedence)
+  const segmentColor: Record<string, string> = {}
+  const segmentWeight: Record<string, number> = {}
+  const segmentOpacity: Record<string, number> = {}
+
+  for (const p of pinnedRoutes) {
+    for (const s of p.route.segments) {
+      segmentColor[s.segment_id] = p.color
+      segmentWeight[s.segment_id] = 2
+      segmentOpacity[s.segment_id] = 0.8
+    }
+  }
+  for (const r of selectedRoutes) {
+    const color = DIVERSITY_COLORS[r.diversity_group] ?? '#89b4fa'
+    for (const s of r.segments) {
+      segmentColor[s.segment_id] = color
+      segmentWeight[s.segment_id] = 3
+      segmentOpacity[s.segment_id] = 0.9
+    }
+  }
+
+  const highlightedNodes = new Set([
+    ...selectedRoutes.flatMap(r => r.nodes),
+    ...pinnedRoutes.flatMap(p => p.route.nodes),
+  ])
 
   return (
     <MapContainer
@@ -37,25 +60,19 @@ export function Map({ nodes, segments, selectedRoutes, capacity }: Props) {
         attribution='&copy; <a href="https://carto.com/">CARTO</a>'
       />
 
-      {/* Render all cable segments as faint background lines */}
       {segments.map(seg => {
         const start = nodesById[seg.start_node_id]
         const end = nodesById[seg.end_node_id]
         if (!start || !end) return null
 
-        const isActive = activeSegmentIds.has(seg.id)
-        const activeRoute = selectedRoutes.find(r => r.segments.some(s => s.segment_id === seg.id))
-        const color = activeRoute ? ROUTE_COLORS[activeRoute.diversity_group] ?? '#89b4fa' : t.mapInactiveSegment
-        const weight = isActive ? 3 : 1
-        const opacity = isActive ? 0.9 : 0.35
+        const color = segmentColor[seg.id] ?? t.mapInactiveSegment
+        const weight = segmentWeight[seg.id] ?? 1
+        const opacity = segmentOpacity[seg.id] ?? 0.35
 
         return (
           <Polyline
             key={seg.id}
-            positions={[
-              [start.lat, start.lng],
-              [end.lat, end.lng],
-            ]}
+            positions={[[start.lat, start.lng], [end.lat, end.lng]]}
             pathOptions={{
               color,
               weight,
@@ -78,9 +95,8 @@ export function Map({ nodes, segments, selectedRoutes, capacity }: Props) {
         )
       })}
 
-      {/* Render nodes */}
       {nodes.map(node => {
-        const isOnRoute = selectedRoutes.some(r => r.nodes.includes(node.id))
+        const isOnRoute = highlightedNodes.has(node.id)
         return (
           <CircleMarker
             key={node.id}

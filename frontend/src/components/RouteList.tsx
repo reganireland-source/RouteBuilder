@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import type { Route, CableNode, SegmentCapacity } from '../types'
+import type { Route, CableNode, SegmentCapacity, PinnedRoute } from '../types'
 import { useTheme } from '../theme'
 
 interface Props {
@@ -10,6 +10,9 @@ interface Props {
   onSelectRoute: (id: string) => void
   nodes: CableNode[]
   capacity: SegmentCapacity[]
+  pinnedRoutes: PinnedRoute[]
+  onPin: (route: Route) => void
+  onUnpin: (pinId: string) => void
 }
 
 type SortKey = 'hops' | 'latency' | 'availability' | 'cost' | 'capacity'
@@ -21,6 +24,8 @@ const SORT_OPTIONS: { key: SortKey; icon: string; label: string; dir: 'asc' | 'd
   { key: 'cost',         icon: '◆',  label: 'Cost',     dir: 'asc'  },
   { key: 'capacity',     icon: '◈',  label: 'Capacity', dir: 'desc' },
 ]
+
+function routeKey(r: Route) { return r.nodes.join('|') }
 
 function estimatedCapacity(route: Route, capacityById: Record<string, SegmentCapacity>): { cap: number; systemId: string | null } {
   const wetSegs = route.segments.filter(s => s.type === 'wet')
@@ -45,14 +50,19 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
   })
 }
 
-export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes, capacity }: Props) {
+export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes, capacity, pinnedRoutes, onPin, onUnpin }: Props) {
   const t = useTheme()
   const [sortKey, setSortKey] = useState<SortKey>('cost')
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
+  const pinnedKeys = new Set(pinnedRoutes.map(p => routeKey(p.route)))
+  const canPin = pinnedRoutes.length < 5
 
-  if (primaryRoutes.length === 0 && diverseRoutes.length === 0) {
-    return <p style={{ color: t.textFaint, fontSize: 13, padding: '8px 0' }}>No routes found.</p>
+  const hasResults = primaryRoutes.length > 0 || diverseRoutes.length > 0
+  const hasPins = pinnedRoutes.length > 0
+
+  if (!hasResults && !hasPins) {
+    return null
   }
 
   const sorted = {
@@ -62,73 +72,200 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {/* Sort bar */}
-      <div style={{ display: 'flex', gap: 5, marginBottom: 4 }}>
-        {SORT_OPTIONS.map(opt => {
-          const active = sortKey === opt.key
-          return (
-            <button
-              key={opt.key}
-              onClick={() => setSortKey(opt.key)}
-              title={`Sort by ${opt.label} (${opt.dir === 'asc' ? 'lowest first' : 'highest first'})`}
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 3,
-                padding: '6px 4px',
-                borderRadius: 6,
-                border: `1px solid ${active ? t.blue : t.border}`,
-                background: active ? t.bgActiveSort : t.bgCard,
-                color: active ? t.blue : t.textFaint,
-                cursor: 'pointer',
-                fontSize: 10,
-                fontWeight: active ? 700 : 400,
-                letterSpacing: '0.04em',
-                textTransform: 'uppercase',
-                transition: 'all 0.15s',
-              }}
-            >
-              <span style={{ fontSize: 15, lineHeight: 1 }}>{opt.icon}</span>
-              <span>{opt.label}</span>
-              <span style={{ fontSize: 9, opacity: 0.7 }}>
-                {opt.dir === 'asc' ? '↑ least' : '↓ most'}
-              </span>
-            </button>
-          )
-        })}
-      </div>
 
-      {sorted.primary.length > 0 && (
-        <div>
-          <div style={sectionLabelStyle(t)}>Primary Routes</div>
-          {sorted.primary.map(r => (
-            <RouteCard key={r.id} route={r} selected={selectedRouteIds.includes(r.id)} onSelect={onSelectRoute} nodesById={nodesById} capacityById={capacityById} color={t.blue} />
+      {/* Pinned routes section */}
+      {hasPins && (
+        <div style={{ marginBottom: hasResults ? 8 : 0 }}>
+          <div style={sectionLabelStyle(t)}>
+            📌 Pinned Routes
+          </div>
+          {pinnedRoutes.map(p => (
+            <PinnedRouteCard
+              key={p.pinId}
+              pinned={p}
+              onUnpin={() => onUnpin(p.pinId)}
+              nodesById={nodesById}
+              capacityById={capacityById}
+            />
           ))}
         </div>
       )}
-      {sorted.diverse.length > 0 && (
-        <div>
-          <div style={sectionLabelStyle(t)}>Diverse Routes</div>
-          {sorted.diverse.map(r => (
-            <RouteCard key={r.id} route={r} selected={selectedRouteIds.includes(r.id)} onSelect={onSelectRoute} nodesById={nodesById} capacityById={capacityById} color={t.green} />
-          ))}
-        </div>
+
+      {/* Sort bar — only shown when there are search results */}
+      {hasResults && (
+        <>
+          <div style={{ display: 'flex', gap: 5, marginBottom: 4 }}>
+            {SORT_OPTIONS.map(opt => {
+              const active = sortKey === opt.key
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => setSortKey(opt.key)}
+                  title={`Sort by ${opt.label} (${opt.dir === 'asc' ? 'lowest first' : 'highest first'})`}
+                  style={{
+                    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    gap: 3, padding: '6px 4px', borderRadius: 6,
+                    border: `1px solid ${active ? t.blue : t.border}`,
+                    background: active ? t.bgActiveSort : t.bgCard,
+                    color: active ? t.blue : t.textFaint,
+                    cursor: 'pointer', fontSize: 10, fontWeight: active ? 700 : 400,
+                    letterSpacing: '0.04em', textTransform: 'uppercase', transition: 'all 0.15s',
+                  }}
+                >
+                  <span style={{ fontSize: 15, lineHeight: 1 }}>{opt.icon}</span>
+                  <span>{opt.label}</span>
+                  <span style={{ fontSize: 9, opacity: 0.7 }}>{opt.dir === 'asc' ? '↑ least' : '↓ most'}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          {sorted.primary.length > 0 && (
+            <div>
+              <div style={sectionLabelStyle(t)}>Primary Routes</div>
+              {sorted.primary.map(r => (
+                <RouteCard
+                  key={r.id} route={r}
+                  selected={selectedRouteIds.includes(r.id)}
+                  onSelect={onSelectRoute}
+                  nodesById={nodesById}
+                  capacityById={capacityById}
+                  color={t.blue}
+                  isPinned={pinnedKeys.has(routeKey(r))}
+                  canPin={canPin}
+                  onPin={onPin}
+                />
+              ))}
+            </div>
+          )}
+          {sorted.diverse.length > 0 && (
+            <div>
+              <div style={sectionLabelStyle(t)}>Diverse Routes</div>
+              {sorted.diverse.map(r => (
+                <RouteCard
+                  key={r.id} route={r}
+                  selected={selectedRouteIds.includes(r.id)}
+                  onSelect={onSelectRoute}
+                  nodesById={nodesById}
+                  capacityById={capacityById}
+                  color={t.green}
+                  isPinned={pinnedKeys.has(routeKey(r))}
+                  canPin={canPin}
+                  onPin={onPin}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
 }
 
-function RouteCard({
-  route, selected, onSelect, nodesById, capacityById, color,
-}: {
+function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById }: {
+  pinned: PinnedRoute
+  onUnpin: () => void
+  nodesById: Record<string, { name: string }>
+  capacityById: Record<string, SegmentCapacity>
+}) {
+  const t = useTheme()
+  const { route, color, searchLabel } = pinned
+  const [hovered, setHovered] = useState(false)
+  const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (hovered && cardRef.current) {
+      const rect = cardRef.current.getBoundingClientRect()
+      setTooltipPos({ top: rect.top, left: rect.right + 8 })
+    }
+  }, [hovered])
+
+  const wetSystems = [...new Set(route.segments.filter(s => s.type === 'wet').map(s => s.system_id))]
+  const reliabilityPct = (route.end_to_end_reliability * 100).toFixed(3)
+  const { cap: estCap, systemId: bottleneckId } = estimatedCapacity(route, capacityById)
+  const estCapColor = estCap < 0.5 ? t.red : estCap < 1.0 ? t.orange : t.green
+
+  return (
+    <div
+      ref={cardRef}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        padding: '10px 12px', borderRadius: 6, marginBottom: 4,
+        border: `1px solid ${color}`,
+        background: t.bgCard,
+        position: 'relative',
+      }}
+    >
+      {/* Pin colour strip */}
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, borderRadius: '6px 0 0 6px', background: color }} />
+
+      <div style={{ paddingLeft: 6 }}>
+        {/* Search context label */}
+        <div style={{ fontSize: 10, color: t.textFaint, marginBottom: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>📌 {searchLabel}</span>
+          <button
+            onClick={onUnpin}
+            title="Unpin route"
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: t.textFaint, fontSize: 14, lineHeight: 1, padding: '0 2px',
+            }}
+          >×</button>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color }}>
+            {route.id}
+            <span style={{ fontWeight: 400, color: t.textMuted, marginLeft: 6 }}>
+              {wetSystems.join(' · ')}
+            </span>
+          </span>
+          <span style={{ fontSize: 11, color: t.textFaint }}>{route.nodes.length - 1} hops</span>
+        </div>
+
+        <div style={{ fontSize: 11, color: t.text, marginBottom: 6 }}>
+          {route.nodes.map(id => nodesById[id]?.name ?? id).join(' → ')}
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, fontSize: 11, color: t.textMuted, marginBottom: 5 }}>
+          <span>Cost: <strong style={{ color: t.text }}>{route.total_cost}</strong></span>
+          <span>{route.total_length_km.toLocaleString()} km</span>
+          <span>Latency: <strong style={{ color: t.text }}>{route.total_latency} ms</strong></span>
+          <span>Avail: <strong style={{ color: t.text }}>{reliabilityPct}%</strong></span>
+        </div>
+
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '4px 8px', borderRadius: 4, background: t.bgDeep,
+          border: `1px solid ${t.border}`, fontSize: 11,
+        }}>
+          <span style={{ color: t.textFaint }}>◈ Est. Capacity</span>
+          <strong style={{ color: estCapColor }}>{estCap.toFixed(1)}T</strong>
+          <span style={{ color: t.textFaintest, fontSize: 10 }}>bottleneck:</span>
+          <span style={{ color: t.textFaint, fontSize: 10 }}>{bottleneckId ?? '—'}</span>
+        </div>
+      </div>
+
+      {hovered && createPortal(
+        <SegmentTooltip route={route} capacityById={capacityById} pos={tooltipPos} />,
+        document.body
+      )}
+    </div>
+  )
+}
+
+function RouteCard({ route, selected, onSelect, nodesById, capacityById, color, isPinned, canPin, onPin }: {
   route: Route
   selected: boolean
   onSelect: (id: string) => void
   nodesById: Record<string, { name: string }>
   capacityById: Record<string, SegmentCapacity>
   color: string
+  isPinned: boolean
+  canPin: boolean
+  onPin: (route: Route) => void
 }) {
   const t = useTheme()
   const [hovered, setHovered] = useState(false)
@@ -146,6 +283,7 @@ function RouteCard({
   const reliabilityPct = (route.end_to_end_reliability * 100).toFixed(3)
   const { cap: estCap, systemId: bottleneckId } = estimatedCapacity(route, capacityById)
   const estCapColor = estCap < 0.5 ? t.red : estCap < 1.0 ? t.orange : t.green
+  const pinDisabled = !isPinned && !canPin
 
   return (
     <div
@@ -167,9 +305,22 @@ function RouteCard({
             {wetSystems.join(' · ')}
           </span>
         </span>
-        <span style={{ fontSize: 11, color: t.textFaint }}>
-          {route.nodes.length - 1} hops
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, color: t.textFaint }}>{route.nodes.length - 1} hops</span>
+          <button
+            onClick={e => { e.stopPropagation(); onPin(route) }}
+            title={isPinned ? 'Unpin route' : pinDisabled ? 'Max 5 routes pinned' : 'Pin route'}
+            style={{
+              background: 'none', border: 'none', cursor: pinDisabled ? 'not-allowed' : 'pointer',
+              fontSize: 13, lineHeight: 1, padding: '1px 3px', borderRadius: 3,
+              opacity: pinDisabled ? 0.3 : 1,
+              color: isPinned ? '#f9e2af' : t.textFaint,
+              transition: 'color 0.15s',
+            }}
+          >
+            {isPinned ? '📌' : '📍'}
+          </button>
+        </div>
       </div>
 
       <div style={{ fontSize: 11, color: t.text, marginBottom: 6 }}>
@@ -195,50 +346,59 @@ function RouteCard({
       </div>
 
       {hovered && createPortal(
-        <div
-          onClick={e => e.stopPropagation()}
-          style={{
-            position: 'fixed', top: tooltipPos.top, left: tooltipPos.left, zIndex: 9999,
-            width: 300, background: t.bgCard, border: `1px solid ${t.borderSubtle}`,
-            borderRadius: 6, padding: '10px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-            fontFamily: 'system-ui, sans-serif', pointerEvents: 'none',
-          }}
-        >
-          <div style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-            Segment Breakdown
-          </div>
-          {route.segments.map(seg => {
-            const cap = capacityById[seg.segment_id]
-            const capPct = cap ? Math.round((cap.available_capacity_t / cap.total_capacity_t) * 100) : null
-            return (
-              <div key={seg.segment_id} style={{ marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${t.border}` }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: seg.type === 'wet' ? t.blue : t.green }}>
-                    {seg.system_id}
-                  </span>
-                  <span style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase' }}>
-                    {seg.type}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', gap: 10, fontSize: 10, color: t.textMuted, marginTop: 2 }}>
-                  <span>{seg.length_km.toLocaleString()} km</span>
-                  <span>{seg.latency} ms</span>
-                  <span>Cost: {seg.cost_weight}</span>
-                  <span>Avail: {(seg.reliability * 100).toFixed(2)}%</span>
-                </div>
-                {cap && (
-                  <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2 }}>
-                    Capacity: <span style={{ color: capPct! < 20 ? t.red : capPct! < 50 ? t.orange : t.green }}>
-                      {cap.available_capacity_t}T
-                    </span> / {cap.total_capacity_t}T ({capPct}% free)
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>,
+        <SegmentTooltip route={route} capacityById={capacityById} pos={tooltipPos} />,
         document.body
       )}
+    </div>
+  )
+}
+
+function SegmentTooltip({ route, capacityById, pos }: {
+  route: Route
+  capacityById: Record<string, SegmentCapacity>
+  pos: { top: number; left: number }
+}) {
+  const t = useTheme()
+  return (
+    <div
+      onClick={e => e.stopPropagation()}
+      style={{
+        position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999,
+        width: 300, background: t.bgCard, border: `1px solid ${t.borderSubtle}`,
+        borderRadius: 6, padding: '10px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+        fontFamily: 'system-ui, sans-serif', pointerEvents: 'none',
+      }}
+    >
+      <div style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+        Segment Breakdown
+      </div>
+      {route.segments.map(seg => {
+        const cap = capacityById[seg.segment_id]
+        const capPct = cap ? Math.round((cap.available_capacity_t / cap.total_capacity_t) * 100) : null
+        return (
+          <div key={seg.segment_id} style={{ marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${t.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: seg.type === 'wet' ? t.blue : t.green }}>
+                {seg.system_id}
+              </span>
+              <span style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase' }}>{seg.type}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, fontSize: 10, color: t.textMuted, marginTop: 2 }}>
+              <span>{seg.length_km.toLocaleString()} km</span>
+              <span>{seg.latency} ms</span>
+              <span>Cost: {seg.cost_weight}</span>
+              <span>Avail: {(seg.reliability * 100).toFixed(2)}%</span>
+            </div>
+            {cap && (
+              <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2 }}>
+                Capacity: <span style={{ color: capPct! < 20 ? t.red : capPct! < 50 ? t.orange : t.green }}>
+                  {cap.available_capacity_t}T
+                </span> / {cap.total_capacity_t}T ({capPct}% free)
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
