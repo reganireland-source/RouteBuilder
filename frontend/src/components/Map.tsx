@@ -1,5 +1,5 @@
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip } from 'react-leaflet'
-import type { CableNode, CableSegment, PinnedRoute, Route, SegmentCapacity } from '../types'
+import type { CableNode, CableSegment, PinnedRoute, Route, SegmentCapacity, SelectedSystem } from '../types'
 import { useTheme } from '../theme'
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
   selectedRoutes: Route[]
   capacity: SegmentCapacity[]
   pinnedRoutes: PinnedRoute[]
+  selectedSystems: SelectedSystem[]
 }
 
 const DIVERSITY_COLORS: Record<number, string> = {
@@ -15,12 +16,17 @@ const DIVERSITY_COLORS: Record<number, string> = {
   2: '#a6e3a1',
 }
 
-export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes }: Props) {
+export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems }: Props) {
   const t = useTheme()
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
 
-  // Build segment colour lookup: pinned first, then active search (active takes precedence)
+  const systemViewerActive = selectedSystems.length > 0
+  const systemColorMap: Record<string, string> = Object.fromEntries(
+    selectedSystems.map(s => [s.systemId, s.color])
+  )
+
+  // Segment highlight: pinned first, active search on top
   const segmentColor: Record<string, string> = {}
   const segmentWeight: Record<string, number> = {}
   const segmentOpacity: Record<string, number> = {}
@@ -41,10 +47,23 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes }:
     }
   }
 
-  const highlightedNodes = new Set([
+  // Nodes for routes/pins
+  const routeNodeIds = new Set([
     ...selectedRoutes.flatMap(r => r.nodes),
     ...pinnedRoutes.flatMap(p => p.route.nodes),
   ])
+
+  // Nodes for selected systems (systemId -> color for first matching system)
+  const systemNodeColor: Record<string, string> = {}
+  if (systemViewerActive) {
+    for (const seg of segments) {
+      const color = systemColorMap[seg.system_id]
+      if (color) {
+        if (!systemNodeColor[seg.start_node_id]) systemNodeColor[seg.start_node_id] = color
+        if (!systemNodeColor[seg.end_node_id]) systemNodeColor[seg.end_node_id] = color
+      }
+    }
+  }
 
   return (
     <MapContainer
@@ -65,20 +84,31 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes }:
         const end = nodesById[seg.end_node_id]
         if (!start || !end) return null
 
-        const color = segmentColor[seg.id] ?? t.mapInactiveSegment
-        const weight = segmentWeight[seg.id] ?? 1
-        const opacity = segmentOpacity[seg.id] ?? 0.35
+        // System viewer colouring takes priority when active
+        let color: string
+        let weight: number
+        let opacity: number
+
+        if (systemViewerActive && systemColorMap[seg.system_id]) {
+          color  = systemColorMap[seg.system_id]
+          weight = 3
+          opacity = 0.9
+        } else if (systemViewerActive) {
+          // Dim segments not belonging to a selected system (unless pinned/active)
+          color   = segmentColor[seg.id] ?? t.mapInactiveSegment
+          weight  = segmentWeight[seg.id] ?? 1
+          opacity = segmentOpacity[seg.id] ?? 0.08
+        } else {
+          color   = segmentColor[seg.id] ?? t.mapInactiveSegment
+          weight  = segmentWeight[seg.id] ?? 1
+          opacity = segmentOpacity[seg.id] ?? 0.35
+        }
 
         return (
           <Polyline
             key={seg.id}
             positions={[[start.lat, start.lng], [end.lat, end.lng]]}
-            pathOptions={{
-              color,
-              weight,
-              opacity,
-              dashArray: seg.type === 'terrestrial' ? '6 4' : undefined,
-            }}
+            pathOptions={{ color, weight, opacity, dashArray: seg.type === 'terrestrial' ? '6 4' : undefined }}
           >
             <Tooltip sticky>
               <strong>{seg.name}</strong>
@@ -96,17 +126,24 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes }:
       })}
 
       {nodes.map(node => {
-        const isOnRoute = highlightedNodes.has(node.id)
+        const isRouteNode   = routeNodeIds.has(node.id)
+        const sysColor      = systemNodeColor[node.id]
+        const isSystemNode  = !!sysColor
+        const isDimmed      = systemViewerActive && !isSystemNode && !isRouteNode
+
+        const color     = isRouteNode ? t.pink : isSystemNode ? sysColor : t.borderSubtle
+        const fillColor = isRouteNode ? t.pink : isSystemNode ? sysColor : t.border
+        const radius    = isRouteNode || isSystemNode ? 6 : 4
+
         return (
           <CircleMarker
             key={node.id}
             center={[node.lat, node.lng]}
-            radius={isOnRoute ? 7 : 4}
+            radius={radius}
             pathOptions={{
-              color: isOnRoute ? t.pink : t.borderSubtle,
-              fillColor: isOnRoute ? t.pink : t.border,
-              fillOpacity: 1,
-              weight: isOnRoute ? 2 : 1,
+              color, fillColor, fillOpacity: isDimmed ? 0.15 : 1,
+              weight: isRouteNode || isSystemNode ? 2 : 1,
+              opacity: isDimmed ? 0.15 : 1,
             }}
           >
             <Tooltip>

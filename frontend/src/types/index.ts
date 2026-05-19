@@ -78,6 +78,11 @@ export interface SegmentCapacity {
   available_capacity_t: number
 }
 
+export interface SelectedSystem {
+  systemId: string
+  color: string
+}
+
 export interface PinnedRoute {
   pinId: string
   route: Route
