@@ -28,7 +28,6 @@ export default function App() {
     try {
       const res = await api.searchRoutes(req)
       setResponse(res)
-      // Auto-select the top primary and diverse route
       const autoSelect = [
         res.primary_routes[0]?.id,
         res.diverse_routes[0]?.id,
@@ -55,9 +54,10 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: '#1e1e2e', color: '#cdd6f4', fontFamily: 'system-ui, sans-serif' }}>
-      {/* Sidebar */}
+
+      {/* Left panel — inputs */}
       <div style={{
-        width: 420, flexShrink: 0, display: 'flex', flexDirection: 'column',
+        width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column',
         background: '#181825', borderRight: '1px solid #313244', overflowY: 'auto',
       }}>
         <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid #313244' }}>
@@ -67,7 +67,7 @@ export default function App() {
           <p style={{ fontSize: 11, color: '#6c7086' }}>Telstra International · Subsea Circuit Design</p>
         </div>
 
-        <div style={{ padding: '16px', borderBottom: '1px solid #313244' }}>
+        <div style={{ padding: '16px' }}>
           <SearchForm
             nodes={nodes}
             segments={segments}
@@ -77,13 +77,41 @@ export default function App() {
         </div>
 
         {error && (
-          <div style={{ padding: '12px 16px', color: '#f38ba8', fontSize: 13 }}>
+          <div style={{ padding: '0 16px 12px', color: '#f38ba8', fontSize: 13 }}>
             {error}
           </div>
         )}
+      </div>
 
-        {response && (
-          <div style={{ padding: '16px' }}>
+      {/* Middle panel — routes */}
+      <div style={{
+        width: 420, flexShrink: 0, display: 'flex', flexDirection: 'column',
+        background: '#11111b', borderRight: '1px solid #313244',
+      }}>
+        <div style={{
+          padding: '12px 16px', borderBottom: '1px solid #313244',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#6c7086', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Routes
+          </span>
+          {response && (
+            <span style={{ fontSize: 11, color: '#45475a' }}>
+              {response.primary_routes.length + response.diverse_routes.length} found
+            </span>
+          )}
+          {loading && (
+            <span style={{ fontSize: 11, color: '#89b4fa', marginLeft: 'auto' }}>Searching…</span>
+          )}
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+          {!response && !loading && (
+            <p style={{ color: '#45475a', fontSize: 13, marginTop: 8 }}>
+              Configure a route request on the left and press Search.
+            </p>
+          )}
+          {response && (
             <RouteList
               primaryRoutes={response.primary_routes}
               diverseRoutes={response.diverse_routes}
@@ -92,8 +120,8 @@ export default function App() {
               nodes={nodes}
               capacity={capacity}
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Map */}
@@ -107,10 +135,11 @@ export default function App() {
           />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#6c7086' }}>
-            Loading network...
+            Loading network…
           </div>
         )}
       </div>
+
     </div>
   )
 }
