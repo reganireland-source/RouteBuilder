@@ -1,10 +1,11 @@
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip } from 'react-leaflet'
-import type { CableNode, CableSegment, Route } from '../types'
+import type { CableNode, CableSegment, Route, SegmentCapacity } from '../types'
 
 interface Props {
   nodes: CableNode[]
   segments: CableSegment[]
   selectedRoutes: Route[]
+  capacity: SegmentCapacity[]
 }
 
 const ROUTE_COLORS: Record<number, string> = {
@@ -12,8 +13,9 @@ const ROUTE_COLORS: Record<number, string> = {
   2: '#a6e3a1',
 }
 
-export function Map({ nodes, segments, selectedRoutes }: Props) {
+export function Map({ nodes, segments, selectedRoutes, capacity }: Props) {
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+  const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
 
   const activeSegmentIds = new Set(
     selectedRoutes.flatMap(r => r.segments.map(s => s.segment_id))
@@ -61,7 +63,12 @@ export function Map({ nodes, segments, selectedRoutes }: Props) {
             <Tooltip sticky>
               <strong>{seg.name}</strong>
               <br />{seg.system_id} · {seg.type}
-              <br />{seg.length_km.toLocaleString()} km · Cost: {seg.cost_weight}
+              <br />{seg.length_km.toLocaleString()} km · {seg.latency} ms · Cost: {seg.cost_weight}
+              {capacityById[seg.id] && (() => {
+                const cap = capacityById[seg.id]
+                const pct = Math.round((cap.available_capacity_t / cap.total_capacity_t) * 100)
+                return <><br />Capacity: {cap.available_capacity_t}T / {cap.total_capacity_t}T available ({pct}%)</>
+              })()}
             </Tooltip>
           </Polyline>
         )

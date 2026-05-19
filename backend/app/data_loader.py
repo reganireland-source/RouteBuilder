@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from .models import Node, CableSystem, CableSegment, InterconnectRule
+from .models import Node, CableSystem, CableSegment, InterconnectRule, SegmentCapacity
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
@@ -23,3 +23,8 @@ def load_segments() -> list[CableSegment]:
 def load_rules() -> list[InterconnectRule]:
     with open(DATA_DIR / "rules.json") as f:
         return [InterconnectRule(**item) for item in json.load(f)]
+
+
+def load_capacity() -> list[SegmentCapacity]:
+    with open(DATA_DIR / "capacity.json") as f:
+        return [SegmentCapacity(**item) for item in json.load(f)]

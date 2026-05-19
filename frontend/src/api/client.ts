@@ -1,4 +1,4 @@
-import type { CableNode, CableSegment, CableSystem, RouteRequest, RouteResponse } from '../types'
+import type { CableNode, CableSegment, CableSystem, RouteRequest, RouteResponse, SegmentCapacity } from '../types'
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -31,5 +31,6 @@ export const api = {
   getNodes: () => get<CableNode[]>('/api/nodes'),
   getSegments: () => get<CableSegment[]>('/api/segments'),
   getSystems: () => get<CableSystem[]>('/api/systems'),
+  getCapacity: () => get<SegmentCapacity[]>('/api/capacity'),
   searchRoutes: (req: RouteRequest) => post<RouteResponse>('/api/routes', req),
 }

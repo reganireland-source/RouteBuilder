@@ -97,3 +97,9 @@ class RouteResponse(BaseModel):
     routes: list[Route]
     primary_routes: list[Route]
     diverse_routes: list[Route]
+
+
+class SegmentCapacity(BaseModel):
+    segment_id: str
+    total_capacity_t: float
+    available_capacity_t: float

@@ -70,3 +70,9 @@ export interface RouteResponse {
   primary_routes: Route[]
   diverse_routes: Route[]
 }
+
+export interface SegmentCapacity {
+  segment_id: string
+  total_capacity_t: number
+  available_capacity_t: number
+}

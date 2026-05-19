@@ -3,19 +3,20 @@ import { Map } from './components/Map'
 import { SearchForm } from './components/SearchForm'
 import { RouteList } from './components/RouteList'
 import { api } from './api/client'
-import type { CableNode, CableSegment, Route, RouteRequest, RouteResponse } from './types'
+import type { CableNode, CableSegment, Route, RouteRequest, RouteResponse, SegmentCapacity } from './types'
 
 export default function App() {
   const [nodes, setNodes] = useState<CableNode[]>([])
   const [segments, setSegments] = useState<CableSegment[]>([])
+  const [capacity, setCapacity] = useState<SegmentCapacity[]>([])
   const [response, setResponse] = useState<RouteResponse | null>(null)
   const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    Promise.all([api.getNodes(), api.getSegments()])
-      .then(([n, s]) => { setNodes(n); setSegments(s) })
+    Promise.all([api.getNodes(), api.getSegments(), api.getCapacity()])
+      .then(([n, s, c]) => { setNodes(n); setSegments(s); setCapacity(c) })
       .catch(() => setError('Failed to load network data'))
   }, [])
 
@@ -89,6 +90,7 @@ export default function App() {
               selectedRouteIds={selectedRouteIds}
               onSelectRoute={toggleRoute}
               nodes={nodes}
+              capacity={capacity}
             />
           </div>
         )}
@@ -101,6 +103,7 @@ export default function App() {
             nodes={nodes}
             segments={segments}
             selectedRoutes={selectedRoutes}
+            capacity={capacity}
           />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#6c7086' }}>

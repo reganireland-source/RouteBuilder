@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import type { Route, CableNode } from '../types'
+import type { Route, CableNode, SegmentCapacity } from '../types'
 
 interface Props {
   primaryRoutes: Route[]
@@ -8,6 +8,7 @@ interface Props {
   selectedRouteIds: string[]
   onSelectRoute: (id: string) => void
   nodes: CableNode[]
+  capacity: SegmentCapacity[]
 }
 
 type SortKey = 'hops' | 'latency' | 'availability' | 'cost'
@@ -30,9 +31,10 @@ function sortRoutes(routes: Route[], key: SortKey): Route[] {
   })
 }
 
-export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes }: Props) {
+export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes, capacity }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>('cost')
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+  const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
 
   if (primaryRoutes.length === 0 && diverseRoutes.length === 0) {
     return <p style={{ color: '#6c7086', fontSize: 13, padding: '8px 0' }}>No routes found.</p>
@@ -87,7 +89,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
         <div>
           <div style={sectionLabelStyle}>Primary Routes</div>
           {sorted.primary.map(r => (
-            <RouteCard key={r.id} route={r} selected={selectedRouteIds.includes(r.id)} onSelect={onSelectRoute} nodesById={nodesById} color="#89b4fa" />
+            <RouteCard key={r.id} route={r} selected={selectedRouteIds.includes(r.id)} onSelect={onSelectRoute} nodesById={nodesById} capacityById={capacityById} color="#89b4fa" />
           ))}
         </div>
       )}
@@ -95,7 +97,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
         <div>
           <div style={sectionLabelStyle}>Diverse Routes</div>
           {sorted.diverse.map(r => (
-            <RouteCard key={r.id} route={r} selected={selectedRouteIds.includes(r.id)} onSelect={onSelectRoute} nodesById={nodesById} color="#a6e3a1" />
+            <RouteCard key={r.id} route={r} selected={selectedRouteIds.includes(r.id)} onSelect={onSelectRoute} nodesById={nodesById} capacityById={capacityById} color="#a6e3a1" />
           ))}
         </div>
       )}
@@ -104,12 +106,13 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
 }
 
 function RouteCard({
-  route, selected, onSelect, nodesById, color,
+  route, selected, onSelect, nodesById, capacityById, color,
 }: {
   route: Route
   selected: boolean
   onSelect: (id: string) => void
   nodesById: Record<string, { name: string }>
+  capacityById: Record<string, SegmentCapacity>
   color: string
 }) {
   const [hovered, setHovered] = useState(false)
@@ -175,24 +178,35 @@ function RouteCard({
           <div style={{ fontSize: 10, fontWeight: 700, color: '#6c7086', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
             Segment Breakdown
           </div>
-          {route.segments.map(seg => (
-            <div key={seg.segment_id} style={{ marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid #313244' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: seg.type === 'wet' ? '#89b4fa' : '#a6e3a1' }}>
-                  {seg.system_id}
-                </span>
-                <span style={{ fontSize: 10, color: '#6c7086', textTransform: 'uppercase' }}>
-                  {seg.type}
-                </span>
+          {route.segments.map(seg => {
+            const cap = capacityById[seg.segment_id]
+            const capPct = cap ? Math.round((cap.available_capacity_t / cap.total_capacity_t) * 100) : null
+            return (
+              <div key={seg.segment_id} style={{ marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid #313244' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: seg.type === 'wet' ? '#89b4fa' : '#a6e3a1' }}>
+                    {seg.system_id}
+                  </span>
+                  <span style={{ fontSize: 10, color: '#6c7086', textTransform: 'uppercase' }}>
+                    {seg.type}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: 10, fontSize: 10, color: '#a6adc8', marginTop: 2 }}>
+                  <span>{seg.length_km.toLocaleString()} km</span>
+                  <span>{seg.latency} ms</span>
+                  <span>Cost: {seg.cost_weight}</span>
+                  <span>Avail: {(seg.reliability * 100).toFixed(2)}%</span>
+                </div>
+                {cap && (
+                  <div style={{ fontSize: 10, color: '#a6adc8', marginTop: 2 }}>
+                    Capacity: <span style={{ color: capPct! < 20 ? '#f38ba8' : capPct! < 50 ? '#fab387' : '#a6e3a1' }}>
+                      {cap.available_capacity_t}T
+                    </span> / {cap.total_capacity_t}T ({capPct}% free)
+                  </div>
+                )}
               </div>
-              <div style={{ display: 'flex', gap: 10, fontSize: 10, color: '#a6adc8', marginTop: 2 }}>
-                <span>{seg.length_km.toLocaleString()} km</span>
-                <span>{(seg as any).latency} ms</span>
-                <span>Cost: {seg.cost_weight}</span>
-                <span>Avail: {(seg.reliability * 100).toFixed(2)}%</span>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>,
         document.body
       )}
