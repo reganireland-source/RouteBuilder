@@ -30,5 +30,12 @@
   { "id": "SYD-NDC", "name": "Sydney NextDC S1 (Macquarie Park)", "lat": -33.7739, "lng": 151.1215, "type": "pop", "country": "AU" },
 
   { "id": "TYO-POP", "name": "Tokyo Otemachi", "lat": 35.6872, "lng": 139.7640, "type": "pop", "country": "JP" },
-  { "id": "SIN-POP", "name": "Singapore Equinix SG1 (Jurong East)", "lat": 1.3300, "lng": 103.7436, "type": "pop", "country": "SG" }
+  { "id": "TYO-POP2", "name": "Tokyo Shinjuku", "lat": 35.6938, "lng": 139.7034, "type": "pop", "country": "JP" },
+  { "id": "SIN-POP", "name": "Singapore Equinix SG1 (Jurong East)", "lat": 1.3300, "lng": 103.7436, "type": "pop", "country": "SG" },
+
+  { "id": "HKG-POP", "name": "Hong Kong Mega-i (Tseung Kwan O)", "lat": 22.3200, "lng": 114.2600, "type": "pop", "country": "HK" },
+  { "id": "HKG-POP2", "name": "Hong Kong iAdvantage (Kwai Chung)", "lat": 22.3631, "lng": 114.1289, "type": "pop", "country": "HK" },
+
+  { "id": "DAL-POP", "name": "Dallas Infomart", "lat": 32.7897, "lng": -96.8167, "type": "pop", "country": "US" },
+  { "id": "CHI-POP", "name": "Chicago 350 Cermak", "lat": 41.8502, "lng": -87.6371, "type": "pop", "country": "US" }
 ]

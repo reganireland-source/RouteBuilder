@@ -50,7 +50,17 @@
   { "id": "TERR-SYD-NDC", "name": "Terrestrial Sydney CLS–NextDC S1 (northern duct)", "system_id": "TERRESTRIAL", "start_node_id": "SYD", "end_node_id": "SYD-NDC", "type": "terrestrial", "length_km": 18, "reliability": 0.9996, "cost_weight": 1, "ownership": "iru" },
   { "id": "TERR-SYD-XCONN", "name": "Terrestrial Equinix SY1–NextDC S1 (inter-PoP dark fibre)", "system_id": "TERRESTRIAL", "start_node_id": "SYD-EQX", "end_node_id": "SYD-NDC", "type": "terrestrial", "length_km": 14, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned" },
 
-  { "id": "TERR-TYO-POP", "name": "Terrestrial Tokyo CLS–Otemachi (single-threaded)", "system_id": "TERRESTRIAL", "start_node_id": "TYO", "end_node_id": "TYO-POP", "type": "terrestrial", "length_km": 35, "reliability": 0.9993, "cost_weight": 1, "ownership": "owned" },
+  { "id": "TERR-TYO-POP", "name": "Terrestrial Tokyo CLS–Otemachi (duct A)", "system_id": "TERRESTRIAL", "start_node_id": "TYO", "end_node_id": "TYO-POP", "type": "terrestrial", "length_km": 35, "reliability": 0.9993, "cost_weight": 1, "ownership": "owned" },
+  { "id": "TERR-TYO-POP2", "name": "Terrestrial Tokyo CLS–Shinjuku (duct B)", "system_id": "TERRESTRIAL", "start_node_id": "TYO", "end_node_id": "TYO-POP2", "type": "terrestrial", "length_km": 40, "reliability": 0.9992, "cost_weight": 1, "ownership": "iru" },
+  { "id": "TERR-TYO-XCONN", "name": "Terrestrial Otemachi–Shinjuku (inter-PoP dark fibre)", "system_id": "TERRESTRIAL", "start_node_id": "TYO-POP", "end_node_id": "TYO-POP2", "type": "terrestrial", "length_km": 12, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned" },
 
-  { "id": "TERR-SIN-POP", "name": "Terrestrial Singapore CLS–Jurong East (single-threaded)", "system_id": "TERRESTRIAL", "start_node_id": "SIN", "end_node_id": "SIN-POP", "type": "terrestrial", "length_km": 20, "reliability": 0.9995, "cost_weight": 1, "ownership": "iru" }
+  { "id": "TERR-SIN-POP", "name": "Terrestrial Singapore CLS–Jurong East (single-threaded)", "system_id": "TERRESTRIAL", "start_node_id": "SIN", "end_node_id": "SIN-POP", "type": "terrestrial", "length_km": 20, "reliability": 0.9995, "cost_weight": 1, "ownership": "iru" },
+
+  { "id": "TERR-HKG-POP", "name": "Terrestrial Hong Kong CLS–Mega-i (duct A)", "system_id": "TERRESTRIAL", "start_node_id": "HKG", "end_node_id": "HKG-POP", "type": "terrestrial", "length_km": 22, "reliability": 0.9994, "cost_weight": 1, "ownership": "owned" },
+  { "id": "TERR-HKG-POP2", "name": "Terrestrial Hong Kong CLS–iAdvantage (duct B)", "system_id": "TERRESTRIAL", "start_node_id": "HKG", "end_node_id": "HKG-POP2", "type": "terrestrial", "length_km": 18, "reliability": 0.9995, "cost_weight": 1, "ownership": "iru" },
+  { "id": "TERR-HKG-XCONN", "name": "Terrestrial Mega-i–iAdvantage (inter-PoP dark fibre)", "system_id": "TERRESTRIAL", "start_node_id": "HKG-POP", "end_node_id": "HKG-POP2", "type": "terrestrial", "length_km": 25, "reliability": 0.9996, "cost_weight": 1, "ownership": "owned" },
+
+  { "id": "TERR-LAX-DAL", "name": "Terrestrial Los Angeles CLS–Dallas (southern route)", "system_id": "TERRESTRIAL", "start_node_id": "LAX", "end_node_id": "DAL-POP", "type": "terrestrial", "length_km": 2060, "reliability": 0.9982, "cost_weight": 6, "ownership": "owned" },
+  { "id": "TERR-SEA-DAL", "name": "Terrestrial Seattle CLS–Dallas (northern route)", "system_id": "TERRESTRIAL", "start_node_id": "SEA", "end_node_id": "DAL-POP", "type": "terrestrial", "length_km": 2890, "reliability": 0.9979, "cost_weight": 8, "ownership": "iru" },
+  { "id": "TERR-DAL-CHI", "name": "Terrestrial Dallas–Chicago (midwest backbone)", "system_id": "TERRESTRIAL", "start_node_id": "DAL-POP", "end_node_id": "CHI-POP", "type": "terrestrial", "length_km": 1400, "reliability": 0.9986, "cost_weight": 4, "ownership": "owned" }
 ]
