@@ -16,7 +16,10 @@ export default function App() {
   useEffect(() => {
     Promise.all([api.getNodes(), api.getSegments()])
       .then(([n, s]) => { setNodes(n); setSegments(s) })
-      .catch(() => setError('Failed to load network data'))
+      .catch((err) => {
+        console.error('Failed to load network data:', err)
+        setError('Failed to load network data')
+      })
   }, [])
 
   async function handleSearch(req: RouteRequest) {
@@ -33,7 +36,8 @@ export default function App() {
         res.diverse_routes[0]?.id,
       ].filter(Boolean) as string[]
       setSelectedRouteIds(autoSelect)
-    } catch {
+    } catch (err) {
+      console.error('Route search failed:', err)
       setError('Route search failed. Please try again.')
     } finally {
       setLoading(false)
