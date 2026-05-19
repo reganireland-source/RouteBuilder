@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Route, CableNode } from '../types'
 
 interface Props {
@@ -46,13 +47,18 @@ function RouteCard({
   nodesById: Record<string, { name: string }>
   color: string
 }) {
-  const systems = [...new Set(route.segments.map(s => s.system_id))]
+  const [hovered, setHovered] = useState(false)
+
+  const wetSystems = [...new Set(route.segments.filter(s => s.type === 'wet').map(s => s.system_id))]
   const reliabilityPct = (route.end_to_end_reliability * 100).toFixed(3)
 
   return (
     <div
       onClick={() => onSelect(route.id)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
+        position: 'relative',
         padding: '10px 12px', borderRadius: 6, marginBottom: 4, cursor: 'pointer',
         border: `1px solid ${selected ? color : '#313244'}`,
         background: selected ? '#1e1e2e' : '#181825',
@@ -63,7 +69,7 @@ function RouteCard({
         <span style={{ fontSize: 12, fontWeight: 600, color }}>
           {route.id}
           <span style={{ fontWeight: 400, color: '#a6adc8', marginLeft: 6 }}>
-            {systems.join(' · ')}
+            {wetSystems.join(' · ')}
           </span>
         </span>
         <span style={{ fontSize: 11, color: '#6c7086' }}>
@@ -80,6 +86,38 @@ function RouteCard({
         <span>{route.total_length_km.toLocaleString()} km</span>
         <span>Avail: <strong style={{ color: '#cdd6f4' }}>{reliabilityPct}%</strong></span>
       </div>
+
+      {hovered && (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            position: 'absolute', left: 'calc(100% + 8px)', top: 0, zIndex: 100,
+            width: 280, background: '#1e1e2e', border: '1px solid #45475a',
+            borderRadius: 6, padding: '10px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+          }}
+        >
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#6c7086', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+            Segment Breakdown
+          </div>
+          {route.segments.map(seg => (
+            <div key={seg.segment_id} style={{ marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid #313244' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: seg.type === 'wet' ? '#89b4fa' : '#a6e3a1' }}>
+                  {seg.system_id}
+                </span>
+                <span style={{ fontSize: 10, color: '#6c7086', textTransform: 'uppercase' }}>
+                  {seg.type}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 10, fontSize: 10, color: '#a6adc8', marginTop: 2 }}>
+                <span>{seg.length_km.toLocaleString()} km</span>
+                <span>Cost: {seg.cost_weight}</span>
+                <span>Avail: {(seg.reliability * 100).toFixed(2)}%</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
