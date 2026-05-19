@@ -172,7 +172,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
     )
   }
 
-  const typeOpts    = [{ value: 'landing_station', label: 'CLS (Landing Station)' }, { value: 'terrestrial_pop', label: 'POP (Terrestrial)' }]
+  const typeOpts    = [{ value: 'landing_station', label: 'CLS (Landing Station)' }, { value: 'terrestrial_pop', label: 'POP (Terrestrial)' }, { value: 'branching_unit', label: 'BU (Branching Unit)' }]
   const segTypeOpts = [{ value: 'wet', label: 'Wet' }, { value: 'terrestrial', label: 'Terrestrial' }]
   const ownerOpts   = [{ value: 'owned', label: 'Owned' }, { value: 'iru', label: 'IRU' }, { value: 'consortium', label: 'Consortium' }]
   const systemOpts  = systems.map(s => ({ value: s.id, label: `${s.id} — ${s.name}` }))
@@ -210,7 +210,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
               <div style={cell(2)}><code style={{ fontSize: 11 }}>{n.id}</code></div>
               <div style={cell(3)}>{n.name}</div>
               <div style={cell(1)}>{n.country}</div>
-              <div style={cell(2)}>{n.type === 'landing_station' ? 'CLS' : 'POP'}</div>
+              <div style={cell(2)}>{n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : 'POP'}</div>
               <div style={cell(1.5)}>{n.lat}</div>
               <div style={cell(1.5)}>{n.lng}</div>
               <ActionsCell id={n.id}

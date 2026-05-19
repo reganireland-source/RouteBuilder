@@ -165,10 +165,11 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         const sysColor      = systemNodeColor[node.id]
         const isSystemNode  = !!sysColor
         const isDimmed      = systemViewerActive && !isSystemNode && !isRouteNode
+        const isBU          = node.type === 'branching_unit'
 
-        const color     = isRouteNode ? t.pink : isSystemNode ? sysColor : t.borderSubtle
-        const fillColor = isRouteNode ? t.pink : isSystemNode ? sysColor : t.border
-        const radius    = isRouteNode || isSystemNode ? 6 : 4
+        const color     = isRouteNode ? t.pink : isSystemNode ? sysColor : isBU ? '#e5a045' : t.borderSubtle
+        const fillColor = isRouteNode ? t.pink : isSystemNode ? sysColor : isBU ? '#e5a045' : t.border
+        const radius    = isRouteNode || isSystemNode ? 6 : isBU ? 3 : 4
 
         return (
           <CircleMarker
@@ -176,14 +177,15 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
             center={[node.lat, normalizeLng(node.lng)]}
             radius={radius}
             pathOptions={{
-              color, fillColor, fillOpacity: isDimmed ? 0.15 : 1,
+              color, fillColor, fillOpacity: isDimmed ? 0.15 : isBU ? 0.7 : 1,
               weight: isRouteNode || isSystemNode ? 2 : 1,
-              opacity: isDimmed ? 0.15 : 1,
+              opacity: isDimmed ? 0.15 : isBU ? 0.7 : 1,
             }}
           >
             <Tooltip>
               <strong>{node.name}</strong> ({node.id})
-              <br />{node.country} · {node.type.replace('_', ' ')}
+              {!isBU && <><br />{node.country} · {node.type.replace('_', ' ')}</>}
+              {isBU && <><br />Branching Unit</>}
             </Tooltip>
           </CircleMarker>
         )

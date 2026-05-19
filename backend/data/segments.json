@@ -1300,32 +1300,6 @@
     "latency": 13.0
   },
   {
-    "id": "JGA-GUM-DAR",
-    "name": "JGA Guam\u2013Darwin",
-    "system_id": "JGA",
-    "start_node_id": "GUM1",
-    "end_node_id": "DAR1",
-    "type": "wet",
-    "length_km": 3800,
-    "reliability": 0.999,
-    "cost_weight": 12,
-    "ownership": "consortium",
-    "latency": 19.0
-  },
-  {
-    "id": "JGA-DAR-PER",
-    "name": "JGA Darwin\u2013Perth",
-    "system_id": "JGA",
-    "start_node_id": "DAR1",
-    "end_node_id": "PER1",
-    "type": "wet",
-    "length_km": 2800,
-    "reliability": 0.9993,
-    "cost_weight": 9,
-    "ownership": "consortium",
-    "latency": 14.0
-  },
-  {
     "id": "SEAUS-MNL-GUM",
     "name": "SEA-US Manila\u2013Guam",
     "system_id": "SEAUS",
@@ -1558,5 +1532,44 @@
     "cost_weight": 4,
     "ownership": "consortium",
     "latency": 5.5
+  },
+  {
+    "id": "JGA-GUM-BU1",
+    "name": "JGA Guam\u2013Branching Unit",
+    "system_id": "JGA",
+    "start_node_id": "GUM1",
+    "end_node_id": "JGABU1",
+    "type": "wet",
+    "length_km": 2900,
+    "reliability": 0.9992,
+    "cost_weight": 9,
+    "ownership": "consortium",
+    "latency": 14.5
+  },
+  {
+    "id": "JGA-BU1-DAR",
+    "name": "JGA Branching Unit\u2013Darwin",
+    "system_id": "JGA",
+    "start_node_id": "JGABU1",
+    "end_node_id": "DAR1",
+    "type": "wet",
+    "length_km": 700,
+    "reliability": 0.9997,
+    "cost_weight": 2,
+    "ownership": "consortium",
+    "latency": 3.5
+  },
+  {
+    "id": "JGA-BU1-PER",
+    "name": "JGA Branching Unit\u2013Perth",
+    "system_id": "JGA",
+    "start_node_id": "JGABU1",
+    "end_node_id": "PER1",
+    "type": "wet",
+    "length_km": 2600,
+    "reliability": 0.9993,
+    "cost_weight": 8,
+    "ownership": "consortium",
+    "latency": 13.0
   }
 ]

@@ -36,6 +36,7 @@ function countryName(code: string) {
 function groupByCountry(nodes: CableNode[]) {
   const map = new Map<string, CableNode[]>()
   for (const n of nodes) {
+    if (n.type === 'branching_unit') continue
     const existing = map.get(n.country) ?? []
     existing.push(n)
     map.set(n.country, existing)
@@ -49,8 +50,10 @@ function groupByCountry(nodes: CableNode[]) {
     }))
 }
 
-const nodeLabel = (n: CableNode) =>
-  `${n.name} (${n.id}) [${n.type === 'landing_station' ? 'CLS' : 'POP'}]`
+const nodeLabel = (n: CableNode) => {
+  const tag = n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : 'POP'
+  return `${n.name} (${n.id}) [${tag}]`
+}
 
 export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
   const t = useTheme()

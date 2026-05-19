@@ -518,5 +518,13 @@
     "lng": 168.3215,
     "type": "landing_station",
     "country": "VU"
+  },
+  {
+    "id": "JGABU1",
+    "name": "JGA Branching Unit (Timor Sea)",
+    "lat": -13.5,
+    "lng": 131.0,
+    "type": "branching_unit",
+    "country": "AU"
   }
 ]

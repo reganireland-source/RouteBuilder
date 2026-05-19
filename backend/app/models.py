@@ -6,6 +6,7 @@ from enum import Enum
 class NodeType(str, Enum):
     landing_station = "landing_station"
     terrestrial_pop = "terrestrial_pop"
+    branching_unit = "branching_unit"
 
 
 class SegmentType(str, Enum):
