@@ -27,6 +27,8 @@ def _build_route(
     total_length = 0.0
     reliability = 1.0
 
+    total_latency = 0.0
+
     for sid in seg_ids:
         seg = segments_by_id[sid]
         seg_details.append(RouteSegmentDetail(
@@ -39,10 +41,12 @@ def _build_route(
             reliability=seg.reliability,
             cost_weight=seg.cost_weight,
             ownership=seg.ownership,
+            latency=seg.latency,
         ))
         total_cost += seg.cost_weight
         total_length += seg.length_km
         reliability *= seg.reliability
+        total_latency += seg.latency
 
     return Route(
         id=route_id,
@@ -50,6 +54,7 @@ def _build_route(
         segments=seg_details,
         total_cost=round(total_cost, 2),
         total_length_km=round(total_length, 1),
+        total_latency=round(total_latency, 2),
         end_to_end_reliability=round(reliability, 6),
         diversity_group=diversity_group,
     )

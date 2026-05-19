@@ -29,6 +29,7 @@ export interface CableSegment {
   reliability: number
   cost_weight: number
   ownership: Ownership
+  latency: number
 }
 
 export interface RouteSegmentDetail {
@@ -41,6 +42,7 @@ export interface RouteSegmentDetail {
   reliability: number
   cost_weight: number
   ownership: Ownership
+  latency: number
 }
 
 export interface Route {
@@ -49,6 +51,7 @@ export interface Route {
   segments: RouteSegmentDetail[]
   total_cost: number
   total_length_km: number
+  total_latency: number
   end_to_end_reliability: number
   diversity_group: number
 }

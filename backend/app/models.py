@@ -52,6 +52,7 @@ class CableSegment(BaseModel):
     reliability: float        # 0-1, annualised availability
     cost_weight: float        # relative cost units
     ownership: Ownership
+    latency: float            # one-way propagation delay in ms (length / 200,000 km/s)
 
 
 class InterconnectRule(BaseModel):
@@ -78,6 +79,7 @@ class RouteSegmentDetail(BaseModel):
     reliability: float
     cost_weight: float
     ownership: Ownership
+    latency: float
 
 
 class Route(BaseModel):
@@ -86,6 +88,7 @@ class Route(BaseModel):
     segments: list[RouteSegmentDetail]
     total_cost: float
     total_length_km: float
+    total_latency: float
     end_to_end_reliability: float
     diversity_group: int = 1
 

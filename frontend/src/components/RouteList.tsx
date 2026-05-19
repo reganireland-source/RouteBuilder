@@ -94,6 +94,7 @@ function RouteCard({
       <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#a6adc8' }}>
         <span>Cost: <strong style={{ color: '#cdd6f4' }}>{route.total_cost}</strong></span>
         <span>{route.total_length_km.toLocaleString()} km</span>
+        <span>Latency: <strong style={{ color: '#cdd6f4' }}>{route.total_latency} ms</strong></span>
         <span>Avail: <strong style={{ color: '#cdd6f4' }}>{reliabilityPct}%</strong></span>
       </div>
 
@@ -122,6 +123,7 @@ function RouteCard({
               </div>
               <div style={{ display: 'flex', gap: 10, fontSize: 10, color: '#a6adc8', marginTop: 2 }}>
                 <span>{seg.length_km.toLocaleString()} km</span>
+                <span>{seg.latency} ms</span>
                 <span>Cost: {seg.cost_weight}</span>
                 <span>Avail: {(seg.reliability * 100).toFixed(2)}%</span>
               </div>
