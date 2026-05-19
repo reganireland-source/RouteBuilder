@@ -534,5 +534,13 @@
     "lng": -171.0,
     "type": "branching_unit",
     "country": "WS"
+  },
+  {
+    "id": "TIN1",
+    "name": "Tinian",
+    "lat": 15.0,
+    "lng": 145.6,
+    "type": "landing_station",
+    "country": "MP"
   }
 ]

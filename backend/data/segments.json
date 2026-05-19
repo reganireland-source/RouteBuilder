@@ -1417,45 +1417,6 @@
     "latency": 22.0
   },
   {
-    "id": "PROA-MNL-GUM",
-    "name": "PROA Manila\u2013Guam",
-    "system_id": "PROA",
-    "start_node_id": "MNL1",
-    "end_node_id": "GUM1",
-    "type": "wet",
-    "length_km": 2900,
-    "reliability": 0.9993,
-    "cost_weight": 9,
-    "ownership": "consortium",
-    "latency": 14.5
-  },
-  {
-    "id": "PROA-GUM-HAW",
-    "name": "PROA Guam\u2013Hawaii",
-    "system_id": "PROA",
-    "start_node_id": "GUM1",
-    "end_node_id": "HAW1",
-    "type": "wet",
-    "length_km": 5300,
-    "reliability": 0.9989,
-    "cost_weight": 17,
-    "ownership": "consortium",
-    "latency": 26.5
-  },
-  {
-    "id": "PROA-HAW-SFO",
-    "name": "PROA Hawaii\u2013San Francisco",
-    "system_id": "PROA",
-    "start_node_id": "HAW1",
-    "end_node_id": "SFO1",
-    "type": "wet",
-    "length_km": 3900,
-    "reliability": 0.9992,
-    "cost_weight": 12,
-    "ownership": "consortium",
-    "latency": 19.5
-  },
-  {
     "id": "BALIKULA-BRI-VLI",
     "name": "Balikula Brisbane\u2013Port Vila",
     "system_id": "BALIKULA",
@@ -1662,5 +1623,31 @@
     "cost_weight": 7,
     "ownership": "consortium",
     "latency": 11.0
+  },
+  {
+    "id": "PROA-OSA-TIN",
+    "name": "PROA Shima (Japan)\u2013Tinian",
+    "system_id": "PROA",
+    "start_node_id": "OSA1",
+    "end_node_id": "TIN1",
+    "type": "wet",
+    "length_km": 2650,
+    "reliability": 0.9993,
+    "cost_weight": 8,
+    "ownership": "owned",
+    "latency": 13.25
+  },
+  {
+    "id": "PROA-TIN-GUM",
+    "name": "PROA Tinian\u2013Guam",
+    "system_id": "PROA",
+    "start_node_id": "TIN1",
+    "end_node_id": "GUM1",
+    "type": "wet",
+    "length_km": 241,
+    "reliability": 0.9998,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "latency": 1.21
   }
 ]
