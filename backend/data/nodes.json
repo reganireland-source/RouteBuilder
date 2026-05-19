@@ -252,7 +252,7 @@
     "name": "San Francisco",
     "lat": 37.7749,
     "lng": -122.4194,
-    "type": "terrestrial_pop",
+    "type": "landing_station",
     "country": "US"
   },
   {
@@ -526,5 +526,13 @@
     "lng": 156.0,
     "type": "branching_unit",
     "country": "AU"
+  },
+  {
+    "id": "SXNBU1",
+    "name": "Southern Cross NEXT Branching Unit",
+    "lat": -13.0,
+    "lng": -171.0,
+    "type": "branching_unit",
+    "country": "WS"
   }
 ]

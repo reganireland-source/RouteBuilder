@@ -1,10 +1,5 @@
 [
   {
-    "id": "SXCS",
-    "name": "Southern Cross Cable System",
-    "description": "Transpacific cable connecting Australia and New Zealand to the United States via Hawaii"
-  },
-  {
     "id": "AJC",
     "name": "Australia-Japan Cable",
     "description": "Cable connecting Australia to Japan via Guam"
@@ -118,5 +113,20 @@
     "id": "BALIKULA",
     "name": "Balikula",
     "description": "South Pacific cable connecting Brisbane, Vanuatu (Port Vila) and Fiji. ~3,050 km. Google/Telstra. Provides first direct fibre connectivity to Vanuatu."
+  },
+  {
+    "id": "SCC_N",
+    "name": "Southern Cross Cable \u2013 North",
+    "description": "Original Southern Cross north route: Sydney (Brookvale) to Hawaii (Kahe Point, Oahu) via Suva, Fiji, then onward to Nedonna Beach, Oregon. ~13,700 km. Owners: Spark NZ (38%), Singtel (30%), Telstra (25%), Verizon (6%). RFS 2000."
+  },
+  {
+    "id": "SCC_S",
+    "name": "Southern Cross Cable \u2013 South",
+    "description": "Original Southern Cross south route: Sydney (Alexandria) to Morro Bay, California via Auckland (Takapuna) and Hawaii (Spencer Beach, Big Island). ~14,400 km. Same consortium as SCC_N. RFS 2000."
+  },
+  {
+    "id": "SXNEXT",
+    "name": "Southern Cross NEXT",
+    "description": "Upgraded transpacific cable: Hermosa Beach (LA) to Sydney and Auckland via Hawaii, with Fiji branch. 15,857 km, 72 Tbps. Same consortium plus ASN supply. RFS July 2022."
   }
 ]
