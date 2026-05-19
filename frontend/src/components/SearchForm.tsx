@@ -20,7 +20,6 @@ const COUNTRY_NAMES: Record<string, string> = {
   IN: 'India',
   JP: 'Japan',
   KR: 'South Korea',
-  MNL: 'Philippines',
   MY: 'Malaysia',
   NZ: 'New Zealand',
   PH: 'Philippines',
