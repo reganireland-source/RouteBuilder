@@ -27,6 +27,8 @@ def _build_route(
     total_length = 0.0
     reliability = 1.0
 
+    total_latency = 0.0
+
     for sid in seg_ids:
         seg = segments_by_id[sid]
         seg_details.append(RouteSegmentDetail(
@@ -39,10 +41,12 @@ def _build_route(
             reliability=seg.reliability,
             cost_weight=seg.cost_weight,
             ownership=seg.ownership,
+            latency=seg.latency,
         ))
         total_cost += seg.cost_weight
         total_length += seg.length_km
         reliability *= seg.reliability
+        total_latency += seg.latency
 
     return Route(
         id=route_id,
@@ -50,6 +54,7 @@ def _build_route(
         segments=seg_details,
         total_cost=round(total_cost, 2),
         total_length_km=round(total_length, 1),
+        total_latency=round(total_latency, 2),
         end_to_end_reliability=round(reliability, 6),
         diversity_group=diversity_group,
     )
@@ -104,6 +109,7 @@ def find_routes(
     must_include_nodes: list[str],
     must_avoid_nodes: list[str],
     must_avoid_segments: list[str],
+    must_include_segments: list[str],
     diversity: DiversityType,
     segments_by_id: dict[str, CableSegment],
     rules: list[InterconnectRule],
@@ -136,6 +142,14 @@ def find_routes(
         except nx.NetworkXNoPath:
             candidates = []
 
+    # Filter to paths that include all required segments
+    required_seg_ids = set(must_include_segments)
+    if required_seg_ids:
+        candidates = [
+            p for p in candidates
+            if required_seg_ids.issubset(set(path_to_segment_ids(working_G, p)))
+        ]
+
     if not candidates:
         return RouteResponse(routes=[], primary_routes=[], diverse_routes=[])
 
@@ -150,21 +164,36 @@ def find_routes(
     diverse_routes: list[Route] = []
 
     if diversity != DiversityType.none:
-        # Determine which segment types to exclude for the diverse path
-        primary_seg_ids = {s.segment_id for s in primary_route.segments}
+        # Identify origin-end and destination-end terrestrial segments
+        def end_terrestrial_ids(from_origin: bool) -> set[str]:
+            segs = primary_route.segments if from_origin else list(reversed(primary_route.segments))
+            result = set()
+            for s in segs:
+                if s.type == "terrestrial":
+                    result.add(s.segment_id)
+                else:
+                    break
+            return result
+
+        origin_terr = end_terrestrial_ids(from_origin=True)
+        dest_terr = end_terrestrial_ids(from_origin=False)
+
         edges_to_remove: list[tuple[str, str]] = []
 
-        for seg_id in primary_seg_ids:
-            seg = segments_by_id.get(seg_id)
-            if not seg:
+        for seg in primary_route.segments:
+            seg_id = seg.segment_id
+            full_seg = segments_by_id.get(seg_id)
+            if not full_seg:
                 continue
             include = (
                 diversity == DiversityType.full
                 or (diversity == DiversityType.wet and seg.type == "wet")
-                or (diversity == DiversityType.terrestrial and seg.type == "terrestrial")
+                or (diversity == DiversityType.terrestrial_origin and seg_id in origin_terr)
+                or (diversity == DiversityType.terrestrial_destination and seg_id in dest_terr)
+                or (diversity == DiversityType.terrestrial_both and seg_id in (origin_terr | dest_terr))
             )
             if include:
-                edges_to_remove.append((seg.start_node_id, seg.end_node_id))
+                edges_to_remove.append((full_seg.start_node_id, full_seg.end_node_id))
 
         diverse_G = working_G.copy()
         for u, v in edges_to_remove:

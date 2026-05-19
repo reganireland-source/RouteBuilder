@@ -1,7 +1,7 @@
 export type NodeType = 'landing_station' | 'terrestrial_pop'
 export type SegmentType = 'wet' | 'terrestrial'
 export type Ownership = 'owned' | 'iru' | 'consortium'
-export type DiversityType = 'none' | 'wet' | 'terrestrial' | 'full'
+export type DiversityType = 'none' | 'terrestrial_origin' | 'terrestrial_destination' | 'terrestrial_both' | 'wet' | 'full'
 
 export interface CableNode {
   id: string
@@ -29,6 +29,7 @@ export interface CableSegment {
   reliability: number
   cost_weight: number
   ownership: Ownership
+  latency: number
 }
 
 export interface RouteSegmentDetail {
@@ -41,6 +42,7 @@ export interface RouteSegmentDetail {
   reliability: number
   cost_weight: number
   ownership: Ownership
+  latency: number
 }
 
 export interface Route {
@@ -49,6 +51,7 @@ export interface Route {
   segments: RouteSegmentDetail[]
   total_cost: number
   total_length_km: number
+  total_latency: number
   end_to_end_reliability: number
   diversity_group: number
 }
@@ -59,6 +62,7 @@ export interface RouteRequest {
   must_include_nodes: string[]
   must_avoid_nodes: string[]
   must_avoid_segments: string[]
+  must_include_segments: string[]
   diversity: DiversityType
 }
 
@@ -66,4 +70,22 @@ export interface RouteResponse {
   routes: Route[]
   primary_routes: Route[]
   diverse_routes: Route[]
+}
+
+export interface SegmentCapacity {
+  segment_id: string
+  total_capacity_t: number
+  available_capacity_t: number
+}
+
+export interface SelectedSystem {
+  systemId: string
+  color: string
+}
+
+export interface PinnedRoute {
+  pinId: string
+  route: Route
+  color: string
+  searchLabel: string
 }

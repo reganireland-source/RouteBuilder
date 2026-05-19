@@ -23,6 +23,7 @@ def search_routes(request: RouteRequest):
         must_include_nodes=request.must_include_nodes,
         must_avoid_nodes=request.must_avoid_nodes,
         must_avoid_segments=request.must_avoid_segments,
+        must_include_segments=request.must_include_segments,
         diversity=request.diversity,
         segments_by_id=segments_by_id,
         rules=rules,
