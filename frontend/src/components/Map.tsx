@@ -70,19 +70,17 @@ export function Map({ nodes, segments, selectedRoutes }: Props) {
         )
       })}
 
-      {/* Segment name labels at midpoint of each line */}
+      {/* Segment name labels — only for segments on a highlighted route */}
       {segments.map(seg => {
         const start = nodesById[seg.start_node_id]
         const end = nodesById[seg.end_node_id]
-        if (!start || !end) return null
+        if (!start || !end || !activeSegmentIds.has(seg.id)) return null
 
-        const isActive = activeSegmentIds.has(seg.id)
         const midLat = (start.lat + end.lat) / 2
         const midLng = (start.lng + end.lng) / 2
-        const color = isActive ? '#cdd6f4' : '#4a4a6a'
 
         const icon = L.divIcon({
-          html: `<div style="font-size:9px;color:${color};white-space:nowrap;text-align:center;width:180px;margin-left:-90px;text-shadow:0 1px 3px rgba(0,0,0,0.95);pointer-events:none;user-select:none;font-family:system-ui,sans-serif">${seg.name}</div>`,
+          html: `<div style="font-size:9px;color:#cdd6f4;white-space:nowrap;text-align:center;width:180px;margin-left:-90px;text-shadow:0 1px 3px rgba(0,0,0,0.95);pointer-events:none;user-select:none;font-family:system-ui,sans-serif">${seg.name}</div>`,
           className: '',
           iconSize: [0, 0],
           iconAnchor: [0, 0],
