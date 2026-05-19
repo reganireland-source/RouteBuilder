@@ -78,6 +78,17 @@ export interface SegmentCapacity {
   available_capacity_t: number
 }
 
+export interface DisallowedPair {
+  system_a: string
+  system_b: string
+  reason: string
+}
+
+export interface InterconnectRule {
+  node_id: string
+  disallowed_pairs: DisallowedPair[]
+}
+
 export interface SelectedSystem {
   systemId: string
   color: string

@@ -64,7 +64,7 @@ def validate_interconnect_rules(
         out_sys = out_edge["system_id"]
 
         for pair in rules_by_node[node].disallowed_pairs:
-            if [in_sys, out_sys] == pair or [out_sys, in_sys] == pair:
+            if {in_sys, out_sys} == {pair.system_a, pair.system_b}:
                 return False
 
     return True

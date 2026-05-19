@@ -6,7 +6,7 @@ import { SystemViewer } from './components/SystemViewer'
 import { RefDataModal } from './components/RefDataModal'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, lightTheme, type Theme } from './theme'
-import type { CableNode, CableSegment, CableSystem, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SelectedSystem } from './types'
+import type { CableNode, CableSegment, CableSystem, InterconnectRule, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SelectedSystem } from './types'
 
 type AppMode = 'routebuilder' | 'systemviewer'
 
@@ -25,6 +25,7 @@ export default function App() {
   const [segments, setSegments] = useState<CableSegment[]>([])
   const [systems, setSystems] = useState<CableSystem[]>([])
   const [capacity, setCapacity] = useState<SegmentCapacity[]>([])
+  const [rules, setRules] = useState<InterconnectRule[]>([])
   const [response, setResponse] = useState<RouteResponse | null>(null)
   const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([])
   const [pinnedRoutes, setPinnedRoutes] = useState<PinnedRoute[]>([])
@@ -34,8 +35,8 @@ export default function App() {
   const pinCounter = useRef(0)
 
   useEffect(() => {
-    Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems()])
-      .then(([n, s, c, sys]) => { setNodes(n); setSegments(s); setCapacity(c); setSystems(sys) })
+    Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules()])
+      .then(([n, s, c, sys, r]) => { setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r) })
       .catch(() => setError('Failed to load network data'))
   }, [])
 
@@ -270,9 +271,10 @@ export default function App() {
           segments={segments}
           systems={systems}
           capacity={capacity}
+          rules={rules}
           onDataChange={() =>
-            Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems()])
-              .then(([n, s, c, sys]) => { setNodes(n); setSegments(s); setCapacity(c); setSystems(sys) })
+            Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules()])
+              .then(([n, s, c, sys, r]) => { setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r) })
           }
           onClose={() => setRefDataOpen(false)}
         />

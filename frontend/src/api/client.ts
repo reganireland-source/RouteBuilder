@@ -1,4 +1,4 @@
-import type { CableNode, CableSegment, CableSystem, RouteRequest, RouteResponse, SegmentCapacity } from '../types'
+import type { CableNode, CableSegment, CableSystem, InterconnectRule, RouteRequest, RouteResponse, SegmentCapacity } from '../types'
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -65,4 +65,10 @@ export const api = {
   createCapacity: (data: SegmentCapacity)                           => post<SegmentCapacity>('/api/capacity', data),
   updateCapacity: (segId: string, data: Partial<SegmentCapacity>)   => put<SegmentCapacity>(`/api/capacity/${segId}`, data),
   deleteCapacity: (segId: string)                                   => del(`/api/capacity/${segId}`),
+
+  // Rules
+  getRules:     ()                                                  => get<InterconnectRule[]>('/api/rules'),
+  createRule:   (data: InterconnectRule)                            => post<InterconnectRule>('/api/rules', data),
+  updateRule:   (nodeId: string, data: Partial<InterconnectRule>)   => put<InterconnectRule>(`/api/rules/${nodeId}`, data),
+  deleteRule:   (nodeId: string)                                    => del(`/api/rules/${nodeId}`),
 }

@@ -57,9 +57,19 @@ class CableSegment(BaseModel):
     latency: Optional[float] = None
 
 
+class DisallowedPair(BaseModel):
+    system_a: str
+    system_b: str
+    reason: str = "Pair is not allowed"
+
+
 class InterconnectRule(BaseModel):
     node_id: str
-    disallowed_pairs: list[list[str]]  # pairs of system_ids that cannot interconnect
+    disallowed_pairs: list[DisallowedPair]
+
+
+class InterconnectRuleUpdate(BaseModel):
+    disallowed_pairs: Optional[list[DisallowedPair]] = None
 
 
 class SegmentCapacity(BaseModel):

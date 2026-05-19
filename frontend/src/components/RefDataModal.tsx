@@ -1,20 +1,21 @@
 import { useState } from 'react'
-import type { CableNode, CableSegment, CableSystem, SegmentCapacity } from '../types'
+import type { CableNode, CableSegment, CableSystem, DisallowedPair, InterconnectRule, SegmentCapacity } from '../types'
 import { useTheme } from '../theme'
 import { api } from '../api/client'
 
-type Tab = 'nodes' | 'segments' | 'systems' | 'capacity'
+type Tab = 'nodes' | 'segments' | 'systems' | 'capacity' | 'rules'
 
 interface Props {
   nodes: CableNode[]
   segments: CableSegment[]
   systems: CableSystem[]
   capacity: SegmentCapacity[]
+  rules: InterconnectRule[]
   onDataChange: () => void
   onClose: () => void
 }
 
-export function RefDataModal({ nodes, segments, systems, capacity, onDataChange, onClose }: Props) {
+export function RefDataModal({ nodes, segments, systems, capacity, rules, onDataChange, onClose }: Props) {
   const t = useTheme()
   const [tab, setTab] = useState<Tab>('nodes')
   const [editId, setEditId] = useState<string | null>(null)
@@ -418,14 +419,124 @@ export function RefDataModal({ nodes, segments, systems, capacity, onDataChange,
     )
   }
 
+  // ── Rules tab ────────────────────────────────────────────────────────────────
+
+  // Flatten rules into (node_id, pairIndex, pair) rows for display
+  type FlatPair = { node_id: string; idx: number; pair: DisallowedPair }
+
+  function RulesTab() {
+    const flat: FlatPair[] = rules.flatMap(r =>
+      r.disallowed_pairs.map((pair, idx) => ({ node_id: r.node_id, idx, pair }))
+    )
+    const filtered = flat.filter(fp =>
+      !filter ||
+      fp.node_id.toLowerCase().includes(filter.toLowerCase()) ||
+      fp.pair.system_a.toLowerCase().includes(filter.toLowerCase()) ||
+      fp.pair.system_b.toLowerCase().includes(filter.toLowerCase())
+    )
+
+    function pairKey(node_id: string, idx: number) { return `${node_id}::${idx}` }
+
+    async function savePairEdit(node_id: string, idx: number) {
+      const rule = rules.find(r => r.node_id === node_id)!
+      const newPairs = rule.disallowed_pairs.map((p, i) =>
+        i === idx ? (editValues as unknown as DisallowedPair) : p
+      )
+      await saveEdit(() => api.updateRule(node_id, { disallowed_pairs: newPairs }))
+    }
+
+    async function deletePair(node_id: string, idx: number) {
+      const rule = rules.find(r => r.node_id === node_id)!
+      const newPairs = rule.disallowed_pairs.filter((_, i) => i !== idx)
+      if (newPairs.length === 0) {
+        await confirmDelete(() => api.deleteRule(node_id))
+      } else {
+        await confirmDelete(() => api.updateRule(node_id, { disallowed_pairs: newPairs }).then(() => {}))
+      }
+    }
+
+    async function addPair() {
+      const { node_id, system_a, system_b, reason } = addValues as Record<string, string>
+      const existing = rules.find(r => r.node_id === node_id)
+      if (existing) {
+        const newPairs = [...existing.disallowed_pairs, { system_a, system_b, reason: reason || 'Pair is not allowed' }]
+        await saveAdd(() => api.updateRule(node_id, { disallowed_pairs: newPairs }))
+      } else {
+        await saveAdd(() => api.createRule({ node_id, disallowed_pairs: [{ system_a, system_b, reason: reason || 'Pair is not allowed' }] }))
+      }
+    }
+
+    const totalPairs = rules.reduce((n, r) => n + r.disallowed_pairs.length, 0)
+
+    return (
+      <>
+        {adding && (
+          <div style={{ ...editFormRow, gridTemplateColumns: '1fr 1fr 1fr 2fr' }}>
+            <Field label="Node ID *"   k="node_id"   src={addValues} setSrc={setAddValues} />
+            <Field label="System A *"  k="system_a"  src={addValues} setSrc={setAddValues} />
+            <Field label="System B *"  k="system_b"  src={addValues} setSrc={setAddValues} />
+            <Field label="Reason"      k="reason"    src={addValues} setSrc={setAddValues} />
+            <SaveCancel onSave={addPair} onCancel={() => { setAdding(false); setAddValues({}) }} />
+          </div>
+        )}
+        <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
+          <div style={colH(1.5)}>Node</div>
+          <div style={colH(1.5)}>System A</div>
+          <div style={colH(1.5)}>System B</div>
+          <div style={colH(5)}>Reason</div>
+          <div style={{ width: 140 }} />
+        </div>
+        {filtered.length === 0 && (
+          <div style={{ padding: '20px 16px', color: t.textFaintest, fontSize: 13 }}>No rules defined.</div>
+        )}
+        {filtered.map(({ node_id, idx, pair }) => {
+          const key = pairKey(node_id, idx)
+          return (
+            <div key={key} style={rowStyle(editId === key)}>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
+                <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{node_id}</code></div>
+                <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{pair.system_a}</code></div>
+                <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{pair.system_b}</code></div>
+                <div style={{ ...cell(5), color: t.textMuted, fontStyle: pair.reason === 'Pair is not allowed' ? 'italic' : 'normal' }}>{pair.reason}</div>
+                <ActionsCell
+                  id={key}
+                  onEdit={() => startEdit(key, { system_a: pair.system_a, system_b: pair.system_b, reason: pair.reason })}
+                  onDelete={() => deletePair(node_id, idx)}
+                />
+              </div>
+              {editId === key && (
+                <div style={{ ...editFormRow, gridTemplateColumns: '1fr 1fr 3fr' }}>
+                  <Field label="System A" k="system_a" src={editValues} setSrc={setEditValues} />
+                  <Field label="System B" k="system_b" src={editValues} setSrc={setEditValues} />
+                  <Field label="Reason"   k="reason"   src={editValues} setSrc={setEditValues} />
+                  <SaveCancel
+                    onSave={() => savePairEdit(node_id, idx)}
+                    onCancel={() => setEditId(null)}
+                  />
+                </div>
+              )}
+            </div>
+          )
+        })}
+        {totalPairs > 0 && (
+          <div style={{ padding: '8px 16px', fontSize: 11, color: t.textFaintest, borderTop: `1px solid ${t.borderSubtle}` }}>
+            {rules.length} node rule{rules.length !== 1 ? 's' : ''} · {totalPairs} pair{totalPairs !== 1 ? 's' : ''} total
+          </div>
+        )}
+      </>
+    )
+  }
+
   // ── Counts & add defaults ────────────────────────────────────────────────────
 
-  const counts: Record<Tab, number> = { nodes: nodes.length, segments: segments.length, systems: systems.length, capacity: capacity.length }
+  const totalPairs = rules.reduce((n, r) => n + r.disallowed_pairs.length, 0)
+  const counts: Record<Tab, number> = { nodes: nodes.length, segments: segments.length, systems: systems.length, capacity: capacity.length, rules: totalPairs }
   const addDefaults: Record<Tab, Record<string, unknown>> = {
     nodes:    { id: '', name: '', country: '', type: 'landing_station', lat: 0, lng: 0 },
     segments: { id: '', name: '', system_id: '', start_node_id: '', end_node_id: '', type: 'wet', length_km: 0, latency: 0, cost_weight: 1, reliability: 0.9999, ownership: 'consortium' },
     systems:  { id: '', name: '', description: '' },
     capacity: { segment_id: '', total_capacity_t: 1.0, available_capacity_t: 1.0 },
+    rules:    { node_id: '', system_a: '', system_b: '', reason: 'Pair is not allowed' },
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -445,7 +556,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, onDataChange,
 
         {/* Tab bar + filter + add */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 20px', borderBottom: `1px solid ${t.border}`, flexShrink: 0, background: t.bgDeep }}>
-          {(['nodes', 'segments', 'systems', 'capacity'] as Tab[]).map(tb => (
+          {(['nodes', 'segments', 'systems', 'capacity', 'rules'] as Tab[]).map(tb => (
             <button key={tb} onClick={() => switchTab(tb)} style={{
               padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
               fontSize: 12, fontWeight: tab === tb ? 700 : 400,
@@ -467,7 +578,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, onDataChange,
               onClick={() => startAdd(addDefaults[tab])}
               style={{ ...actionBtn('add'), padding: '5px 12px' }}
             >
-              + Add {tab.slice(0, -1)}
+              + Add {tab === 'rules' ? 'pair' : tab.slice(0, -1)}
             </button>
           </div>
         </div>
@@ -478,6 +589,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, onDataChange,
           {tab === 'segments' && <SegmentTab />}
           {tab === 'systems'  && <SystemTab />}
           {tab === 'capacity' && <CapacityTab />}
+          {tab === 'rules'    && <RulesTab />}
         </div>
 
       </div>

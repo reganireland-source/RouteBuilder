@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from .models import Node, CableSystem, CableSegment, InterconnectRule, SegmentCapacity
+from .models import Node, CableSystem, CableSegment, InterconnectRule, SegmentCapacity, DisallowedPair
 
 def _write(path: Path, data: list) -> None:
     with open(path, "w") as f:
@@ -27,6 +27,9 @@ def load_segments() -> list[CableSegment]:
 def load_rules() -> list[InterconnectRule]:
     with open(DATA_DIR / "rules.json") as f:
         return [InterconnectRule(**item) for item in json.load(f)]
+
+def save_rules(rules: list[InterconnectRule]) -> None:
+    _write(DATA_DIR / "rules.json", [r.model_dump() for r in rules])
 
 
 def load_capacity() -> list[SegmentCapacity]:
