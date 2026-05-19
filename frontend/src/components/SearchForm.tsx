@@ -18,6 +18,11 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
 
   const sortedNodes = [...nodes].sort((a, b) => a.name.localeCompare(b.name))
 
+  function nodeLabel(n: CableNode) {
+    const tag = n.type === 'landing_station' ? 'CLS' : 'POP'
+    return `${n.name} (${n.id}) [${tag}]`
+  }
+
   function toggleMulti(id: string, list: string[], setter: (v: string[]) => void) {
     setter(list.includes(id) ? list.filter(x => x !== id) : [...list, id])
   }
@@ -59,7 +64,7 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
         <select value={startNode} onChange={e => setStartNode(e.target.value)} style={selectStyle} required>
           <option value="">Select origin...</option>
           {sortedNodes.map(n => (
-            <option key={n.id} value={n.id}>{n.name} ({n.id})</option>
+            <option key={n.id} value={n.id}>{nodeLabel(n)}</option>
           ))}
         </select>
       </div>
@@ -69,7 +74,7 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
         <select value={endNode} onChange={e => setEndNode(e.target.value)} style={selectStyle} required>
           <option value="">Select destination...</option>
           {sortedNodes.map(n => (
-            <option key={n.id} value={n.id}>{n.name} ({n.id})</option>
+            <option key={n.id} value={n.id}>{nodeLabel(n)}</option>
           ))}
         </select>
       </div>
@@ -95,7 +100,7 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
                 style={multiItemStyle(mustInclude.includes(n.id))}
                 onClick={() => toggleMulti(n.id, mustInclude, setMustInclude)}
               >
-                {n.name} ({n.id})
+                {nodeLabel(n)}
               </div>
             ))}
         </div>
@@ -112,7 +117,7 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
                 style={multiItemStyle(mustAvoidNodes.includes(n.id))}
                 onClick={() => toggleMulti(n.id, mustAvoidNodes, setMustAvoidNodes)}
               >
-                {n.name} ({n.id})
+                {nodeLabel(n)}
               </div>
             ))}
         </div>
