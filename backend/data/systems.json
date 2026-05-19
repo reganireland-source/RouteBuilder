@@ -58,5 +58,10 @@
     "id": "TERRESTRIAL",
     "name": "Terrestrial",
     "description": "Terrestrial fibre segments"
+  },
+  {
+    "id": "C2C",
+    "name": "City to City",
+    "description": "Pacnet ring cable system connecting major East Asian cities: Hong Kong, Manila, Taipei, Tokyo, Seoul with branch to Singapore"
   }
 ]
