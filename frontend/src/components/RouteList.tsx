@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import type { Route, CableNode } from '../types'
 
 interface Props {
@@ -48,17 +49,26 @@ function RouteCard({
   color: string
 }) {
   const [hovered, setHovered] = useState(false)
+  const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (hovered && cardRef.current) {
+      const rect = cardRef.current.getBoundingClientRect()
+      setTooltipPos({ top: rect.top, left: rect.right + 8 })
+    }
+  }, [hovered])
 
   const wetSystems = [...new Set(route.segments.filter(s => s.type === 'wet').map(s => s.system_id))]
   const reliabilityPct = (route.end_to_end_reliability * 100).toFixed(3)
 
   return (
     <div
+      ref={cardRef}
       onClick={() => onSelect(route.id)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        position: 'relative',
         padding: '10px 12px', borderRadius: 6, marginBottom: 4, cursor: 'pointer',
         border: `1px solid ${selected ? color : '#313244'}`,
         background: selected ? '#1e1e2e' : '#181825',
@@ -87,13 +97,14 @@ function RouteCard({
         <span>Avail: <strong style={{ color: '#cdd6f4' }}>{reliabilityPct}%</strong></span>
       </div>
 
-      {hovered && (
+      {hovered && createPortal(
         <div
           onClick={e => e.stopPropagation()}
           style={{
-            position: 'absolute', left: 'calc(100% + 8px)', top: 0, zIndex: 100,
+            position: 'fixed', top: tooltipPos.top, left: tooltipPos.left, zIndex: 9999,
             width: 280, background: '#1e1e2e', border: '1px solid #45475a',
             borderRadius: 6, padding: '10px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+            fontFamily: 'system-ui, sans-serif', pointerEvents: 'none',
           }}
         >
           <div style={{ fontSize: 10, fontWeight: 700, color: '#6c7086', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
@@ -116,7 +127,8 @@ function RouteCard({
               </div>
             </div>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
