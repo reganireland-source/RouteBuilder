@@ -1,5 +1,6 @@
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip } from 'react-leaflet'
 import type { CableNode, CableSegment, Route, SegmentCapacity } from '../types'
+import { useTheme } from '../theme'
 
 interface Props {
   nodes: CableNode[]
@@ -14,6 +15,7 @@ const ROUTE_COLORS: Record<number, string> = {
 }
 
 export function Map({ nodes, segments, selectedRoutes, capacity }: Props) {
+  const t = useTheme()
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
 
@@ -25,12 +27,13 @@ export function Map({ nodes, segments, selectedRoutes, capacity }: Props) {
     <MapContainer
       center={[10, 130]}
       zoom={3}
-      style={{ height: '100%', width: '100%', background: '#0f0f1a' }}
+      style={{ height: '100%', width: '100%', background: t.bgMap }}
       minZoom={2}
       maxZoom={10}
     >
       <TileLayer
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        key={t.mapTileUrl}
+        url={t.mapTileUrl}
         attribution='&copy; <a href="https://carto.com/">CARTO</a>'
       />
 
@@ -42,7 +45,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity }: Props) {
 
         const isActive = activeSegmentIds.has(seg.id)
         const activeRoute = selectedRoutes.find(r => r.segments.some(s => s.segment_id === seg.id))
-        const color = activeRoute ? ROUTE_COLORS[activeRoute.diversity_group] ?? '#89b4fa' : '#2a2a3e'
+        const color = activeRoute ? ROUTE_COLORS[activeRoute.diversity_group] ?? '#89b4fa' : t.mapInactiveSegment
         const weight = isActive ? 3 : 1
         const opacity = isActive ? 0.9 : 0.35
 
@@ -84,8 +87,8 @@ export function Map({ nodes, segments, selectedRoutes, capacity }: Props) {
             center={[node.lat, node.lng]}
             radius={isOnRoute ? 7 : 4}
             pathOptions={{
-              color: isOnRoute ? '#f5c2e7' : '#45475a',
-              fillColor: isOnRoute ? '#f5c2e7' : '#313244',
+              color: isOnRoute ? t.pink : t.borderSubtle,
+              fillColor: isOnRoute ? t.pink : t.border,
               fillOpacity: 1,
               weight: isOnRoute ? 2 : 1,
             }}

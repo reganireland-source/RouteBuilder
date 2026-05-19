@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { CableNode, CableSegment, DiversityType, RouteRequest } from '../types'
+import { useTheme } from '../theme'
 
 interface Props {
   nodes: CableNode[]
@@ -52,6 +53,7 @@ const nodeLabel = (n: CableNode) =>
   `${n.name} (${n.id}) [${n.type === 'landing_station' ? 'CLS' : 'POP'}]`
 
 export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
+  const t = useTheme()
   const [startNode, setStartNode] = useState('')
   const [endNode, setEndNode] = useState('')
   const [diversity, setDiversity] = useState<DiversityType>('none')
@@ -80,25 +82,31 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
 
   const selectStyle: React.CSSProperties = {
     width: '100%', padding: '6px 8px', borderRadius: 4,
-    border: '1px solid #444', background: '#1e1e2e', color: '#cdd6f4',
+    border: `1px solid ${t.border}`, background: t.bgInput, color: t.text,
     fontSize: 13,
   }
 
   const multiBoxStyle: React.CSSProperties = {
-    maxHeight: 120, overflowY: 'auto', border: '1px solid #444',
-    borderRadius: 4, padding: '4px 0', background: '#1e1e2e',
+    maxHeight: 120, overflowY: 'auto', border: `1px solid ${t.border}`,
+    borderRadius: 4, padding: '4px 0', background: t.bgInput,
   }
 
   const multiItemStyle = (selected: boolean): React.CSSProperties => ({
     padding: '3px 8px 3px 16px', cursor: 'pointer', fontSize: 12,
-    background: selected ? '#313244' : 'transparent',
-    color: selected ? '#89b4fa' : '#cdd6f4',
+    background: selected ? t.bgDeep : 'transparent',
+    color: selected ? t.blue : t.text,
   })
 
   const groupHeaderStyle: React.CSSProperties = {
     padding: '4px 8px 2px', fontSize: 10, fontWeight: 700,
-    color: '#6c7086', textTransform: 'uppercase', letterSpacing: '0.06em',
-    borderTop: '1px solid #313244', marginTop: 2,
+    color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.06em',
+    borderTop: `1px solid ${t.border}`, marginTop: 2,
+  }
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block', fontSize: 11, fontWeight: 600,
+    color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em',
+    marginBottom: 4,
   }
 
   const renderGroupedSelect = (placeholder: string, value: string, onChange: (v: string) => void) => (
@@ -203,7 +211,8 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
         disabled={loading || !startNode || !endNode}
         style={{
           padding: '8px 16px', borderRadius: 4, border: 'none',
-          background: loading ? '#444' : '#89b4fa', color: '#1e1e2e',
+          background: loading ? t.borderSubtle : t.blue,
+          color: loading ? t.textFaint : t.bgBase,
           fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
           fontSize: 14,
         }}
@@ -212,10 +221,4 @@ export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
       </button>
     </form>
   )
-}
-
-const labelStyle: React.CSSProperties = {
-  display: 'block', fontSize: 11, fontWeight: 600,
-  color: '#a6adc8', textTransform: 'uppercase', letterSpacing: '0.05em',
-  marginBottom: 4,
 }
