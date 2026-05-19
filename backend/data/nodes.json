@@ -510,5 +510,13 @@
     "lng": 178.4501,
     "type": "landing_station",
     "country": "FJ"
+  },
+  {
+    "id": "VLI1",
+    "name": "Port Vila",
+    "lat": -17.7334,
+    "lng": 168.3215,
+    "type": "landing_station",
+    "country": "VU"
   }
 ]

@@ -83,5 +83,40 @@
     "id": "TABUA",
     "name": "Tabua",
     "description": "Google (Starfish) South Pacific cable \u2014 Los Angeles to Sydney/Queensland via Hawaii and Fiji. Main trunk 13,323 km. RFS Q1 2026."
+  },
+  {
+    "id": "JGA",
+    "name": "Japan Guam Australia",
+    "description": "Google/Telstra/KDDI/SoftBank/AT&T transpacific cable connecting Japan to Australia via Guam and Darwin. ~9,200 km. RFS 2020."
+  },
+  {
+    "id": "SEAUS",
+    "name": "SEA-US",
+    "description": "Southeast Asia \u2013 United States cable connecting Philippines and Guam to Hawaii and Los Angeles. ~15,000 km. Consortium: Globe, PLDT, Telstra, Teleguam, Hawaiian Telcom."
+  },
+  {
+    "id": "SJC2",
+    "name": "Southeast Asia Japan Cable 2",
+    "description": "High-capacity cable connecting Singapore, Philippines, Taiwan, Japan and South Korea. ~10,500 km. Owners: NTT, SoftBank, PLDT, Globe, Chunghwa, Singtel, KT. RFS 2021."
+  },
+  {
+    "id": "ADC",
+    "name": "Asia Direct Cable",
+    "description": "Regional intra-Asia cable connecting Japan, Taiwan, Hong Kong, Philippines and Singapore. ~6,500 km. Owners: NTT, Chunghwa Telecom, PCCW, PLDT, StarHub."
+  },
+  {
+    "id": "JUNO",
+    "name": "JUNO",
+    "description": "Japan\u2013US trans-Pacific cable connecting Tokyo to US Pacific Northwest via Hawaii. ~10,600 km. Google-backed consortium with KDDI and NTT."
+  },
+  {
+    "id": "PROA",
+    "name": "PROA",
+    "description": "Pacific Regional Open Access cable connecting Philippines, Guam, Hawaii and US West Coast. ~12,100 km. Consortium: multiple Pacific carriers."
+  },
+  {
+    "id": "BALIKULA",
+    "name": "Balikula",
+    "description": "South Pacific cable connecting Brisbane, Vanuatu (Port Vila) and Fiji. ~3,050 km. Google/Telstra. Provides first direct fibre connectivity to Vanuatu."
   }
 ]
