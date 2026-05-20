@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI  # noqa: F401
 from fastapi.middleware.cors import CORSMiddleware
 from .api import nodes, segments, systems, routes, capacity, rules, health
 
