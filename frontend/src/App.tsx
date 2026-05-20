@@ -8,7 +8,7 @@ import { NodeInfoPanel } from './components/NodeInfoPanel'
 import { HealthBar } from './components/HealthBar'
 import { generateStraightLineDiagram } from './utils/generateDiagram'
 import { api } from './api/client'
-import { ThemeContext, darkTheme, lightTheme, type Theme } from './theme'
+import { ThemeContext, darkTheme, duskTheme, lightTheme, type Theme, type ThemeMode } from './theme'
 import type { CableNode, CableSegment, CableSystem, InterconnectRule, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SelectedSystem } from './types'
 
 type AppMode = 'routebuilder' | 'systemviewer'
@@ -19,8 +19,9 @@ const SYSTEM_COLORS  = ['#89b4fa', '#a6e3a1', '#f9e2af', '#94e2d5', '#cba6f7']
 function routeKey(r: Route) { return r.nodes.join('|') }
 
 export default function App() {
-  const [isDark, setIsDark] = useState(true)
-  const theme = isDark ? darkTheme : lightTheme
+  const [themeMode, setThemeMode] = useState<ThemeMode>('dark')
+  const theme = themeMode === 'dark' ? darkTheme : themeMode === 'dusk' ? duskTheme : lightTheme
+  function cycleTheme() { setThemeMode(m => m === 'dark' ? 'dusk' : m === 'dusk' ? 'light' : 'dark') }
   const [refDataOpen, setRefDataOpen] = useState(false)
 
   const [mode, setMode] = useState<AppMode>('routebuilder')
@@ -149,20 +150,22 @@ export default function App() {
 
         {/* Theme toggle */}
         <button
-          onClick={() => setIsDark(d => !d)}
-          title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          onClick={cycleTheme}
+          title="Cycle theme"
           style={{
             position: 'fixed', top: 12, right: 12, zIndex: 1000,
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '6px 12px', borderRadius: 20,
             border: `1px solid ${theme.border}`, background: theme.bgPanel, color: theme.textMuted,
             cursor: 'pointer', fontSize: 12, fontWeight: 600,
-            boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.4)' : '0 2px 8px rgba(0,0,0,0.12)',
+            boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.4)',
             transition: 'all 0.2s',
           }}
         >
-          <span style={{ fontSize: 14 }}>{isDark ? '☀️' : '🌙'}</span>
-          {isDark ? 'Light' : 'Dark'}
+          <span style={{ fontSize: 14 }}>
+            {themeMode === 'dark' ? '🌅' : themeMode === 'dusk' ? '☀️' : '🌙'}
+          </span>
+          {themeMode === 'dark' ? 'Dusk' : themeMode === 'dusk' ? 'Light' : 'Dark'}
         </button>
 
         {/* Left panel */}

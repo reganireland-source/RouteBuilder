@@ -12,10 +12,6 @@ interface Props {
   onNodeClick?: (node: CableNode, screenX: number, screenY: number) => void
 }
 
-const DIVERSITY_COLORS: Record<number, string> = {
-  1: '#89b4fa',
-  2: '#a6e3a1',
-}
 
 /**
  * Normalise a longitude for a Pacific-centred map view.
@@ -48,6 +44,7 @@ function geoLines(
 
 export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick }: Props) {
   const t = useTheme()
+  const diversityColors: Record<number, string> = { 1: t.blue, 2: t.green }
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
 
@@ -69,7 +66,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
     }
   }
   for (const r of selectedRoutes) {
-    const color = DIVERSITY_COLORS[r.diversity_group] ?? '#89b4fa'
+    const color = diversityColors[r.diversity_group] ?? t.blue
     for (const s of r.segments) {
       segmentColor[s.segment_id] = color
       segmentWeight[s.segment_id] = 3

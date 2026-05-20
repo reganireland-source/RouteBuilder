@@ -72,5 +72,31 @@ export const lightTheme: Theme = {
   mapTileUrl: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
 }
 
+export const duskTheme: Theme = {
+  bgBase:          '#1c1e30',
+  bgPanel:         '#21233a',
+  bgDeep:          '#161828',
+  bgCard:          '#21233a',
+  bgCardSelected:  '#272a42',
+  bgActiveSort:    '#1e3a5f',
+  bgInput:         '#1c1e30',
+  bgMap:           '#e8e4dc',
+  border:          '#383c58',
+  borderSubtle:    '#4a4f72',
+  text:            '#cdd6f4',
+  textMuted:       '#a0a8c8',
+  textFaint:       '#70788c',
+  textFaintest:    '#505870',
+  blue:            '#1d4ed8',
+  green:           '#15803d',
+  red:             '#dc2626',
+  orange:          '#ea6c00',
+  pink:            '#be185d',
+  mapInactiveSegment: '#8090aa',
+  mapTileUrl: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+}
+
+export type ThemeMode = 'dark' | 'dusk' | 'light'
+
 export const ThemeContext = createContext<Theme>(darkTheme)
 export const useTheme = () => useContext(ThemeContext)
