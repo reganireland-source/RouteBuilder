@@ -7,42 +7,53 @@ import { RefDataModal } from './components/RefDataModal'
 import { NodeInfoPanel } from './components/NodeInfoPanel'
 import { NodeFinder } from './components/NodeFinder'
 import { HealthBar } from './components/HealthBar'
+import { MobileLayout } from './components/MobileLayout'
 import { generateStraightLineDiagram } from './utils/generateDiagram'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, type Theme, type ThemeMode } from './theme'
-import type { CableNode, CableSegment, CableSystem, InterconnectRule, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SelectedSystem } from './types'
+import type { AppMode, CableNode, CableSegment, CableSystem, InterconnectRule, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SelectedSystem } from './types'
 
-type AppMode = 'routebuilder' | 'systemviewer' | 'nodefinder'
-
-const PIN_COLORS     = ['#f9e2af', '#94e2d5', '#cba6f7', '#f2cdcd', '#eba0ac']
-const SYSTEM_COLORS  = ['#89b4fa', '#a6e3a1', '#f9e2af', '#94e2d5', '#cba6f7']
+const PIN_COLORS    = ['#f9e2af', '#94e2d5', '#cba6f7', '#f2cdcd', '#eba0ac']
+const SYSTEM_COLORS = ['#89b4fa', '#a6e3a1', '#f9e2af', '#94e2d5', '#cba6f7']
 
 function routeKey(r: Route) { return r.nodes.join('|') }
 
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+  return isMobile
+}
+
 export default function App() {
+  const isMobile = useIsMobile()
+
   const [themeMode, setThemeMode] = useState<ThemeMode>('dusk')
   const theme = themeMode === 'dark' ? darkTheme : themeMode === 'dusk' ? duskTheme : lightTheme
   function cycleTheme() { setThemeMode(m => m === 'dark' ? 'dusk' : m === 'dusk' ? 'light' : 'dark') }
-  const [refDataOpen, setRefDataOpen] = useState(false)
 
-  const [mode, setMode] = useState<AppMode>('routebuilder')
-  const [nodes, setNodes] = useState<CableNode[]>([])
-  const [segments, setSegments] = useState<CableSegment[]>([])
-  const [systems, setSystems] = useState<CableSystem[]>([])
-  const [capacity, setCapacity] = useState<SegmentCapacity[]>([])
-  const [rules, setRules] = useState<InterconnectRule[]>([])
-  const [response, setResponse] = useState<RouteResponse | null>(null)
+  const [refDataOpen, setRefDataOpen] = useState(false)
+  const [mode, setMode]               = useState<AppMode>('routebuilder')
+  const [nodes, setNodes]             = useState<CableNode[]>([])
+  const [segments, setSegments]       = useState<CableSegment[]>([])
+  const [systems, setSystems]         = useState<CableSystem[]>([])
+  const [capacity, setCapacity]       = useState<SegmentCapacity[]>([])
+  const [rules, setRules]             = useState<InterconnectRule[]>([])
+  const [response, setResponse]       = useState<RouteResponse | null>(null)
   const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([])
-  const [pinnedRoutes, setPinnedRoutes] = useState<PinnedRoute[]>([])
-  const [selectedSystems, setSelectedSystems] = useState<SelectedSystem[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [pinnedRoutes, setPinnedRoutes]         = useState<PinnedRoute[]>([])
+  const [selectedSystems, setSelectedSystems]   = useState<SelectedSystem[]>([])
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState<string | null>(null)
   const [lastSearchDiversity, setLastSearchDiversity] = useState<import('./types').DiversityType>('none')
   const [selectedNode, setSelectedNode] = useState<{ node: CableNode; x: number; y: number } | null>(null)
-  const [searchPin, setSearchPin] = useState<{ lat: number; lng: number; label: string } | null>(null)
+  const [searchPin, setSearchPin]       = useState<{ lat: number; lng: number; label: string } | null>(null)
   const [nearestNodeIds, setNearestNodeIds] = useState<string[]>([])
   const [prefilledOrigin, setPrefilledOrigin] = useState('')
-  const [prefilledDest, setPrefilledDest] = useState('')
+  const [prefilledDest, setPrefilledDest]     = useState('')
   const pinCounter = useRef(0)
 
   useEffect(() => {
@@ -52,11 +63,7 @@ export default function App() {
   }, [])
 
   function switchMode(next: AppMode) {
-    if (next === 'systemviewer') {
-      setResponse(null)
-      setSelectedRouteIds([])
-      setError(null)
-    }
+    if (next === 'systemviewer') { setResponse(null); setSelectedRouteIds([]); setError(null) }
     setMode(next)
   }
 
@@ -115,17 +122,64 @@ export default function App() {
 
   function handleSetOrigin(nodeId: string) { setPrefilledOrigin(nodeId); switchMode('routebuilder') }
   function handleSetDest(nodeId: string)   { setPrefilledDest(nodeId);   switchMode('routebuilder') }
+  function handlePinChange(pin: { lat: number; lng: number; label: string } | null, ids: string[]) {
+    setSearchPin(pin); setNearestNodeIds(ids)
+  }
 
   function clearSearch() { setResponse(null); setSelectedRouteIds([]); setError(null); setLastSearchDiversity('none') }
-  function clearAll() { setResponse(null); setSelectedRouteIds([]); setPinnedRoutes([]); setError(null); setLastSearchDiversity('none') }
+  function clearAll()    { setResponse(null); setSelectedRouteIds([]); setPinnedRoutes([]); setError(null); setLastSearchDiversity('none') }
+
+  async function handleDataChange() {
+    const [n, s, c, sys, r] = await Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules()])
+    setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r)
+  }
 
   const selectedRoutes: Route[] = response
     ? [...response.primary_routes, ...response.diverse_routes].filter(r => selectedRouteIds.includes(r.id))
     : []
 
-  const hasPins = pinnedRoutes.length > 0
+  const hasPins    = pinnedRoutes.length > 0
   const hasResults = response !== null
 
+  // ── Mobile layout ────────────────────────────────────────────────────────
+  if (isMobile) {
+    return (
+      <ThemeContext.Provider value={theme}>
+        <MobileLayout
+          nodes={nodes} segments={segments} systems={systems}
+          capacity={capacity} rules={rules}
+          response={response} selectedRoutes={selectedRoutes}
+          selectedRouteIds={selectedRouteIds} pinnedRoutes={pinnedRoutes}
+          selectedSystems={selectedSystems}
+          mode={mode} loading={loading} error={error}
+          selectedNode={selectedNode} searchPin={searchPin}
+          nearestNodeIds={nearestNodeIds}
+          prefilledOrigin={prefilledOrigin} prefilledDest={prefilledDest}
+          lastSearchDiversity={lastSearchDiversity}
+          refDataOpen={refDataOpen} themeMode={themeMode}
+          onSearch={handleSearch}
+          onToggleRoute={toggleRoute}
+          onPin={handlePin}
+          onUnpin={handleUnpin}
+          onToggleSystem={handleToggleSystem}
+          onSetOrigin={handleSetOrigin}
+          onSetDest={handleSetDest}
+          onNodeClick={(node, x, y) => setSelectedNode({ node, x, y })}
+          onPinChange={handlePinChange}
+          onCloseNode={() => setSelectedNode(null)}
+          onOpenRefData={() => setRefDataOpen(true)}
+          onCloseRefData={() => setRefDataOpen(false)}
+          onDataChange={handleDataChange}
+          switchMode={switchMode}
+          clearSearch={clearSearch}
+          clearAll={clearAll}
+          cycleTheme={cycleTheme}
+        />
+      </ThemeContext.Provider>
+    )
+  }
+
+  // ── Desktop layout ───────────────────────────────────────────────────────
   const tabStyle = (active: boolean): React.CSSProperties => ({
     flex: 1, padding: '8px 4px', border: 'none', cursor: 'pointer',
     background: active ? theme.bgBase : theme.bgPanel,
@@ -140,7 +194,7 @@ export default function App() {
     <ThemeContext.Provider value={theme}>
       <div style={{ display: 'flex', height: '100vh', background: theme.bgBase, color: theme.text, fontFamily: 'system-ui, sans-serif' }}>
 
-        {/* Gear / ref-data button */}
+        {/* Ref data button */}
         <button
           onClick={() => setRefDataOpen(true)}
           title="Reference Data Editor"
@@ -183,33 +237,21 @@ export default function App() {
           width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column',
           background: theme.bgPanel, borderRight: `1px solid ${theme.border}`,
         }}>
-          {/* App header */}
           <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${theme.border}` }}>
             <h1 style={{ fontSize: 18, fontWeight: 700, color: theme.text, marginBottom: 2 }}>RouteBuilder</h1>
             <p style={{ fontSize: 11, color: theme.textFaint }}>Telstra International · Subsea Circuit Design</p>
           </div>
 
-          {/* Mode tabs */}
           <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
-            <button style={tabStyle(mode === 'routebuilder')} onClick={() => switchMode('routebuilder')}>
-              ⬡ Routes
-            </button>
-            <button style={tabStyle(mode === 'systemviewer')} onClick={() => switchMode('systemviewer')}>
-              ◉ Systems
-            </button>
-            <button style={tabStyle(mode === 'nodefinder')} onClick={() => switchMode('nodefinder')}>
-              ◎ Node Finder
-            </button>
+            <button style={tabStyle(mode === 'routebuilder')} onClick={() => switchMode('routebuilder')}>⬡ Routes</button>
+            <button style={tabStyle(mode === 'systemviewer')} onClick={() => switchMode('systemviewer')}>◉ Systems</button>
+            <button style={tabStyle(mode === 'nodefinder')}   onClick={() => switchMode('nodefinder')}>◎ Node Finder</button>
           </div>
 
-          {/* Panel content */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
             {mode === 'routebuilder' && (
               <>
-                <SearchForm
-                  nodes={nodes} segments={segments} onSearch={handleSearch} loading={loading}
-                  prefilledOrigin={prefilledOrigin} prefilledDest={prefilledDest}
-                />
+                <SearchForm nodes={nodes} segments={segments} onSearch={handleSearch} loading={loading} prefilledOrigin={prefilledOrigin} prefilledDest={prefilledDest} />
                 {error && <div style={{ marginTop: 12, color: theme.red, fontSize: 13 }}>{error}</div>}
               </>
             )}
@@ -219,7 +261,7 @@ export default function App() {
             {mode === 'nodefinder' && (
               <NodeFinder
                 nodes={nodes}
-                onPinChange={(pin, ids) => { setSearchPin(pin); setNearestNodeIds(ids) }}
+                onPinChange={handlePinChange}
                 onSetOrigin={handleSetOrigin}
                 onSetDest={handleSetDest}
               />
@@ -228,7 +270,7 @@ export default function App() {
           <HealthBar dataLoaded={nodes.length > 0} />
         </div>
 
-        {/* Middle panel — routes */}
+        {/* Middle panel */}
         <div style={{
           width: 420, flexShrink: 0, display: 'flex', flexDirection: 'column',
           background: theme.bgDeep, borderRight: `1px solid ${theme.border}`,
@@ -237,22 +279,12 @@ export default function App() {
             padding: '10px 16px', borderBottom: `1px solid ${theme.border}`,
             display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
           }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: theme.textFaint, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Routes
-            </span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: theme.textFaint, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Routes</span>
             {hasResults && <span style={{ fontSize: 11, color: theme.textFaintest }}>{response!.primary_routes.length + response!.diverse_routes.length} found</span>}
-            {hasPins && <span style={{ fontSize: 11, color: theme.textFaintest }}>· {pinnedRoutes.length} pinned</span>}
-            {loading && <span style={{ fontSize: 11, color: theme.blue }}>Searching…</span>}
+            {hasPins    && <span style={{ fontSize: 11, color: theme.textFaintest }}>· {pinnedRoutes.length} pinned</span>}
+            {loading    && <span style={{ fontSize: 11, color: theme.blue }}>Searching…</span>}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-              {hasPins && (
-                <button
-                  onClick={() => generateStraightLineDiagram(pinnedRoutes, nodes)}
-                  title="Export pinned routes as straight line diagram PDF"
-                  style={clearBtnStyle(theme)}
-                >
-                  ⬡ SLD
-                </button>
-              )}
+              {hasPins    && <button onClick={() => generateStraightLineDiagram(pinnedRoutes, nodes)} title="Export SLD" style={clearBtnStyle(theme)}>⬡ SLD</button>}
               {hasResults && <button onClick={clearSearch} style={clearBtnStyle(theme)}>Clear Search</button>}
               {(hasResults || hasPins) && <button onClick={clearAll} style={clearBtnStyle(theme, true)}>Clear All</button>}
             </div>
@@ -260,25 +292,19 @@ export default function App() {
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
             {mode === 'systemviewer' && !hasPins && (
-              <p style={{ color: theme.textFaintest, fontSize: 13, marginTop: 8 }}>
-                Select a cable system on the left to highlight it on the map.
-              </p>
+              <p style={{ color: theme.textFaintest, fontSize: 13, marginTop: 8 }}>Select a cable system on the left to highlight it on the map.</p>
             )}
             {mode === 'routebuilder' && !hasResults && !loading && !hasPins && (
-              <p style={{ color: theme.textFaintest, fontSize: 13, marginTop: 8 }}>
-                Configure a route request on the left and press Search.
-              </p>
+              <p style={{ color: theme.textFaintest, fontSize: 13, marginTop: 8 }}>Configure a route request on the left and press Search.</p>
             )}
             <RouteList
               primaryRoutes={response?.primary_routes ?? []}
               diverseRoutes={response?.diverse_routes ?? []}
               selectedRouteIds={selectedRouteIds}
               onSelectRoute={toggleRoute}
-              nodes={nodes}
-              capacity={capacity}
+              nodes={nodes} capacity={capacity}
               pinnedRoutes={pinnedRoutes}
-              onPin={handlePin}
-              onUnpin={handleUnpin}
+              onPin={handlePin} onUnpin={handleUnpin}
               diversityRequested={lastSearchDiversity !== 'none'}
             />
           </div>
@@ -288,12 +314,8 @@ export default function App() {
         <div style={{ flex: 1, position: 'relative' }}>
           {nodes.length > 0 ? (
             <Map
-              nodes={nodes}
-              segments={segments}
-              selectedRoutes={selectedRoutes}
-              capacity={capacity}
-              pinnedRoutes={pinnedRoutes}
-              selectedSystems={selectedSystems}
+              nodes={nodes} segments={segments} selectedRoutes={selectedRoutes}
+              capacity={capacity} pinnedRoutes={pinnedRoutes} selectedSystems={selectedSystems}
               onNodeClick={(node, x, y) => setSelectedNode({ node, x, y })}
               searchPin={searchPin ?? undefined}
               nearestNodeIds={nearestNodeIds}
@@ -309,26 +331,17 @@ export default function App() {
 
       {selectedNode && (
         <NodeInfoPanel
-          node={selectedNode.node}
-          segments={segments}
-          systems={systems}
-          initialX={selectedNode.x}
-          initialY={selectedNode.y}
+          node={selectedNode.node} segments={segments} systems={systems}
+          initialX={selectedNode.x} initialY={selectedNode.y}
           onClose={() => setSelectedNode(null)}
         />
       )}
 
       {refDataOpen && (
         <RefDataModal
-          nodes={nodes}
-          segments={segments}
-          systems={systems}
-          capacity={capacity}
-          rules={rules}
-          onDataChange={() =>
-            Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules()])
-              .then(([n, s, c, sys, r]) => { setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r) })
-          }
+          nodes={nodes} segments={segments} systems={systems}
+          capacity={capacity} rules={rules}
+          onDataChange={handleDataChange}
           onClose={() => setRefDataOpen(false)}
         />
       )}
