@@ -218,9 +218,13 @@ export function MobileLayout({
         borderRadius: 10, padding: '5px 10px',
         border: `1px solid ${t.border}`,
         boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 2px 10px rgba(0,0,0,0.5)',
+        display: 'flex', alignItems: 'center', gap: 8,
       }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: t.text, lineHeight: 1.25 }}>RouteBuilder</div>
-        <div style={{ fontSize: 9, color: t.textFaint, letterSpacing: '0.04em', marginTop: 1 }}>Telstra International</div>
+        <img src="/favicon.svg" alt="" style={{ width: 22, height: 22, flexShrink: 0 }} />
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.text, lineHeight: 1.25 }}>RouteBuilder</div>
+          <div style={{ fontSize: 9, color: t.textFaint, letterSpacing: '0.04em', marginTop: 1 }}>Telstra International</div>
+        </div>
       </div>
 
       {/* ── Top-right icon buttons ──────────────────────────────────────── */}
