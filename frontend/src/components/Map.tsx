@@ -9,7 +9,7 @@ interface Props {
   capacity: SegmentCapacity[]
   pinnedRoutes: PinnedRoute[]
   selectedSystems: SelectedSystem[]
-  onNodeClick?: (node: CableNode) => void
+  onNodeClick?: (node: CableNode, screenX: number, screenY: number) => void
 }
 
 const DIVERSITY_COLORS: Record<number, string> = {
@@ -182,7 +182,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
               weight: isRouteNode || isSystemNode ? 2 : 1,
               opacity: isDimmed ? 0.15 : isBU ? 0.7 : 1,
             }}
-            eventHandlers={{ click: (e) => { e.originalEvent.stopPropagation(); onNodeClick?.(node) } }}
+            eventHandlers={{ click: (e) => { e.originalEvent.stopPropagation(); onNodeClick?.(node, e.originalEvent.clientX, e.originalEvent.clientY) } }}
           >
             <Tooltip>
               <strong>{node.name}</strong> ({node.id})

@@ -6,12 +6,17 @@ interface Props {
   node: CableNode
   segments: CableSegment[]
   systems: CableSystem[]
+  initialX: number
+  initialY: number
   onClose: () => void
 }
 
-export function NodeInfoPanel({ node, segments, systems, onClose }: Props) {
+export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onClose }: Props) {
   const t = useTheme()
-  const [pos, setPos] = useState({ x: 720, y: 80 })
+  const [pos, setPos] = useState({
+    x: Math.min(initialX + 15, window.innerWidth - 395),
+    y: Math.max(initialY - 80, 10),
+  })
   const dragging = useRef(false)
   const dragOffset = useRef({ x: 0, y: 0 })
 

@@ -35,7 +35,7 @@ export default function App() {
   const [selectedSystems, setSelectedSystems] = useState<SelectedSystem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedNode, setSelectedNode] = useState<CableNode | null>(null)
+  const [selectedNode, setSelectedNode] = useState<{ node: CableNode; x: number; y: number } | null>(null)
   const pinCounter = useRef(0)
 
   useEffect(() => {
@@ -269,7 +269,7 @@ export default function App() {
               capacity={capacity}
               pinnedRoutes={pinnedRoutes}
               selectedSystems={selectedSystems}
-              onNodeClick={setSelectedNode}
+              onNodeClick={(node, x, y) => setSelectedNode({ node, x, y })}
             />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.textFaint }}>
@@ -282,9 +282,11 @@ export default function App() {
 
       {selectedNode && (
         <NodeInfoPanel
-          node={selectedNode}
+          node={selectedNode.node}
           segments={segments}
           systems={systems}
+          initialX={selectedNode.x}
+          initialY={selectedNode.y}
           onClose={() => setSelectedNode(null)}
         />
       )}
