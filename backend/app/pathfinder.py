@@ -140,7 +140,7 @@ def find_routes(
         try:
             raw = itertools.islice(nx.shortest_simple_paths(working_G, start, end, weight="cost_weight"), k * 3)
             candidates = [p for p in raw if validate_interconnect_rules(working_G, p, rules)][:k]
-        except nx.NetworkXNoPath:
+        except nx.NetworkXException:
             candidates = []
 
     # Filter to paths that include all required segments
@@ -218,7 +218,7 @@ def find_routes(
                 diverse_candidates = [
                     p for p in raw if validate_interconnect_rules(diverse_G, p, rules)
                 ][:k]
-            except nx.NetworkXNoPath:
+            except nx.NetworkXException:
                 diverse_candidates = []
 
         for i, path in enumerate(diverse_candidates, start=1):
