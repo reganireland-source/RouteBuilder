@@ -175,7 +175,8 @@ export function SearchForm({ nodes, segments, onSearch, loading, prefilledOrigin
           <option value="terrestrial_destination">Terrestrial Diversity — Destination End Only</option>
           <option value="terrestrial_both">Terrestrial Diversity — Both Ends</option>
           <option value="wet">Wet Diversity</option>
-          <option value="full">Full Diversity</option>
+          <option value="full">Full Diversity - Segment Only</option>
+          <option value="full_node">Full Diversity - Segment and Node/PoP</option>
         </select>
       </div>
 

@@ -187,7 +187,7 @@ def find_routes(
             if not full_seg:
                 continue
             include = (
-                diversity == DiversityType.full
+                diversity in (DiversityType.full, DiversityType.full_node)
                 or (diversity == DiversityType.wet and seg.type == "wet")
                 or (diversity == DiversityType.terrestrial_origin and seg_id in origin_terr)
                 or (diversity == DiversityType.terrestrial_destination and seg_id in dest_terr)
@@ -200,6 +200,13 @@ def find_routes(
         for u, v in edges_to_remove:
             if diverse_G.has_edge(u, v):
                 diverse_G.remove_edge(u, v)
+
+        if diversity == DiversityType.full_node:
+            # Also remove all intermediate nodes from the primary path so the
+            # diverse route shares no PoP/landing station with the primary.
+            for node_id in primary_path[1:-1]:
+                if diverse_G.has_node(node_id):
+                    diverse_G.remove_node(node_id)
 
         if must_include_nodes:
             diverse_candidates = _apply_waypoints(

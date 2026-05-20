@@ -27,6 +27,7 @@ class DiversityType(str, Enum):
     terrestrial_both = "terrestrial_both"
     wet = "wet"
     full = "full"
+    full_node = "full_node"
 
 
 class Node(BaseModel):
