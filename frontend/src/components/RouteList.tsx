@@ -165,7 +165,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
 function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById }: {
   pinned: PinnedRoute
   onUnpin: () => void
-  nodesById: Record<string, { name: string }>
+  nodesById: Record<string, { name: string; type?: string }>
   capacityById: Record<string, SegmentCapacity>
 }) {
   const t = useTheme()
@@ -226,7 +226,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById }: {
         </div>
 
         <div style={{ fontSize: 11, color: t.text, marginBottom: 6 }}>
-          {route.nodes.map(id => nodesById[id]?.name ?? id).join(' → ')}
+          {route.nodes.filter(id => nodesById[id]?.type !== 'branching_unit').map(id => nodesById[id]?.name ?? id).join(' → ')}
         </div>
 
         <div style={{ display: 'flex', gap: 12, fontSize: 11, color: t.textMuted, marginBottom: 5 }}>
@@ -260,7 +260,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, color, 
   route: Route
   selected: boolean
   onSelect: (id: string) => void
-  nodesById: Record<string, { name: string }>
+  nodesById: Record<string, { name: string; type?: string }>
   capacityById: Record<string, SegmentCapacity>
   color: string
   isPinned: boolean
