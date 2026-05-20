@@ -19,7 +19,7 @@ const SYSTEM_COLORS  = ['#89b4fa', '#a6e3a1', '#f9e2af', '#94e2d5', '#cba6f7']
 function routeKey(r: Route) { return r.nodes.join('|') }
 
 export default function App() {
-  const [themeMode, setThemeMode] = useState<ThemeMode>('dark')
+  const [themeMode, setThemeMode] = useState<ThemeMode>('dusk')
   const theme = themeMode === 'dark' ? darkTheme : themeMode === 'dusk' ? duskTheme : lightTheme
   function cycleTheme() { setThemeMode(m => m === 'dark' ? 'dusk' : m === 'dusk' ? 'light' : 'dark') }
   const [refDataOpen, setRefDataOpen] = useState(false)
