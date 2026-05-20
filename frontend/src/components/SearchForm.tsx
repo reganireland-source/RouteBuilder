@@ -7,6 +7,8 @@ interface Props {
   segments: CableSegment[]
   onSearch: (req: RouteRequest) => void
   loading: boolean
+  prefilledOrigin?: string
+  prefilledDest?: string
 }
 
 const COUNTRY_NAMES: Record<string, string> = {
@@ -55,10 +57,10 @@ const nodeLabel = (n: CableNode) => {
   return `${n.name} (${n.id}) [${tag}]`
 }
 
-export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
+export function SearchForm({ nodes, segments, onSearch, loading, prefilledOrigin = '', prefilledDest = '' }: Props) {
   const t = useTheme()
-  const [startNode, setStartNode] = useState('')
-  const [endNode, setEndNode] = useState('')
+  const [startNode, setStartNode] = useState(prefilledOrigin)
+  const [endNode, setEndNode] = useState(prefilledDest)
   const [diversity, setDiversity] = useState<DiversityType>('none')
   const [mustIncludeNodes, setMustIncludeNodes] = useState<string[]>([])
   const [mustAvoidNodes, setMustAvoidNodes] = useState<string[]>([])

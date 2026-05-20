@@ -5,13 +5,14 @@ import { RouteList } from './components/RouteList'
 import { SystemViewer } from './components/SystemViewer'
 import { RefDataModal } from './components/RefDataModal'
 import { NodeInfoPanel } from './components/NodeInfoPanel'
+import { NodeFinder } from './components/NodeFinder'
 import { HealthBar } from './components/HealthBar'
 import { generateStraightLineDiagram } from './utils/generateDiagram'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, type Theme, type ThemeMode } from './theme'
 import type { CableNode, CableSegment, CableSystem, InterconnectRule, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SelectedSystem } from './types'
 
-type AppMode = 'routebuilder' | 'systemviewer'
+type AppMode = 'routebuilder' | 'systemviewer' | 'nodefinder'
 
 const PIN_COLORS     = ['#f9e2af', '#94e2d5', '#cba6f7', '#f2cdcd', '#eba0ac']
 const SYSTEM_COLORS  = ['#89b4fa', '#a6e3a1', '#f9e2af', '#94e2d5', '#cba6f7']
@@ -37,6 +38,10 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedNode, setSelectedNode] = useState<{ node: CableNode; x: number; y: number } | null>(null)
+  const [searchPin, setSearchPin] = useState<{ lat: number; lng: number; label: string } | null>(null)
+  const [nearestNodeIds, setNearestNodeIds] = useState<string[]>([])
+  const [prefilledOrigin, setPrefilledOrigin] = useState('')
+  const [prefilledDest, setPrefilledDest] = useState('')
   const pinCounter = useRef(0)
 
   useEffect(() => {
@@ -106,6 +111,9 @@ export default function App() {
     }
   }
 
+  function handleSetOrigin(nodeId: string) { setPrefilledOrigin(nodeId); switchMode('routebuilder') }
+  function handleSetDest(nodeId: string)   { setPrefilledDest(nodeId);   switchMode('routebuilder') }
+
   function clearSearch() { setResponse(null); setSelectedRouteIds([]); setError(null) }
   function clearAll() { setResponse(null); setSelectedRouteIds([]); setPinnedRoutes([]); setError(null) }
 
@@ -117,10 +125,10 @@ export default function App() {
   const hasResults = response !== null
 
   const tabStyle = (active: boolean): React.CSSProperties => ({
-    flex: 1, padding: '10px 6px', border: 'none', cursor: 'pointer',
+    flex: 1, padding: '8px 4px', border: 'none', cursor: 'pointer',
     background: active ? theme.bgBase : theme.bgPanel,
     color: active ? theme.text : theme.textFaint,
-    fontSize: 11, fontWeight: active ? 700 : 400,
+    fontSize: 10, fontWeight: active ? 700 : 400,
     textTransform: 'uppercase', letterSpacing: '0.05em',
     borderBottom: active ? `2px solid ${theme.blue}` : `2px solid transparent`,
     transition: 'all 0.15s',
@@ -182,25 +190,36 @@ export default function App() {
           {/* Mode tabs */}
           <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
             <button style={tabStyle(mode === 'routebuilder')} onClick={() => switchMode('routebuilder')}>
-              ⬡ RouteBuilder
+              ⬡ Routes
             </button>
             <button style={tabStyle(mode === 'systemviewer')} onClick={() => switchMode('systemviewer')}>
-              ◉ System Viewer
+              ◉ Systems
+            </button>
+            <button style={tabStyle(mode === 'nodefinder')} onClick={() => switchMode('nodefinder')}>
+              ◎ Node Finder
             </button>
           </div>
 
           {/* Panel content */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-            {mode === 'routebuilder' ? (
+            {mode === 'routebuilder' && (
               <>
-                <SearchForm nodes={nodes} segments={segments} onSearch={handleSearch} loading={loading} />
+                <SearchForm
+                  nodes={nodes} segments={segments} onSearch={handleSearch} loading={loading}
+                  prefilledOrigin={prefilledOrigin} prefilledDest={prefilledDest}
+                />
                 {error && <div style={{ marginTop: 12, color: theme.red, fontSize: 13 }}>{error}</div>}
               </>
-            ) : (
-              <SystemViewer
-                systems={systems}
-                selected={selectedSystems}
-                onToggle={handleToggleSystem}
+            )}
+            {mode === 'systemviewer' && (
+              <SystemViewer systems={systems} selected={selectedSystems} onToggle={handleToggleSystem} />
+            )}
+            {mode === 'nodefinder' && (
+              <NodeFinder
+                nodes={nodes}
+                onPinChange={(pin, ids) => { setSearchPin(pin); setNearestNodeIds(ids) }}
+                onSetOrigin={handleSetOrigin}
+                onSetDest={handleSetDest}
               />
             )}
           </div>
@@ -273,6 +292,8 @@ export default function App() {
               pinnedRoutes={pinnedRoutes}
               selectedSystems={selectedSystems}
               onNodeClick={(node, x, y) => setSelectedNode({ node, x, y })}
+              searchPin={searchPin ?? undefined}
+              nearestNodeIds={nearestNodeIds}
             />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.textFaint }}>

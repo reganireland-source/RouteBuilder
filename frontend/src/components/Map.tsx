@@ -10,6 +10,8 @@ interface Props {
   pinnedRoutes: PinnedRoute[]
   selectedSystems: SelectedSystem[]
   onNodeClick?: (node: CableNode, screenX: number, screenY: number) => void
+  searchPin?: { lat: number; lng: number; label: string }
+  nearestNodeIds?: string[]
 }
 
 
@@ -42,7 +44,7 @@ function geoLines(
   return [[[lat1, nLng1], [lat2, nLng1 + d]]]
 }
 
-export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick }: Props) {
+export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds }: Props) {
   const t = useTheme()
   const diversityColors: Record<number, string> = { 1: t.blue, 2: t.green }
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
@@ -164,10 +166,12 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         const isSystemNode  = !!sysColor
         const isDimmed      = systemViewerActive && !isSystemNode && !isRouteNode
         const isBU          = node.type === 'branching_unit'
+        const isNearest     = nearestNodeIds?.includes(node.id) ?? false
 
-        const color     = isRouteNode ? t.pink : isSystemNode ? sysColor : isBU ? '#e5a045' : t.borderSubtle
-        const fillColor = isRouteNode ? t.pink : isSystemNode ? sysColor : isBU ? '#e5a045' : t.border
-        const radius    = isRouteNode || isSystemNode ? 6 : isBU ? 3 : 4
+        const color     = isNearest ? '#f9a825' : isRouteNode ? t.pink : isSystemNode ? sysColor : isBU ? '#e5a045' : t.borderSubtle
+        const fillColor = isNearest ? '#ffd54f' : isRouteNode ? t.pink : isSystemNode ? sysColor : isBU ? '#e5a045' : t.border
+        const radius    = isNearest ? 7 : isRouteNode || isSystemNode ? 6 : isBU ? 3 : 4
+        const weight    = isNearest ? 2.5 : isRouteNode || isSystemNode ? 2 : 1
 
         return (
           <CircleMarker
@@ -176,7 +180,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
             radius={radius}
             pathOptions={{
               color, fillColor, fillOpacity: isDimmed ? 0.15 : isBU ? 0.7 : 1,
-              weight: isRouteNode || isSystemNode ? 2 : 1,
+              weight,
               opacity: isDimmed ? 0.15 : isBU ? 0.7 : 1,
             }}
             eventHandlers={{ click: (e) => { e.originalEvent.stopPropagation(); onNodeClick?.(node, e.originalEvent.clientX, e.originalEvent.clientY) } }}
@@ -190,6 +194,19 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
           </CircleMarker>
         )
       })}
+
+      {searchPin && (
+        <CircleMarker
+          center={[searchPin.lat, normalizeLng(searchPin.lng)]}
+          radius={9}
+          pathOptions={{ color: '#fff', fillColor: '#ff6b35', fillOpacity: 0.95, weight: 2.5 }}
+        >
+          <Tooltip>
+            <strong>Search Location</strong><br />
+            {searchPin.label.length > 60 ? searchPin.label.slice(0, 57) + '…' : searchPin.label}
+          </Tooltip>
+        </CircleMarker>
+      )}
     </MapContainer>
   )
 }
