@@ -52,7 +52,7 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
 
 export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes, capacity, pinnedRoutes, onPin, onUnpin }: Props) {
   const t = useTheme()
-  const [sortKey, setSortKey] = useState<SortKey>('cost')
+  const [sortKey, setSortKey] = useState<SortKey>('hops')
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
   const pinnedKeys = new Set(pinnedRoutes.map(p => routeKey(p.route)))
