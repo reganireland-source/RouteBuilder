@@ -288,22 +288,27 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
           </div>
         )}
         <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
-          <div style={colH(2)}>ID</div><div style={colH(3)}>Name</div><div style={colH(1.5)}>System</div>
-          <div style={colH(1)}>Type</div><div style={colH(1.5)}>Length</div><div style={colH(1)}>Latency</div>
-          <div style={colH(1)}>Cost</div><div style={colH(1.5)}>Ownership</div>
+          <div style={colH(1.5)}>ID</div><div style={colH(2)}>Name</div><div style={colH(1)}>System</div>
+          <div style={colH(1.5)}>Start Node</div><div style={colH(1.5)}>End Node</div>
+          <div style={colH(0.8)}>Type</div><div style={colH(1)}>Length</div><div style={colH(0.8)}>Latency</div>
+          <div style={colH(0.7)}>Cost</div><div style={colH(1)}>Ownership</div>
           <div style={{ width: 140 }} />
         </div>
-        {filtered.map(s => (
+        {(() => {
+          const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+          return filtered.map(s => (
           <div key={s.id} style={rowStyle(editId === s.id)}>
             <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
-              <div style={cell(2)}><code style={{ fontSize: 11 }}>{s.id}</code></div>
-              <div style={cell(3)}>{s.name}</div>
-              <div style={cell(1.5)}>{s.system_id}</div>
-              <div style={cell(1)}>{s.type}</div>
-              <div style={cell(1.5)}>{s.length_km.toLocaleString()} km</div>
-              <div style={cell(1)}>{s.latency} ms</div>
-              <div style={cell(1)}>{s.cost_weight}</div>
-              <div style={cell(1.5)}>{s.ownership}</div>
+              <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{s.id}</code></div>
+              <div style={cell(2)}>{s.name}</div>
+              <div style={cell(1)}>{s.system_id}</div>
+              <div style={cell(1.5)}>{nodesById[s.start_node_id]?.name ?? s.start_node_id}</div>
+              <div style={cell(1.5)}>{nodesById[s.end_node_id]?.name ?? s.end_node_id}</div>
+              <div style={cell(0.8)}>{s.type}</div>
+              <div style={cell(1)}>{s.length_km.toLocaleString()} km</div>
+              <div style={cell(0.8)}>{s.latency} ms</div>
+              <div style={cell(0.7)}>{s.cost_weight}</div>
+              <div style={cell(1)}>{s.ownership}</div>
               <ActionsCell id={s.id}
                 onEdit={() => startEdit(s.id, { name: s.name, system_id: s.system_id, start_node_id: s.start_node_id, end_node_id: s.end_node_id, type: s.type, length_km: s.length_km, latency: s.latency, cost_weight: s.cost_weight, reliability: s.reliability, ownership: s.ownership })}
                 onDelete={() => confirmDelete(() => api.deleteSegment(s.id))}
@@ -328,7 +333,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
               </div>
             )}
           </div>
-        ))}
+        ))
+        })()}
       </>
     )
   }
