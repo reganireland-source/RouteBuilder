@@ -62,9 +62,20 @@ def validate_interconnect_rules(
 
         in_sys = in_edge["system_id"]
         out_sys = out_edge["system_id"]
+        rule = rules_by_node[node]
+        pair_set = {in_sys, out_sys}
 
-        for pair in rules_by_node[node].disallowed_pairs:
-            if {in_sys, out_sys} == {pair.system_a, pair.system_b}:
+        # Whitelist check: if either system appears in allowed_pairs, the
+        # transition must be explicitly listed — otherwise reject.
+        if rule.allowed_pairs:
+            whitelisted_systems = {s for p in rule.allowed_pairs for s in (p.system_a, p.system_b)}
+            if in_sys in whitelisted_systems or out_sys in whitelisted_systems:
+                if not any(pair_set == {p.system_a, p.system_b} for p in rule.allowed_pairs):
+                    return False
+
+        # Blacklist check: explicitly forbidden pairs are always rejected.
+        for pair in rule.disallowed_pairs:
+            if pair_set == {pair.system_a, pair.system_b}:
                 return False
 
     return True

@@ -64,13 +64,24 @@ class DisallowedPair(BaseModel):
     reason: str = "Pair is not allowed"
 
 
+class AllowedPair(BaseModel):
+    system_a: str
+    system_b: str
+    reason: str = "Only this pair is allowed at this node"
+
+
 class InterconnectRule(BaseModel):
     node_id: str
-    disallowed_pairs: list[DisallowedPair]
+    # Blacklist: these system pairs are always rejected at this node
+    disallowed_pairs: list[DisallowedPair] = []
+    # Whitelist: for any system named here, ONLY the listed transitions are
+    # permitted. Systems not mentioned in allowed_pairs are unaffected.
+    allowed_pairs: list[AllowedPair] = []
 
 
 class InterconnectRuleUpdate(BaseModel):
     disallowed_pairs: Optional[list[DisallowedPair]] = None
+    allowed_pairs: Optional[list[AllowedPair]] = None
 
 
 class SegmentCapacity(BaseModel):
