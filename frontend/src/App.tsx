@@ -140,7 +140,7 @@ export default function App() {
             padding: '6px 12px', borderRadius: 20,
             border: `1px solid ${theme.border}`, background: theme.bgPanel, color: theme.textMuted,
             cursor: 'pointer', fontSize: 12, fontWeight: 600,
-            boxShadow: isDark ? '0 2px 8px rgba(0,0,0,0.4)' : '0 2px 8px rgba(0,0,0,0.12)',
+            boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.4)',
             transition: 'all 0.2s',
           }}
         >
