@@ -13,6 +13,7 @@ interface Props {
   pinnedRoutes: PinnedRoute[]
   onPin: (route: Route) => void
   onUnpin: (pinId: string) => void
+  diversityRequested?: boolean
 }
 
 type SortKey = 'hops' | 'latency' | 'availability' | 'cost' | 'capacity'
@@ -50,7 +51,7 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
   })
 }
 
-export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes, capacity, pinnedRoutes, onPin, onUnpin }: Props) {
+export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes, capacity, pinnedRoutes, onPin, onUnpin, diversityRequested }: Props) {
   const t = useTheme()
   const [sortKey, setSortKey] = useState<SortKey>('hops')
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
@@ -154,6 +155,24 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
                   onPin={onPin}
                 />
               ))}
+            </div>
+          )}
+          {sorted.diverse.length === 0 && diversityRequested && (
+            <div style={{
+              marginTop: 6, padding: '10px 14px', borderRadius: 6,
+              border: `1px solid ${t.orange}`,
+              background: t.bgCard,
+              display: 'flex', alignItems: 'center', gap: 10,
+            }}>
+              <span style={{ fontSize: 16, lineHeight: 1 }}>⚠</span>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: t.orange, marginBottom: 2 }}>
+                  Diversity Requirement not able to be Met
+                </div>
+                <div style={{ fontSize: 11, color: t.textMuted }}>
+                  No segment-disjoint diverse path exists between these endpoints.
+                </div>
+              </div>
             </div>
           )}
         </>
@@ -324,7 +343,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, color, 
       </div>
 
       <div style={{ fontSize: 11, color: t.text, marginBottom: 6 }}>
-        {route.nodes.map(id => nodesById[id]?.name ?? id).join(' → ')}
+        {route.nodes.filter(id => nodesById[id]?.type !== 'branching_unit').map(id => nodesById[id]?.name ?? id).join(' → ')}
       </div>
 
       <div style={{ display: 'flex', gap: 12, fontSize: 11, color: t.textMuted, marginBottom: 5 }}>

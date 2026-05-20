@@ -37,6 +37,7 @@ export default function App() {
   const [selectedSystems, setSelectedSystems] = useState<SelectedSystem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [lastSearchDiversity, setLastSearchDiversity] = useState<import('./types').DiversityType>('none')
   const [selectedNode, setSelectedNode] = useState<{ node: CableNode; x: number; y: number } | null>(null)
   const [searchPin, setSearchPin] = useState<{ lat: number; lng: number; label: string } | null>(null)
   const [nearestNodeIds, setNearestNodeIds] = useState<string[]>([])
@@ -64,6 +65,7 @@ export default function App() {
     setError(null)
     setResponse(null)
     setSelectedRouteIds([])
+    setLastSearchDiversity(req.diversity)
     try {
       const res = await api.searchRoutes(req)
       setResponse(res)
@@ -114,8 +116,8 @@ export default function App() {
   function handleSetOrigin(nodeId: string) { setPrefilledOrigin(nodeId); switchMode('routebuilder') }
   function handleSetDest(nodeId: string)   { setPrefilledDest(nodeId);   switchMode('routebuilder') }
 
-  function clearSearch() { setResponse(null); setSelectedRouteIds([]); setError(null) }
-  function clearAll() { setResponse(null); setSelectedRouteIds([]); setPinnedRoutes([]); setError(null) }
+  function clearSearch() { setResponse(null); setSelectedRouteIds([]); setError(null); setLastSearchDiversity('none') }
+  function clearAll() { setResponse(null); setSelectedRouteIds([]); setPinnedRoutes([]); setError(null); setLastSearchDiversity('none') }
 
   const selectedRoutes: Route[] = response
     ? [...response.primary_routes, ...response.diverse_routes].filter(r => selectedRouteIds.includes(r.id))
@@ -277,6 +279,7 @@ export default function App() {
               pinnedRoutes={pinnedRoutes}
               onPin={handlePin}
               onUnpin={handleUnpin}
+              diversityRequested={lastSearchDiversity !== 'none'}
             />
           </div>
         </div>
