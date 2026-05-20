@@ -4,6 +4,7 @@ import { SearchForm } from './components/SearchForm'
 import { RouteList } from './components/RouteList'
 import { SystemViewer } from './components/SystemViewer'
 import { RefDataModal } from './components/RefDataModal'
+import { NodeInfoPanel } from './components/NodeInfoPanel'
 import { HealthBar } from './components/HealthBar'
 import { generateStraightLineDiagram } from './utils/generateDiagram'
 import { api } from './api/client'
@@ -34,6 +35,7 @@ export default function App() {
   const [selectedSystems, setSelectedSystems] = useState<SelectedSystem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedNode, setSelectedNode] = useState<CableNode | null>(null)
   const pinCounter = useRef(0)
 
   useEffect(() => {
@@ -267,6 +269,7 @@ export default function App() {
               capacity={capacity}
               pinnedRoutes={pinnedRoutes}
               selectedSystems={selectedSystems}
+              onNodeClick={setSelectedNode}
             />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.textFaint }}>
@@ -276,6 +279,15 @@ export default function App() {
         </div>
 
       </div>
+
+      {selectedNode && (
+        <NodeInfoPanel
+          node={selectedNode}
+          segments={segments}
+          systems={systems}
+          onClose={() => setSelectedNode(null)}
+        />
+      )}
 
       {refDataOpen && (
         <RefDataModal

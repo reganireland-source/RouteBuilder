@@ -9,6 +9,7 @@ interface Props {
   capacity: SegmentCapacity[]
   pinnedRoutes: PinnedRoute[]
   selectedSystems: SelectedSystem[]
+  onNodeClick?: (node: CableNode) => void
 }
 
 const DIVERSITY_COLORS: Record<number, string> = {
@@ -45,7 +46,7 @@ function geoLines(
   return [[[lat1, nLng1], [lat2, nLng1 + d]]]
 }
 
-export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems }: Props) {
+export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick }: Props) {
   const t = useTheme()
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
@@ -181,6 +182,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
               weight: isRouteNode || isSystemNode ? 2 : 1,
               opacity: isDimmed ? 0.15 : isBU ? 0.7 : 1,
             }}
+            eventHandlers={{ click: (e) => { e.originalEvent.stopPropagation(); onNodeClick?.(node) } }}
           >
             <Tooltip>
               <strong>{node.name}</strong> ({node.id})
