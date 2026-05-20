@@ -4,6 +4,9 @@
     "disallowed_pairs": [
       ["PPC1", "AAG"],
       ["AAG", "PPC1"]
+    ],
+    "allowed_pairs": [
+      ["BIFROST", "BIFROST"]
     ]
   },
   {

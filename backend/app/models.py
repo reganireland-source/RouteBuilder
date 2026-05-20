@@ -56,7 +56,11 @@ class CableSegment(BaseModel):
 
 class InterconnectRule(BaseModel):
     node_id: str
-    disallowed_pairs: list[list[str]]  # pairs of system_ids that cannot interconnect
+    # Blacklist: these system_id pairs are always rejected at this node
+    disallowed_pairs: list[list[str]] = []
+    # Whitelist: for any system appearing here, ONLY the listed transitions are allowed.
+    # Systems not mentioned in allowed_pairs are unaffected by this field.
+    allowed_pairs: list[list[str]] = []
 
 
 class RouteRequest(BaseModel):
