@@ -265,14 +265,14 @@
   },
   {
     "id": "GUM2",
-    "name": "Hagåtña",
+    "name": "Hag\u00e5t\u00f1a",
     "lat": 13.4745,
     "lng": 144.7504,
     "type": "terrestrial_pop",
     "country": "GU",
     "owner": "GTA",
-    "trading_name": "Hagåtña GTA",
-    "description": "A terrestrial POP in Hagåtña, Guam, owned by GTA"
+    "trading_name": "Hag\u00e5t\u00f1a GTA",
+    "description": "A terrestrial POP in Hag\u00e5t\u00f1a, Guam, owned by GTA"
   },
   {
     "id": "HAW1",
@@ -746,5 +746,27 @@
     "owner": "IT&E Overseas",
     "trading_name": "Tinian IT&E Overseas",
     "description": "A CLS location in Tinian, Northern Mariana Islands, owned by IT&E Overseas"
+  },
+  {
+    "id": "JUPBU1",
+    "name": "Jupiter North Pacific Branching Unit",
+    "lat": 35.0,
+    "lng": 158.0,
+    "type": "branching_unit",
+    "country": "MP",
+    "owner": "Jupiter Consortium",
+    "trading_name": "Jupiter North Pacific Branching Unit Jupiter Consortium",
+    "description": "Submarine cable branching unit for the Jupiter cable system in the North Pacific, connecting the US West Coast spur to Japan and Philippines branches"
+  },
+  {
+    "id": "APRICOTBU1",
+    "name": "Apricot Philippine Sea Branching Unit",
+    "lat": 20.0,
+    "lng": 127.0,
+    "type": "branching_unit",
+    "country": "PH",
+    "owner": "Apricot Consortium",
+    "trading_name": "Apricot Philippine Sea Branching Unit Apricot Consortium",
+    "description": "Submarine cable branching unit for the Apricot cable system in the Philippine Sea, fanning out to Japan (Shima and Maruyama) and Guam"
   }
 ]

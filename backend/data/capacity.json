@@ -633,5 +633,50 @@
     "segment_id": "PROA-TIN-GUM",
     "total_capacity_t": 2.5,
     "available_capacity_t": 2.5
+  },
+  {
+    "segment_id": "JUPITER-SEA-BU",
+    "total_capacity_t": 8.0,
+    "available_capacity_t": 4.5
+  },
+  {
+    "segment_id": "JUPITER-BU-TYO",
+    "total_capacity_t": 8.0,
+    "available_capacity_t": 4.5
+  },
+  {
+    "segment_id": "JUPITER-BU-OSA",
+    "total_capacity_t": 8.0,
+    "available_capacity_t": 4.5
+  },
+  {
+    "segment_id": "JUPITER-BU-MNL",
+    "total_capacity_t": 8.0,
+    "available_capacity_t": 4.5
+  },
+  {
+    "segment_id": "APRICOT-SIN-MNL",
+    "total_capacity_t": 16.0,
+    "available_capacity_t": 12.0
+  },
+  {
+    "segment_id": "APRICOT-MNL-BU",
+    "total_capacity_t": 16.0,
+    "available_capacity_t": 12.0
+  },
+  {
+    "segment_id": "APRICOT-BU-OSA",
+    "total_capacity_t": 16.0,
+    "available_capacity_t": 12.0
+  },
+  {
+    "segment_id": "APRICOT-BU-TYO",
+    "total_capacity_t": 16.0,
+    "available_capacity_t": 12.0
+  },
+  {
+    "segment_id": "APRICOT-BU-GUM",
+    "total_capacity_t": 16.0,
+    "available_capacity_t": 12.0
   }
 ]

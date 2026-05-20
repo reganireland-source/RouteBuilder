@@ -128,5 +128,15 @@
     "id": "SXNEXT",
     "name": "Southern Cross NEXT",
     "description": "Upgraded transpacific cable: Hermosa Beach (LA) to Sydney and Auckland via Hawaii, with Fiji branch. 15,857 km, 72 Tbps. Same consortium plus ASN supply. RFS July 2022."
+  },
+  {
+    "id": "JUPITER",
+    "name": "Jupiter",
+    "description": "Meta/Amazon consortium transpacific cable \u2014 US West Coast (Pacific City, Oregon) to Japan (Chikura/Shima) and Philippines (Daet) via North Pacific branching unit. ~14,500 km. RFS 2020."
+  },
+  {
+    "id": "APRICOT",
+    "name": "Apricot",
+    "description": "Google/Meta/NTT/PLDT/SoftBank consortium cable \u2014 Singapore to Japan (Shima/Maruyama) and Guam via Philippines (Daet) and Philippine Sea branching unit. ~12,000 km. RFS 2024."
   }
 ]
