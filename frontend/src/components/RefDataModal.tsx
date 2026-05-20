@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { CableNode, CableSegment, CableSystem, DisallowedPair, InterconnectRule, SegmentCapacity } from '../types'
+import type { CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, InterconnectRule, SegmentCapacity } from '../types'
 import { useTheme } from '../theme'
 import { api } from '../api/client'
 
@@ -34,6 +34,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
+  const [showRulesHelp, setShowRulesHelp] = useState(false)
 
   function resetState() {
     setEditId(null); setEditValues({})
@@ -429,13 +430,13 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
 
   // ── Rules tab ────────────────────────────────────────────────────────────────
 
-  // Flatten rules into (node_id, pairIndex, pair) rows for display
-  type FlatPair = { node_id: string; idx: number; pair: DisallowedPair }
+  type FlatPair = { node_id: string; idx: number; pair: DisallowedPair | AllowedPair; kind: 'blacklist' | 'whitelist' }
 
   function RulesTab() {
-    const flat: FlatPair[] = rules.flatMap(r =>
-      r.disallowed_pairs.map((pair, idx) => ({ node_id: r.node_id, idx, pair }))
-    )
+    const flat: FlatPair[] = rules.flatMap(r => [
+      ...r.disallowed_pairs.map((pair, idx) => ({ node_id: r.node_id, idx, pair, kind: 'blacklist' as const })),
+      ...(r.allowed_pairs ?? []).map((pair, idx) => ({ node_id: r.node_id, idx, pair, kind: 'whitelist' as const })),
+    ])
     const filtered = flat.filter(fp =>
       !filter ||
       fp.node_id.toLowerCase().includes(filter.toLowerCase()) ||
@@ -443,82 +444,181 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
       fp.pair.system_b.toLowerCase().includes(filter.toLowerCase())
     )
 
-    function pairKey(node_id: string, idx: number) { return `${node_id}::${idx}` }
+    function pairKey(node_id: string, kind: string, idx: number) { return `${node_id}::${kind}::${idx}` }
 
-    async function savePairEdit(node_id: string, idx: number) {
-      const rule = rules.find(r => r.node_id === node_id)!
-      const newPairs = rule.disallowed_pairs.map((p, i) =>
-        i === idx ? (editValues as unknown as DisallowedPair) : p
+    const kindOpts = [
+      { value: 'blacklist', label: 'Blacklist — block this pair' },
+      { value: 'whitelist', label: 'Whitelist — only allow this pair' },
+    ]
+
+    function typeBadge(kind: 'blacklist' | 'whitelist') {
+      const wl = kind === 'whitelist'
+      return (
+        <span style={{
+          display: 'inline-block', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
+          background: wl ? 'rgba(166,227,161,0.15)' : 'rgba(243,139,168,0.15)',
+          color: wl ? t.green : t.red,
+          letterSpacing: '0.04em', textTransform: 'uppercase',
+        }}>
+          {wl ? 'Whitelist' : 'Blacklist'}
+        </span>
       )
-      await saveEdit(() => api.updateRule(node_id, { disallowed_pairs: newPairs }))
     }
 
-    async function deletePair(node_id: string, idx: number) {
+    async function savePairEdit(node_id: string, idx: number, kind: 'blacklist' | 'whitelist') {
       const rule = rules.find(r => r.node_id === node_id)!
-      const newPairs = rule.disallowed_pairs.filter((_, i) => i !== idx)
-      if (newPairs.length === 0) {
+      const newKind = editValues.kind as 'blacklist' | 'whitelist'
+      const newPair = { system_a: String(editValues.system_a), system_b: String(editValues.system_b), reason: String(editValues.reason) }
+
+      if (newKind === kind) {
+        if (kind === 'blacklist') {
+          await saveEdit(() => api.updateRule(node_id, { disallowed_pairs: rule.disallowed_pairs.map((p, i) => i === idx ? newPair : p) }))
+        } else {
+          await saveEdit(() => api.updateRule(node_id, { allowed_pairs: (rule.allowed_pairs ?? []).map((p, i) => i === idx ? newPair : p) }))
+        }
+      } else {
+        // Kind changed — move pair between lists
+        const newDisallowed = kind === 'blacklist'
+          ? rule.disallowed_pairs.filter((_, i) => i !== idx)
+          : [...rule.disallowed_pairs, newPair]
+        const newAllowed = kind === 'whitelist'
+          ? (rule.allowed_pairs ?? []).filter((_, i) => i !== idx)
+          : [...(rule.allowed_pairs ?? []), newPair]
+        await saveEdit(() => api.updateRule(node_id, { disallowed_pairs: newDisallowed, allowed_pairs: newAllowed }))
+      }
+    }
+
+    async function deletePair(node_id: string, idx: number, kind: 'blacklist' | 'whitelist') {
+      const rule = rules.find(r => r.node_id === node_id)!
+      const newDisallowed = kind === 'blacklist' ? rule.disallowed_pairs.filter((_, i) => i !== idx) : rule.disallowed_pairs
+      const newAllowed    = kind === 'whitelist' ? (rule.allowed_pairs ?? []).filter((_, i) => i !== idx) : (rule.allowed_pairs ?? [])
+      if (newDisallowed.length === 0 && newAllowed.length === 0) {
         await confirmDelete(() => api.deleteRule(node_id))
       } else {
-        await confirmDelete(() => api.updateRule(node_id, { disallowed_pairs: newPairs }).then(() => {}))
+        await confirmDelete(() => api.updateRule(node_id, { disallowed_pairs: newDisallowed, allowed_pairs: newAllowed }).then(() => {}))
       }
     }
 
     async function addPair() {
-      const { node_id, system_a, system_b, reason } = addValues as Record<string, string>
+      const { node_id, system_a, system_b, reason, kind } = addValues as Record<string, string>
+      const ruleKind = (kind || 'blacklist') as 'blacklist' | 'whitelist'
+      const defaultReason = ruleKind === 'blacklist' ? 'Pair is not allowed' : 'Only this pair is allowed at this node'
+      const newPair = { system_a, system_b, reason: reason || defaultReason }
       const existing = rules.find(r => r.node_id === node_id)
       if (existing) {
-        const newPairs = [...existing.disallowed_pairs, { system_a, system_b, reason: reason || 'Pair is not allowed' }]
-        await saveAdd(() => api.updateRule(node_id, { disallowed_pairs: newPairs }))
+        if (ruleKind === 'blacklist') {
+          await saveAdd(() => api.updateRule(node_id, { disallowed_pairs: [...existing.disallowed_pairs, newPair] }))
+        } else {
+          await saveAdd(() => api.updateRule(node_id, { allowed_pairs: [...(existing.allowed_pairs ?? []), newPair] }))
+        }
       } else {
-        await saveAdd(() => api.createRule({ node_id, disallowed_pairs: [{ system_a, system_b, reason: reason || 'Pair is not allowed' }] }))
+        if (ruleKind === 'blacklist') {
+          await saveAdd(() => api.createRule({ node_id, disallowed_pairs: [newPair], allowed_pairs: [] }))
+        } else {
+          await saveAdd(() => api.createRule({ node_id, disallowed_pairs: [], allowed_pairs: [newPair] }))
+        }
       }
     }
 
-    const totalPairs = rules.reduce((n, r) => n + r.disallowed_pairs.length, 0)
+    const blacklistCount = rules.reduce((n, r) => n + r.disallowed_pairs.length, 0)
+    const whitelistCount = rules.reduce((n, r) => n + (r.allowed_pairs?.length ?? 0), 0)
 
     return (
       <>
+        {showRulesHelp && (
+          <div style={{ margin: '10px 12px', padding: '12px 14px', background: t.bgDeep, border: `1px solid ${t.border}`, borderRadius: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>How do Node Rules behave?</span>
+              <button onClick={() => setShowRulesHelp(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textFaint, fontSize: 16, padding: '0 4px', lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ fontSize: 11, color: t.textFaint, marginBottom: 10, lineHeight: 1.5 }}>
+              Rules control which cable systems can transit through a node together. Whitelist and blacklist rules are independent and can coexist on the same node.
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${t.border}` }}>
+                  <th style={{ textAlign: 'left', padding: '4px 8px', color: t.textFaint, fontWeight: 600 }}>Scenario at node</th>
+                  <th style={{ textAlign: 'left', padding: '4px 8px', color: t.textFaint, fontWeight: 600 }}>Result</th>
+                  <th style={{ textAlign: 'left', padding: '4px 8px', color: t.textFaint, fontWeight: 600 }}>Why</th>
+                </tr>
+              </thead>
+              <tbody>
+                {([
+                  { scenario: 'Whitelisted system → its whitelisted partner', result: '✓ Allowed', pass: true,  why: 'Explicitly permitted' },
+                  { scenario: 'Whitelisted system → any other system',        result: '✗ Blocked', pass: false, why: 'System is whitelisted; unlisted transition rejected' },
+                  { scenario: 'Blacklisted pair',                             result: '✗ Blocked', pass: false, why: 'Explicitly forbidden' },
+                  { scenario: 'Any other combination',                        result: '✓ Allowed', pass: true,  why: 'No rule applies' },
+                ] as const).map(row => (
+                  <tr key={row.scenario} style={{ borderBottom: `1px solid ${t.borderSubtle}` }}>
+                    <td style={{ padding: '5px 8px', color: t.text,      fontSize: 11 }}>{row.scenario}</td>
+                    <td style={{ padding: '5px 8px', color: row.pass ? t.green : t.red, fontWeight: 700, fontSize: 11 }}>{row.result}</td>
+                    <td style={{ padding: '5px 8px', color: t.textFaint, fontSize: 11 }}>{row.why}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ fontSize: 11, color: t.textFaint, marginTop: 8, lineHeight: 1.5 }}>
+              <strong style={{ color: t.text }}>Example</strong> — GUM1 with BIFROST whitelist + PPC1↔AAG blacklist:&nbsp;
+              BIFROST→BIFROST <span style={{ color: t.green }}>allowed</span> ·&nbsp;
+              BIFROST→AJC <span style={{ color: t.red }}>blocked</span> ·&nbsp;
+              PPC1→AAG <span style={{ color: t.red }}>blocked</span> ·&nbsp;
+              PPC1→AJC <span style={{ color: t.green }}>allowed</span>
+            </div>
+          </div>
+        )}
         {adding && (
-          <div style={{ ...editFormRow, gridTemplateColumns: '1fr 1fr 1fr 2fr' }}>
+          <div style={{ ...editFormRow, gridTemplateColumns: '1fr 1.2fr 1fr 1fr 2fr' }}>
             <Field label="Node ID *"   k="node_id"   src={addValues} setSrc={setAddValues} />
+            <Field label="Rule Type *" k="kind"      src={addValues} setSrc={setAddValues} options={kindOpts} />
             <Field label="System A *"  k="system_a"  src={addValues} setSrc={setAddValues} />
             <Field label="System B *"  k="system_b"  src={addValues} setSrc={setAddValues} />
             <Field label="Reason"      k="reason"    src={addValues} setSrc={setAddValues} />
             <SaveCancel onSave={addPair} onCancel={() => { setAdding(false); setAddValues({}) }} />
           </div>
         )}
-        <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
+        <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep, alignItems: 'center' }}>
+          <div style={colH(1)}>Type</div>
           <div style={colH(1.5)}>Node</div>
           <div style={colH(1.5)}>System A</div>
           <div style={colH(1.5)}>System B</div>
-          <div style={colH(5)}>Reason</div>
-          <div style={{ width: 140 }} />
+          <div style={colH(4)}>Reason</div>
+          <div style={{ width: 140, flexShrink: 0 }} />
+          <button
+            onClick={() => setShowRulesHelp(v => !v)}
+            title="How do Node Rules behave?"
+            style={{ background: 'none', border: `1px solid ${t.border}`, borderRadius: 3, cursor: 'pointer', color: showRulesHelp ? t.blue : t.textFaint, fontSize: 11, padding: '1px 7px', marginLeft: 4, flexShrink: 0 }}
+          >
+            ℹ
+          </button>
         </div>
         {filtered.length === 0 && (
           <div style={{ padding: '20px 16px', color: t.textFaintest, fontSize: 13 }}>No rules defined.</div>
         )}
-        {filtered.map(({ node_id, idx, pair }) => {
-          const key = pairKey(node_id, idx)
+        {filtered.map(({ node_id, idx, pair, kind }) => {
+          const key = pairKey(node_id, kind, idx)
+          const isDefaultReason = pair.reason === 'Pair is not allowed' || pair.reason === 'Only this pair is allowed at this node'
           return (
             <div key={key} style={rowStyle(editId === key)}>
               <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
+                <div style={cell(1)}>{typeBadge(kind)}</div>
                 <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{node_id}</code></div>
                 <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{pair.system_a}</code></div>
                 <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{pair.system_b}</code></div>
-                <div style={{ ...cell(5), color: t.textMuted, fontStyle: pair.reason === 'Pair is not allowed' ? 'italic' : 'normal' }}>{pair.reason}</div>
+                <div style={{ ...cell(4), color: t.textMuted, fontStyle: isDefaultReason ? 'italic' : 'normal' }}>{pair.reason}</div>
                 <ActionsCell
                   id={key}
-                  onEdit={() => startEdit(key, { system_a: pair.system_a, system_b: pair.system_b, reason: pair.reason })}
-                  onDelete={() => deletePair(node_id, idx)}
+                  onEdit={() => startEdit(key, { system_a: pair.system_a, system_b: pair.system_b, reason: pair.reason, kind })}
+                  onDelete={() => deletePair(node_id, idx, kind)}
                 />
               </div>
               {editId === key && (
-                <div style={{ ...editFormRow, gridTemplateColumns: '1fr 1fr 3fr' }}>
-                  <Field label="System A" k="system_a" src={editValues} setSrc={setEditValues} />
-                  <Field label="System B" k="system_b" src={editValues} setSrc={setEditValues} />
-                  <Field label="Reason"   k="reason"   src={editValues} setSrc={setEditValues} />
+                <div style={{ ...editFormRow, gridTemplateColumns: '1.2fr 1fr 1fr 3fr' }}>
+                  <Field label="Rule Type" k="kind"     src={editValues} setSrc={setEditValues} options={kindOpts} />
+                  <Field label="System A"  k="system_a" src={editValues} setSrc={setEditValues} />
+                  <Field label="System B"  k="system_b" src={editValues} setSrc={setEditValues} />
+                  <Field label="Reason"    k="reason"   src={editValues} setSrc={setEditValues} />
                   <SaveCancel
-                    onSave={() => savePairEdit(node_id, idx)}
+                    onSave={() => savePairEdit(node_id, idx, kind)}
                     onCancel={() => setEditId(null)}
                   />
                 </div>
@@ -526,9 +626,9 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
             </div>
           )
         })}
-        {totalPairs > 0 && (
+        {(blacklistCount + whitelistCount) > 0 && (
           <div style={{ padding: '8px 16px', fontSize: 11, color: t.textFaintest, borderTop: `1px solid ${t.borderSubtle}` }}>
-            {rules.length} node rule{rules.length !== 1 ? 's' : ''} · {totalPairs} pair{totalPairs !== 1 ? 's' : ''} total
+            {rules.length} node rule{rules.length !== 1 ? 's' : ''} · {blacklistCount} blacklist pair{blacklistCount !== 1 ? 's' : ''} · {whitelistCount} whitelist pair{whitelistCount !== 1 ? 's' : ''}
           </div>
         )}
       </>
@@ -629,14 +729,14 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
 
   // ── Counts & add defaults ────────────────────────────────────────────────────
 
-  const totalPairs = rules.reduce((n, r) => n + r.disallowed_pairs.length, 0)
+  const totalPairs = rules.reduce((n, r) => n + r.disallowed_pairs.length + (r.allowed_pairs?.length ?? 0), 0)
   const counts: Record<DataTab, number> = { nodes: nodes.length, segments: segments.length, systems: systems.length, capacity: capacity.length, rules: totalPairs }
   const addDefaults: Record<DataTab, Record<string, unknown>> = {
     nodes:    { id: '', name: '', country: '', type: 'landing_station', lat: 0, lng: 0 },
     segments: { id: '', name: '', system_id: '', start_node_id: '', end_node_id: '', type: 'wet', length_km: 0, latency: 0, cost_weight: 1, reliability: 0.9999, ownership: 'consortium' },
     systems:  { id: '', name: '', description: '' },
     capacity: { segment_id: '', total_capacity_t: 1.0, available_capacity_t: 1.0 },
-    rules:    { node_id: '', system_a: '', system_b: '', reason: 'Pair is not allowed' },
+    rules:    { node_id: '', kind: 'blacklist', system_a: '', system_b: '', reason: '' },
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────

@@ -84,9 +84,16 @@ export interface DisallowedPair {
   reason: string
 }
 
+export interface AllowedPair {
+  system_a: string
+  system_b: string
+  reason: string
+}
+
 export interface InterconnectRule {
   node_id: string
   disallowed_pairs: DisallowedPair[]
+  allowed_pairs: AllowedPair[]
 }
 
 export interface SelectedSystem {
