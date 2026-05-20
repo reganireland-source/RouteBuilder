@@ -1,9 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { CableNode, CableSegment, CableSystem, DisallowedPair, InterconnectRule, SegmentCapacity } from '../types'
 import { useTheme } from '../theme'
 import { api } from '../api/client'
 
-type Tab = 'nodes' | 'segments' | 'systems' | 'capacity' | 'rules'
+type DataTab = 'nodes' | 'segments' | 'systems' | 'capacity' | 'rules'
+type Tab = DataTab | 'checks'
+
+interface CheckResult {
+  name: string
+  passed: boolean
+  severity: string
+  message: string
+}
 
 interface Props {
   nodes: CableNode[]
@@ -527,11 +535,103 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
     )
   }
 
+  // ── Checks tab ────────────────────────────────────────────────────────────────
+
+  const [checkResults, setCheckResults] = useState<CheckResult[] | null>(null)
+  const [checkLoading, setCheckLoading] = useState(false)
+  const [checkError, setCheckError] = useState<string | null>(null)
+
+  async function runChecks() {
+    setCheckLoading(true); setCheckError(null)
+    try {
+      const res = await api.getChecks()
+      setCheckResults(res.checks)
+    } catch {
+      setCheckError('Failed to reach backend — is it running?')
+    } finally {
+      setCheckLoading(false)
+    }
+  }
+
+  useEffect(() => { if (tab === 'checks' && checkResults === null) runChecks() }, [tab])
+
+  function ChecksTab() {
+    const errors   = checkResults?.filter(c => !c.passed && c.severity === 'error')   ?? []
+    const warnings = checkResults?.filter(c => !c.passed && c.severity === 'warning') ?? []
+    const passed   = checkResults?.filter(c => c.passed) ?? []
+    const allPassed = checkResults !== null && errors.length === 0
+
+    const dot = (color: string) => (
+      <div style={{ width: 9, height: 9, borderRadius: '50%', background: color, flexShrink: 0, marginTop: 2 }} />
+    )
+
+    const rowItem = (c: CheckResult) => (
+      <div key={c.name} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '6px 0', borderBottom: `1px solid ${t.border}` }}>
+        {dot(c.passed ? '#a6e3a1' : c.severity === 'warning' ? '#f9e2af' : '#f38ba8')}
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{c.name}</div>
+          {!c.passed && c.message && (
+            <div style={{ fontSize: 11, color: t.textFaint, marginTop: 2, fontFamily: 'monospace', wordBreak: 'break-all' }}>
+              {c.message}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+
+    return (
+      <div style={{ padding: '20px 24px', maxWidth: 680 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+          <button
+            onClick={runChecks}
+            disabled={checkLoading}
+            style={{ padding: '6px 16px', borderRadius: 4, border: `1px solid ${t.blue}`, background: 'transparent', color: t.blue, fontWeight: 600, fontSize: 12, cursor: checkLoading ? 'not-allowed' : 'pointer' }}
+          >
+            {checkLoading ? 'Running…' : '↻ Re-run checks'}
+          </button>
+          {checkResults !== null && !checkLoading && (
+            <span style={{ fontSize: 12, color: allPassed ? '#a6e3a1' : '#f38ba8', fontWeight: 600 }}>
+              {allPassed ? `✓ All ${checkResults.length} checks passed` : `✗ ${errors.length} error${errors.length !== 1 ? 's' : ''}${warnings.length > 0 ? `, ${warnings.length} warning${warnings.length !== 1 ? 's' : ''}` : ''}`}
+            </span>
+          )}
+          {checkError && <span style={{ fontSize: 12, color: t.red }}>{checkError}</span>}
+        </div>
+
+        {checkLoading && (
+          <div style={{ color: t.textFaint, fontSize: 13 }}>Running integrity checks…</div>
+        )}
+
+        {checkResults !== null && !checkLoading && (
+          <>
+            {errors.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#f38ba8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Errors — {errors.length}</div>
+                {errors.map(rowItem)}
+              </div>
+            )}
+            {warnings.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#f9e2af', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Warnings — {warnings.length}</div>
+                {warnings.map(rowItem)}
+              </div>
+            )}
+            {passed.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Passed — {passed.length}</div>
+                {passed.map(rowItem)}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    )
+  }
+
   // ── Counts & add defaults ────────────────────────────────────────────────────
 
   const totalPairs = rules.reduce((n, r) => n + r.disallowed_pairs.length, 0)
-  const counts: Record<Tab, number> = { nodes: nodes.length, segments: segments.length, systems: systems.length, capacity: capacity.length, rules: totalPairs }
-  const addDefaults: Record<Tab, Record<string, unknown>> = {
+  const counts: Record<DataTab, number> = { nodes: nodes.length, segments: segments.length, systems: systems.length, capacity: capacity.length, rules: totalPairs }
+  const addDefaults: Record<DataTab, Record<string, unknown>> = {
     nodes:    { id: '', name: '', country: '', type: 'landing_station', lat: 0, lng: 0 },
     segments: { id: '', name: '', system_id: '', start_node_id: '', end_node_id: '', type: 'wet', length_km: 0, latency: 0, cost_weight: 1, reliability: 0.9999, ownership: 'consortium' },
     systems:  { id: '', name: '', description: '' },
@@ -556,7 +656,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
 
         {/* Tab bar + filter + add */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 20px', borderBottom: `1px solid ${t.border}`, flexShrink: 0, background: t.bgDeep }}>
-          {(['nodes', 'segments', 'systems', 'capacity', 'rules'] as Tab[]).map(tb => (
+          {(['nodes', 'segments', 'systems', 'capacity', 'rules'] as DataTab[]).map(tb => (
             <button key={tb} onClick={() => switchTab(tb)} style={{
               padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
               fontSize: 12, fontWeight: tab === tb ? 700 : 400,
@@ -567,20 +667,30 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
               {tb} <span style={{ fontSize: 10, opacity: 0.7 }}>({counts[tb]})</span>
             </button>
           ))}
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input
-              placeholder={`Filter ${tab}…`}
-              value={filter}
-              onChange={e => setFilter(e.target.value)}
-              style={{ ...inputStyle, width: 180, padding: '5px 8px' }}
-            />
-            <button
-              onClick={() => startAdd(addDefaults[tab])}
-              style={{ ...actionBtn('add'), padding: '5px 12px' }}
-            >
-              + Add {tab === 'rules' ? 'pair' : tab.slice(0, -1)}
-            </button>
-          </div>
+          <button onClick={() => switchTab('checks')} style={{
+            padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
+            fontSize: 12, fontWeight: tab === 'checks' ? 700 : 400,
+            color: tab === 'checks' ? t.blue : t.textFaint,
+            borderBottom: tab === 'checks' ? `2px solid ${t.blue}` : '2px solid transparent',
+          }}>
+            ⚡ Checks
+          </button>
+          {tab !== 'checks' && (
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                placeholder={`Filter ${tab}…`}
+                value={filter}
+                onChange={e => setFilter(e.target.value)}
+                style={{ ...inputStyle, width: 180, padding: '5px 8px' }}
+              />
+              <button
+                onClick={() => startAdd(addDefaults[tab as DataTab])}
+                style={{ ...actionBtn('add'), padding: '5px 12px' }}
+              >
+                + Add {tab === 'rules' ? 'pair' : tab.slice(0, -1)}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Table body */}
@@ -590,6 +700,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
           {tab === 'systems'  && <SystemTab />}
           {tab === 'capacity' && <CapacityTab />}
           {tab === 'rules'    && <RulesTab />}
+          {tab === 'checks'   && <ChecksTab />}
         </div>
 
       </div>

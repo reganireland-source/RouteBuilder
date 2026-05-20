@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from ..data_loader import load_nodes, load_segments, load_systems
+from ..data_checks import run_all_checks, checks_summary
 
 router = APIRouter(prefix="/health", tags=["health"])
 
@@ -15,3 +16,8 @@ def health_check():
         "segments": len(segments),
         "systems":  len(systems),
     }
+
+
+@router.get("/checks")
+def integrity_checks():
+    return checks_summary(run_all_checks())

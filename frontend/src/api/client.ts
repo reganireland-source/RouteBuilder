@@ -67,7 +67,8 @@ export const api = {
   deleteCapacity: (segId: string)                                   => del(`/api/capacity/${segId}`),
 
   // Health
-  getHealth: () => get<{ status: string; nodes: number; segments: number; systems: number }>('/api/health'),
+  getHealth:  () => get<{ status: string; nodes: number; segments: number; systems: number }>('/api/health'),
+  getChecks:  () => get<{ all_passed: boolean; error_count: number; warning_count: number; checks: { name: string; passed: boolean; severity: string; message: string }[] }>('/api/health/checks'),
 
   // Rules
   getRules:     ()                                                  => get<InterconnectRule[]>('/api/rules'),
