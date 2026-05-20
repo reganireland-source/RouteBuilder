@@ -66,6 +66,9 @@ export const api = {
   updateCapacity: (segId: string, data: Partial<SegmentCapacity>)   => put<SegmentCapacity>(`/api/capacity/${segId}`, data),
   deleteCapacity: (segId: string)                                   => del(`/api/capacity/${segId}`),
 
+  // Health
+  getHealth: () => get<{ status: string; nodes: number; segments: number; systems: number }>('/api/health'),
+
   // Rules
   getRules:     ()                                                  => get<InterconnectRule[]>('/api/rules'),
   createRule:   (data: InterconnectRule)                            => post<InterconnectRule>('/api/rules', data),

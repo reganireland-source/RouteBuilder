@@ -4,6 +4,7 @@ import { SearchForm } from './components/SearchForm'
 import { RouteList } from './components/RouteList'
 import { SystemViewer } from './components/SystemViewer'
 import { RefDataModal } from './components/RefDataModal'
+import { HealthBar } from './components/HealthBar'
 import { generateStraightLineDiagram } from './utils/generateDiagram'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, lightTheme, type Theme } from './theme'
@@ -198,6 +199,7 @@ export default function App() {
               />
             )}
           </div>
+          <HealthBar dataLoaded={nodes.length > 0} />
         </div>
 
         {/* Middle panel — routes */}
