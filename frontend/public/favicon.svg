@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <radialGradient id="bg" cx="42%" cy="36%" r="72%">
+      <stop offset="0%" stop-color="#21233a"/>
+      <stop offset="100%" stop-color="#0c0d1a"/>
+    </radialGradient>
+    <radialGradient id="globe" cx="36%" cy="30%" r="68%">
+      <stop offset="0%" stop-color="#181b30"/>
+      <stop offset="100%" stop-color="#07080f"/>
+    </radialGradient>
+    <radialGradient id="gnode1" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f5c2e7"/>
+      <stop offset="100%" stop-color="#f5c2e7" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="gnode2" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#a6e3a1"/>
+      <stop offset="100%" stop-color="#a6e3a1" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="gc">
+      <circle cx="16" cy="16" r="11.5"/>
+    </clipPath>
+  </defs>
+
+  <!-- Rounded-square background -->
+  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
+
+  <!-- Globe sphere -->
+  <circle cx="16" cy="16" r="11.5" fill="url(#globe)"/>
+
+  <!-- Latitude lines -->
+  <ellipse cx="16" cy="16"   rx="11.5" ry="4.4"  fill="none" stroke="#2e3460" stroke-width="0.65" clip-path="url(#gc)"/>
+  <ellipse cx="16" cy="11.2" rx="9.6"  ry="3.4"  fill="none" stroke="#2e3460" stroke-width="0.5"  clip-path="url(#gc)"/>
+  <ellipse cx="16" cy="20.8" rx="9.0"  ry="3.0"  fill="none" stroke="#2e3460" stroke-width="0.5"  clip-path="url(#gc)"/>
+  <!-- Meridian -->
+  <ellipse cx="16" cy="16"   rx="5.0"  ry="11.5" fill="none" stroke="#2e3460" stroke-width="0.65" clip-path="url(#gc)"/>
+
+  <!-- Globe border with subtle highlight -->
+  <circle cx="16" cy="16" r="11.5" fill="none" stroke="#404880" stroke-width="0.9"/>
+  <circle cx="16" cy="16" r="11.5" fill="none" stroke="white"   stroke-width="0.4" opacity="0.06"/>
+
+  <!-- Cable glow (clipped inside globe) -->
+  <path d="M 5 22 C 10 4, 22 4, 27 13"
+        fill="none" stroke="#5b9cf6" stroke-width="6"
+        stroke-linecap="round" opacity="0.22"
+        clip-path="url(#gc)"/>
+
+  <!-- Cable route -->
+  <path d="M 5 22 C 10 4, 22 4, 27 13"
+        fill="none" stroke="#89b4fa" stroke-width="1.75"
+        stroke-linecap="round"
+        clip-path="url(#gc)"/>
+
+  <!-- Node glow halos -->
+  <circle cx="5"  cy="22" r="4.5" fill="url(#gnode1)" opacity="0.55"/>
+  <circle cx="27" cy="13" r="4.5" fill="url(#gnode2)" opacity="0.55"/>
+
+  <!-- Landing station nodes -->
+  <circle cx="5"  cy="22" r="2.2" fill="#f5c2e7"/>
+  <circle cx="27" cy="13" r="2.2" fill="#a6e3a1"/>
+
+  <!-- Node inner highlight -->
+  <circle cx="4.5"  cy="21.4" r="0.7" fill="white" opacity="0.55"/>
+  <circle cx="26.4" cy="12.4" r="0.7" fill="white" opacity="0.55"/>
+</svg>
