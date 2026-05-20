@@ -10,6 +10,9 @@ export interface CableNode {
   lng: number
   type: NodeType
   country: string
+  owner?: string
+  trading_name?: string
+  description?: string
 }
 
 export interface CableSystem {

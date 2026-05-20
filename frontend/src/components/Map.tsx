@@ -186,6 +186,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
               <strong>{node.name}</strong> ({node.id})
               {!isBU && <><br />{node.country} · {node.type.replace('_', ' ')}</>}
               {isBU && <><br />Branching Unit</>}
+              {node.owner && <><br />Owner: {node.owner}</>}
             </Tooltip>
           </CircleMarker>
         )

@@ -36,6 +36,9 @@ class Node(BaseModel):
     lng: float
     type: NodeType
     country: str
+    owner: str = "Telstra"
+    trading_name: Optional[str] = None
+    description: Optional[str] = None
 
 
 class CableSystem(BaseModel):
@@ -137,6 +140,9 @@ class NodeUpdate(BaseModel):
     lng: Optional[float] = None
     type: Optional[NodeType] = None
     country: Optional[str] = None
+    owner: Optional[str] = None
+    trading_name: Optional[str] = None
+    description: Optional[str] = None
 
 class CableSegmentUpdate(BaseModel):
     name: Optional[str] = None

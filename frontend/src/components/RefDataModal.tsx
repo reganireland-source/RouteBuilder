@@ -195,13 +195,16 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
     return (
       <>
         {adding && (
-          <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(6, 1fr)' }}>
-            <Field label="ID *"      k="id"      src={addValues} setSrc={setAddValues} />
-            <Field label="Name *"    k="name"    src={addValues} setSrc={setAddValues} />
-            <Field label="Country"   k="country" src={addValues} setSrc={setAddValues} />
-            <Field label="Type"      k="type"    src={addValues} setSrc={setAddValues} options={typeOpts} />
-            <Field label="Lat"       k="lat"     src={addValues} setSrc={setAddValues} type="number" />
-            <Field label="Lng"       k="lng"     src={addValues} setSrc={setAddValues} type="number" />
+          <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(5, 1fr)' }}>
+            <Field label="ID *"         k="id"           src={addValues} setSrc={setAddValues} />
+            <Field label="Name *"       k="name"         src={addValues} setSrc={setAddValues} />
+            <Field label="Country"      k="country"      src={addValues} setSrc={setAddValues} />
+            <Field label="Type"         k="type"         src={addValues} setSrc={setAddValues} options={typeOpts} />
+            <Field label="Owner"        k="owner"        src={addValues} setSrc={setAddValues} />
+            <Field label="Lat"          k="lat"          src={addValues} setSrc={setAddValues} type="number" />
+            <Field label="Lng"          k="lng"          src={addValues} setSrc={setAddValues} type="number" />
+            <Field label="Trading Name" k="trading_name" src={addValues} setSrc={setAddValues} />
+            <Field label="Description"  k="description"  src={addValues} setSrc={setAddValues} />
             <SaveCancel
               onSave={() => saveAdd(() => api.createNode(addValues as unknown as CableNode))}
               onCancel={() => { setAdding(false); setAddValues({}) }}
@@ -209,31 +212,39 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
           </div>
         )}
         <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
-          <div style={colH(2)}>ID</div><div style={colH(3)}>Name</div><div style={colH(1)}>Country</div>
-          <div style={colH(2)}>Type</div><div style={colH(1.5)}>Lat</div><div style={colH(1.5)}>Lng</div>
+          <div style={colH(1.5)}>ID</div><div style={colH(2)}>Name</div><div style={colH(1)}>Country</div>
+          <div style={colH(1.5)}>Type</div><div style={colH(2)}>Owner</div>
+          <div style={colH(2)}>Trading Name</div><div style={colH(3)}>Description</div>
+          <div style={colH(1)}>Lat</div><div style={colH(1)}>Lng</div>
           <div style={{ width: 140 }} />
         </div>
         {filtered.map(n => (
           <div key={n.id} style={rowStyle(editId === n.id)}>
             <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
-              <div style={cell(2)}><code style={{ fontSize: 11 }}>{n.id}</code></div>
-              <div style={cell(3)}>{n.name}</div>
+              <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{n.id}</code></div>
+              <div style={cell(2)}>{n.name}</div>
               <div style={cell(1)}>{n.country}</div>
-              <div style={cell(2)}>{n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : 'POP'}</div>
-              <div style={cell(1.5)}>{n.lat}</div>
-              <div style={cell(1.5)}>{n.lng}</div>
+              <div style={cell(1.5)}>{n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : 'POP'}</div>
+              <div style={cell(2)}>{n.owner ?? ''}</div>
+              <div style={cell(2)}>{n.trading_name ?? ''}</div>
+              <div style={cell(3)}>{n.description ?? ''}</div>
+              <div style={cell(1)}>{n.lat}</div>
+              <div style={cell(1)}>{n.lng}</div>
               <ActionsCell id={n.id}
-                onEdit={() => startEdit(n.id, { name: n.name, country: n.country, type: n.type, lat: n.lat, lng: n.lng })}
+                onEdit={() => startEdit(n.id, { name: n.name, country: n.country, type: n.type, lat: n.lat, lng: n.lng, owner: n.owner ?? '', trading_name: n.trading_name ?? '', description: n.description ?? '' })}
                 onDelete={() => confirmDelete(() => api.deleteNode(n.id))}
               />
             </div>
             {editId === n.id && (
-              <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(5, 1fr)' }}>
-                <Field label="Name"    k="name"    src={editValues} setSrc={setEditValues} />
-                <Field label="Country" k="country" src={editValues} setSrc={setEditValues} />
-                <Field label="Type"    k="type"    src={editValues} setSrc={setEditValues} options={typeOpts} />
-                <Field label="Lat"     k="lat"     src={editValues} setSrc={setEditValues} type="number" />
-                <Field label="Lng"     k="lng"     src={editValues} setSrc={setEditValues} type="number" />
+              <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(4, 1fr)' }}>
+                <Field label="Name"         k="name"         src={editValues} setSrc={setEditValues} />
+                <Field label="Country"      k="country"      src={editValues} setSrc={setEditValues} />
+                <Field label="Type"         k="type"         src={editValues} setSrc={setEditValues} options={typeOpts} />
+                <Field label="Owner"        k="owner"        src={editValues} setSrc={setEditValues} />
+                <Field label="Lat"          k="lat"          src={editValues} setSrc={setEditValues} type="number" />
+                <Field label="Lng"          k="lng"          src={editValues} setSrc={setEditValues} type="number" />
+                <Field label="Trading Name" k="trading_name" src={editValues} setSrc={setEditValues} />
+                <Field label="Description"  k="description"  src={editValues} setSrc={setEditValues} />
                 <SaveCancel
                   onSave={() => saveEdit(() => api.updateNode(n.id, editValues as Partial<CableNode>))}
                   onCancel={() => setEditId(null)}
@@ -732,7 +743,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
   const totalPairs = rules.reduce((n, r) => n + r.disallowed_pairs.length + (r.allowed_pairs?.length ?? 0), 0)
   const counts: Record<DataTab, number> = { nodes: nodes.length, segments: segments.length, systems: systems.length, capacity: capacity.length, rules: totalPairs }
   const addDefaults: Record<DataTab, Record<string, unknown>> = {
-    nodes:    { id: '', name: '', country: '', type: 'landing_station', lat: 0, lng: 0 },
+    nodes:    { id: '', name: '', country: '', type: 'landing_station', lat: 0, lng: 0, owner: 'Telstra', trading_name: '', description: '' },
     segments: { id: '', name: '', system_id: '', start_node_id: '', end_node_id: '', type: 'wet', length_km: 0, latency: 0, cost_weight: 1, reliability: 0.9999, ownership: 'consortium' },
     systems:  { id: '', name: '', description: '' },
     capacity: { segment_id: '', total_capacity_t: 1.0, available_capacity_t: 1.0 },
