@@ -82,7 +82,7 @@ def _apply_waypoints(
     for i in range(len(checkpoints) - 1):
         src, dst = checkpoints[i], checkpoints[i + 1]
         try:
-            paths = itertools.islice(nx.shortest_simple_paths(working_G, src, dst, weight="cost_weight"), k * 3)
+            paths = itertools.islice(nx.shortest_simple_paths(working_G, src, dst, weight="length_km"), k * 3)
             valid = [p for p in paths if validate_interconnect_rules(working_G, p, rules)]
             segment_candidates.append(valid[:k])
         except nx.NetworkXNoPath:
@@ -138,7 +138,7 @@ def find_routes(
         candidates = _apply_waypoints(working_G, start, end, must_include_nodes, rules, set(), k)
     else:
         try:
-            raw = itertools.islice(nx.shortest_simple_paths(working_G, start, end, weight="cost_weight"), k * 3)
+            raw = itertools.islice(nx.shortest_simple_paths(working_G, start, end, weight="length_km"), k * 3)
             candidates = [p for p in raw if validate_interconnect_rules(working_G, p, rules)][:k]
         except nx.NetworkXNoPath:
             candidates = []
@@ -215,7 +215,7 @@ def find_routes(
             )
         else:
             try:
-                raw = itertools.islice(nx.shortest_simple_paths(diverse_G, start, end, weight="cost_weight"), k * 3)
+                raw = itertools.islice(nx.shortest_simple_paths(diverse_G, start, end, weight="length_km"), k * 3)
                 diverse_candidates = [
                     p for p in raw if validate_interconnect_rules(diverse_G, p, rules)
                 ][:k]
