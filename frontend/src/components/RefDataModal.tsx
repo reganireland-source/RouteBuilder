@@ -799,7 +799,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, config
         <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 4 }}>Network Classification</div>
         <div style={{ fontSize: 11, color: t.textFaint, marginBottom: 16 }}>
           Controls which ownership types are treated as On-Net vs Off-Net throughout the app.
-          Changes are saved locally in your browser.
+          Changes are saved to the backend and apply globally.
         </div>
         <div style={{ border: `1px solid ${t.border}`, borderRadius: 6, overflow: 'hidden' }}>
           {/* Header */}
