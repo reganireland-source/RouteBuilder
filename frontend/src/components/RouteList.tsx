@@ -324,13 +324,13 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, onNetSet }:
 
         {isMobile && segmentsOpen && (
           <div style={{ marginTop: 8 }}>
-            <SegmentBreakdownRows route={route} capacityById={capacityById} />
+            <SegmentBreakdownRows route={route} capacityById={capacityById} onNetSet={onNetSet} />
           </div>
         )}
       </div>
 
       {!isMobile && hovered && createPortal(
-        <SegmentTooltip route={route} capacityById={capacityById} pos={tooltipPos} />,
+        <SegmentTooltip route={route} capacityById={capacityById} pos={tooltipPos} onNetSet={onNetSet} />,
         document.body
       )}
     </div>
@@ -448,12 +448,12 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, color, 
 
       {isMobile && segmentsOpen && (
         <div style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
-          <SegmentBreakdownRows route={route} capacityById={capacityById} />
+          <SegmentBreakdownRows route={route} capacityById={capacityById} onNetSet={onNetSet} />
         </div>
       )}
 
       {!isMobile && hovered && createPortal(
-        <SegmentTooltip route={route} capacityById={capacityById} pos={tooltipPos} />,
+        <SegmentTooltip route={route} capacityById={capacityById} pos={tooltipPos} onNetSet={onNetSet} />,
         document.body
       )}
     </div>
@@ -478,9 +478,10 @@ function NetBadge({ route, onNetSet }: { route: Route; onNetSet: Set<string> }) 
   )
 }
 
-function SegmentBreakdownRows({ route, capacityById }: {
+function SegmentBreakdownRows({ route, capacityById, onNetSet }: {
   route: Route
   capacityById: Record<string, SegmentCapacity>
+  onNetSet: Set<string>
 }) {
   const t = useTheme()
   return (
@@ -491,12 +492,26 @@ function SegmentBreakdownRows({ route, capacityById }: {
       {route.segments.map(seg => {
         const cap = capacityById[seg.segment_id]
         const capPct = cap ? Math.round((cap.available_capacity_t / cap.total_capacity_t) * 100) : null
+        const onNet = seg.type === 'wet' ? onNetSet.has(seg.ownership) : null
+        const netColor = onNet === true ? t.green : onNet === false ? t.red : null
+        const netLabel = onNet === true ? 'ON-NET' : onNet === false ? 'OFF-NET' : null
         return (
           <div key={seg.segment_id} style={{ marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${t.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: seg.type === 'wet' ? t.blue : t.green }}>
-                {seg.system_id}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: seg.type === 'wet' ? t.blue : t.green }}>
+                  {seg.system_id}
+                </span>
+                {netLabel && netColor && (
+                  <span style={{
+                    fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
+                    letterSpacing: '0.04em',
+                    background: netColor + '22', color: netColor, border: `1px solid ${netColor + '55'}`,
+                  }}>
+                    {netLabel}
+                  </span>
+                )}
+              </div>
               <span style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase' }}>{seg.type}</span>
             </div>
             <div style={{ display: 'flex', gap: 10, fontSize: 10, color: t.textMuted, marginTop: 2 }}>
@@ -519,10 +534,11 @@ function SegmentBreakdownRows({ route, capacityById }: {
   )
 }
 
-function SegmentTooltip({ route, capacityById, pos }: {
+function SegmentTooltip({ route, capacityById, pos, onNetSet }: {
   route: Route
   capacityById: Record<string, SegmentCapacity>
   pos: { top: number; left: number }
+  onNetSet: Set<string>
 }) {
   const t = useTheme()
   return (
@@ -535,7 +551,7 @@ function SegmentTooltip({ route, capacityById, pos }: {
         fontFamily: 'system-ui, sans-serif', pointerEvents: 'none',
       }}
     >
-      <SegmentBreakdownRows route={route} capacityById={capacityById} />
+      <SegmentBreakdownRows route={route} capacityById={capacityById} onNetSet={onNetSet} />
     </div>
   )
 }
