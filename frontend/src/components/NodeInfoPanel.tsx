@@ -2,6 +2,19 @@ import { useEffect, useRef, useState } from 'react'
 import type { CableNode, CableSegment, CableSystem } from '../types'
 import { useTheme } from '../theme'
 
+const OWNER_LOGOS: Record<string, string> = {
+  'Telstra':        'https://logo.clearbit.com/telstra.com',
+  'Equinix':        'https://logo.clearbit.com/equinix.com',
+  'PCCW':           'https://logo.clearbit.com/pccw.com',
+  'DRT':            'https://logo.clearbit.com/digitalrealty.com',
+  'Digital Realty': 'https://logo.clearbit.com/digitalrealty.com',
+  'NTT':            'https://logo.clearbit.com/ntt.com',
+  'Zayo':           'https://logo.clearbit.com/zayo.com',
+  'Lumen':          'https://logo.clearbit.com/lumen.com',
+  'Verizon':        'https://logo.clearbit.com/verizon.com',
+  'AT&T':           'https://logo.clearbit.com/att.com',
+}
+
 interface Props {
   node: CableNode
   segments: CableSegment[]
@@ -40,6 +53,9 @@ export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onC
     systemCounts.set(seg.system_id, (systemCounts.get(seg.system_id) ?? 0) + 1)
   }
   const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
+
+  const logoUrl = node.owner ? OWNER_LOGOS[node.owner] : undefined
+  const [logoFailed, setLogoFailed] = useState(false)
 
   const typeLabel = node.type === 'landing_station' ? 'CLS (Landing Station)'
     : node.type === 'branching_unit' ? 'BU (Branching Unit)'
@@ -86,11 +102,23 @@ export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onC
             </div>
           )}
         </div>
-        <button
-          onMouseDown={e => e.stopPropagation()}
-          onClick={onClose}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textFaint, fontSize: 18, lineHeight: 1, padding: '0 0 0 8px', flexShrink: 0 }}
-        >×</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}
+             onMouseDown={e => e.stopPropagation()}>
+          {logoUrl && !logoFailed && (
+            <div style={{ background: '#fff', borderRadius: 5, padding: '3px 7px', display: 'flex', alignItems: 'center', height: 30 }}>
+              <img
+                src={logoUrl}
+                alt={node.owner}
+                onError={() => setLogoFailed(true)}
+                style={{ height: 20, maxWidth: 68, objectFit: 'contain' }}
+              />
+            </div>
+          )}
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textFaint, fontSize: 18, lineHeight: 1, padding: '0 0 0 4px' }}
+          >×</button>
+        </div>
       </div>
 
       <div style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 160px)' }}>
