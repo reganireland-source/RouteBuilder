@@ -5,8 +5,11 @@ and consumed by both the frontend and the pytest suite.
 """
 
 from __future__ import annotations
+import re
 from dataclasses import dataclass, asdict
 from .data_loader import load_nodes, load_segments, load_systems, load_capacity, load_rules
+
+NODE_ID_RE = re.compile(r'^[A-Z0-9]{4}$')
 
 
 @dataclass
@@ -77,13 +80,17 @@ def run_all_checks() -> list[CheckResult]:
     check("Segment cost_weight > 0",       "error", [s.id for s in segments if (s.cost_weight or 0) <= 0])
     valid_types = {"wet", "terrestrial"}
     check("Segment type valid",            "error", [s.id for s in segments if s.type not in valid_types])
-    valid_own = {"owned", "iru", "consortium"}
+    valid_own = {"owned", "iru", "consortium", "integrated_lit_lease", "offnet_resell"}
     check("Segment ownership valid",       "error", [s.id for s in segments if s.ownership not in valid_own])
 
     # ── Capacity numeric sanity ────────────────────────────────────────────────
     check("Capacity total > 0",            "error", [c.segment_id for c in capacity if (c.total_capacity_t or 0) <= 0])
     check("Capacity available ≤ total",    "error", [c.segment_id for c in capacity if c.available_capacity_t > c.total_capacity_t])
     check("Capacity available ≥ 0",        "error", [c.segment_id for c in capacity if c.available_capacity_t < 0])
+
+    # ── Node ID format ────────────────────────────────────────────────────────
+    bad_ids = [n.id for n in nodes if not NODE_ID_RE.match(n.id)]
+    check("Node IDs are 4-char alphanumeric", "error", bad_ids)
 
     # ── Node coordinate sanity ─────────────────────────────────────────────────
     check("Node latitudes in [-90, 90]",   "error", [n.id for n in nodes if not (-90 <= n.lat <= 90)])

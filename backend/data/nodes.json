@@ -715,7 +715,7 @@
     "description": "A CLS location in Port Vila, Vanuatu, operated by Telstra Pacific"
   },
   {
-    "id": "JGABU1",
+    "id": "JBU1",
     "name": "JGA Branching Unit (Coral Sea)",
     "lat": -22.0,
     "lng": 156.0,
@@ -726,7 +726,7 @@
     "description": "Submarine cable branching unit for the Japan-Guam-Australia cable in the Coral Sea"
   },
   {
-    "id": "SXNBU1",
+    "id": "SBU1",
     "name": "Southern Cross NEXT Branching Unit",
     "lat": -13.0,
     "lng": -171.0,
@@ -748,7 +748,7 @@
     "description": "A CLS location in Tinian, Northern Mariana Islands, owned by IT&E Overseas"
   },
   {
-    "id": "JUPBU1",
+    "id": "PBU1",
     "name": "Jupiter North Pacific Branching Unit",
     "lat": 35.0,
     "lng": 158.0,
@@ -759,7 +759,7 @@
     "description": "Submarine cable branching unit for the Jupiter cable system in the North Pacific, connecting the US West Coast spur to Japan and Philippines branches"
   },
   {
-    "id": "APRICOTBU1",
+    "id": "ABU1",
     "name": "Apricot Philippine Sea Branching Unit",
     "lat": 20.0,
     "lng": 127.0,
@@ -770,7 +770,7 @@
     "description": "Submarine cable branching unit for the Apricot cable system in the Philippine Sea, fanning out to Japan (Shima and Maruyama) and Guam"
   },
   {
-    "id": "EQ-SY1",
+    "id": "ESY1",
     "name": "Equinix SY1 Sydney",
     "lat": -33.929,
     "lng": 151.186,
@@ -780,7 +780,7 @@
     "description": "Equinix SY1 \u2013 Mascot"
   },
   {
-    "id": "EQ-SY3",
+    "id": "ESY3",
     "name": "Equinix SY3 Sydney",
     "lat": -33.847,
     "lng": 151.071,
@@ -790,7 +790,7 @@
     "description": "Equinix SY3 \u2013 Sydney Olympic Park"
   },
   {
-    "id": "EQ-SY4",
+    "id": "ESY4",
     "name": "Equinix SY4 Sydney",
     "lat": -33.908,
     "lng": 151.193,
@@ -800,7 +800,7 @@
     "description": "Equinix SY4 \u2013 Alexandria"
   },
   {
-    "id": "EQ-ME1",
+    "id": "EME1",
     "name": "Equinix ME1 Melbourne",
     "lat": -37.831,
     "lng": 144.929,
@@ -810,7 +810,7 @@
     "description": "Equinix ME1 \u2013 Port Melbourne"
   },
   {
-    "id": "EQ-ME2",
+    "id": "EME2",
     "name": "Equinix ME2 Melbourne",
     "lat": -37.714,
     "lng": 144.904,
@@ -820,7 +820,7 @@
     "description": "Equinix ME2 \u2013 Tullamarine"
   },
   {
-    "id": "EQ-BQ1",
+    "id": "EBQ1",
     "name": "Equinix BQ1 Brisbane",
     "lat": -27.435,
     "lng": 153.044,
@@ -830,7 +830,7 @@
     "description": "Equinix BQ1 \u2013 Eagle Farm"
   },
   {
-    "id": "EQ-PE1",
+    "id": "EPE1",
     "name": "Equinix PE1 Perth",
     "lat": -31.958,
     "lng": 115.862,
@@ -840,7 +840,7 @@
     "description": "Equinix PE1 \u2013 East Perth"
   },
   {
-    "id": "EQ-TY1",
+    "id": "ETY1",
     "name": "Equinix TY1 Tokyo",
     "lat": 35.643,
     "lng": 139.748,
@@ -850,7 +850,7 @@
     "description": "Equinix TY1 \u2013 Shibaura, Minato"
   },
   {
-    "id": "EQ-TY2",
+    "id": "ETY2",
     "name": "Equinix TY2 Tokyo",
     "lat": 35.692,
     "lng": 139.693,
@@ -860,7 +860,7 @@
     "description": "Equinix TY2 \u2013 Shinjuku"
   },
   {
-    "id": "EQ-TY3",
+    "id": "ETY3",
     "name": "Equinix TY3 Tokyo",
     "lat": 35.688,
     "lng": 139.763,
@@ -870,7 +870,7 @@
     "description": "Equinix TY3 \u2013 Otemachi"
   },
   {
-    "id": "EQ-OS1",
+    "id": "EOS1",
     "name": "Equinix OS1 Osaka",
     "lat": 34.682,
     "lng": 135.499,
@@ -880,7 +880,7 @@
     "description": "Equinix OS1 \u2013 Hommachi"
   },
   {
-    "id": "EQ-OS2",
+    "id": "EOS2",
     "name": "Equinix OS2 Osaka",
     "lat": 34.559,
     "lng": 135.462,
@@ -890,7 +890,7 @@
     "description": "Equinix OS2 \u2013 Sakai"
   },
   {
-    "id": "EQ-NG1",
+    "id": "ENG1",
     "name": "Equinix NG1 Nagoya",
     "lat": 35.183,
     "lng": 136.907,
@@ -900,7 +900,7 @@
     "description": "Equinix NG1 \u2013 Nagoya"
   },
   {
-    "id": "EQ-SL1",
+    "id": "ESL1",
     "name": "Equinix SL1 Seoul",
     "lat": 37.554,
     "lng": 126.928,
@@ -910,7 +910,7 @@
     "description": "Equinix SL1 \u2013 Mapo-gu"
   },
   {
-    "id": "EQ-BS1",
+    "id": "EBS1",
     "name": "Equinix BS1 Busan",
     "lat": 35.151,
     "lng": 129.074,
@@ -947,7 +947,7 @@
     "owner": "Telstra"
   },
   {
-    "id": "EQ-LA1",
+    "id": "ELA1",
     "name": "Equinix LA1 Los Angeles",
     "lat": 33.921,
     "lng": -118.393,
@@ -957,7 +957,7 @@
     "description": "Equinix LA1 \u2013 El Segundo"
   },
   {
-    "id": "EQ-LA2",
+    "id": "ELA2",
     "name": "Equinix LA2 Los Angeles",
     "lat": 34.04,
     "lng": -118.254,
@@ -967,7 +967,7 @@
     "description": "Equinix LA2 \u2013 Downtown Los Angeles"
   },
   {
-    "id": "EQ-SE2",
+    "id": "ESE2",
     "name": "Equinix SE2 Seattle",
     "lat": 47.592,
     "lng": -122.332,
@@ -977,7 +977,7 @@
     "description": "Equinix SE2 \u2013 Seattle"
   },
   {
-    "id": "EQ-SE3",
+    "id": "ESE3",
     "name": "Equinix SE3 Seattle",
     "lat": 47.613,
     "lng": -122.189,
@@ -987,7 +987,7 @@
     "description": "Equinix SE3 \u2013 Bellevue"
   },
   {
-    "id": "EQ-CH1",
+    "id": "ECH1",
     "name": "Equinix CH1 Chicago",
     "lat": 41.879,
     "lng": -87.629,
@@ -997,7 +997,7 @@
     "description": "Equinix CH1 \u2013 Chicago"
   },
   {
-    "id": "EQ-CH2",
+    "id": "ECH2",
     "name": "Equinix CH2 Chicago",
     "lat": 41.979,
     "lng": -87.988,
@@ -1007,7 +1007,7 @@
     "description": "Equinix CH2 \u2013 Elk Grove Village"
   },
   {
-    "id": "EQ-NY1",
+    "id": "ENY1",
     "name": "Equinix NY1 New York",
     "lat": 40.79,
     "lng": -74.063,
@@ -1017,7 +1017,7 @@
     "description": "Equinix NY1 \u2013 Secaucus, NJ"
   },
   {
-    "id": "EQ-NY5",
+    "id": "ENY5",
     "name": "Equinix NY5 New York",
     "lat": 40.732,
     "lng": -74.001,
@@ -1027,7 +1027,7 @@
     "description": "Equinix NY5 \u2013 New York City"
   },
   {
-    "id": "EQ-NY9",
+    "id": "ENY9",
     "name": "Equinix NY9 New York",
     "lat": 40.748,
     "lng": -73.985,
@@ -1037,7 +1037,7 @@
     "description": "Equinix NY9 \u2013 New York City"
   },
   {
-    "id": "EQ-DA1",
+    "id": "EDA1",
     "name": "Equinix DA1 Dallas",
     "lat": 32.982,
     "lng": -96.898,
@@ -1047,7 +1047,7 @@
     "description": "Equinix DA1 \u2013 Carrollton, TX"
   },
   {
-    "id": "EQ-DA2",
+    "id": "EDA2",
     "name": "Equinix DA2 Dallas",
     "lat": 32.979,
     "lng": -96.901,
@@ -1057,7 +1057,7 @@
     "description": "Equinix DA2 \u2013 Carrollton, TX"
   },
   {
-    "id": "EQ-MI1",
+    "id": "EMI1",
     "name": "Equinix MI1 Miami",
     "lat": 25.801,
     "lng": -80.318,
@@ -1067,7 +1067,7 @@
     "description": "Equinix MI1 \u2013 Miami, FL"
   },
   {
-    "id": "EQ-MI3",
+    "id": "EMI3",
     "name": "Equinix MI3 Miami",
     "lat": 25.769,
     "lng": -80.193,
