@@ -40,14 +40,17 @@ interface Props {
   onNetOwnership: string[]
 }
 
-type SortKey = 'hops' | 'latency' | 'availability' | 'cost' | 'capacity'
+type SortKey = 'hops' | 'latency' | 'availability' | 'cost' | 'capacity' | 'ownership'
+
+const NET_ORDER = { on_net: 0, mixed: 1, off_net: 2 }
 
 const SORT_OPTIONS: { key: SortKey; icon: string; label: string; dir: 'asc' | 'desc' }[] = [
-  { key: 'hops',         icon: '⬡',  label: 'Hops',     dir: 'asc'  },
-  { key: 'latency',      icon: '⚡', label: 'Latency',  dir: 'asc'  },
-  { key: 'availability', icon: '🛡', label: 'Avail',    dir: 'desc' },
-  { key: 'cost',         icon: '◆',  label: 'Cost',     dir: 'asc'  },
-  { key: 'capacity',     icon: '◈',  label: 'Capacity', dir: 'desc' },
+  { key: 'hops',         icon: '⬡',  label: 'Hops',      dir: 'asc'  },
+  { key: 'latency',      icon: '⚡', label: 'Latency',   dir: 'asc'  },
+  { key: 'availability', icon: '🛡', label: 'Avail',     dir: 'desc' },
+  { key: 'cost',         icon: '◆',  label: 'Cost',      dir: 'asc'  },
+  { key: 'capacity',     icon: '◈',  label: 'Capacity',  dir: 'desc' },
+  { key: 'ownership',    icon: '◉',  label: 'Ownership', dir: 'asc'  },
 ]
 
 function routeKey(r: Route) { return r.nodes.join('|') }
@@ -63,7 +66,7 @@ function estimatedCapacity(route: Route, capacityById: Record<string, SegmentCap
   return { cap: min === Infinity ? 0 : min, systemId: bottleneck }
 }
 
-function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, SegmentCapacity>): Route[] {
+function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, SegmentCapacity>, onNetSet: Set<string>): Route[] {
   return [...routes].sort((a, b) => {
     switch (key) {
       case 'hops':         return (a.nodes.length - 1) - (b.nodes.length - 1)
@@ -71,6 +74,11 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
       case 'availability': return b.end_to_end_reliability - a.end_to_end_reliability
       case 'cost':         return a.total_cost - b.total_cost
       case 'capacity':     return estimatedCapacity(b, capacityById).cap - estimatedCapacity(a, capacityById).cap
+      case 'ownership': {
+        const ac = classifyRoute(a, onNetSet), bc = classifyRoute(b, onNetSet)
+        const order = NET_ORDER[ac.type] - NET_ORDER[bc.type]
+        return order !== 0 ? order : bc.onNetPct - ac.onNetPct  // within mixed: higher % on-net first
+      }
     }
   })
 }
@@ -92,8 +100,8 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
   }
 
   const sorted = {
-    primary: sortRoutes(primaryRoutes, sortKey, capacityById),
-    diverse:  sortRoutes(diverseRoutes,  sortKey, capacityById),
+    primary: sortRoutes(primaryRoutes, sortKey, capacityById, onNetSet),
+    diverse:  sortRoutes(diverseRoutes,  sortKey, capacityById, onNetSet),
   }
 
   return (
@@ -121,7 +129,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
       {/* Sort bar — only shown when there are search results */}
       {hasResults && (
         <>
-          <div style={{ display: 'flex', gap: 5, marginBottom: 4 }}>
+          <div style={{ display: 'flex', gap: 5, marginBottom: 4, overflowX: 'auto', paddingBottom: 2 }}>
             {SORT_OPTIONS.map(opt => {
               const active = sortKey === opt.key
               return (
@@ -130,7 +138,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
                   onClick={() => setSortKey(opt.key)}
                   title={`Sort by ${opt.label} (${opt.dir === 'asc' ? 'lowest first' : 'highest first'})`}
                   style={{
-                    flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    flex: '1 0 52px', display: 'flex', flexDirection: 'column', alignItems: 'center',
                     gap: 3, padding: '6px 4px', borderRadius: 6,
                     border: `1px solid ${active ? t.blue : t.border}`,
                     background: active ? t.bgActiveSort : t.bgCard,
