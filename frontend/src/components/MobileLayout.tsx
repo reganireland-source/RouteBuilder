@@ -328,6 +328,7 @@ export function MobileLayout({
                     onPin={onPin}
                     onUnpin={onUnpin}
                     diversityRequested={lastSearchDiversity !== 'none'}
+                    onNetOwnership={config.on_net_ownership}
                   />
                 </div>
               )}

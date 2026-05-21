@@ -13,6 +13,19 @@ function useIsMobile(): boolean {
   return mobile
 }
 
+type NetClass = 'on_net' | 'off_net' | 'mixed'
+
+function classifyRoute(route: Route, onNetOwnership: Set<string>): { type: NetClass; onNetPct: number } {
+  const wetSegs = route.segments.filter(s => s.type === 'wet')
+  if (wetSegs.length === 0) return { type: 'on_net', onNetPct: 100 }
+  const totalKm  = wetSegs.reduce((sum, s) => sum + s.length_km, 0)
+  const onNetKm  = wetSegs.filter(s => onNetOwnership.has(s.ownership)).reduce((sum, s) => sum + s.length_km, 0)
+  const pct = totalKm > 0 ? Math.round((onNetKm / totalKm) * 100) : 0
+  if (pct === 100) return { type: 'on_net',  onNetPct: 100 }
+  if (pct === 0)   return { type: 'off_net', onNetPct: 0 }
+  return { type: 'mixed', onNetPct: pct }
+}
+
 interface Props {
   primaryRoutes: Route[]
   diverseRoutes: Route[]
@@ -24,6 +37,7 @@ interface Props {
   onPin: (route: Route) => void
   onUnpin: (pinId: string) => void
   diversityRequested?: boolean
+  onNetOwnership: string[]
 }
 
 type SortKey = 'hops' | 'latency' | 'availability' | 'cost' | 'capacity'
@@ -61,8 +75,9 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
   })
 }
 
-export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes, capacity, pinnedRoutes, onPin, onUnpin, diversityRequested }: Props) {
+export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes, capacity, pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership }: Props) {
   const t = useTheme()
+  const onNetSet = new Set(onNetOwnership)
   const [sortKey, setSortKey] = useState<SortKey>('hops')
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
@@ -97,6 +112,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
               onUnpin={() => onUnpin(p.pinId)}
               nodesById={nodesById}
               capacityById={capacityById}
+              onNetSet={onNetSet}
             />
           ))}
         </div>
@@ -145,6 +161,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
                   isPinned={pinnedKeys.has(routeKey(r))}
                   canPin={canPin}
                   onPin={onPin}
+                  onNetSet={onNetSet}
                 />
               ))}
             </div>
@@ -163,6 +180,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
                   isPinned={pinnedKeys.has(routeKey(r))}
                   canPin={canPin}
                   onPin={onPin}
+                  onNetSet={onNetSet}
                 />
               ))}
             </div>
@@ -191,11 +209,12 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
   )
 }
 
-function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById }: {
+function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, onNetSet }: {
   pinned: PinnedRoute
   onUnpin: () => void
   nodesById: Record<string, { name: string; type?: string }>
   capacityById: Record<string, SegmentCapacity>
+  onNetSet: Set<string>
 }) {
   const t = useTheme()
   const isMobile = useIsMobile()
@@ -247,13 +266,12 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById }: {
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color }}>
-            {route.id}
-            <span style={{ fontWeight: 400, color: t.textMuted, marginLeft: 6 }}>
-              {wetSystems.join(' · ')}
-            </span>
-          </span>
-          <span style={{ fontSize: 11, color: t.textFaint }}>{route.nodes.length - 1} hops</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flex: 1 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color }}>{route.id}</span>
+            <span style={{ fontSize: 11, fontWeight: 400, color: t.textMuted }}>{wetSystems.join(' · ')}</span>
+            <NetBadge route={route} onNetSet={onNetSet} />
+          </div>
+          <span style={{ fontSize: 11, color: t.textFaint, flexShrink: 0 }}>{route.nodes.length - 1} hops</span>
         </div>
 
         <div style={{ fontSize: 11, color: t.text, marginBottom: 6 }}>
@@ -311,7 +329,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById }: {
   )
 }
 
-function RouteCard({ route, selected, onSelect, nodesById, capacityById, color, isPinned, canPin, onPin }: {
+function RouteCard({ route, selected, onSelect, nodesById, capacityById, color, isPinned, canPin, onPin, onNetSet }: {
   route: Route
   selected: boolean
   onSelect: (id: string) => void
@@ -321,6 +339,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, color, 
   isPinned: boolean
   canPin: boolean
   onPin: (route: Route) => void
+  onNetSet: Set<string>
 }) {
   const t = useTheme()
   const isMobile = useIsMobile()
@@ -356,13 +375,12 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, color, 
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color }}>
-          {route.id}
-          <span style={{ fontWeight: 400, color: t.textMuted, marginLeft: 6 }}>
-            {wetSystems.join(' · ')}
-          </span>
-        </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flex: 1 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color }}>{route.id}</span>
+          <span style={{ fontSize: 11, fontWeight: 400, color: t.textMuted }}>{wetSystems.join(' · ')}</span>
+          <NetBadge route={route} onNetSet={onNetSet} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: t.textFaint }}>{route.nodes.length - 1} hops</span>
           <button
             onClick={e => { e.stopPropagation(); onPin(route) }}
@@ -431,6 +449,24 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, color, 
         document.body
       )}
     </div>
+  )
+}
+
+function NetBadge({ route, onNetSet }: { route: Route; onNetSet: Set<string> }) {
+  const t = useTheme()
+  const { type, onNetPct } = classifyRoute(route, onNetSet)
+  const badgeColor = type === 'on_net' ? t.green : type === 'off_net' ? t.red : t.orange
+  const label = type === 'on_net' ? 'ON-NET' : type === 'off_net' ? 'OFF-NET' : `MIXED ${onNetPct}%`
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
+      letterSpacing: '0.04em', whiteSpace: 'nowrap',
+      background: badgeColor + '22',
+      color: badgeColor,
+      border: `1px solid ${badgeColor + '55'}`,
+    }}>
+      {label}
+    </span>
   )
 }
 

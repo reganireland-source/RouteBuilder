@@ -311,6 +311,7 @@ export default function App() {
               pinnedRoutes={pinnedRoutes}
               onPin={handlePin} onUnpin={handleUnpin}
               diversityRequested={lastSearchDiversity !== 'none'}
+              onNetOwnership={config.on_net_ownership}
             />
           </div>
         </div>
