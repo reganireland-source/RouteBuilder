@@ -1,7 +1,7 @@
 export type NodeType = 'landing_station' | 'terrestrial_pop' | 'branching_unit'
 export type SegmentType = 'wet' | 'terrestrial'
 export type Ownership = 'owned' | 'iru' | 'consortium'
-export type DiversityType = 'none' | 'terrestrial_origin' | 'terrestrial_destination' | 'terrestrial_both' | 'wet' | 'full'
+export type DiversityType = 'none' | 'terrestrial_origin' | 'terrestrial_destination' | 'terrestrial_both' | 'wet' | 'full' | 'full_nodes'
 export type AppMode = 'routebuilder' | 'systemviewer' | 'nodefinder'
 
 export interface CableNode {
