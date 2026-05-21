@@ -4,6 +4,7 @@ import { SearchForm } from './SearchForm'
 import { RouteList } from './RouteList'
 import { SystemViewer } from './SystemViewer'
 import { NodeFinder } from './NodeFinder'
+import { CityPairPanel } from './CityPairPanel'
 import { NodeInfoPanel } from './NodeInfoPanel'
 import { RefDataModal } from './RefDataModal'
 import { generateStraightLineDiagram } from '../utils/generateDiagram'
@@ -75,6 +76,7 @@ export interface MobileLayoutProps {
   onToggleSystem:    (systemId: string) => void
   onSetOrigin:       (nodeId: string) => void
   onSetDest:         (nodeId: string) => void
+  onSetPair:         (originId: string, destId: string) => void
   onNodeClick:       (node: CableNode, x: number, y: number) => void
   onPinChange:       (pin: { lat: number; lng: number; label: string } | null, ids: string[]) => void
   onCloseNode:       () => void
@@ -94,7 +96,7 @@ export function MobileLayout({
   prefilledOrigin, prefilledDest, lastSearchDiversity,
   refDataOpen, themeMode, config,
   onSearch, onToggleRoute, onPin, onUnpin, onToggleSystem,
-  onSetOrigin, onSetDest, onNodeClick, onPinChange,
+  onSetOrigin, onSetDest, onSetPair, onNodeClick, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
   switchMode, clearSearch, clearAll, cycleTheme,
 }: MobileLayoutProps) {
@@ -269,6 +271,7 @@ export function MobileLayout({
         {/* Mode tabs */}
         <div style={{ flexShrink: 0, display: 'flex', borderBottom: `1px solid ${t.border}` }}>
           <button style={tabBtn(mode === 'routebuilder')} onClick={() => tapTab('routebuilder')}>⬡ Routes</button>
+          <button style={tabBtn(mode === 'citypair')}     onClick={() => tapTab('citypair')}>⚓ Pairs</button>
           <button style={tabBtn(mode === 'systemviewer')} onClick={() => tapTab('systemviewer')}>◉ Systems</button>
           <button style={tabBtn(mode === 'nodefinder')}   onClick={() => tapTab('nodefinder')}>◎ Nodes</button>
         </div>
@@ -332,6 +335,13 @@ export function MobileLayout({
                   />
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── City Pair mode ────────────────────────────────────────── */}
+          {mode === 'citypair' && (
+            <div style={{ padding: '14px 16px 32px' }}>
+              <CityPairPanel nodes={nodes} systems={systems} onPlanRoute={onSetPair} />
             </div>
           )}
 

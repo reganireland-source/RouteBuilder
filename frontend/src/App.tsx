@@ -169,6 +169,7 @@ export default function App() {
           onToggleSystem={handleToggleSystem}
           onSetOrigin={handleSetOrigin}
           onSetDest={handleSetDest}
+          onSetPair={handleSetPair}
           onNodeClick={(node, x, y) => setSelectedNode({ node, x, y })}
           onPinChange={handlePinChange}
           onCloseNode={() => setSelectedNode(null)}
