@@ -11,7 +11,7 @@ import { MobileLayout } from './components/MobileLayout'
 import { generateStraightLineDiagram } from './utils/generateDiagram'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, type Theme, type ThemeMode } from './theme'
-import type { AppMode, CableNode, CableSegment, CableSystem, InterconnectRule, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SelectedSystem } from './types'
+import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, InterconnectRule, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SelectedSystem } from './types'
 
 const PIN_COLORS    = ['#f9e2af', '#94e2d5', '#cba6f7', '#f2cdcd', '#eba0ac']
 const SYSTEM_COLORS = ['#89b4fa', '#a6e3a1', '#f9e2af', '#94e2d5', '#cba6f7']
@@ -42,6 +42,7 @@ export default function App() {
   const [systems, setSystems]         = useState<CableSystem[]>([])
   const [capacity, setCapacity]       = useState<SegmentCapacity[]>([])
   const [rules, setRules]             = useState<InterconnectRule[]>([])
+  const [config, setConfig]           = useState<AppConfig>({ on_net_ownership: ['owned', 'consortium', 'iru'] })
   const [response, setResponse]       = useState<RouteResponse | null>(null)
   const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([])
   const [pinnedRoutes, setPinnedRoutes]         = useState<PinnedRoute[]>([])
@@ -57,8 +58,8 @@ export default function App() {
   const pinCounter = useRef(0)
 
   useEffect(() => {
-    Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules()])
-      .then(([n, s, c, sys, r]) => { setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r) })
+    Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules(), api.getConfig()])
+      .then(([n, s, c, sys, r, cfg]) => { setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r); setConfig(cfg) })
       .catch(() => setError('Failed to load network data'))
   }, [])
 
@@ -130,8 +131,8 @@ export default function App() {
   function clearAll()    { setResponse(null); setSelectedRouteIds([]); setPinnedRoutes([]); setError(null); setLastSearchDiversity('none') }
 
   async function handleDataChange() {
-    const [n, s, c, sys, r] = await Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules()])
-    setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r)
+    const [n, s, c, sys, r, cfg] = await Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules(), api.getConfig()])
+    setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r); setConfig(cfg)
   }
 
   const selectedRoutes: Route[] = response
@@ -170,6 +171,7 @@ export default function App() {
           onOpenRefData={() => setRefDataOpen(true)}
           onCloseRefData={() => setRefDataOpen(false)}
           onDataChange={handleDataChange}
+          config={config}
           switchMode={switchMode}
           clearSearch={clearSearch}
           clearAll={clearAll}
@@ -343,7 +345,7 @@ export default function App() {
       {refDataOpen && (
         <RefDataModal
           nodes={nodes} segments={segments} systems={systems}
-          capacity={capacity} rules={rules}
+          capacity={capacity} rules={rules} config={config}
           onDataChange={handleDataChange}
           onClose={() => setRefDataOpen(false)}
         />

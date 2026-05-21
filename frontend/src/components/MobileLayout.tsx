@@ -10,7 +10,7 @@ import { generateStraightLineDiagram } from '../utils/generateDiagram'
 import { useTheme } from '../theme'
 import type { ThemeMode } from '../theme'
 import type {
-  AppMode, CableNode, CableSegment, CableSystem, InterconnectRule,
+  AppConfig, AppMode, CableNode, CableSegment, CableSystem, InterconnectRule,
   PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity,
   SelectedSystem, DiversityType,
 } from '../types'
@@ -67,6 +67,7 @@ export interface MobileLayoutProps {
   lastSearchDiversity: DiversityType
   refDataOpen: boolean
   themeMode: ThemeMode
+  config: AppConfig
   onSearch:          (req: RouteRequest) => void
   onToggleRoute:     (id: string) => void
   onPin:             (route: Route) => void
@@ -91,7 +92,7 @@ export function MobileLayout({
   response, selectedRoutes, selectedRouteIds, pinnedRoutes, selectedSystems,
   mode, loading, error, selectedNode, searchPin, nearestNodeIds,
   prefilledOrigin, prefilledDest, lastSearchDiversity,
-  refDataOpen, themeMode,
+  refDataOpen, themeMode, config,
   onSearch, onToggleRoute, onPin, onUnpin, onToggleSystem,
   onSetOrigin, onSetDest, onNodeClick, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
@@ -370,7 +371,7 @@ export function MobileLayout({
       {refDataOpen && (
         <RefDataModal
           nodes={nodes} segments={segments} systems={systems}
-          capacity={capacity} rules={rules}
+          capacity={capacity} rules={rules} config={config}
           onDataChange={onDataChange}
           onClose={onCloseRefData}
         />

@@ -47,3 +47,15 @@ def save_systems(systems: list[CableSystem]) -> None:
 
 def save_capacity(capacity: list[SegmentCapacity]) -> None:
     _write(DATA_DIR / "capacity.json", [c.model_dump() for c in capacity])
+
+
+def load_config() -> dict:
+    path = DATA_DIR / "config.json"
+    if not path.exists():
+        return {"on_net_ownership": ["owned", "consortium", "iru"]}
+    with open(path) as f:
+        return json.load(f)
+
+def save_config(config: dict) -> None:
+    with open(DATA_DIR / "config.json", "w") as f:
+        json.dump(config, f, indent=2)

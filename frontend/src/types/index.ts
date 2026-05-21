@@ -4,6 +4,10 @@ export type Ownership = 'owned' | 'iru' | 'consortium' | 'integrated_lit_lease' 
 export type DiversityType = 'none' | 'terrestrial_origin' | 'terrestrial_destination' | 'terrestrial_both' | 'wet' | 'full' | 'full_nodes'
 export type AppMode = 'routebuilder' | 'systemviewer' | 'nodefinder'
 
+export interface AppConfig {
+  on_net_ownership: string[]
+}
+
 export interface CableNode {
   id: string
   name: string

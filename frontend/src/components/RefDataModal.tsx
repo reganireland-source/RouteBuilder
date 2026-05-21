@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import type { CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, InterconnectRule, SegmentCapacity } from '../types'
+import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, InterconnectRule, SegmentCapacity } from '../types'
 import { useTheme } from '../theme'
+import { api } from '../api/client'
 
 const OWNERSHIP_LABEL: Record<string, string> = {
   owned:                'Owned',
@@ -11,15 +12,6 @@ const OWNERSHIP_LABEL: Record<string, string> = {
 }
 
 const DEFAULT_ONNET = ['owned', 'consortium', 'iru']
-
-function loadOnNetConfig(): Set<string> {
-  try {
-    const s = localStorage.getItem('onnet_ownership')
-    if (s) return new Set(JSON.parse(s))
-  } catch {}
-  return new Set(DEFAULT_ONNET)
-}
-import { api } from '../api/client'
 
 type DataTab = 'nodes' | 'segments' | 'systems' | 'capacity' | 'rules'
 type Tab = DataTab | 'checks' | 'config'
@@ -37,11 +29,12 @@ interface Props {
   systems: CableSystem[]
   capacity: SegmentCapacity[]
   rules: InterconnectRule[]
+  config: AppConfig
   onDataChange: () => void
   onClose: () => void
 }
 
-export function RefDataModal({ nodes, segments, systems, capacity, rules, onDataChange, onClose }: Props) {
+export function RefDataModal({ nodes, segments, systems, capacity, rules, config, onDataChange, onClose }: Props) {
   const t = useTheme()
   const [tab, setTab] = useState<Tab>('nodes')
   const [editId, setEditId] = useState<string | null>(null)
@@ -53,18 +46,17 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
   const [showRulesHelp, setShowRulesHelp] = useState(false)
-  const [onNetOwnership, setOnNetOwnership] = useState<Set<string>>(loadOnNetConfig)
+  const [onNetOwnership, setOnNetOwnership] = useState<Set<string>>(() => new Set(config.on_net_ownership))
 
   function isOnNet(ownership: string) { return onNetOwnership.has(ownership) }
 
-  function toggleOnNet(ownership: string) {
-    setOnNetOwnership(prev => {
-      const next = new Set(prev)
-      if (next.has(ownership)) next.delete(ownership)
-      else next.add(ownership)
-      localStorage.setItem('onnet_ownership', JSON.stringify([...next]))
-      return next
-    })
+  async function toggleOnNet(ownership: string) {
+    const next = new Set(onNetOwnership)
+    if (next.has(ownership)) next.delete(ownership)
+    else next.add(ownership)
+    setOnNetOwnership(next)
+    await api.updateConfig({ on_net_ownership: [...next] })
+    onDataChange()
   }
 
   function resetState() {
@@ -846,9 +838,10 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
           })}
         </div>
         <button
-          onClick={() => {
-            localStorage.removeItem('onnet_ownership')
+          onClick={async () => {
             setOnNetOwnership(new Set(DEFAULT_ONNET))
+            await api.updateConfig({ on_net_ownership: DEFAULT_ONNET })
+            onDataChange()
           }}
           style={{ marginTop: 12, fontSize: 11, padding: '4px 10px', borderRadius: 4, cursor: 'pointer', border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted }}
         >
