@@ -3,16 +3,12 @@ import type { CableNode, CableSegment, CableSystem } from '../types'
 import { useTheme } from '../theme'
 
 const OWNER_LOGOS: Record<string, string> = {
-  'Telstra':        'https://logo.clearbit.com/telstra.com',
-  'Equinix':        'https://logo.clearbit.com/equinix.com',
-  'PCCW':           'https://logo.clearbit.com/pccw.com',
-  'DRT':            'https://logo.clearbit.com/digitalrealty.com',
-  'Digital Realty': 'https://logo.clearbit.com/digitalrealty.com',
-  'NTT':            'https://logo.clearbit.com/ntt.com',
-  'Zayo':           'https://logo.clearbit.com/zayo.com',
-  'Lumen':          'https://logo.clearbit.com/lumen.com',
-  'Verizon':        'https://logo.clearbit.com/verizon.com',
-  'AT&T':           'https://logo.clearbit.com/att.com',
+  'Telstra':        '/logos/telstra.svg',
+  'Equinix':        '/logos/equinix.svg',
+  'PCCW':           '/logos/pccw.svg',
+  'DRT':            '/logos/digitalrealty.svg',
+  'Digital Realty': '/logos/digitalrealty.svg',
+  'NTT':            '/logos/ntt.svg',
 }
 
 interface Props {
@@ -55,7 +51,6 @@ export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onC
   const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
 
   const logoUrl = node.owner ? OWNER_LOGOS[node.owner] : undefined
-  const [logoFailed, setLogoFailed] = useState(false)
 
   const typeLabel = node.type === 'landing_station' ? 'CLS (Landing Station)'
     : node.type === 'branching_unit' ? 'BU (Branching Unit)'
@@ -104,14 +99,9 @@ export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onC
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}
              onMouseDown={e => e.stopPropagation()}>
-          {logoUrl && !logoFailed && (
+          {logoUrl && (
             <div style={{ background: '#fff', borderRadius: 5, padding: '3px 7px', display: 'flex', alignItems: 'center', height: 30 }}>
-              <img
-                src={logoUrl}
-                alt={node.owner}
-                onError={() => setLogoFailed(true)}
-                style={{ height: 20, maxWidth: 68, objectFit: 'contain' }}
-              />
+              <img src={logoUrl} alt={node.owner} style={{ height: 20, maxWidth: 72, objectFit: 'contain' }} />
             </div>
           )}
           <button
