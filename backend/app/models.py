@@ -125,6 +125,7 @@ class Route(BaseModel):
     segments: list[RouteSegmentDetail]
     total_cost: float
     total_length_km: float
+    total_latency: float = 0.0
     end_to_end_reliability: float
     diversity_group: int = 1
 

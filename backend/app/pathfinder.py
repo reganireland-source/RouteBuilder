@@ -47,7 +47,7 @@ def _build_route(
         total_cost += seg.cost_weight
         total_length += seg.length_km
         reliability *= seg.reliability
-        total_latency += seg.latency
+        total_latency += seg.latency or 0.0
 
     return Route(
         id=route_id,
