@@ -2,6 +2,14 @@ import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip } from 'react-
 import type { CableNode, CableSegment, PinnedRoute, Route, SegmentCapacity, SelectedSystem } from '../types'
 import { useTheme } from '../theme'
 
+const OWNERSHIP_LABEL: Record<string, string> = {
+  owned:                'Owned',
+  consortium:           'Consortium',
+  iru:                  'IRU',
+  integrated_lit_lease: 'Int. Lit Lease',
+  offnet_resell:        'Offnet Resell',
+}
+
 interface Props {
   nodes: CableNode[]
   segments: CableSegment[]
@@ -138,7 +146,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         const tooltip = (
           <Tooltip sticky>
             <strong>{seg.name}</strong>
-            <br />{seg.system_id} · {seg.type} · {seg.ownership}
+            <br />{seg.system_id} · {seg.type} · {OWNERSHIP_LABEL[seg.ownership] ?? seg.ownership}
             <br />{start.name} → {end.name}
             <br />{seg.length_km.toLocaleString()} km · {seg.latency} ms · Cost: {seg.cost_weight}
             {capacityById[seg.id] && (() => {

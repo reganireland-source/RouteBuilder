@@ -18,6 +18,8 @@ class Ownership(str, Enum):
     owned = "owned"
     iru = "iru"
     consortium = "consortium"
+    integrated_lit_lease = "integrated_lit_lease"
+    offnet_resell = "offnet_resell"
 
 
 class DiversityType(str, Enum):

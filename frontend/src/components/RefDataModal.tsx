@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react'
 import type { CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, InterconnectRule, SegmentCapacity } from '../types'
 import { useTheme } from '../theme'
+
+const OWNERSHIP_LABEL: Record<string, string> = {
+  owned:                'Owned',
+  consortium:           'Consortium',
+  iru:                  'IRU',
+  integrated_lit_lease: 'Int. Lit Lease',
+  offnet_resell:        'Offnet Resell',
+}
 import { api } from '../api/client'
 
 type DataTab = 'nodes' | 'segments' | 'systems' | 'capacity' | 'rules'
@@ -183,7 +191,13 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
 
   const typeOpts    = [{ value: 'landing_station', label: 'CLS (Landing Station)' }, { value: 'terrestrial_pop', label: 'POP (Terrestrial)' }, { value: 'branching_unit', label: 'BU (Branching Unit)' }]
   const segTypeOpts = [{ value: 'wet', label: 'Wet' }, { value: 'terrestrial', label: 'Terrestrial' }]
-  const ownerOpts   = [{ value: 'owned', label: 'Owned' }, { value: 'iru', label: 'IRU' }, { value: 'consortium', label: 'Consortium' }]
+  const ownerOpts   = [
+    { value: 'owned',                label: 'Owned' },
+    { value: 'consortium',           label: 'Consortium' },
+    { value: 'iru',                  label: 'IRU' },
+    { value: 'integrated_lit_lease', label: 'Integrated Lit Lease' },
+    { value: 'offnet_resell',        label: 'Offnet Resell' },
+  ]
   const systemOpts  = systems.map(s => ({ value: s.id, label: `${s.id} — ${s.name}` }))
 
   // ── Nodes tab ───────────────────────────────────────────────────────────────
@@ -308,7 +322,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
               <div style={cell(1)}>{s.length_km.toLocaleString()} km</div>
               <div style={cell(0.8)}>{s.latency} ms</div>
               <div style={cell(0.7)}>{s.cost_weight}</div>
-              <div style={cell(1)}>{s.ownership}</div>
+              <div style={cell(1)}>{OWNERSHIP_LABEL[s.ownership] ?? s.ownership}</div>
               <ActionsCell id={s.id}
                 onEdit={() => startEdit(s.id, { name: s.name, system_id: s.system_id, start_node_id: s.start_node_id, end_node_id: s.end_node_id, type: s.type, length_km: s.length_km, latency: s.latency, cost_weight: s.cost_weight, reliability: s.reliability, ownership: s.ownership })}
                 onDelete={() => confirmDelete(() => api.deleteSegment(s.id))}
