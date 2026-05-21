@@ -9,6 +9,9 @@ const OWNERSHIP_LABEL: Record<string, string> = {
   integrated_lit_lease: 'Int. Lit Lease',
   offnet_resell:        'Offnet Resell',
 }
+
+const ON_NET_OWNERSHIP = new Set(['owned', 'consortium', 'iru'])
+function isOnNet(ownership: string) { return ON_NET_OWNERSHIP.has(ownership) }
 import { api } from '../api/client'
 
 type DataTab = 'nodes' | 'segments' | 'systems' | 'capacity' | 'rules'
@@ -305,7 +308,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
           <div style={colH(1.5)}>ID</div><div style={colH(2)}>Name</div><div style={colH(1)}>System</div>
           <div style={colH(1.5)}>Start Node</div><div style={colH(1.5)}>End Node</div>
           <div style={colH(0.8)}>Type</div><div style={colH(1)}>Length</div><div style={colH(0.8)}>Latency</div>
-          <div style={colH(0.7)}>Cost</div><div style={colH(1)}>Ownership</div>
+          <div style={colH(0.7)}>Cost</div><div style={colH(1)}>Ownership</div><div style={colH(0.8)}>Network</div>
           <div style={{ width: 140 }} />
         </div>
         {(() => {
@@ -323,6 +326,17 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
               <div style={cell(0.8)}>{s.latency} ms</div>
               <div style={cell(0.7)}>{s.cost_weight}</div>
               <div style={cell(1)}>{OWNERSHIP_LABEL[s.ownership] ?? s.ownership}</div>
+              <div style={cell(0.8)}>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
+                  letterSpacing: '0.04em',
+                  background: isOnNet(s.ownership) ? '#a6e3a122' : '#f9e2af22',
+                  color: isOnNet(s.ownership) ? '#a6e3a1' : '#f9e2af',
+                  border: `1px solid ${isOnNet(s.ownership) ? '#a6e3a144' : '#f9e2af44'}`,
+                }}>
+                  {isOnNet(s.ownership) ? 'ON-NET' : 'OFF-NET'}
+                </span>
+              </div>
               <ActionsCell id={s.id}
                 onEdit={() => startEdit(s.id, { name: s.name, system_id: s.system_id, start_node_id: s.start_node_id, end_node_id: s.end_node_id, type: s.type, length_km: s.length_km, latency: s.latency, cost_weight: s.cost_weight, reliability: s.reliability, ownership: s.ownership })}
                 onDelete={() => confirmDelete(() => api.deleteSegment(s.id))}
