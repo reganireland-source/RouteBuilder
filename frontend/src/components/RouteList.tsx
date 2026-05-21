@@ -289,7 +289,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, onNetSet }:
         <div style={{ display: 'flex', gap: 12, fontSize: 11, color: t.textMuted, marginBottom: 5 }}>
           <span>Cost: <strong style={{ color: t.text }}>{route.total_cost}</strong></span>
           <span>{route.total_length_km.toLocaleString()} km</span>
-          <span>Latency: <strong style={{ color: t.text }}>{route.total_latency} ms</strong></span>
+          <span>RTD: <strong style={{ color: t.text }}>{(route.total_latency * 2).toFixed(0)} ms</strong></span>
           <span>Avail: <strong style={{ color: t.text }}>{reliabilityPct}%</strong></span>
         </div>
 
@@ -413,7 +413,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, color, 
       <div style={{ display: 'flex', gap: 12, fontSize: 11, color: t.textMuted, marginBottom: 5 }}>
         <span>Cost: <strong style={{ color: t.text }}>{route.total_cost}</strong></span>
         <span>{route.total_length_km.toLocaleString()} km</span>
-        <span>Latency: <strong style={{ color: t.text }}>{route.total_latency} ms</strong></span>
+        <span>RTD: <strong style={{ color: t.text }}>{(route.total_latency * 2).toFixed(0)} ms</strong></span>
         <span>Avail: <strong style={{ color: t.text }}>{reliabilityPct}%</strong></span>
       </div>
 
