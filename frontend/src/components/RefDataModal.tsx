@@ -10,12 +10,19 @@ const OWNERSHIP_LABEL: Record<string, string> = {
   offnet_resell:        'Offnet Resell',
 }
 
-const ON_NET_OWNERSHIP = new Set(['owned', 'consortium', 'iru'])
-function isOnNet(ownership: string) { return ON_NET_OWNERSHIP.has(ownership) }
+const DEFAULT_ONNET = ['owned', 'consortium', 'iru']
+
+function loadOnNetConfig(): Set<string> {
+  try {
+    const s = localStorage.getItem('onnet_ownership')
+    if (s) return new Set(JSON.parse(s))
+  } catch {}
+  return new Set(DEFAULT_ONNET)
+}
 import { api } from '../api/client'
 
 type DataTab = 'nodes' | 'segments' | 'systems' | 'capacity' | 'rules'
-type Tab = DataTab | 'checks'
+type Tab = DataTab | 'checks' | 'config'
 
 interface CheckResult {
   name: string
@@ -46,6 +53,19 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
   const [showRulesHelp, setShowRulesHelp] = useState(false)
+  const [onNetOwnership, setOnNetOwnership] = useState<Set<string>>(loadOnNetConfig)
+
+  function isOnNet(ownership: string) { return onNetOwnership.has(ownership) }
+
+  function toggleOnNet(ownership: string) {
+    setOnNetOwnership(prev => {
+      const next = new Set(prev)
+      if (next.has(ownership)) next.delete(ownership)
+      else next.add(ownership)
+      localStorage.setItem('onnet_ownership', JSON.stringify([...next]))
+      return next
+    })
+  }
 
   function resetState() {
     setEditId(null); setEditValues({})
@@ -772,6 +792,72 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
     )
   }
 
+  // ── Config tab ───────────────────────────────────────────────────────────────
+
+  function ConfigTab() {
+    const allOwnership = [
+      { value: 'owned',                label: 'Owned' },
+      { value: 'consortium',           label: 'Consortium' },
+      { value: 'iru',                  label: 'IRU' },
+      { value: 'integrated_lit_lease', label: 'Integrated Lit Lease' },
+      { value: 'offnet_resell',        label: 'Offnet Resell' },
+    ]
+    return (
+      <div style={{ padding: '20px 24px', maxWidth: 480 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 4 }}>Network Classification</div>
+        <div style={{ fontSize: 11, color: t.textFaint, marginBottom: 16 }}>
+          Controls which ownership types are treated as On-Net vs Off-Net throughout the app.
+          Changes are saved locally in your browser.
+        </div>
+        <div style={{ border: `1px solid ${t.border}`, borderRadius: 6, overflow: 'hidden' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', padding: '6px 12px', background: t.bgDeep, borderBottom: `1px solid ${t.border}` }}>
+            <div style={{ flex: 1, fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Ownership Type</div>
+            <div style={{ width: 110, fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Network</div>
+          </div>
+          {allOwnership.map(({ value, label }) => {
+            const onNet = isOnNet(value)
+            return (
+              <div key={value} style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderBottom: `1px solid ${t.border}` }}>
+                <div style={{ flex: 1, fontSize: 13, color: t.text }}>{label}</div>
+                <div style={{ width: 110, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 3,
+                    letterSpacing: '0.04em',
+                    background: onNet ? '#a6e3a122' : '#f9e2af22',
+                    color: onNet ? '#a6e3a1' : '#f9e2af',
+                    border: `1px solid ${onNet ? '#a6e3a144' : '#f9e2af44'}`,
+                  }}>
+                    {onNet ? 'ON-NET' : 'OFF-NET'}
+                  </span>
+                  <button
+                    onClick={() => toggleOnNet(value)}
+                    title="Toggle On-Net / Off-Net"
+                    style={{
+                      fontSize: 11, padding: '2px 8px', borderRadius: 3, cursor: 'pointer',
+                      border: `1px solid ${t.border}`, background: t.bgCard, color: t.textMuted,
+                    }}
+                  >
+                    ⇄
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <button
+          onClick={() => {
+            localStorage.removeItem('onnet_ownership')
+            setOnNetOwnership(new Set(DEFAULT_ONNET))
+          }}
+          style={{ marginTop: 12, fontSize: 11, padding: '4px 10px', borderRadius: 4, cursor: 'pointer', border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted }}
+        >
+          Reset to defaults
+        </button>
+      </div>
+    )
+  }
+
   // ── Counts & add defaults ────────────────────────────────────────────────────
 
   const totalPairs = rules.reduce((n, r) => n + r.disallowed_pairs.length + (r.allowed_pairs?.length ?? 0), 0)
@@ -820,7 +906,15 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
           }}>
             ⚡ Checks
           </button>
-          {tab !== 'checks' && (
+          <button onClick={() => switchTab('config')} style={{
+            padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
+            fontSize: 12, fontWeight: tab === 'config' ? 700 : 400,
+            color: tab === 'config' ? t.blue : t.textFaint,
+            borderBottom: tab === 'config' ? `2px solid ${t.blue}` : '2px solid transparent',
+          }}>
+            ⚙ Config
+          </button>
+          {tab !== 'checks' && tab !== 'config' && (
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
               <input
                 placeholder={`Filter ${tab}…`}
@@ -846,6 +940,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, onData
           {tab === 'capacity' && <CapacityTab />}
           {tab === 'rules'    && <RulesTab />}
           {tab === 'checks'   && <ChecksTab />}
+          {tab === 'config'   && <ConfigTab />}
         </div>
 
       </div>
