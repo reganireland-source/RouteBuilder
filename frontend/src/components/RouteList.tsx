@@ -514,6 +514,9 @@ function SegmentBreakdownRows({ route, capacityById, onNetSet }: {
               </div>
               <span style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase' }}>{seg.type}</span>
             </div>
+            <div style={{ fontSize: 10, color: t.textFaintest, marginTop: 2, fontFamily: 'monospace' }}>
+              {seg.start_node_id} → {seg.end_node_id}
+            </div>
             <div style={{ display: 'flex', gap: 10, fontSize: 10, color: t.textMuted, marginTop: 2 }}>
               <span>{seg.length_km.toLocaleString()} km</span>
               <span>{seg.latency} ms</span>
