@@ -270,10 +270,10 @@ export function MobileLayout({
 
         {/* Mode tabs */}
         <div style={{ flexShrink: 0, display: 'flex', borderBottom: `1px solid ${t.border}` }}>
-          <button style={tabBtn(mode === 'routebuilder')} onClick={() => tapTab('routebuilder')}>⬡ Routes</button>
-          <button style={tabBtn(mode === 'citypair')}     onClick={() => tapTab('citypair')}>⚓ Pairs</button>
-          <button style={tabBtn(mode === 'systemviewer')} onClick={() => tapTab('systemviewer')}>◉ Systems</button>
-          <button style={tabBtn(mode === 'nodefinder')}   onClick={() => tapTab('nodefinder')}>◎ Nodes</button>
+          <button style={tabBtn(mode === 'routebuilder')} onClick={() => tapTab('routebuilder')}>PoP Routes</button>
+          <button style={tabBtn(mode === 'citypair')}     onClick={() => tapTab('citypair')}>City Pairs</button>
+          <button style={tabBtn(mode === 'systemviewer')} onClick={() => tapTab('systemviewer')}>Cables</button>
+          <button style={tabBtn(mode === 'nodefinder')}   onClick={() => tapTab('nodefinder')}>Node Search</button>
         </div>
 
         {/* Scrollable content — clipped to sheet height automatically */}

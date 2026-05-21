@@ -188,11 +188,11 @@ export default function App() {
 
   // ── Desktop layout ───────────────────────────────────────────────────────
   const tabStyle = (active: boolean): React.CSSProperties => ({
-    flex: 1, padding: '8px 4px', border: 'none', cursor: 'pointer',
+    flex: 1, padding: '8px 2px', border: 'none', cursor: 'pointer',
     background: active ? theme.bgBase : theme.bgPanel,
     color: active ? theme.text : theme.textFaint,
-    fontSize: 10, fontWeight: active ? 700 : 400,
-    textTransform: 'uppercase', letterSpacing: '0.05em',
+    fontSize: 9, fontWeight: active ? 700 : 400,
+    textTransform: 'uppercase', letterSpacing: '0.04em',
     borderBottom: active ? `2px solid ${theme.blue}` : `2px solid transparent`,
     transition: 'all 0.15s',
   })
@@ -253,10 +253,10 @@ export default function App() {
           </div>
 
           <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
-            <button style={tabStyle(mode === 'routebuilder')} onClick={() => switchMode('routebuilder')}>⬡ Routes</button>
-            <button style={tabStyle(mode === 'citypair')}     onClick={() => switchMode('citypair')}>⚓ City Pair</button>
-            <button style={tabStyle(mode === 'systemviewer')} onClick={() => switchMode('systemviewer')}>◉ Systems</button>
-            <button style={tabStyle(mode === 'nodefinder')}   onClick={() => switchMode('nodefinder')}>◎ Node Finder</button>
+            <button style={tabStyle(mode === 'routebuilder')} onClick={() => switchMode('routebuilder')}>PoP Routes</button>
+            <button style={tabStyle(mode === 'citypair')}     onClick={() => switchMode('citypair')}>City Pairs</button>
+            <button style={tabStyle(mode === 'systemviewer')} onClick={() => switchMode('systemviewer')}>Cable System</button>
+            <button style={tabStyle(mode === 'nodefinder')}   onClick={() => switchMode('nodefinder')}>Node Search</button>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
