@@ -268,7 +268,7 @@ export default function App() {
               </>
             )}
             {mode === 'citypair' && (
-              <CityPairPanel nodes={nodes} systems={systems} onPlanRoute={handleSetPair} />
+              <CityPairPanel nodes={nodes} segments={segments} systems={systems} onNetOwnership={config.on_net_ownership} onPlanRoute={handleSetPair} />
             )}
             {mode === 'systemviewer' && (
               <SystemViewer systems={systems} selected={selectedSystems} onToggle={handleToggleSystem} />

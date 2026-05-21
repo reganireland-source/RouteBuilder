@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useTheme } from '../theme'
 import { api } from '../api/client'
-import type { CableNode, CableSystem, CityPairRoute } from '../types'
+import type { CableNode, CableSegment, CableSystem, CityPairRoute } from '../types'
 
 interface Props {
   nodes: CableNode[]
+  segments: CableSegment[]
   systems: CableSystem[]
+  onNetOwnership: string[]
   onPlanRoute: (originNodeId: string, destNodeId: string) => void
 }
 
@@ -23,7 +25,26 @@ const SYS_COLORS = [
   '#f38ba8', '#fab387', '#a6e3a1', '#89dceb', '#eba0ac',
 ]
 
-export function CityPairPanel({ nodes, systems, onPlanRoute }: Props) {
+type NetClass = 'on_net' | 'off_net' | 'mixed'
+
+function classifyCityPairRoute(
+  route: CityPairRoute,
+  segByEndpoints: Map<string, CableSegment>,
+  onNetSet: Set<string>,
+): NetClass {
+  const segs: CableSegment[] = []
+  for (let i = 0; i < route.nodes.length - 1; i++) {
+    const a = route.nodes[i], b = route.nodes[i + 1]
+    const seg = segByEndpoints.get(`${a}|${b}`) ?? segByEndpoints.get(`${b}|${a}`)
+    if (seg) segs.push(seg)
+  }
+  if (segs.length === 0) return 'on_net'
+  const allOn  = segs.every(s => onNetSet.has(s.ownership))
+  const allOff = segs.every(s => !onNetSet.has(s.ownership))
+  return allOn ? 'on_net' : allOff ? 'off_net' : 'mixed'
+}
+
+export function CityPairPanel({ nodes, segments, systems, onNetOwnership, onPlanRoute }: Props) {
   const t = useTheme()
 
   const [origin, setOrigin]   = useState('')
@@ -32,6 +53,14 @@ export function CityPairPanel({ nodes, systems, onPlanRoute }: Props) {
   const [error, setError]     = useState<string | null>(null)
   const [results, setResults] = useState<CityPairRoute[] | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
+
+  const onNetSet = useMemo(() => new Set(onNetOwnership), [onNetOwnership])
+
+  const segByEndpoints = useMemo(() => {
+    const m = new Map<string, CableSegment>()
+    for (const s of segments) m.set(`${s.start_node_id}|${s.end_node_id}`, s)
+    return m
+  }, [segments])
 
   // Derive cities from landing_station nodes, grouped by country
   const cities = useMemo(() => {
@@ -171,6 +200,7 @@ export function CityPairPanel({ nodes, systems, onPlanRoute }: Props) {
               dest={dest}
               sysColorMap={sysColorMap}
               systemsById={systemsById}
+              netClass={classifyCityPairRoute(route, segByEndpoints, onNetSet)}
               onSelect={() => setSelected(selected === route.id ? null : route.id)}
               onPlan={() => handlePlan(route)}
               t={t}
@@ -191,13 +221,16 @@ interface CardProps {
   dest: string
   sysColorMap: Record<string, string>
   systemsById: Record<string, CableSystem>
+  netClass: NetClass
   onSelect: () => void
   onPlan: () => void
   t: ReturnType<typeof useTheme>
 }
 
-function RouteCard({ route, selected, origin, dest, sysColorMap, systemsById, onSelect, onPlan, t }: CardProps) {
+function RouteCard({ route, selected, origin, dest, sysColorMap, systemsById, netClass, onSelect, onPlan, t }: CardProps) {
   const hopLabel = route.hop_count === 1 ? 'Direct' : `${route.hop_count} systems`
+  const netColor = netClass === 'on_net' ? t.green : netClass === 'off_net' ? t.red : t.orange
+  const netLabel = netClass === 'on_net' ? 'ON-NET' : netClass === 'off_net' ? 'OFF-NET' : 'MIXED'
 
   return (
     <div
@@ -209,7 +242,7 @@ function RouteCard({ route, selected, origin, dest, sysColorMap, systemsById, on
         transition: 'all 0.15s',
       }}
     >
-      {/* Hop count badge + itinerary header */}
+      {/* Hop count badge + net badge + system IDs */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
         <span style={{
           fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
@@ -218,7 +251,15 @@ function RouteCard({ route, selected, origin, dest, sysColorMap, systemsById, on
         }}>
           {hopLabel}
         </span>
-        <span style={{ fontSize: 10, color: t.textFaintest }}>
+        <span style={{
+          fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
+          background: netColor + '22', color: netColor,
+          border: `1px solid ${netColor}55`,
+          letterSpacing: '0.04em', flexShrink: 0,
+        }}>
+          {netLabel}
+        </span>
+        <span style={{ fontSize: 10, color: t.textFaintest, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {route.systems.join(' + ')}
         </span>
       </div>

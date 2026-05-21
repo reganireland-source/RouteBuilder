@@ -342,7 +342,7 @@ export function MobileLayout({
           {/* ── City Pair mode ────────────────────────────────────────── */}
           {mode === 'citypair' && (
             <div style={{ padding: '14px 16px 32px' }}>
-              <CityPairPanel nodes={nodes} systems={systems} onPlanRoute={onSetPair} />
+              <CityPairPanel nodes={nodes} segments={segments} systems={systems} onNetOwnership={config.on_net_ownership} onPlanRoute={onSetPair} />
             </div>
           )}
 
