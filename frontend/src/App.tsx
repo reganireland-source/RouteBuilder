@@ -6,6 +6,7 @@ import { SystemViewer } from './components/SystemViewer'
 import { RefDataModal } from './components/RefDataModal'
 import { NodeInfoPanel } from './components/NodeInfoPanel'
 import { NodeFinder } from './components/NodeFinder'
+import { CityPairPanel } from './components/CityPairPanel'
 import { HealthBar } from './components/HealthBar'
 import { MobileLayout } from './components/MobileLayout'
 import { generateStraightLineDiagram } from './utils/generateDiagram'
@@ -123,6 +124,9 @@ export default function App() {
 
   function handleSetOrigin(nodeId: string) { setPrefilledOrigin(nodeId); switchMode('routebuilder') }
   function handleSetDest(nodeId: string)   { setPrefilledDest(nodeId);   switchMode('routebuilder') }
+  function handleSetPair(originId: string, destId: string) {
+    setPrefilledOrigin(originId); setPrefilledDest(destId); switchMode('routebuilder')
+  }
   function handlePinChange(pin: { lat: number; lng: number; label: string } | null, ids: string[]) {
     setSearchPin(pin); setNearestNodeIds(ids)
   }
@@ -249,6 +253,7 @@ export default function App() {
 
           <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
             <button style={tabStyle(mode === 'routebuilder')} onClick={() => switchMode('routebuilder')}>⬡ Routes</button>
+            <button style={tabStyle(mode === 'citypair')}     onClick={() => switchMode('citypair')}>⚓ City Pair</button>
             <button style={tabStyle(mode === 'systemviewer')} onClick={() => switchMode('systemviewer')}>◉ Systems</button>
             <button style={tabStyle(mode === 'nodefinder')}   onClick={() => switchMode('nodefinder')}>◎ Node Finder</button>
           </div>
@@ -259,6 +264,9 @@ export default function App() {
                 <SearchForm nodes={nodes} segments={segments} onSearch={handleSearch} loading={loading} prefilledOrigin={prefilledOrigin} prefilledDest={prefilledDest} />
                 {error && <div style={{ marginTop: 12, color: theme.red, fontSize: 13 }}>{error}</div>}
               </>
+            )}
+            {mode === 'citypair' && (
+              <CityPairPanel nodes={nodes} systems={systems} onPlanRoute={handleSetPair} />
             )}
             {mode === 'systemviewer' && (
               <SystemViewer systems={systems} selected={selectedSystems} onToggle={handleToggleSystem} />
@@ -299,8 +307,12 @@ export default function App() {
             {mode === 'systemviewer' && !hasPins && (
               <p style={{ color: theme.textFaintest, fontSize: 13, marginTop: 8 }}>Select a cable system on the left to highlight it on the map.</p>
             )}
-            {mode === 'routebuilder' && !hasResults && !loading && !hasPins && (
-              <p style={{ color: theme.textFaintest, fontSize: 13, marginTop: 8 }}>Configure a route request on the left and press Search.</p>
+            {(mode === 'routebuilder' || mode === 'citypair') && !hasResults && !loading && !hasPins && (
+              <p style={{ color: theme.textFaintest, fontSize: 13, marginTop: 8 }}>
+                {mode === 'citypair'
+                  ? 'Select a city pair on the left to find subsea system itineraries. Use Plan Route to open a full route search.'
+                  : 'Configure a route request on the left and press Search.'}
+              </p>
             )}
             <RouteList
               primaryRoutes={response?.primary_routes ?? []}

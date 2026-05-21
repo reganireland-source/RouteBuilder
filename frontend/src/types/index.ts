@@ -2,7 +2,7 @@ export type NodeType = 'landing_station' | 'terrestrial_pop' | 'branching_unit'
 export type SegmentType = 'wet' | 'terrestrial'
 export type Ownership = 'owned' | 'iru' | 'consortium' | 'integrated_lit_lease' | 'offnet_resell'
 export type DiversityType = 'none' | 'terrestrial_origin' | 'terrestrial_destination' | 'terrestrial_both' | 'wet' | 'full' | 'full_nodes'
-export type AppMode = 'routebuilder' | 'systemviewer' | 'nodefinder'
+export type AppMode = 'routebuilder' | 'systemviewer' | 'nodefinder' | 'citypair'
 
 export interface AppConfig {
   on_net_ownership: string[]
@@ -114,4 +114,34 @@ export interface PinnedRoute {
   route: Route
   color: string
   searchLabel: string
+}
+
+export interface CityInfo {
+  name: string
+  node_ids: string[]
+  country: string
+}
+
+export interface CityPairIntermediateNode {
+  node_id: string
+  name: string
+}
+
+export interface CityPairRoute {
+  id: string
+  systems: string[]
+  system_names: string[]
+  nodes: string[]
+  cls_nodes: string[]
+  intermediate_cls: CityPairIntermediateNode[]
+  total_latency_ms: number
+  total_length_km: number
+  end_to_end_reliability: number
+  hop_count: number
+}
+
+export interface CityPairResponse {
+  origin_city: string
+  destination_city: string
+  routes: CityPairRoute[]
 }
