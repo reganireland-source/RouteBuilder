@@ -46,11 +46,11 @@ const NET_ORDER = { on_net: 0, mixed: 1, off_net: 2 }
 
 const SORT_OPTIONS: { key: SortKey; icon: string; label: string; dir: 'asc' | 'desc' }[] = [
   { key: 'hops',         icon: '⬡',  label: 'Hops',      dir: 'asc'  },
-  { key: 'latency',      icon: '⚡', label: 'Latency',   dir: 'asc'  },
+  { key: 'latency',      icon: '⚡', label: 'RTD',       dir: 'asc'  },
   { key: 'availability', icon: '🛡', label: 'Avail',     dir: 'desc' },
   { key: 'cost',         icon: '◆',  label: 'Cost',      dir: 'asc'  },
   { key: 'capacity',     icon: '◈',  label: 'Capacity',  dir: 'desc' },
-  { key: 'ownership',    icon: '◉',  label: 'Ownership', dir: 'asc'  },
+  { key: 'ownership',    icon: '◉',  label: 'Own',       dir: 'asc'  },
 ]
 
 function routeKey(r: Route) { return r.nodes.join('|') }
@@ -129,7 +129,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
       {/* Sort bar — only shown when there are search results */}
       {hasResults && (
         <>
-          <div style={{ display: 'flex', gap: 5, marginBottom: 4, overflowX: 'auto', paddingBottom: 2 }}>
+          <div className="sort-bar" style={{ display: 'flex', gap: 4, marginBottom: 4, overflowX: 'auto' }}>
             {SORT_OPTIONS.map(opt => {
               const active = sortKey === opt.key
               return (
@@ -138,8 +138,8 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
                   onClick={() => setSortKey(opt.key)}
                   title={`Sort by ${opt.label} (${opt.dir === 'asc' ? 'lowest first' : 'highest first'})`}
                   style={{
-                    flex: '1 0 52px', display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    gap: 3, padding: '6px 4px', borderRadius: 6,
+                    flex: '1 0 44px', display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    gap: 2, padding: '5px 3px', borderRadius: 6,
                     border: `1px solid ${active ? t.blue : t.border}`,
                     background: active ? t.bgActiveSort : t.bgCard,
                     color: active ? t.blue : t.textFaint,
