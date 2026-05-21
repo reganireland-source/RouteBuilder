@@ -3,6 +3,16 @@ import { createPortal } from 'react-dom'
 import type { Route, CableNode, SegmentCapacity, PinnedRoute } from '../types'
 import { useTheme } from '../theme'
 
+function useIsMobile(): boolean {
+  const [mobile, setMobile] = useState(() => window.innerWidth < 768)
+  useEffect(() => {
+    const handler = () => setMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+  return mobile
+}
+
 interface Props {
   primaryRoutes: Route[]
   diverseRoutes: Route[]
@@ -188,17 +198,19 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById }: {
   capacityById: Record<string, SegmentCapacity>
 }) {
   const t = useTheme()
+  const isMobile = useIsMobile()
   const { route, color, searchLabel } = pinned
   const [hovered, setHovered] = useState(false)
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
+  const [segmentsOpen, setSegmentsOpen] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (hovered && cardRef.current) {
+    if (!isMobile && hovered && cardRef.current) {
       const rect = cardRef.current.getBoundingClientRect()
       setTooltipPos({ top: rect.top, left: rect.right + 8 })
     }
-  }, [hovered])
+  }, [hovered, isMobile])
 
   const wetSystems = [...new Set(route.segments.filter(s => s.type === 'wet').map(s => s.system_id))]
   const reliabilityPct = (route.end_to_end_reliability * 100).toFixed(3)
@@ -208,8 +220,8 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById }: {
   return (
     <div
       ref={cardRef}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseEnter={() => !isMobile && setHovered(true)}
+      onMouseLeave={() => !isMobile && setHovered(false)}
       style={{
         padding: '10px 12px', borderRadius: 6, marginBottom: 4,
         border: `1px solid ${color}`,
@@ -255,19 +267,43 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById }: {
           <span>Avail: <strong style={{ color: t.text }}>{reliabilityPct}%</strong></span>
         </div>
 
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '4px 8px', borderRadius: 4, background: t.bgDeep,
-          border: `1px solid ${t.border}`, fontSize: 11,
-        }}>
-          <span style={{ color: t.textFaint }}>◈ Est. Capacity</span>
-          <strong style={{ color: estCapColor }}>{estCap.toFixed(1)}T</strong>
-          <span style={{ color: t.textFaintest, fontSize: 10 }}>bottleneck:</span>
-          <span style={{ color: t.textFaint, fontSize: 10 }}>{bottleneckId ?? '—'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{
+            flex: 1, display: 'flex', alignItems: 'center', gap: 6,
+            padding: '4px 8px', borderRadius: 4, background: t.bgDeep,
+            border: `1px solid ${t.border}`, fontSize: 11,
+          }}>
+            <span style={{ color: t.textFaint }}>◈ Est. Capacity</span>
+            <strong style={{ color: estCapColor }}>{estCap.toFixed(1)}T</strong>
+            <span style={{ color: t.textFaintest, fontSize: 10 }}>bottleneck:</span>
+            <span style={{ color: t.textFaint, fontSize: 10 }}>{bottleneckId ?? '—'}</span>
+          </div>
+          {isMobile && (
+            <button
+              onClick={() => setSegmentsOpen(o => !o)}
+              title="Toggle segment breakdown"
+              style={{
+                flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3,
+                padding: '4px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600,
+                border: `1px solid ${segmentsOpen ? color : t.border}`,
+                background: segmentsOpen ? (color + '22') : t.bgDeep,
+                color: segmentsOpen ? color : t.textFaint,
+                cursor: 'pointer', letterSpacing: '0.04em',
+              }}
+            >
+              ≡ {segmentsOpen ? '▴' : '▾'}
+            </button>
+          )}
         </div>
+
+        {isMobile && segmentsOpen && (
+          <div style={{ marginTop: 8 }}>
+            <SegmentBreakdownRows route={route} capacityById={capacityById} />
+          </div>
+        )}
       </div>
 
-      {hovered && createPortal(
+      {!isMobile && hovered && createPortal(
         <SegmentTooltip route={route} capacityById={capacityById} pos={tooltipPos} />,
         document.body
       )}
@@ -287,16 +323,18 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, color, 
   onPin: (route: Route) => void
 }) {
   const t = useTheme()
+  const isMobile = useIsMobile()
   const [hovered, setHovered] = useState(false)
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
+  const [segmentsOpen, setSegmentsOpen] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (hovered && cardRef.current) {
+    if (!isMobile && hovered && cardRef.current) {
       const rect = cardRef.current.getBoundingClientRect()
       setTooltipPos({ top: rect.top, left: rect.right + 8 })
     }
-  }, [hovered])
+  }, [hovered, isMobile])
 
   const wetSystems = [...new Set(route.segments.filter(s => s.type === 'wet').map(s => s.system_id))]
   const reliabilityPct = (route.end_to_end_reliability * 100).toFixed(3)
@@ -308,8 +346,8 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, color, 
     <div
       ref={cardRef}
       onClick={() => onSelect(route.id)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseEnter={() => !isMobile && setHovered(true)}
+      onMouseLeave={() => !isMobile && setHovered(false)}
       style={{
         padding: '10px 12px', borderRadius: 6, marginBottom: 4, cursor: 'pointer',
         border: `1px solid ${selected ? color : t.border}`,
@@ -353,18 +391,42 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, color, 
         <span>Avail: <strong style={{ color: t.text }}>{reliabilityPct}%</strong></span>
       </div>
 
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 6,
-        padding: '4px 8px', borderRadius: 4, background: t.bgDeep,
-        border: `1px solid ${t.border}`, fontSize: 11,
-      }}>
-        <span style={{ color: t.textFaint }}>◈ Est. Capacity</span>
-        <strong style={{ color: estCapColor }}>{estCap.toFixed(1)}T</strong>
-        <span style={{ color: t.textFaintest, fontSize: 10 }}>bottleneck:</span>
-        <span style={{ color: t.textFaint, fontSize: 10 }}>{bottleneckId ?? '—'}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{
+          flex: 1, display: 'flex', alignItems: 'center', gap: 6,
+          padding: '4px 8px', borderRadius: 4, background: t.bgDeep,
+          border: `1px solid ${t.border}`, fontSize: 11,
+        }}>
+          <span style={{ color: t.textFaint }}>◈ Est. Capacity</span>
+          <strong style={{ color: estCapColor }}>{estCap.toFixed(1)}T</strong>
+          <span style={{ color: t.textFaintest, fontSize: 10 }}>bottleneck:</span>
+          <span style={{ color: t.textFaint, fontSize: 10 }}>{bottleneckId ?? '—'}</span>
+        </div>
+        {isMobile && (
+          <button
+            onClick={e => { e.stopPropagation(); setSegmentsOpen(o => !o) }}
+            title="Toggle segment breakdown"
+            style={{
+              flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3,
+              padding: '4px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600,
+              border: `1px solid ${segmentsOpen ? color : t.border}`,
+              background: segmentsOpen ? (color + '22') : t.bgDeep,
+              color: segmentsOpen ? color : t.textFaint,
+              cursor: 'pointer', letterSpacing: '0.04em',
+            }}
+          >
+            ≡ {segmentsOpen ? '▴' : '▾'}
+          </button>
+        )}
       </div>
 
-      {hovered && createPortal(
+      {isMobile && segmentsOpen && (
+        <div style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
+          <SegmentBreakdownRows route={route} capacityById={capacityById} />
+        </div>
+      )}
+
+      {!isMobile && hovered && createPortal(
         <SegmentTooltip route={route} capacityById={capacityById} pos={tooltipPos} />,
         document.body
       )}
@@ -372,23 +434,14 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, color, 
   )
 }
 
-function SegmentTooltip({ route, capacityById, pos }: {
+function SegmentBreakdownRows({ route, capacityById }: {
   route: Route
   capacityById: Record<string, SegmentCapacity>
-  pos: { top: number; left: number }
 }) {
   const t = useTheme()
   return (
-    <div
-      onClick={e => e.stopPropagation()}
-      style={{
-        position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999,
-        width: 300, background: t.bgCard, border: `1px solid ${t.borderSubtle}`,
-        borderRadius: 6, padding: '10px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-        fontFamily: 'system-ui, sans-serif', pointerEvents: 'none',
-      }}
-    >
-      <div style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+    <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 8 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
         Segment Breakdown
       </div>
       {route.segments.map(seg => {
@@ -418,6 +471,27 @@ function SegmentTooltip({ route, capacityById, pos }: {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function SegmentTooltip({ route, capacityById, pos }: {
+  route: Route
+  capacityById: Record<string, SegmentCapacity>
+  pos: { top: number; left: number }
+}) {
+  const t = useTheme()
+  return (
+    <div
+      onClick={e => e.stopPropagation()}
+      style={{
+        position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999,
+        width: 300, background: t.bgCard, border: `1px solid ${t.borderSubtle}`,
+        borderRadius: 6, padding: '10px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+        fontFamily: 'system-ui, sans-serif', pointerEvents: 'none',
+      }}
+    >
+      <SegmentBreakdownRows route={route} capacityById={capacityById} />
     </div>
   )
 }
