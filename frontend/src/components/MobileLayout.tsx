@@ -165,11 +165,12 @@ export function MobileLayout({
 
   // ── Styles ────────────────────────────────────────────────────────────────
   const tabBtn = (active: boolean): React.CSSProperties => ({
-    flex: 1, padding: '12px 4px', border: 'none', cursor: 'pointer',
+    flex: 1, padding: '10px 4px', border: 'none', cursor: 'pointer',
     background: 'transparent',
     color: active ? t.blue : t.textFaint,
     fontSize: 11, fontWeight: active ? 700 : 400,
-    textTransform: 'uppercase', letterSpacing: '0.05em',
+    textTransform: 'uppercase', letterSpacing: '0.04em',
+    lineHeight: 1.25,
     borderBottom: active ? `2px solid ${t.blue}` : '2px solid transparent',
     transition: 'color 0.15s, border-color 0.15s',
   })
@@ -272,7 +273,7 @@ export function MobileLayout({
         <div style={{ flexShrink: 0, display: 'flex', borderBottom: `1px solid ${t.border}` }}>
           <button style={tabBtn(mode === 'routebuilder')} onClick={() => tapTab('routebuilder')}>PoP Routes</button>
           <button style={tabBtn(mode === 'citypair')}     onClick={() => tapTab('citypair')}>City Pairs</button>
-          <button style={tabBtn(mode === 'systemviewer')} onClick={() => tapTab('systemviewer')}>Cables</button>
+          <button style={tabBtn(mode === 'systemviewer')} onClick={() => tapTab('systemviewer')}>Cable System</button>
           <button style={tabBtn(mode === 'nodefinder')}   onClick={() => tapTab('nodefinder')}>Node Search</button>
         </div>
 

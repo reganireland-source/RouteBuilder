@@ -188,11 +188,12 @@ export default function App() {
 
   // ── Desktop layout ───────────────────────────────────────────────────────
   const tabStyle = (active: boolean): React.CSSProperties => ({
-    flex: 1, padding: '8px 2px', border: 'none', cursor: 'pointer',
+    flex: 1, padding: '6px 4px', border: 'none', cursor: 'pointer',
     background: active ? theme.bgBase : theme.bgPanel,
     color: active ? theme.text : theme.textFaint,
-    fontSize: 9, fontWeight: active ? 700 : 400,
+    fontSize: 10, fontWeight: active ? 700 : 400,
     textTransform: 'uppercase', letterSpacing: '0.04em',
+    lineHeight: 1.25,
     borderBottom: active ? `2px solid ${theme.blue}` : `2px solid transparent`,
     transition: 'all 0.15s',
   })
