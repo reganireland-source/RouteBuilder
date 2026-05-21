@@ -357,11 +357,11 @@
     "start_node_id": "SYD1",
     "end_node_id": "MEL1",
     "type": "terrestrial",
-    "length_km": 880,
+    "length_km": 713,
     "reliability": 0.999,
     "cost_weight": 3,
     "ownership": "owned",
-    "latency": 4.4
+    "latency": 3.565
   },
   {
     "id": "TERRESTRIAL_AU02",
@@ -370,11 +370,11 @@
     "start_node_id": "SYD1",
     "end_node_id": "BRI1",
     "type": "terrestrial",
-    "length_km": 920,
+    "length_km": 732,
     "reliability": 0.9991,
     "cost_weight": 3,
     "ownership": "owned",
-    "latency": 4.6
+    "latency": 3.66
   },
   {
     "id": "TERRESTRIAL_AU03",
@@ -383,11 +383,11 @@
     "start_node_id": "MEL1",
     "end_node_id": "PER1",
     "type": "terrestrial",
-    "length_km": 3440,
+    "length_km": 2722,
     "reliability": 0.9985,
     "cost_weight": 8,
     "ownership": "owned",
-    "latency": 17.2
+    "latency": 13.61
   },
   {
     "id": "TERRESTRIAL_GB01",
@@ -396,11 +396,11 @@
     "start_node_id": "LON1",
     "end_node_id": "FRA1",
     "type": "terrestrial",
-    "length_km": 760,
+    "length_km": 638,
     "reliability": 0.9993,
     "cost_weight": 3,
     "ownership": "integrated_lit_lease",
-    "latency": 3.8
+    "latency": 3.19
   },
   {
     "id": "TERRESTRIAL_SG01",
@@ -409,11 +409,11 @@
     "start_node_id": "SIN1",
     "end_node_id": "KUL1",
     "type": "terrestrial",
-    "length_km": 350,
+    "length_km": 309,
     "reliability": 0.9992,
     "cost_weight": 2,
     "ownership": "integrated_lit_lease",
-    "latency": 1.75
+    "latency": 1.545
   },
   {
     "id": "TERRESTRIAL_AU04",
@@ -422,11 +422,11 @@
     "start_node_id": "SYD1",
     "end_node_id": "CBR1",
     "type": "terrestrial",
-    "length_km": 280,
+    "length_km": 247,
     "reliability": 0.9997,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 1.4
+    "latency": 1.235
   },
   {
     "id": "TERRESTRIAL_AU05",
@@ -435,11 +435,11 @@
     "start_node_id": "DAR1",
     "end_node_id": "BRI1",
     "type": "terrestrial",
-    "length_km": 3200,
+    "length_km": 2847,
     "reliability": 0.9983,
     "cost_weight": 8,
     "ownership": "owned",
-    "latency": 16.0
+    "latency": 14.235
   },
   {
     "id": "TERRESTRIAL_NZ01",
@@ -448,11 +448,11 @@
     "start_node_id": "AKL1",
     "end_node_id": "WLG1",
     "type": "terrestrial",
-    "length_km": 500,
+    "length_km": 493,
     "reliability": 0.9995,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 2.5
+    "latency": 2.465
   },
   {
     "id": "TERRESTRIAL_SG02",
@@ -461,11 +461,11 @@
     "start_node_id": "SIN1",
     "end_node_id": "SIN2",
     "type": "terrestrial",
-    "length_km": 14,
+    "length_km": 13,
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.07
+    "latency": 0.065
   },
   {
     "id": "TERRESTRIAL_HK01",
@@ -474,11 +474,11 @@
     "start_node_id": "HKG1",
     "end_node_id": "HKG2",
     "type": "terrestrial",
-    "length_km": 5,
+    "length_km": 1,
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.03
+    "latency": 0.005
   },
   {
     "id": "TERRESTRIAL_JP01",
@@ -487,11 +487,11 @@
     "start_node_id": "OSA1",
     "end_node_id": "NGO1",
     "type": "terrestrial",
-    "length_km": 185,
+    "length_km": 139,
     "reliability": 0.9997,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.93
+    "latency": 0.695
   },
   {
     "id": "TERRESTRIAL_JP02",
@@ -500,11 +500,11 @@
     "start_node_id": "NGO1",
     "end_node_id": "TYO1",
     "type": "terrestrial",
-    "length_km": 350,
+    "length_km": 255,
     "reliability": 0.9995,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 1.75
+    "latency": 1.275
   },
   {
     "id": "TERRESTRIAL_GU01",
@@ -513,7 +513,7 @@
     "start_node_id": "GUM1",
     "end_node_id": "GUM2",
     "type": "terrestrial",
-    "length_km": 5,
+    "length_km": 6,
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
@@ -526,11 +526,11 @@
     "start_node_id": "LAX1",
     "end_node_id": "SFO1",
     "type": "terrestrial",
-    "length_km": 620,
+    "length_km": 559,
     "reliability": 0.9993,
     "cost_weight": 2,
     "ownership": "owned",
-    "latency": 3.1
+    "latency": 2.795
   },
   {
     "id": "TERRESTRIAL_US02",
@@ -539,11 +539,11 @@
     "start_node_id": "SFO1",
     "end_node_id": "SEA1",
     "type": "terrestrial",
-    "length_km": 1100,
+    "length_km": 1093,
     "reliability": 0.9991,
     "cost_weight": 3,
     "ownership": "owned",
-    "latency": 5.5
+    "latency": 5.465
   },
   {
     "id": "TERRESTRIAL_US03",
@@ -552,11 +552,11 @@
     "start_node_id": "SFO1",
     "end_node_id": "NYC1",
     "type": "terrestrial",
-    "length_km": 4100,
+    "length_km": 4129,
     "reliability": 0.9982,
     "cost_weight": 10,
     "ownership": "owned",
-    "latency": 20.5
+    "latency": 20.645
   },
   {
     "id": "TERRESTRIAL_PH01",
@@ -565,11 +565,11 @@
     "start_node_id": "MNL1",
     "end_node_id": "MNL3",
     "type": "terrestrial",
-    "length_km": 85,
+    "length_km": 80,
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.43
+    "latency": 0.4
   },
   {
     "id": "TERRESTRIAL_TW01",
@@ -578,11 +578,11 @@
     "start_node_id": "TPE1",
     "end_node_id": "KHH1",
     "type": "terrestrial",
-    "length_km": 350,
+    "length_km": 297,
     "reliability": 0.9995,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 1.75
+    "latency": 1.485
   },
   {
     "id": "TERRESTRIAL_KR01",
@@ -591,11 +591,11 @@
     "start_node_id": "ICN1",
     "end_node_id": "PUS1",
     "type": "terrestrial",
-    "length_km": 450,
+    "length_km": 325,
     "reliability": 0.9994,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 2.25
+    "latency": 1.625
   },
   {
     "id": "TERRESTRIAL_IN01",
@@ -604,11 +604,11 @@
     "start_node_id": "BOM1",
     "end_node_id": "DEL1",
     "type": "terrestrial",
-    "length_km": 1400,
+    "length_km": 1148,
     "reliability": 0.9988,
     "cost_weight": 4,
     "ownership": "owned",
-    "latency": 7.0
+    "latency": 5.74
   },
   {
     "id": "TERRESTRIAL_IN02",
@@ -617,11 +617,11 @@
     "start_node_id": "MAA1",
     "end_node_id": "BLR1",
     "type": "terrestrial",
-    "length_km": 350,
+    "length_km": 290,
     "reliability": 0.9995,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 1.75
+    "latency": 1.45
   },
   {
     "id": "TERRESTRIAL_DJ01",
@@ -630,11 +630,11 @@
     "start_node_id": "DJI1",
     "end_node_id": "DJI2",
     "type": "terrestrial",
-    "length_km": 70,
+    "length_km": 66,
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.35
+    "latency": 0.33
   },
   {
     "id": "TERRESTRIAL_AE01",
@@ -643,11 +643,11 @@
     "start_node_id": "DXB1",
     "end_node_id": "AUH1",
     "type": "terrestrial",
-    "length_km": 150,
+    "length_km": 123,
     "reliability": 0.9997,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.75
+    "latency": 0.615
   },
   {
     "id": "TERRESTRIAL_GB02",
@@ -656,11 +656,11 @@
     "start_node_id": "LON1",
     "end_node_id": "MAN1",
     "type": "terrestrial",
-    "length_km": 320,
+    "length_km": 262,
     "reliability": 0.9995,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 1.6
+    "latency": 1.31
   },
   {
     "id": "TERRESTRIAL_ID01",
@@ -669,11 +669,11 @@
     "start_node_id": "JAK1",
     "end_node_id": "SUB1",
     "type": "terrestrial",
-    "length_km": 800,
+    "length_km": 663,
     "reliability": 0.9991,
     "cost_weight": 2,
     "ownership": "owned",
-    "latency": 4.0
+    "latency": 3.315
   },
   {
     "id": "TERRESTRIAL_MY01",
@@ -682,11 +682,11 @@
     "start_node_id": "KUL1",
     "end_node_id": "PEN1",
     "type": "terrestrial",
-    "length_km": 350,
+    "length_km": 294,
     "reliability": 0.9995,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 1.75
+    "latency": 1.47
   },
   {
     "id": "TERRESTRIAL_AU06",
@@ -695,7 +695,7 @@
     "start_node_id": "PER1",
     "end_node_id": "PER2",
     "type": "terrestrial",
-    "length_km": 9,
+    "length_km": 10,
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
@@ -708,7 +708,7 @@
     "start_node_id": "SYD1",
     "end_node_id": "SYD2",
     "type": "terrestrial",
-    "length_km": 11,
+    "length_km": 12,
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
@@ -764,7 +764,7 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.01
+    "latency": 0.005
   },
   {
     "id": "TERRESTRIAL_JP03",
@@ -799,11 +799,11 @@
     "start_node_id": "HAW1",
     "end_node_id": "HAW2",
     "type": "terrestrial",
-    "length_km": 2,
+    "length_km": 1,
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.01
+    "latency": 0.005
   },
   {
     "id": "TERRESTRIAL_US05",
@@ -838,11 +838,11 @@
     "start_node_id": "MNL1",
     "end_node_id": "MNL2",
     "type": "terrestrial",
-    "length_km": 6,
+    "length_km": 7,
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.03
+    "latency": 0.035
   },
   {
     "id": "TERRESTRIAL_TW02",
@@ -851,7 +851,7 @@
     "start_node_id": "TPE1",
     "end_node_id": "TPE2",
     "type": "terrestrial",
-    "length_km": 5,
+    "length_km": 6,
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
@@ -864,11 +864,11 @@
     "start_node_id": "ICN1",
     "end_node_id": "ICN2",
     "type": "terrestrial",
-    "length_km": 8,
+    "length_km": 9,
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.04
+    "latency": 0.045
   },
   {
     "id": "TERRESTRIAL_IN03",
@@ -894,7 +894,7 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.02
+    "latency": 0.015
   },
   {
     "id": "TERRESTRIAL_AE02",
@@ -920,7 +920,7 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.04
+    "latency": 0.035
   },
   {
     "id": "TERRESTRIAL_ID02",
@@ -933,7 +933,7 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.02
+    "latency": 0.015
   },
   {
     "id": "TERRESTRIAL_MY02",
@@ -946,7 +946,7 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.02
+    "latency": 0.015
   },
   {
     "id": "EAC-HKG-MNL",
@@ -1557,7 +1557,7 @@
     "reliability": 0.9991,
     "cost_weight": 13,
     "ownership": "consortium",
-    "latency": 20.68
+    "latency": 20.675
   },
   {
     "id": "SXNEXT-LAX-HAW",
@@ -1648,7 +1648,7 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "iru",
-    "latency": 1.21
+    "latency": 1.205
   },
   {
     "id": "JUPITER-SEA-BU",
@@ -1774,11 +1774,11 @@
     "start_node_id": "ESY1",
     "end_node_id": "SYD2",
     "type": "terrestrial",
-    "length_km": 8,
+    "length_km": 16,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.04
+    "latency": 0.08
   },
   {
     "id": "EQ_AU_SY03",
@@ -1787,11 +1787,11 @@
     "start_node_id": "ESY3",
     "end_node_id": "SYD2",
     "type": "terrestrial",
-    "length_km": 14,
+    "length_km": 7,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.07
+    "latency": 0.035
   },
   {
     "id": "EQ_AU_SY04",
@@ -1800,11 +1800,11 @@
     "start_node_id": "ESY4",
     "end_node_id": "ESY1",
     "type": "terrestrial",
-    "length_km": 3,
+    "length_km": 2,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.015
+    "latency": 0.01
   },
   {
     "id": "EQ_AU_ME01",
@@ -1813,11 +1813,11 @@
     "start_node_id": "EME1",
     "end_node_id": "MEL2",
     "type": "terrestrial",
-    "length_km": 4,
+    "length_km": 1,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.02
+    "latency": 0.005
   },
   {
     "id": "EQ_AU_ME02",
@@ -1826,11 +1826,11 @@
     "start_node_id": "EME2",
     "end_node_id": "EME1",
     "type": "terrestrial",
-    "length_km": 18,
+    "length_km": 13,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.09
+    "latency": 0.065
   },
   {
     "id": "EQ_AU_BQ01",
@@ -1839,11 +1839,11 @@
     "start_node_id": "EBQ1",
     "end_node_id": "BRI2",
     "type": "terrestrial",
-    "length_km": 4,
+    "length_km": 3,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.02
+    "latency": 0.015
   },
   {
     "id": "EQ_AU_PE01",
@@ -1852,17 +1852,30 @@
     "start_node_id": "EPE1",
     "end_node_id": "PER2",
     "type": "terrestrial",
-    "length_km": 4,
+    "length_km": 11,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.02
+    "latency": 0.055
   },
   {
     "id": "EQ_JP_TY01",
     "name": "Equinix TY1 \u2013 Tokyo Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "ETY1",
+    "end_node_id": "TYO2",
+    "type": "terrestrial",
+    "length_km": 5,
+    "reliability": 0.9992,
+    "cost_weight": 1.0,
+    "ownership": "integrated_lit_lease",
+    "latency": 0.025
+  },
+  {
+    "id": "EQ_JP_TY02",
+    "name": "Equinix TY2 \u2013 Tokyo Metro",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "ETY2",
     "end_node_id": "TYO2",
     "type": "terrestrial",
     "length_km": 6,
@@ -1872,30 +1885,17 @@
     "latency": 0.03
   },
   {
-    "id": "EQ_JP_TY02",
-    "name": "Equinix TY2 \u2013 Tokyo Metro",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "ETY2",
-    "end_node_id": "TYO2",
-    "type": "terrestrial",
-    "length_km": 4,
-    "reliability": 0.9992,
-    "cost_weight": 1.0,
-    "ownership": "integrated_lit_lease",
-    "latency": 0.02
-  },
-  {
     "id": "EQ_JP_TY03",
     "name": "Equinix TY3 \u2013 Equinix TY1",
     "system_id": "TERRESTRIAL",
     "start_node_id": "ETY3",
     "end_node_id": "ETY1",
     "type": "terrestrial",
-    "length_km": 3,
+    "length_km": 5,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.015
+    "latency": 0.025
   },
   {
     "id": "EQ_JP_OS01",
@@ -1904,11 +1904,11 @@
     "start_node_id": "EOS1",
     "end_node_id": "OSA2",
     "type": "terrestrial",
-    "length_km": 2,
+    "length_km": 1,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.01
+    "latency": 0.005
   },
   {
     "id": "EQ_JP_OS02",
@@ -1917,11 +1917,11 @@
     "start_node_id": "EOS2",
     "end_node_id": "EOS1",
     "type": "terrestrial",
-    "length_km": 15,
+    "length_km": 14,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.075
+    "latency": 0.07
   },
   {
     "id": "EQ_JP_NG01",
@@ -1930,11 +1930,11 @@
     "start_node_id": "ENG1",
     "end_node_id": "NGO1",
     "type": "terrestrial",
-    "length_km": 3,
+    "length_km": 1,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.015
+    "latency": 0.005
   },
   {
     "id": "EQ_KR_SL01",
@@ -1943,11 +1943,11 @@
     "start_node_id": "ESL1",
     "end_node_id": "ICN2",
     "type": "terrestrial",
-    "length_km": 8,
+    "length_km": 11,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.04
+    "latency": 0.055
   },
   {
     "id": "EQ_KR_BS01",
@@ -1956,11 +1956,11 @@
     "start_node_id": "EBS1",
     "end_node_id": "PUS1",
     "type": "terrestrial",
-    "length_km": 4,
+    "length_km": 3,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.02
+    "latency": 0.015
   },
   {
     "id": "TERRESTRIAL_US07",
@@ -1969,11 +1969,11 @@
     "start_node_id": "DAL1",
     "end_node_id": "LAX1",
     "type": "terrestrial",
-    "length_km": 2240,
+    "length_km": 1992,
     "reliability": 0.9985,
     "cost_weight": 5.0,
     "ownership": "integrated_lit_lease",
-    "latency": 11.2
+    "latency": 9.96
   },
   {
     "id": "TERRESTRIAL_US08",
@@ -1982,11 +1982,11 @@
     "start_node_id": "DAL1",
     "end_node_id": "CHI1",
     "type": "terrestrial",
-    "length_km": 1480,
+    "length_km": 1295,
     "reliability": 0.9987,
     "cost_weight": 4.0,
     "ownership": "integrated_lit_lease",
-    "latency": 7.4
+    "latency": 6.475
   },
   {
     "id": "TERRESTRIAL_US09",
@@ -1995,11 +1995,11 @@
     "start_node_id": "CHI1",
     "end_node_id": "NYC1",
     "type": "terrestrial",
-    "length_km": 1270,
+    "length_km": 1144,
     "reliability": 0.9988,
     "cost_weight": 3.0,
     "ownership": "integrated_lit_lease",
-    "latency": 6.35
+    "latency": 5.72
   },
   {
     "id": "TERRESTRIAL_US10",
@@ -2008,11 +2008,11 @@
     "start_node_id": "MIA1",
     "end_node_id": "NYC1",
     "type": "terrestrial",
-    "length_km": 2050,
+    "length_km": 1757,
     "reliability": 0.9985,
     "cost_weight": 5.0,
     "ownership": "integrated_lit_lease",
-    "latency": 10.25
+    "latency": 8.785
   },
   {
     "id": "TERRESTRIAL_US11",
@@ -2021,11 +2021,11 @@
     "start_node_id": "MIA1",
     "end_node_id": "DAL1",
     "type": "terrestrial",
-    "length_km": 2100,
+    "length_km": 1786,
     "reliability": 0.9985,
     "cost_weight": 5.0,
     "ownership": "integrated_lit_lease",
-    "latency": 10.5
+    "latency": 8.93
   },
   {
     "id": "EQ_US_LA01",
@@ -2034,11 +2034,11 @@
     "start_node_id": "ELA1",
     "end_node_id": "LAX2",
     "type": "terrestrial",
-    "length_km": 8,
+    "length_km": 19,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.04
+    "latency": 0.095
   },
   {
     "id": "EQ_US_LA02",
@@ -2047,11 +2047,11 @@
     "start_node_id": "ELA2",
     "end_node_id": "ELA1",
     "type": "terrestrial",
-    "length_km": 12,
+    "length_km": 18,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.06
+    "latency": 0.09
   },
   {
     "id": "EQ_US_SE02",
@@ -2060,11 +2060,11 @@
     "start_node_id": "ESE2",
     "end_node_id": "SEA2",
     "type": "terrestrial",
-    "length_km": 4,
+    "length_km": 3,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.02
+    "latency": 0.015
   },
   {
     "id": "EQ_US_SE03",
@@ -2073,11 +2073,11 @@
     "start_node_id": "ESE3",
     "end_node_id": "ESE2",
     "type": "terrestrial",
-    "length_km": 12,
+    "length_km": 11,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.06
+    "latency": 0.055
   },
   {
     "id": "EQ_US_CH01",
@@ -2086,11 +2086,11 @@
     "start_node_id": "ECH1",
     "end_node_id": "CHI1",
     "type": "terrestrial",
-    "length_km": 5,
+    "length_km": 1,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.025
+    "latency": 0.005
   },
   {
     "id": "EQ_US_CH02",
@@ -2099,11 +2099,11 @@
     "start_node_id": "ECH2",
     "end_node_id": "ECH1",
     "type": "terrestrial",
-    "length_km": 30,
+    "length_km": 32,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.15
+    "latency": 0.16
   },
   {
     "id": "EQ_US_NY01",
@@ -2112,11 +2112,11 @@
     "start_node_id": "ENY1",
     "end_node_id": "NYC1",
     "type": "terrestrial",
-    "length_km": 18,
+    "length_km": 10,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.09
+    "latency": 0.05
   },
   {
     "id": "EQ_US_NY05",
@@ -2138,11 +2138,11 @@
     "start_node_id": "ENY9",
     "end_node_id": "ENY1",
     "type": "terrestrial",
-    "length_km": 6,
+    "length_km": 8,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.03
+    "latency": 0.04
   },
   {
     "id": "EQ_US_DA01",
@@ -2151,11 +2151,11 @@
     "start_node_id": "EDA1",
     "end_node_id": "DAL1",
     "type": "terrestrial",
-    "length_km": 25,
+    "length_km": 24,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.125
+    "latency": 0.12
   },
   {
     "id": "EQ_US_DA02",
@@ -2164,11 +2164,11 @@
     "start_node_id": "EDA2",
     "end_node_id": "EDA1",
     "type": "terrestrial",
-    "length_km": 3,
+    "length_km": 1,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.015
+    "latency": 0.005
   },
   {
     "id": "EQ_US_MI01",
@@ -2177,11 +2177,11 @@
     "start_node_id": "EMI1",
     "end_node_id": "MIA1",
     "type": "terrestrial",
-    "length_km": 20,
+    "length_km": 13,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.1
+    "latency": 0.065
   },
   {
     "id": "EQ_US_MI03",
@@ -2190,10 +2190,10 @@
     "start_node_id": "EMI3",
     "end_node_id": "EMI1",
     "type": "terrestrial",
-    "length_km": 5,
+    "length_km": 13,
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.025
+    "latency": 0.065
   }
 ]
