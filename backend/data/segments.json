@@ -2063,7 +2063,7 @@
     "length_km": 2600,
     "reliability": 0.9992,
     "cost_weight": 10,
-    "ownership": "integrated_lit_lease",
+    "ownership": "owned",
     "latency": 13.0
   },
   {
@@ -2076,7 +2076,7 @@
     "length_km": 730,
     "reliability": 0.9996,
     "cost_weight": 3,
-    "ownership": "integrated_lit_lease",
+    "ownership": "owned",
     "latency": 3.65
   },
   {
@@ -2089,7 +2089,7 @@
     "length_km": 2800,
     "reliability": 0.9992,
     "cost_weight": 11,
-    "ownership": "integrated_lit_lease",
+    "ownership": "owned",
     "latency": 14.0
   },
   {
@@ -2102,7 +2102,7 @@
     "length_km": 1400,
     "reliability": 0.9994,
     "cost_weight": 6,
-    "ownership": "integrated_lit_lease",
+    "ownership": "owned",
     "latency": 7.0
   },
   {
@@ -2115,7 +2115,7 @@
     "length_km": 600,
     "reliability": 0.9996,
     "cost_weight": 3,
-    "ownership": "integrated_lit_lease",
+    "ownership": "owned",
     "latency": 3.0
   },
   {
@@ -2128,7 +2128,7 @@
     "length_km": 1450,
     "reliability": 0.9994,
     "cost_weight": 6,
-    "ownership": "integrated_lit_lease",
+    "ownership": "owned",
     "latency": 7.25
   },
   {
@@ -2141,7 +2141,7 @@
     "length_km": 380,
     "reliability": 0.9997,
     "cost_weight": 2,
-    "ownership": "integrated_lit_lease",
+    "ownership": "owned",
     "latency": 1.9
   },
   {
@@ -2154,7 +2154,7 @@
     "length_km": 530,
     "reliability": 0.9996,
     "cost_weight": 3,
-    "ownership": "integrated_lit_lease",
+    "ownership": "owned",
     "latency": 2.65
   },
   {
@@ -2167,7 +2167,7 @@
     "length_km": 1400,
     "reliability": 0.9994,
     "cost_weight": 6,
-    "ownership": "integrated_lit_lease",
+    "ownership": "owned",
     "latency": 7.0
   },
   {
@@ -2180,7 +2180,7 @@
     "length_km": 460,
     "reliability": 0.9996,
     "cost_weight": 3,
-    "ownership": "integrated_lit_lease",
+    "ownership": "owned",
     "latency": 2.3
   },
   {
@@ -2193,7 +2193,7 @@
     "length_km": 1600,
     "reliability": 0.9993,
     "cost_weight": 7,
-    "ownership": "integrated_lit_lease",
+    "ownership": "owned",
     "latency": 8.0
   },
   {
@@ -2206,7 +2206,7 @@
     "length_km": 480,
     "reliability": 0.9996,
     "cost_weight": 3,
-    "ownership": "integrated_lit_lease",
+    "ownership": "owned",
     "latency": 2.4
   },
   {
@@ -2219,7 +2219,7 @@
     "length_km": 370,
     "reliability": 0.9997,
     "cost_weight": 2,
-    "ownership": "integrated_lit_lease",
+    "ownership": "owned",
     "latency": 1.85
   },
   {
