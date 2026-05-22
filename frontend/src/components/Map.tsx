@@ -21,6 +21,7 @@ interface Props {
   searchPin?: { lat: number; lng: number; label: string }
   nearestNodeIds?: string[]
   hideNonActive?: boolean
+  showSegmentLabels?: boolean
 }
 
 
@@ -53,7 +54,7 @@ function geoLines(
   return [[[lat1, nLng1], [lat2, nLng1 + d]]]
 }
 
-export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false }: Props) {
+export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false }: Props) {
   const t = useTheme()
   const diversityColors: Record<number, string> = { 1: t.blue, 2: t.green }
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
@@ -168,6 +169,11 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
             pathOptions={pathOptions}
           >
             {i === 0 && tooltip}
+            {i === 0 && showSegmentLabels && isActiveSegment && (
+              <Tooltip permanent direction="center" className="seg-label" offset={[0, 0]}>
+                {seg.name}
+              </Tooltip>
+            )}
           </Polyline>
         ))
       })}

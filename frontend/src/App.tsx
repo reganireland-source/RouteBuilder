@@ -56,7 +56,8 @@ export default function App() {
   const [nearestNodeIds, setNearestNodeIds] = useState<string[]>([])
   const [prefilledOrigin, setPrefilledOrigin] = useState('')
   const [prefilledDest, setPrefilledDest]     = useState('')
-  const [hideNonActive, setHideNonActive]     = useState(false)
+  const [hideNonActive, setHideNonActive]         = useState(false)
+  const [showSegmentLabels, setShowSegmentLabels] = useState(false)
   const pinCounter = useRef(0)
 
   useEffect(() => {
@@ -184,6 +185,8 @@ export default function App() {
           cycleTheme={cycleTheme}
           hideNonActive={hideNonActive}
           onToggleHideNonActive={() => setHideNonActive(v => !v)}
+          showSegmentLabels={showSegmentLabels}
+          onToggleShowSegmentLabels={() => setShowSegmentLabels(v => !v)}
         />
       </ThemeContext.Provider>
     )
@@ -210,7 +213,7 @@ export default function App() {
           onClick={() => setHideNonActive(v => !v)}
           title="Hide Non-Active Cables"
           style={{
-            position: 'fixed', top: 12, right: 252, zIndex: 1000,
+            position: 'fixed', top: 12, right: 376, zIndex: 1000,
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '6px 12px', borderRadius: 20,
             border: `1px solid ${hideNonActive ? theme.blue : theme.border}`,
@@ -223,6 +226,26 @@ export default function App() {
         >
           <span style={{ fontSize: 13 }}>{hideNonActive ? '◉' : '◎'}</span>
           Hide Inactive
+        </button>
+
+        {/* Segment labels toggle */}
+        <button
+          onClick={() => setShowSegmentLabels(v => !v)}
+          title="Toggle Segment Labels"
+          style={{
+            position: 'fixed', top: 12, right: 252, zIndex: 1000,
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '6px 12px', borderRadius: 20,
+            border: `1px solid ${showSegmentLabels ? theme.blue : theme.border}`,
+            background: showSegmentLabels ? `${theme.blue}22` : theme.bgPanel,
+            color: showSegmentLabels ? theme.blue : theme.textMuted,
+            cursor: 'pointer', fontSize: 12, fontWeight: 600,
+            boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.4)',
+            transition: 'all 0.2s',
+          }}
+        >
+          <span style={{ fontSize: 13 }}>{showSegmentLabels ? '◉' : '◎'}</span>
+          Seg Labels
         </button>
 
         {/* Ref data button */}
@@ -363,6 +386,7 @@ export default function App() {
               searchPin={searchPin ?? undefined}
               nearestNodeIds={nearestNodeIds}
               hideNonActive={hideNonActive}
+              showSegmentLabels={showSegmentLabels}
             />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.textFaint }}>

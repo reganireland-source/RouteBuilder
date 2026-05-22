@@ -86,8 +86,9 @@ export interface MobileLayoutProps {
   switchMode:        (m: AppMode) => void
   clearSearch:       () => void
   clearAll:          () => void
-  cycleTheme:              () => void
-  onToggleHideNonActive:   () => void
+  cycleTheme:                    () => void
+  onToggleHideNonActive:         () => void
+  onToggleShowSegmentLabels:     () => void
 }
 
 export function MobileLayout({
@@ -99,9 +100,9 @@ export function MobileLayout({
   onSearch, onToggleRoute, onPin, onUnpin, onToggleSystem,
   onSetOrigin, onSetDest, onSetPair, onNodeClick, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
-  switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive,
-  hideNonActive = false,
-}: MobileLayoutProps & { hideNonActive?: boolean }) {
+  switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels,
+  hideNonActive = false, showSegmentLabels = false,
+}: MobileLayoutProps & { hideNonActive?: boolean; showSegmentLabels?: boolean }) {
   const t = useTheme()
 
   const [sheetHeight, setSheetHeight] = useState(() => snapPx('mid'))
@@ -210,6 +211,7 @@ export function MobileLayout({
             searchPin={searchPin ?? undefined}
             nearestNodeIds={nearestNodeIds}
             hideNonActive={hideNonActive}
+            showSegmentLabels={showSegmentLabels}
           />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: t.textFaint, background: t.bgMap }}>
@@ -236,6 +238,19 @@ export function MobileLayout({
 
       {/* ── Top-right icon buttons ──────────────────────────────────────── */}
       <div style={{ position: 'fixed', top: 14, right: 14, zIndex: 100, display: 'flex', gap: 8 }}>
+        <button
+          onClick={onToggleShowSegmentLabels}
+          title="Toggle Segment Labels"
+          style={{
+            ...floatBtn,
+            border: `1px solid ${showSegmentLabels ? t.blue : t.border}`,
+            background: showSegmentLabels ? `${t.blue}33` : t.bgPanel + 'f0',
+            color: showSegmentLabels ? t.blue : t.textMuted,
+            fontSize: 13, fontWeight: 700,
+          }}
+        >
+          {showSegmentLabels ? 'A⃝' : 'A'}
+        </button>
         <button
           onClick={onToggleHideNonActive}
           title="Hide Non-Active Cables"
