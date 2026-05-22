@@ -1203,5 +1203,27 @@
     "lng": 116.5,
     "type": "branching_unit",
     "country": ""
+  },
+  {
+    "id": "SIN3",
+    "name": "Changi (EAC)",
+    "lat": 1.3535,
+    "lng": 103.982,
+    "type": "landing_station",
+    "country": "SG",
+    "owner": "EAC Consortium",
+    "trading_name": "Changi EAC",
+    "description": "EAC cable landing station at Changi, Singapore"
+  },
+  {
+    "id": "SIN4",
+    "name": "Changi (C2C)",
+    "lat": 1.3545,
+    "lng": 103.983,
+    "type": "landing_station",
+    "country": "SG",
+    "owner": "C2C",
+    "trading_name": "Changi C2C",
+    "description": "C2C cable landing station at Changi, Singapore"
   }
 ]
