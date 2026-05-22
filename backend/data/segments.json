@@ -2315,16 +2315,16 @@
   },
   {
     "id": "C2C-S5",
-    "name": "C2C Segment S5 Ajigaura–Nasugbu",
+    "name": "C2C Segment S5 Chikura–Nasugbu",
     "system_id": "C2C",
-    "start_node_id": "AJI1",
+    "start_node_id": "CHK1",
     "end_node_id": "NSG1",
     "type": "wet",
-    "length_km": 3300,
+    "length_km": 3200,
     "reliability": 0.9989,
     "cost_weight": 14,
     "ownership": "owned",
-    "latency": 16.5
+    "latency": 16.0
   },
   {
     "id": "C2C-S6",
