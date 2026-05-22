@@ -52,7 +52,12 @@
   {
     "id": "EAC",
     "name": "East Asia Crossing",
-    "description": "Cable connecting Japan, Korea, and Southeast Asia"
+    "description": "Cable connecting Japan, Korea, China, Taiwan, Hong Kong, Philippines, and Singapore"
+  },
+  {
+    "id": "C2C",
+    "name": "C2C",
+    "description": "Cable connecting Singapore, Hong Kong, Philippines, Taiwan, China, Korea, and Japan"
   },
   {
     "id": "TERRESTRIAL",
