@@ -265,14 +265,14 @@
   },
   {
     "id": "GUM2",
-    "name": "Hag\u00e5t\u00f1a",
+    "name": "Hagåtña",
     "lat": 13.4745,
     "lng": 144.7504,
     "type": "terrestrial_pop",
     "country": "GU",
     "owner": "GTA",
-    "trading_name": "Hag\u00e5t\u00f1a GTA",
-    "description": "A terrestrial POP in Hag\u00e5t\u00f1a, Guam, owned by GTA"
+    "trading_name": "Hagåtña GTA",
+    "description": "A terrestrial POP in Hagåtña, Guam, owned by GTA"
   },
   {
     "id": "HAW1",
@@ -777,7 +777,7 @@
     "type": "terrestrial_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix SY1 \u2013 Mascot"
+    "description": "Equinix SY1 – Mascot"
   },
   {
     "id": "ESY3",
@@ -787,7 +787,7 @@
     "type": "terrestrial_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix SY3 \u2013 Sydney Olympic Park"
+    "description": "Equinix SY3 – Sydney Olympic Park"
   },
   {
     "id": "ESY4",
@@ -797,7 +797,7 @@
     "type": "terrestrial_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix SY4 \u2013 Alexandria"
+    "description": "Equinix SY4 – Alexandria"
   },
   {
     "id": "EME1",
@@ -807,7 +807,7 @@
     "type": "terrestrial_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix ME1 \u2013 Port Melbourne"
+    "description": "Equinix ME1 – Port Melbourne"
   },
   {
     "id": "EME2",
@@ -817,7 +817,7 @@
     "type": "terrestrial_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix ME2 \u2013 Tullamarine"
+    "description": "Equinix ME2 – Tullamarine"
   },
   {
     "id": "EBQ1",
@@ -827,7 +827,7 @@
     "type": "terrestrial_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix BQ1 \u2013 Eagle Farm"
+    "description": "Equinix BQ1 – Eagle Farm"
   },
   {
     "id": "EPE1",
@@ -837,7 +837,7 @@
     "type": "terrestrial_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix PE1 \u2013 East Perth"
+    "description": "Equinix PE1 – East Perth"
   },
   {
     "id": "ETY1",
@@ -847,7 +847,7 @@
     "type": "terrestrial_pop",
     "country": "JP",
     "owner": "Equinix",
-    "description": "Equinix TY1 \u2013 Shibaura, Minato"
+    "description": "Equinix TY1 – Shibaura, Minato"
   },
   {
     "id": "ETY2",
@@ -857,7 +857,7 @@
     "type": "terrestrial_pop",
     "country": "JP",
     "owner": "Equinix",
-    "description": "Equinix TY2 \u2013 Shinjuku"
+    "description": "Equinix TY2 – Shinjuku"
   },
   {
     "id": "ETY3",
@@ -867,7 +867,7 @@
     "type": "terrestrial_pop",
     "country": "JP",
     "owner": "Equinix",
-    "description": "Equinix TY3 \u2013 Otemachi"
+    "description": "Equinix TY3 – Otemachi"
   },
   {
     "id": "EOS1",
@@ -877,7 +877,7 @@
     "type": "terrestrial_pop",
     "country": "JP",
     "owner": "Equinix",
-    "description": "Equinix OS1 \u2013 Hommachi"
+    "description": "Equinix OS1 – Hommachi"
   },
   {
     "id": "EOS2",
@@ -887,7 +887,7 @@
     "type": "terrestrial_pop",
     "country": "JP",
     "owner": "Equinix",
-    "description": "Equinix OS2 \u2013 Sakai"
+    "description": "Equinix OS2 – Sakai"
   },
   {
     "id": "ENG1",
@@ -897,7 +897,7 @@
     "type": "terrestrial_pop",
     "country": "JP",
     "owner": "Equinix",
-    "description": "Equinix NG1 \u2013 Nagoya"
+    "description": "Equinix NG1 – Nagoya"
   },
   {
     "id": "ESL1",
@@ -907,7 +907,7 @@
     "type": "terrestrial_pop",
     "country": "KR",
     "owner": "Equinix",
-    "description": "Equinix SL1 \u2013 Mapo-gu"
+    "description": "Equinix SL1 – Mapo-gu"
   },
   {
     "id": "EBS1",
@@ -917,7 +917,7 @@
     "type": "terrestrial_pop",
     "country": "KR",
     "owner": "Equinix",
-    "description": "Equinix BS1 \u2013 Busan"
+    "description": "Equinix BS1 – Busan"
   },
   {
     "id": "CHI1",
@@ -954,7 +954,7 @@
     "type": "terrestrial_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix LA1 \u2013 El Segundo"
+    "description": "Equinix LA1 – El Segundo"
   },
   {
     "id": "ELA2",
@@ -964,7 +964,7 @@
     "type": "terrestrial_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix LA2 \u2013 Downtown Los Angeles"
+    "description": "Equinix LA2 – Downtown Los Angeles"
   },
   {
     "id": "ESE2",
@@ -974,7 +974,7 @@
     "type": "terrestrial_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix SE2 \u2013 Seattle"
+    "description": "Equinix SE2 – Seattle"
   },
   {
     "id": "ESE3",
@@ -984,7 +984,7 @@
     "type": "terrestrial_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix SE3 \u2013 Bellevue"
+    "description": "Equinix SE3 – Bellevue"
   },
   {
     "id": "ECH1",
@@ -994,7 +994,7 @@
     "type": "terrestrial_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix CH1 \u2013 Chicago"
+    "description": "Equinix CH1 – Chicago"
   },
   {
     "id": "ECH2",
@@ -1004,7 +1004,7 @@
     "type": "terrestrial_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix CH2 \u2013 Elk Grove Village"
+    "description": "Equinix CH2 – Elk Grove Village"
   },
   {
     "id": "ENY1",
@@ -1014,7 +1014,7 @@
     "type": "terrestrial_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix NY1 \u2013 Secaucus, NJ"
+    "description": "Equinix NY1 – Secaucus, NJ"
   },
   {
     "id": "ENY5",
@@ -1024,7 +1024,7 @@
     "type": "terrestrial_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix NY5 \u2013 New York City"
+    "description": "Equinix NY5 – New York City"
   },
   {
     "id": "ENY9",
@@ -1034,7 +1034,7 @@
     "type": "terrestrial_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix NY9 \u2013 New York City"
+    "description": "Equinix NY9 – New York City"
   },
   {
     "id": "EDA1",
@@ -1044,7 +1044,7 @@
     "type": "terrestrial_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix DA1 \u2013 Carrollton, TX"
+    "description": "Equinix DA1 – Carrollton, TX"
   },
   {
     "id": "EDA2",
@@ -1054,7 +1054,7 @@
     "type": "terrestrial_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix DA2 \u2013 Carrollton, TX"
+    "description": "Equinix DA2 – Carrollton, TX"
   },
   {
     "id": "EMI1",
@@ -1064,7 +1064,7 @@
     "type": "terrestrial_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix MI1 \u2013 Miami, FL"
+    "description": "Equinix MI1 – Miami, FL"
   },
   {
     "id": "EMI3",
@@ -1074,6 +1074,134 @@
     "type": "terrestrial_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix MI3 \u2013 Miami, FL"
+    "description": "Equinix MI3 – Miami, FL"
+  },
+  {
+    "id": "TKO1",
+    "name": "Tseung Kwan O",
+    "lat": 22.31,
+    "lng": 114.26,
+    "type": "landing_station",
+    "country": "HK"
+  },
+  {
+    "id": "TAM1",
+    "name": "Tamsui",
+    "lat": 25.17,
+    "lng": 121.44,
+    "type": "landing_station",
+    "country": "TW"
+  },
+  {
+    "id": "FSH1",
+    "name": "Fangshan",
+    "lat": 22.37,
+    "lng": 120.62,
+    "type": "landing_station",
+    "country": "TW"
+  },
+  {
+    "id": "SHM1",
+    "name": "Shima",
+    "lat": 34.33,
+    "lng": 136.83,
+    "type": "landing_station",
+    "country": "JP"
+  },
+  {
+    "id": "AJI1",
+    "name": "Ajigaura",
+    "lat": 36.39,
+    "lng": 140.63,
+    "type": "landing_station",
+    "country": "JP"
+  },
+  {
+    "id": "CHK1",
+    "name": "Chikura",
+    "lat": 34.92,
+    "lng": 139.95,
+    "type": "landing_station",
+    "country": "JP"
+  },
+  {
+    "id": "SDR1",
+    "name": "Shinduri",
+    "lat": 36.7,
+    "lng": 126.15,
+    "type": "landing_station",
+    "country": "KR"
+  },
+  {
+    "id": "QGD1",
+    "name": "Qingdao",
+    "lat": 36.07,
+    "lng": 120.38,
+    "type": "landing_station",
+    "country": "CN"
+  },
+  {
+    "id": "NHU1",
+    "name": "Nanhui",
+    "lat": 31.05,
+    "lng": 121.8,
+    "type": "landing_station",
+    "country": "CN"
+  },
+  {
+    "id": "SHA1",
+    "name": "Shanghai",
+    "lat": 31.23,
+    "lng": 121.47,
+    "type": "terrestrial_pop",
+    "country": "CN"
+  },
+  {
+    "id": "CPE1",
+    "name": "Capepisa",
+    "lat": 18.5,
+    "lng": 121.9,
+    "type": "landing_station",
+    "country": "PH"
+  },
+  {
+    "id": "NSG1",
+    "name": "Nasugbu",
+    "lat": 14.07,
+    "lng": 120.63,
+    "type": "landing_station",
+    "country": "PH"
+  },
+  {
+    "id": "EBU1",
+    "name": "EAC BU Pacific",
+    "lat": 27.0,
+    "lng": 126.5,
+    "type": "branching_unit",
+    "country": ""
+  },
+  {
+    "id": "EBU2",
+    "name": "EAC BU China Sea",
+    "lat": 22.5,
+    "lng": 117.5,
+    "type": "branching_unit",
+    "country": ""
+  },
+  {
+    "id": "EBU3",
+    "name": "EAC BU Yellow Sea",
+    "lat": 34.0,
+    "lng": 123.0,
+    "type": "branching_unit",
+    "country": ""
+  },
+  {
+    "id": "CBU1",
+    "name": "C2C BU Taiwan",
+    "lat": 22.5,
+    "lng": 116.5,
+    "type": "branching_unit",
+    "country": ""
   }
 ]
