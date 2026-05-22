@@ -171,7 +171,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
             {i === 0 && tooltip}
             {i === 0 && showSegmentLabels && isActiveSegment && (
               <Tooltip permanent direction="center" className="seg-label" offset={[0, 0]}>
-                {seg.name}
+                {seg.id}
               </Tooltip>
             )}
           </Polyline>
