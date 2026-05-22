@@ -1,46 +1,338 @@
 [
-  { "id": "PER", "name": "Perth", "lat": -31.9505, "lng": 115.8605, "type": "landing_station", "country": "AU" },
-  { "id": "SYD", "name": "Sydney", "lat": -33.8688, "lng": 151.2093, "type": "landing_station", "country": "AU" },
-  { "id": "MEL", "name": "Melbourne", "lat": -37.8136, "lng": 144.9631, "type": "landing_station", "country": "AU" },
-  { "id": "BRI", "name": "Brisbane", "lat": -27.4698, "lng": 153.0251, "type": "landing_station", "country": "AU" },
-  { "id": "DAR", "name": "Darwin", "lat": -12.4634, "lng": 130.8456, "type": "landing_station", "country": "AU" },
-  { "id": "AKL", "name": "Auckland", "lat": -36.8509, "lng": 174.7645, "type": "landing_station", "country": "NZ" },
-  { "id": "SIN", "name": "Singapore", "lat": 1.3521, "lng": 103.8198, "type": "landing_station", "country": "SG" },
-  { "id": "HKG", "name": "Chung Hom Kok", "lat": 22.2450, "lng": 114.2050, "type": "landing_station", "country": "HK" },
-  { "id": "TYO", "name": "Tokyo", "lat": 35.6762, "lng": 139.6503, "type": "landing_station", "country": "JP" },
-  { "id": "OSA", "name": "Osaka", "lat": 34.6937, "lng": 135.5023, "type": "landing_station", "country": "JP" },
-  { "id": "GUM", "name": "Guam", "lat": 13.4443, "lng": 144.7937, "type": "landing_station", "country": "GU" },
-  { "id": "HAW", "name": "Hawaii", "lat": 21.3069, "lng": -157.8583, "type": "landing_station", "country": "US" },
-  { "id": "LAX", "name": "Los Angeles", "lat": 34.0522, "lng": -118.2437, "type": "landing_station", "country": "US" },
-  { "id": "SEA", "name": "Seattle", "lat": 47.6062, "lng": -122.3321, "type": "landing_station", "country": "US" },
-  { "id": "MNL", "name": "Manila", "lat": 14.5995, "lng": 120.9842, "type": "landing_station", "country": "PH" },
-  { "id": "TPE", "name": "Taipei", "lat": 25.0330, "lng": 121.5654, "type": "landing_station", "country": "TW" },
-  { "id": "ICN", "name": "Seoul", "lat": 37.5665, "lng": 126.9780, "type": "landing_station", "country": "KR" },
-  { "id": "BOM", "name": "Mumbai", "lat": 19.0760, "lng": 72.8777, "type": "landing_station", "country": "IN" },
-  { "id": "MAA", "name": "Chennai", "lat": 13.0827, "lng": 80.2707, "type": "landing_station", "country": "IN" },
-  { "id": "DJI", "name": "Djibouti", "lat": 11.8251, "lng": 42.5903, "type": "landing_station", "country": "DJ" },
-  { "id": "DXB", "name": "Dubai", "lat": 25.2048, "lng": 55.2708, "type": "landing_station", "country": "AE" },
-  { "id": "LON", "name": "London", "lat": 51.5074, "lng": -0.1278, "type": "landing_station", "country": "GB" },
-  { "id": "FRA", "name": "Frankfurt", "lat": 50.1109, "lng": 8.6821, "type": "terrestrial_pop", "country": "DE" },
-  { "id": "JAK", "name": "Jakarta", "lat": -6.2088, "lng": 106.8456, "type": "landing_station", "country": "ID" },
-  { "id": "KUL", "name": "Kuala Lumpur", "lat": 3.1390, "lng": 101.6869, "type": "landing_station", "country": "MY" },
-
-  { "id": "TKO", "name": "Tseung Kwan O", "lat": 22.3100, "lng": 114.2600, "type": "landing_station", "country": "HK" },
-  { "id": "TAM", "name": "Tamsui", "lat": 25.1700, "lng": 121.4400, "type": "landing_station", "country": "TW" },
-  { "id": "FSH", "name": "Fangshan", "lat": 22.3700, "lng": 120.6200, "type": "landing_station", "country": "TW" },
-  { "id": "SHM", "name": "Shima", "lat": 34.3300, "lng": 136.8300, "type": "landing_station", "country": "JP" },
-  { "id": "AJI", "name": "Ajigaura", "lat": 36.3900, "lng": 140.6300, "type": "landing_station", "country": "JP" },
-  { "id": "CHK", "name": "Chikura", "lat": 34.9200, "lng": 139.9500, "type": "landing_station", "country": "JP" },
-  { "id": "SDR", "name": "Shinduri", "lat": 36.7000, "lng": 126.1500, "type": "landing_station", "country": "KR" },
-  { "id": "PUS", "name": "Pusan", "lat": 35.1800, "lng": 129.0800, "type": "landing_station", "country": "KR" },
-  { "id": "QGD", "name": "Qingdao", "lat": 36.0700, "lng": 120.3800, "type": "landing_station", "country": "CN" },
-  { "id": "NHU", "name": "Nanhui", "lat": 31.0500, "lng": 121.8000, "type": "landing_station", "country": "CN" },
-  { "id": "SHA", "name": "Shanghai", "lat": 31.2300, "lng": 121.4700, "type": "terrestrial_pop", "country": "CN" },
-  { "id": "CPE", "name": "Capepisa", "lat": 18.5000, "lng": 121.9000, "type": "landing_station", "country": "PH" },
-  { "id": "NSG", "name": "Nasugbu", "lat": 14.0700, "lng": 120.6300, "type": "landing_station", "country": "PH" },
-
-  { "id": "BU-EAC-P", "name": "EAC BU Pacific", "lat": 27.0000, "lng": 126.5000, "type": "branching_unit", "country": "" },
-  { "id": "BU-EAC-C", "name": "EAC BU China Sea", "lat": 22.5000, "lng": 117.5000, "type": "branching_unit", "country": "" },
-  { "id": "BU-EAC-Y", "name": "EAC BU Yellow Sea", "lat": 34.0000, "lng": 123.0000, "type": "branching_unit", "country": "" },
-  { "id": "BU-C2C-T", "name": "C2C BU Taiwan", "lat": 22.5000, "lng": 116.5000, "type": "branching_unit", "country": "" }
+  {
+    "id": "PERA",
+    "name": "Perth",
+    "lat": -31.9505,
+    "lng": 115.8605,
+    "type": "landing_station",
+    "country": "AU"
+  },
+  {
+    "id": "SYDN",
+    "name": "Sydney",
+    "lat": -33.8688,
+    "lng": 151.2093,
+    "type": "landing_station",
+    "country": "AU"
+  },
+  {
+    "id": "MELB",
+    "name": "Melbourne",
+    "lat": -37.8136,
+    "lng": 144.9631,
+    "type": "landing_station",
+    "country": "AU"
+  },
+  {
+    "id": "BRIS",
+    "name": "Brisbane",
+    "lat": -27.4698,
+    "lng": 153.0251,
+    "type": "landing_station",
+    "country": "AU"
+  },
+  {
+    "id": "DARW",
+    "name": "Darwin",
+    "lat": -12.4634,
+    "lng": 130.8456,
+    "type": "landing_station",
+    "country": "AU"
+  },
+  {
+    "id": "AKLB",
+    "name": "Auckland",
+    "lat": -36.8509,
+    "lng": 174.7645,
+    "type": "landing_station",
+    "country": "NZ"
+  },
+  {
+    "id": "SING",
+    "name": "Singapore",
+    "lat": 1.3521,
+    "lng": 103.8198,
+    "type": "landing_station",
+    "country": "SG"
+  },
+  {
+    "id": "CHKK",
+    "name": "Chung Hom Kok",
+    "lat": 22.245,
+    "lng": 114.205,
+    "type": "landing_station",
+    "country": "HK"
+  },
+  {
+    "id": "TOKY",
+    "name": "Tokyo",
+    "lat": 35.6762,
+    "lng": 139.6503,
+    "type": "landing_station",
+    "country": "JP"
+  },
+  {
+    "id": "OSAK",
+    "name": "Osaka",
+    "lat": 34.6937,
+    "lng": 135.5023,
+    "type": "landing_station",
+    "country": "JP"
+  },
+  {
+    "id": "GUMA",
+    "name": "Guam",
+    "lat": 13.4443,
+    "lng": 144.7937,
+    "type": "landing_station",
+    "country": "GU"
+  },
+  {
+    "id": "HAWI",
+    "name": "Hawaii",
+    "lat": 21.3069,
+    "lng": -157.8583,
+    "type": "landing_station",
+    "country": "US"
+  },
+  {
+    "id": "LAXA",
+    "name": "Los Angeles",
+    "lat": 34.0522,
+    "lng": -118.2437,
+    "type": "landing_station",
+    "country": "US"
+  },
+  {
+    "id": "SEAT",
+    "name": "Seattle",
+    "lat": 47.6062,
+    "lng": -122.3321,
+    "type": "landing_station",
+    "country": "US"
+  },
+  {
+    "id": "MNLA",
+    "name": "Manila",
+    "lat": 14.5995,
+    "lng": 120.9842,
+    "type": "landing_station",
+    "country": "PH"
+  },
+  {
+    "id": "TPEI",
+    "name": "Taipei",
+    "lat": 25.033,
+    "lng": 121.5654,
+    "type": "landing_station",
+    "country": "TW"
+  },
+  {
+    "id": "INCN",
+    "name": "Seoul",
+    "lat": 37.5665,
+    "lng": 126.978,
+    "type": "landing_station",
+    "country": "KR"
+  },
+  {
+    "id": "MUMH",
+    "name": "Mumbai",
+    "lat": 19.076,
+    "lng": 72.8777,
+    "type": "landing_station",
+    "country": "IN"
+  },
+  {
+    "id": "MAAC",
+    "name": "Chennai",
+    "lat": 13.0827,
+    "lng": 80.2707,
+    "type": "landing_station",
+    "country": "IN"
+  },
+  {
+    "id": "DJIB",
+    "name": "Djibouti",
+    "lat": 11.8251,
+    "lng": 42.5903,
+    "type": "landing_station",
+    "country": "DJ"
+  },
+  {
+    "id": "DUBA",
+    "name": "Dubai",
+    "lat": 25.2048,
+    "lng": 55.2708,
+    "type": "landing_station",
+    "country": "AE"
+  },
+  {
+    "id": "LOND",
+    "name": "London",
+    "lat": 51.5074,
+    "lng": -0.1278,
+    "type": "landing_station",
+    "country": "GB"
+  },
+  {
+    "id": "FRAN",
+    "name": "Frankfurt",
+    "lat": 50.1109,
+    "lng": 8.6821,
+    "type": "terrestrial_pop",
+    "country": "DE"
+  },
+  {
+    "id": "JKRT",
+    "name": "Jakarta",
+    "lat": -6.2088,
+    "lng": 106.8456,
+    "type": "landing_station",
+    "country": "ID"
+  },
+  {
+    "id": "KULM",
+    "name": "Kuala Lumpur",
+    "lat": 3.139,
+    "lng": 101.6869,
+    "type": "landing_station",
+    "country": "MY"
+  },
+  {
+    "id": "TKOH",
+    "name": "Tseung Kwan O",
+    "lat": 22.31,
+    "lng": 114.26,
+    "type": "landing_station",
+    "country": "HK"
+  },
+  {
+    "id": "TAMS",
+    "name": "Tamsui",
+    "lat": 25.17,
+    "lng": 121.44,
+    "type": "landing_station",
+    "country": "TW"
+  },
+  {
+    "id": "FSHA",
+    "name": "Fangshan",
+    "lat": 22.37,
+    "lng": 120.62,
+    "type": "landing_station",
+    "country": "TW"
+  },
+  {
+    "id": "SHMA",
+    "name": "Shima",
+    "lat": 34.33,
+    "lng": 136.83,
+    "type": "landing_station",
+    "country": "JP"
+  },
+  {
+    "id": "AJIG",
+    "name": "Ajigaura",
+    "lat": 36.39,
+    "lng": 140.63,
+    "type": "landing_station",
+    "country": "JP"
+  },
+  {
+    "id": "CHKR",
+    "name": "Chikura",
+    "lat": 34.92,
+    "lng": 139.95,
+    "type": "landing_station",
+    "country": "JP"
+  },
+  {
+    "id": "SDRI",
+    "name": "Shinduri",
+    "lat": 36.7,
+    "lng": 126.15,
+    "type": "landing_station",
+    "country": "KR"
+  },
+  {
+    "id": "PUSA",
+    "name": "Pusan",
+    "lat": 35.18,
+    "lng": 129.08,
+    "type": "landing_station",
+    "country": "KR"
+  },
+  {
+    "id": "QDAO",
+    "name": "Qingdao",
+    "lat": 36.07,
+    "lng": 120.38,
+    "type": "landing_station",
+    "country": "CN"
+  },
+  {
+    "id": "NHUI",
+    "name": "Nanhui",
+    "lat": 31.05,
+    "lng": 121.8,
+    "type": "landing_station",
+    "country": "CN"
+  },
+  {
+    "id": "SHGH",
+    "name": "Shanghai",
+    "lat": 31.23,
+    "lng": 121.47,
+    "type": "terrestrial_pop",
+    "country": "CN"
+  },
+  {
+    "id": "CPSA",
+    "name": "Capepisa",
+    "lat": 18.5,
+    "lng": 121.9,
+    "type": "landing_station",
+    "country": "PH"
+  },
+  {
+    "id": "NSGU",
+    "name": "Nasugbu",
+    "lat": 14.07,
+    "lng": 120.63,
+    "type": "landing_station",
+    "country": "PH"
+  },
+  {
+    "id": "BUEP",
+    "name": "EAC BU Pacific",
+    "lat": 27.0,
+    "lng": 126.5,
+    "type": "branching_unit",
+    "country": ""
+  },
+  {
+    "id": "BUEC",
+    "name": "EAC BU China Sea",
+    "lat": 22.5,
+    "lng": 117.5,
+    "type": "branching_unit",
+    "country": ""
+  },
+  {
+    "id": "BUEY",
+    "name": "EAC BU Yellow Sea",
+    "lat": 34.0,
+    "lng": 123.0,
+    "type": "branching_unit",
+    "country": ""
+  },
+  {
+    "id": "BUCT",
+    "name": "C2C BU Taiwan",
+    "lat": 22.5,
+    "lng": 116.5,
+    "type": "branching_unit",
+    "country": ""
+  }
 ]
