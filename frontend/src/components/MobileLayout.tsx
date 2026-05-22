@@ -86,7 +86,8 @@ export interface MobileLayoutProps {
   switchMode:        (m: AppMode) => void
   clearSearch:       () => void
   clearAll:          () => void
-  cycleTheme:        () => void
+  cycleTheme:              () => void
+  onToggleHideNonActive:   () => void
 }
 
 export function MobileLayout({
@@ -98,7 +99,7 @@ export function MobileLayout({
   onSearch, onToggleRoute, onPin, onUnpin, onToggleSystem,
   onSetOrigin, onSetDest, onSetPair, onNodeClick, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
-  switchMode, clearSearch, clearAll, cycleTheme,
+  switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive,
   hideNonActive = false,
 }: MobileLayoutProps & { hideNonActive?: boolean }) {
   const t = useTheme()
@@ -235,6 +236,19 @@ export function MobileLayout({
 
       {/* ── Top-right icon buttons ──────────────────────────────────────── */}
       <div style={{ position: 'fixed', top: 14, right: 14, zIndex: 100, display: 'flex', gap: 8 }}>
+        <button
+          onClick={onToggleHideNonActive}
+          title="Hide Non-Active Cables"
+          style={{
+            ...floatBtn,
+            border: `1px solid ${hideNonActive ? t.blue : t.border}`,
+            background: hideNonActive ? `${t.blue}33` : t.bgPanel + 'f0',
+            color: hideNonActive ? t.blue : t.textMuted,
+            fontSize: 17,
+          }}
+        >
+          {hideNonActive ? '◉' : '◎'}
+        </button>
         <button onClick={onOpenRefData} title="Reference Data" style={floatBtn}>⚙</button>
         <button onClick={cycleTheme}    title="Cycle theme"    style={floatBtn}>
           {themeMode === 'dark' ? '🌅' : themeMode === 'dusk' ? '☀️' : '🌙'}

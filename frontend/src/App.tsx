@@ -183,6 +183,7 @@ export default function App() {
           clearAll={clearAll}
           cycleTheme={cycleTheme}
           hideNonActive={hideNonActive}
+          onToggleHideNonActive={() => setHideNonActive(v => !v)}
         />
       </ThemeContext.Provider>
     )
