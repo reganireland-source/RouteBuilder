@@ -99,7 +99,8 @@ export function MobileLayout({
   onSetOrigin, onSetDest, onSetPair, onNodeClick, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
   switchMode, clearSearch, clearAll, cycleTheme,
-}: MobileLayoutProps) {
+  hideNonActive = false,
+}: MobileLayoutProps & { hideNonActive?: boolean }) {
   const t = useTheme()
 
   const [sheetHeight, setSheetHeight] = useState(() => snapPx('mid'))
@@ -207,6 +208,7 @@ export function MobileLayout({
             onNodeClick={onNodeClick}
             searchPin={searchPin ?? undefined}
             nearestNodeIds={nearestNodeIds}
+            hideNonActive={hideNonActive}
           />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: t.textFaint, background: t.bgMap }}>

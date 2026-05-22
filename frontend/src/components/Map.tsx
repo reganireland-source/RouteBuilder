@@ -20,6 +20,7 @@ interface Props {
   onNodeClick?: (node: CableNode, screenX: number, screenY: number) => void
   searchPin?: { lat: number; lng: number; label: string }
   nearestNodeIds?: string[]
+  hideNonActive?: boolean
 }
 
 
@@ -52,7 +53,7 @@ function geoLines(
   return [[[lat1, nLng1], [lat2, nLng1 + d]]]
 }
 
-export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds }: Props) {
+export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false }: Props) {
   const t = useTheme()
   const diversityColors: Record<number, string> = { 1: t.blue, 2: t.green }
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
@@ -121,6 +122,9 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         const end = nodesById[seg.end_node_id]
         if (!start || !end) return []
 
+        const isActiveSegment = !!segmentColor[seg.id] || !!(systemViewerActive && systemColorMap[seg.system_id])
+        if (hideNonActive && !isActiveSegment) return []
+
         // System viewer colouring takes priority when active
         let color: string
         let weight: number
@@ -173,6 +177,8 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         const sysColor      = systemNodeColor[node.id]
         const isSystemNode  = !!sysColor
         const isDimmed      = systemViewerActive && !isSystemNode && !isRouteNode
+
+        if (hideNonActive && !isRouteNode && !isSystemNode) return null
         const isBU          = node.type === 'branching_unit'
         const isNearest     = nearestNodeIds?.includes(node.id) ?? false
 

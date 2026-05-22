@@ -56,6 +56,7 @@ export default function App() {
   const [nearestNodeIds, setNearestNodeIds] = useState<string[]>([])
   const [prefilledOrigin, setPrefilledOrigin] = useState('')
   const [prefilledDest, setPrefilledDest]     = useState('')
+  const [hideNonActive, setHideNonActive]     = useState(false)
   const pinCounter = useRef(0)
 
   useEffect(() => {
@@ -181,6 +182,7 @@ export default function App() {
           clearSearch={clearSearch}
           clearAll={clearAll}
           cycleTheme={cycleTheme}
+          hideNonActive={hideNonActive}
         />
       </ThemeContext.Provider>
     )
@@ -201,6 +203,26 @@ export default function App() {
   return (
     <ThemeContext.Provider value={theme}>
       <div style={{ display: 'flex', height: '100vh', background: theme.bgBase, color: theme.text, fontFamily: 'system-ui, sans-serif' }}>
+
+        {/* Hide non-active cables toggle */}
+        <button
+          onClick={() => setHideNonActive(v => !v)}
+          title="Hide Non-Active Cables"
+          style={{
+            position: 'fixed', top: 12, right: 252, zIndex: 1000,
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '6px 12px', borderRadius: 20,
+            border: `1px solid ${hideNonActive ? theme.blue : theme.border}`,
+            background: hideNonActive ? `${theme.blue}22` : theme.bgPanel,
+            color: hideNonActive ? theme.blue : theme.textMuted,
+            cursor: 'pointer', fontSize: 12, fontWeight: 600,
+            boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.4)',
+            transition: 'all 0.2s',
+          }}
+        >
+          <span style={{ fontSize: 13 }}>{hideNonActive ? '◉' : '◎'}</span>
+          Hide Inactive
+        </button>
 
         {/* Ref data button */}
         <button
@@ -339,6 +361,7 @@ export default function App() {
               onNodeClick={(node, x, y) => setSelectedNode({ node, x, y })}
               searchPin={searchPin ?? undefined}
               nearestNodeIds={nearestNodeIds}
+              hideNonActive={hideNonActive}
             />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.textFaint }}>
