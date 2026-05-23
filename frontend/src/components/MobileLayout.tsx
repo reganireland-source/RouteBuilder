@@ -8,6 +8,7 @@ import { NodeFinder } from './NodeFinder'
 import { CityPairPanel } from './CityPairPanel'
 import { NodeInfoPanel } from './NodeInfoPanel'
 import { RefDataModal } from './RefDataModal'
+import { HealthBar } from './HealthBar'
 import { generateStraightLineDiagram } from '../utils/generateDiagram'
 import { useTheme } from '../theme'
 import type { ThemeMode } from '../theme'
@@ -17,7 +18,7 @@ import type {
   SelectedSystem, DiversityType,
 } from '../types'
 
-const NLP_ENABLED = import.meta.env.VITE_ENABLE_NLP === 'true'
+const NLP_ENABLED = import.meta.env.VITE_ENABLE_NLP !== 'false'
 const NlpChat = NLP_ENABLED
   ? lazy(() => import('./NlpChat'))
   : null
@@ -437,6 +438,7 @@ export function MobileLayout({
             </div>
           )}
         </div>
+        <HealthBar dataLoaded={nodes.length > 0} />
       </div>
 
       {/* ── Node info panel ─────────────────────────────────────────────── */}
