@@ -430,7 +430,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
           <span style={{ fontSize: 12, fontWeight: 600, color }}>{route.id}</span>
           <span style={{ fontSize: 11, fontWeight: 400, color: t.textMuted }}>{wetSystems.join(' · ')}</span>
           <NetBadge route={route} onNetSet={onNetSet} />
-          {hasOutage && <OutageBadge />}
+          {hasOutage && <OutageBadge repairDate={repairDateLabel} />}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: t.textFaint }}>{route.nodes.length - 1} hops</span>
