@@ -93,12 +93,15 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort }: 
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
-      if (msg.includes('404')) {
-        setError('TSABuddy not enabled on server — set NLP_ENABLED=true and an API key in your backend env vars')
-      } else if (msg.includes('503')) {
-        setError('TSABuddy is offline — no LLM API key configured on server (set ANTHROPIC_API_KEY or AZURE_OPENAI_ENDPOINT)')
+      if (msg.startsWith('404')) {
+        setError('TSABuddy is not enabled on the backend — set NLP_ENABLED=true in your Railway environment variables')
+      } else if (msg.startsWith('503')) {
+        setError('TSABuddy has no LLM provider configured — set ANTHROPIC_API_KEY (or OPENAI_API_KEY) in Railway')
+      } else if (msg.startsWith('500')) {
+        const detail = msg.slice(4).trim()
+        setError(detail ? `TSABuddy server error: ${detail}` : 'TSABuddy server error — check Railway logs for details')
       } else {
-        setError('TSABuddy hit an error — please try again')
+        setError(`TSABuddy error: ${msg}`)
       }
     } finally {
       setLoading(false)
