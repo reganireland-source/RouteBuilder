@@ -241,103 +241,73 @@ export default function App() {
     <ThemeContext.Provider value={theme}>
       <div style={{ display: 'flex', height: '100vh', background: theme.bgBase, color: theme.text, fontFamily: 'system-ui, sans-serif' }}>
 
-        {/* Show all outages toggle */}
-        <button
-          onClick={() => setShowAllOutages(v => !v)}
-          title="Show All Outages"
-          style={{
-            position: 'fixed', top: 12, right: 510, zIndex: 1000,
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '6px 12px', borderRadius: 20,
-            border: `1px solid ${showAllOutages ? theme.red : theme.border}`,
-            background: showAllOutages ? `${theme.red}22` : theme.bgPanel,
-            color: showAllOutages ? theme.red : theme.textMuted,
-            cursor: 'pointer', fontSize: 12, fontWeight: 600,
-            boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.4)',
-            transition: 'all 0.2s',
-          }}
-        >
-          <span style={{ fontSize: 13 }}>🚢</span>
-          {showAllOutages ? 'Outage Map' : 'Outages'}
-        </button>
+        {/* Top-right control bar */}
+        <div style={{
+          position: 'fixed', top: 12, right: 12, zIndex: 1000,
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          {/* Capacity dashboard */}
+          <button
+            onClick={() => setCapDashOpen(true)}
+            title="Network Capacity Dashboard"
+            style={topBtn(theme, themeMode)}
+          >
+            <span style={{ fontSize: 13 }}>📊</span>
+            Capacity
+          </button>
 
-        {/* Hide non-active cables toggle */}
-        <button
-          onClick={() => setHideNonActive(v => !v)}
-          title="Hide Non-Active Cables"
-          style={{
-            position: 'fixed', top: 12, right: 376, zIndex: 1000,
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '6px 12px', borderRadius: 20,
-            border: `1px solid ${hideNonActive ? theme.blue : theme.border}`,
-            background: hideNonActive ? `${theme.blue}22` : theme.bgPanel,
-            color: hideNonActive ? theme.blue : theme.textMuted,
-            cursor: 'pointer', fontSize: 12, fontWeight: 600,
-            boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.4)',
-            transition: 'all 0.2s',
-          }}
-        >
-          <span style={{ fontSize: 13 }}>{hideNonActive ? '◉' : '◎'}</span>
-          Hide Inactive
-        </button>
+          {/* Show all outages toggle */}
+          <button
+            onClick={() => setShowAllOutages(v => !v)}
+            title="Show All Outages"
+            style={topBtn(theme, themeMode, showAllOutages ? theme.red : undefined)}
+          >
+            <span style={{ fontSize: 13 }}>🚢</span>
+            {showAllOutages ? 'Outage Map' : 'Outages'}
+          </button>
 
-        {/* Segment labels toggle */}
-        <button
-          onClick={() => setShowSegmentLabels(v => !v)}
-          title="Toggle Segment Labels"
-          style={{
-            position: 'fixed', top: 12, right: 252, zIndex: 1000,
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '6px 12px', borderRadius: 20,
-            border: `1px solid ${showSegmentLabels ? theme.blue : theme.border}`,
-            background: showSegmentLabels ? `${theme.blue}22` : theme.bgPanel,
-            color: showSegmentLabels ? theme.blue : theme.textMuted,
-            cursor: 'pointer', fontSize: 12, fontWeight: 600,
-            boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.4)',
-            transition: 'all 0.2s',
-          }}
-        >
-          <span style={{ fontSize: 13 }}>{showSegmentLabels ? '◉' : '◎'}</span>
-          Seg Labels
-        </button>
+          {/* Hide non-active cables toggle */}
+          <button
+            onClick={() => setHideNonActive(v => !v)}
+            title="Hide Non-Active Cables"
+            style={topBtn(theme, themeMode, hideNonActive ? theme.blue : undefined)}
+          >
+            <span style={{ fontSize: 13 }}>{hideNonActive ? '◉' : '◎'}</span>
+            Hide Inactive
+          </button>
 
-        {/* Ref data button */}
-        <button
-          onClick={() => setRefDataOpen(true)}
-          title="Reference Data Editor"
-          style={{
-            position: 'fixed', top: 12, right: 130, zIndex: 1000,
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '6px 12px', borderRadius: 20,
-            border: `1px solid ${theme.border}`, background: theme.bgPanel, color: theme.textMuted,
-            cursor: 'pointer', fontSize: 12, fontWeight: 600,
-            boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.4)',
-            transition: 'all 0.2s',
-          }}
-        >
-          <span style={{ fontSize: 14 }}>⚙</span>
-          Ref Data
-        </button>
+          {/* Segment labels toggle */}
+          <button
+            onClick={() => setShowSegmentLabels(v => !v)}
+            title="Toggle Segment Labels"
+            style={topBtn(theme, themeMode, showSegmentLabels ? theme.blue : undefined)}
+          >
+            <span style={{ fontSize: 13 }}>{showSegmentLabels ? '◉' : '◎'}</span>
+            Seg Labels
+          </button>
 
-        {/* Theme toggle */}
-        <button
-          onClick={cycleTheme}
-          title="Cycle theme"
-          style={{
-            position: 'fixed', top: 12, right: 12, zIndex: 1000,
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '6px 12px', borderRadius: 20,
-            border: `1px solid ${theme.border}`, background: theme.bgPanel, color: theme.textMuted,
-            cursor: 'pointer', fontSize: 12, fontWeight: 600,
-            boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.4)',
-            transition: 'all 0.2s',
-          }}
-        >
-          <span style={{ fontSize: 14 }}>
-            {themeMode === 'dark' ? '🌅' : themeMode === 'dusk' ? '☀️' : '🌙'}
-          </span>
-          {themeMode === 'dark' ? 'Dusk' : themeMode === 'dusk' ? 'Light' : 'Dark'}
-        </button>
+          {/* Ref data button */}
+          <button
+            onClick={() => setRefDataOpen(true)}
+            title="Reference Data Editor"
+            style={topBtn(theme, themeMode)}
+          >
+            <span style={{ fontSize: 14 }}>⚙</span>
+            Ref Data
+          </button>
+
+          {/* Theme toggle */}
+          <button
+            onClick={cycleTheme}
+            title="Cycle theme"
+            style={topBtn(theme, themeMode)}
+          >
+            <span style={{ fontSize: 14 }}>
+              {themeMode === 'dark' ? '🌅' : themeMode === 'dusk' ? '☀️' : '🌙'}
+            </span>
+            {themeMode === 'dark' ? 'Dusk' : themeMode === 'dusk' ? 'Light' : 'Dark'}
+          </button>
+        </div>
 
         {/* Left panel */}
         <div style={{
@@ -349,22 +319,7 @@ export default function App() {
               <img src="/favicon.svg" alt="" style={{ width: 28, height: 28, flexShrink: 0 }} />
               <h1 style={{ fontSize: 18, fontWeight: 700, color: theme.text }}>RouteBuilder</h1>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <p style={{ fontSize: 11, color: theme.textFaint }}>Telstra International · Subsea Circuit Design</p>
-              <button
-                onClick={() => setCapDashOpen(true)}
-                title="Network Capacity Dashboard"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700,
-                  border: `1px solid ${theme.border}`, background: 'none',
-                  color: theme.textMuted, cursor: 'pointer', flexShrink: 0,
-                  letterSpacing: '0.03em',
-                }}
-              >
-                📊 Capacity
-              </button>
-            </div>
+            <p style={{ fontSize: 11, color: theme.textFaint }}>Telstra International · Subsea Circuit Design</p>
           </div>
 
           <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
@@ -511,5 +466,18 @@ function clearBtnStyle(theme: Theme, destructive = false): React.CSSProperties {
     padding: '4px 10px', borderRadius: 4, border: `1px solid ${theme.border}`,
     background: 'transparent', color: destructive ? theme.red : theme.textMuted,
     cursor: 'pointer', fontSize: 11, fontWeight: 600,
+  }
+}
+
+function topBtn(theme: Theme, themeMode: ThemeMode, accent?: string): React.CSSProperties {
+  return {
+    display: 'flex', alignItems: 'center', gap: 6,
+    padding: '6px 12px', borderRadius: 20,
+    border: `1px solid ${accent ? accent + '88' : theme.border}`,
+    background: accent ? accent + '22' : theme.bgPanel,
+    color: accent ?? theme.textMuted,
+    cursor: 'pointer', fontSize: 12, fontWeight: 600,
+    boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.4)',
+    transition: 'all 0.2s',
   }
 }
