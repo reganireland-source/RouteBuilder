@@ -10,6 +10,7 @@ import { NodeFinder } from './components/NodeFinder'
 import { CityPairPanel } from './components/CityPairPanel'
 import { HealthBar } from './components/HealthBar'
 import { MobileLayout } from './components/MobileLayout'
+import { CapacityDashboard } from './components/CapacityDashboard'
 import { generateStraightLineDiagram } from './utils/generateDiagram'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, type Theme, type ThemeMode } from './theme'
@@ -63,6 +64,7 @@ export default function App() {
   const [prefilledOrigin, setPrefilledOrigin] = useState('')
   const [prefilledDest, setPrefilledDest]     = useState('')
   const [outages, setOutages]                       = useState<SegmentOutage[]>([])
+  const [capDashOpen, setCapDashOpen]               = useState(false)
   const [hideNonActive, setHideNonActive]           = useState(false)
   const [showSegmentLabels, setShowSegmentLabels]   = useState(false)
   const [showAllOutages, setShowAllOutages]         = useState(false)
@@ -347,7 +349,22 @@ export default function App() {
               <img src="/favicon.svg" alt="" style={{ width: 28, height: 28, flexShrink: 0 }} />
               <h1 style={{ fontSize: 18, fontWeight: 700, color: theme.text }}>RouteBuilder</h1>
             </div>
-            <p style={{ fontSize: 11, color: theme.textFaint }}>Telstra International · Subsea Circuit Design</p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <p style={{ fontSize: 11, color: theme.textFaint }}>Telstra International · Subsea Circuit Design</p>
+              <button
+                onClick={() => setCapDashOpen(true)}
+                title="Network Capacity Dashboard"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 700,
+                  border: `1px solid ${theme.border}`, background: 'none',
+                  color: theme.textMuted, cursor: 'pointer', flexShrink: 0,
+                  letterSpacing: '0.03em',
+                }}
+              >
+                📊 Capacity
+              </button>
+            </div>
           </div>
 
           <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
@@ -467,6 +484,13 @@ export default function App() {
           node={selectedNode.node} segments={segments} systems={systems}
           initialX={selectedNode.x} initialY={selectedNode.y}
           onClose={() => setSelectedNode(null)}
+        />
+      )}
+
+      {capDashOpen && (
+        <CapacityDashboard
+          segments={segments} capacity={capacity}
+          onClose={() => setCapDashOpen(false)}
         />
       )}
 

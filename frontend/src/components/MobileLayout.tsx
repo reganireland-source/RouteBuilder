@@ -9,6 +9,7 @@ import { CityPairPanel } from './CityPairPanel'
 import { NodeInfoPanel } from './NodeInfoPanel'
 import { RefDataModal } from './RefDataModal'
 import { HealthBar } from './HealthBar'
+import { CapacityDashboard } from './CapacityDashboard'
 import { generateStraightLineDiagram } from '../utils/generateDiagram'
 import { useTheme } from '../theme'
 import type { ThemeMode } from '../theme'
@@ -129,6 +130,7 @@ export function MobileLayout({
   const lastTime    = useRef(0)
   const velocity    = useRef(0)  // px/ms, positive = downward
 
+  const [capDashOpen, setCapDashOpen] = useState(false)
   const hasPins    = pinnedRoutes.length > 0
   const hasResults = response !== null
 
@@ -253,6 +255,13 @@ export function MobileLayout({
 
       {/* ── Top-right icon buttons ──────────────────────────────────────── */}
       <div style={{ position: 'fixed', top: 14, right: 14, zIndex: 100, display: 'flex', gap: 8 }}>
+        <button
+          onClick={() => setCapDashOpen(true)}
+          title="Network Capacity Dashboard"
+          style={{ ...floatBtn, fontSize: 16 }}
+        >
+          📊
+        </button>
         <button
           onClick={onToggleShowAllOutages}
           title="Show All Outages"
@@ -450,6 +459,14 @@ export function MobileLayout({
           initialX={Math.min(selectedNode.x, window.innerWidth - 310)}
           initialY={Math.max(selectedNode.y - 80, 60)}
           onClose={onCloseNode}
+        />
+      )}
+
+      {/* ── Capacity dashboard ──────────────────────────────────────────── */}
+      {capDashOpen && (
+        <CapacityDashboard
+          segments={segments} capacity={capacity}
+          onClose={() => setCapDashOpen(false)}
         />
       )}
 
