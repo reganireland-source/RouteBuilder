@@ -90,6 +90,7 @@ export interface MobileLayoutProps {
   cycleTheme:                    () => void
   onToggleHideNonActive:         () => void
   onToggleShowSegmentLabels:     () => void
+  onToggleShowAllOutages:        () => void
 }
 
 export function MobileLayout({
@@ -101,9 +102,9 @@ export function MobileLayout({
   onSearch, onToggleRoute, onPin, onUnpin, onToggleSystem,
   onSetOrigin, onSetDest, onSetPair, onNodeClick, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
-  switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels,
-  hideNonActive = false, showSegmentLabels = false,
-}: MobileLayoutProps & { hideNonActive?: boolean; showSegmentLabels?: boolean }) {
+  switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowAllOutages,
+  hideNonActive = false, showSegmentLabels = false, showAllOutages = false,
+}: MobileLayoutProps & { hideNonActive?: boolean; showSegmentLabels?: boolean; showAllOutages?: boolean }) {
   const t = useTheme()
 
   const [sheetHeight, setSheetHeight] = useState(() => snapPx('mid'))
@@ -213,6 +214,7 @@ export function MobileLayout({
             nearestNodeIds={nearestNodeIds}
             hideNonActive={hideNonActive}
             showSegmentLabels={showSegmentLabels}
+            showAllOutages={showAllOutages}
             outages={outages}
           />
         ) : (
@@ -240,6 +242,19 @@ export function MobileLayout({
 
       {/* ── Top-right icon buttons ──────────────────────────────────────── */}
       <div style={{ position: 'fixed', top: 14, right: 14, zIndex: 100, display: 'flex', gap: 8 }}>
+        <button
+          onClick={onToggleShowAllOutages}
+          title="Show All Outages"
+          style={{
+            ...floatBtn,
+            border: `1px solid ${showAllOutages ? t.red : t.border}`,
+            background: showAllOutages ? `${t.red}33` : t.bgPanel + 'f0',
+            color: showAllOutages ? t.red : t.textMuted,
+            fontSize: 16,
+          }}
+        >
+          🚢
+        </button>
         <button
           onClick={onToggleShowSegmentLabels}
           title="Toggle Segment Labels"

@@ -56,9 +56,10 @@ export default function App() {
   const [nearestNodeIds, setNearestNodeIds] = useState<string[]>([])
   const [prefilledOrigin, setPrefilledOrigin] = useState('')
   const [prefilledDest, setPrefilledDest]     = useState('')
-  const [outages, setOutages]                     = useState<SegmentOutage[]>([])
-  const [hideNonActive, setHideNonActive]         = useState(false)
-  const [showSegmentLabels, setShowSegmentLabels] = useState(false)
+  const [outages, setOutages]                       = useState<SegmentOutage[]>([])
+  const [hideNonActive, setHideNonActive]           = useState(false)
+  const [showSegmentLabels, setShowSegmentLabels]   = useState(false)
+  const [showAllOutages, setShowAllOutages]         = useState(false)
   const pinCounter = useRef(0)
 
   useEffect(() => {
@@ -188,6 +189,8 @@ export default function App() {
           onToggleHideNonActive={() => setHideNonActive(v => !v)}
           showSegmentLabels={showSegmentLabels}
           onToggleShowSegmentLabels={() => setShowSegmentLabels(v => !v)}
+          showAllOutages={showAllOutages}
+          onToggleShowAllOutages={() => setShowAllOutages(v => !v)}
         />
       </ThemeContext.Provider>
     )
@@ -208,6 +211,26 @@ export default function App() {
   return (
     <ThemeContext.Provider value={theme}>
       <div style={{ display: 'flex', height: '100vh', background: theme.bgBase, color: theme.text, fontFamily: 'system-ui, sans-serif' }}>
+
+        {/* Show all outages toggle */}
+        <button
+          onClick={() => setShowAllOutages(v => !v)}
+          title="Show All Outages"
+          style={{
+            position: 'fixed', top: 12, right: 510, zIndex: 1000,
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '6px 12px', borderRadius: 20,
+            border: `1px solid ${showAllOutages ? theme.red : theme.border}`,
+            background: showAllOutages ? `${theme.red}22` : theme.bgPanel,
+            color: showAllOutages ? theme.red : theme.textMuted,
+            cursor: 'pointer', fontSize: 12, fontWeight: 600,
+            boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.4)',
+            transition: 'all 0.2s',
+          }}
+        >
+          <span style={{ fontSize: 13 }}>🚢</span>
+          {showAllOutages ? 'Outage Map' : 'Outages'}
+        </button>
 
         {/* Hide non-active cables toggle */}
         <button
@@ -389,6 +412,7 @@ export default function App() {
               nearestNodeIds={nearestNodeIds}
               hideNonActive={hideNonActive}
               showSegmentLabels={showSegmentLabels}
+              showAllOutages={showAllOutages}
             />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.textFaint }}>

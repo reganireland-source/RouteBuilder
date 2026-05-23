@@ -22,6 +22,7 @@ interface Props {
   nearestNodeIds?: string[]
   hideNonActive?: boolean
   showSegmentLabels?: boolean
+  showAllOutages?: boolean
   outages?: SegmentOutage[]
 }
 
@@ -55,13 +56,22 @@ function geoLines(
   return [[[lat1, nLng1], [lat2, nLng1 + d]]]
 }
 
-export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, outages = [] }: Props) {
+export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showAllOutages = false, outages = [] }: Props) {
   const t = useTheme()
   const diversityColors: Record<number, string> = { 1: t.blue, 2: t.green }
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
 
   const outagesById = Object.fromEntries(outages.map(o => [o.segment_id, o]))
+
+  // In outage-map mode, collect nodes that belong to downed segments
+  const outageNodeIds = showAllOutages
+    ? new Set(outages.flatMap(o => {
+        const seg = segments.find(s => s.id === o.segment_id)
+        return seg ? [seg.start_node_id, seg.end_node_id] : []
+      }))
+    : null
+
   const systemViewerActive = selectedSystems.length > 0
   const systemColorMap: Record<string, string> = Object.fromEntries(
     selectedSystems.map(s => [s.systemId, s.color])
@@ -125,6 +135,25 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         const end = nodesById[seg.end_node_id]
         if (!start || !end) return []
 
+        const isDown = !!outagesById[seg.id]
+
+        // Outage map mode: only show downed segments
+        if (showAllOutages) {
+          if (!isDown) return []
+          const pathOptions = {
+            color: '#ef4444', weight: 2.5, opacity: 0.95, dashArray: '6 3 2 3',
+          }
+          const lines = geoLines(start.lat, start.lng, end.lat, end.lng)
+          return lines.map((positions, i) => (
+            <Polyline key={`${seg.id}-${i}`} positions={positions} pathOptions={pathOptions}>
+              {i === 0 && tooltip}
+              {i === 0 && showSegmentLabels && (
+                <Tooltip permanent direction="center" className="seg-label" offset={[0, 0]}>{seg.id}</Tooltip>
+              )}
+            </Polyline>
+          ))
+        }
+
         const isActiveSegment = !!segmentColor[seg.id] || !!(systemViewerActive && systemColorMap[seg.system_id])
         if (hideNonActive && !isActiveSegment) return []
 
@@ -146,8 +175,6 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
           weight  = segmentWeight[seg.id] ?? 1
           opacity = segmentOpacity[seg.id] ?? 0.35
         }
-
-        const isDown = !!outagesById[seg.id]
         const pathOptions = {
           color:     isDown ? '#ef4444' : color,
           weight:    isDown ? 2.5 : weight,
@@ -192,7 +219,10 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         const isSystemNode  = !!sysColor
         const isDimmed      = systemViewerActive && !isSystemNode && !isRouteNode
 
-        if (hideNonActive && !isRouteNode && !isSystemNode) return null
+        // Outage map mode: only show nodes on downed segments
+        if (showAllOutages) {
+          if (!outageNodeIds?.has(node.id)) return null
+        } else if (hideNonActive && !isRouteNode && !isSystemNode) return null
         const isBU          = node.type === 'branching_unit'
         const isNearest     = nearestNodeIds?.includes(node.id) ?? false
 
