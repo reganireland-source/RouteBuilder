@@ -288,7 +288,7 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
                 key={opt}
                 onClick={() => setTableFilter(opt)}
                 style={{
-                  padding: '4px 12px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                  padding: '4px 12px', borderRadius: 20, cursor: 'pointer',
                   fontSize: 12, fontWeight: 700,
                   background: tableFilter === opt
                     ? (opt === 'wet' ? t.blue : t.orange)
