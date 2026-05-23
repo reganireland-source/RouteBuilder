@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { CableSegment, SegmentCapacity } from '../types'
 import { useTheme } from '../theme'
 
@@ -77,8 +77,11 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
   const terrCap       = terrSegs.reduce((s: number, e: EnrichedSeg) => s + e.total, 0)
   const terrAvail     = terrSegs.reduce((s: number, e: EnrichedSeg) => s + e.avail, 0)
 
-  const topSpare      = [...enriched].sort((a, b) => b.avail - a.avail).slice(0, 15)
-  const topCongested  = [...enriched].sort((a, b) => a.avail - b.avail).slice(0, 15)
+  const [tableFilter, setTableFilter] = useState<'wet' | 'terrestrial'>('wet')
+
+  const filtered      = tableFilter === 'wet' ? wetSegs : terrSegs
+  const topSpare      = [...filtered].sort((a, b) => b.avail - a.avail).slice(0, 15)
+  const topCongested  = [...filtered].sort((a, b) => a.avail - b.avail).slice(0, 15)
 
   const networkUtil   = totalCap > 0 ? Math.round((totalUsed / totalCap) * 100) : 0
 
@@ -276,6 +279,32 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
           </div>
 
           {/* ── Tables ───────────────────────────────────────────────────── */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
+            <span style={{ fontSize: 11, color: t.textFaint, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Show:
+            </span>
+            {(['wet', 'terrestrial'] as const).map(opt => (
+              <button
+                key={opt}
+                onClick={() => setTableFilter(opt)}
+                style={{
+                  padding: '4px 12px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                  fontSize: 12, fontWeight: 700,
+                  background: tableFilter === opt
+                    ? (opt === 'wet' ? t.blue : t.orange)
+                    : t.bgCard,
+                  color: tableFilter === opt ? '#fff' : t.textMuted,
+                  border: `1px solid ${tableFilter === opt ? (opt === 'wet' ? t.blue : t.orange) : t.border}`,
+                  transition: 'all 0.15s',
+                }}
+              >
+                {opt === 'wet' ? '🌊 Wet' : '🏔 Backhaul'}
+              </button>
+            ))}
+            <span style={{ fontSize: 11, color: t.textFaintest, marginLeft: 4 }}>
+              ({filtered.length} segments)
+            </span>
+          </div>
           <SegTable rows={topSpare}     label="Top 15 Segments — Most Spare Capacity" />
           <SegTable rows={topCongested} label="Top 15 Segments — Most Congested" />
 
