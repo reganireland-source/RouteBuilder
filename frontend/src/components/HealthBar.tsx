@@ -1,0 +1,91 @@
+import { useEffect, useState } from 'react'
+import { api } from '../api/client'
+import { useTheme } from '../theme'
+
+type Status = 'checking' | 'ok' | 'error'
+
+interface Indicator {
+  label: string
+  status: Status
+  detail?: string
+}
+
+const DOT_COLOR: Record<Status, string> = {
+  ok:       '#a6e3a1',
+  error:    '#f38ba8',
+  checking: '#f9e2af',
+}
+
+interface Props {
+  dataLoaded: boolean
+}
+
+export function HealthBar({ dataLoaded }: Props) {
+  const t = useTheme()
+  const [backendStatus, setBackendStatus] = useState<Status>('checking')
+  const [backendDetail, setBackendDetail] = useState<string>('')
+
+  async function checkBackend() {
+    setBackendStatus('checking')
+    try {
+      const h = await api.getHealth()
+      setBackendStatus('ok')
+      setBackendDetail(`${h.nodes} nodes · ${h.segments} segs · ${h.systems} systems`)
+    } catch {
+      setBackendStatus('error')
+      setBackendDetail('Unreachable')
+    }
+  }
+
+  useEffect(() => {
+    checkBackend()
+    const interval = setInterval(checkBackend, 30_000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const indicators: Indicator[] = [
+    {
+      label:  'Frontend',
+      status: 'ok',
+      detail: 'App loaded',
+    },
+    {
+      label:  'Backend',
+      status: backendStatus,
+      detail: backendStatus === 'checking' ? 'Checking…' : backendDetail,
+    },
+    {
+      label:  'Data',
+      status: backendStatus === 'error' ? 'error' : dataLoaded ? 'ok' : 'checking',
+      detail: dataLoaded ? 'Loaded' : backendStatus === 'error' ? 'Unavailable' : 'Loading…',
+    },
+  ]
+
+  return (
+    <div style={{
+      padding: '8px 16px',
+      borderTop: `1px solid ${t.border}`,
+      display: 'flex',
+      gap: 14,
+      flexShrink: 0,
+    }}>
+      {indicators.map(ind => (
+        <div
+          key={ind.label}
+          title={ind.detail}
+          style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'default' }}
+        >
+          <div style={{
+            width: 8, height: 8, borderRadius: '50%',
+            background: DOT_COLOR[ind.status],
+            flexShrink: 0,
+            boxShadow: ind.status === 'ok' ? `0 0 4px ${DOT_COLOR.ok}88` : undefined,
+          }} />
+          <span style={{ fontSize: 10, color: t.textFaint, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {ind.label}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}

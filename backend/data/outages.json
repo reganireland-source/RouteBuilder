@@ -1,0 +1,82 @@
+[
+  {
+    "segment_id": "C2C-S2B",
+    "fault_id": "SNI3976365",
+    "fault_date": "2025-10-12",
+    "repair_start": null,
+    "estimated_repair_date": "TBC",
+    "description": "2x Partial Fibers Fault (Non-Service Impacting) bet Repeaters R5 & R6 from Fangshan. Suspected due to existing shunt degradation or new shunt #2"
+  },
+  {
+    "segment_id": "C2C-S3C",
+    "fault_id": "SNI3983456",
+    "fault_date": "2025-10-17",
+    "repair_start": null,
+    "estimated_repair_date": "TBC",
+    "description": "Partial Fiber Fault (Non-Service Impacting) between Korea to Japan. Fault still under investigation by Marine"
+  },
+  {
+    "segment_id": "EAC-E",
+    "fault_id": "SNI3919652",
+    "fault_date": "2025-08-22",
+    "repair_start": "2026-05-28",
+    "estimated_repair_date": "2026-06-05",
+    "description": "1x Cable Fault (Service Impacting to Segs EF & DE Traffic) approx 207km between Pali Taiwan Landing Station to BU. NOTE: New Shunt Fault approx 196.7km from Taiwan CLS bet Repeaters RE002A & RE003A identified 17-Apr-2026"
+  },
+  {
+    "segment_id": "EAC-2B2",
+    "fault_id": "SNI4193010",
+    "fault_date": "2026-04-24",
+    "repair_start": "Est End Jul 2026",
+    "estimated_repair_date": "Est End Jul 2026",
+    "description": "1x Cable Fault (Service Impacting) approx 1111.68km from Philippines CLS / 1475km from Singapore CLS bet Repeaters RS3-23 & RS3-24. Water depth TBD"
+  },
+  {
+    "segment_id": "EAC-D",
+    "fault_id": "SNI3960343",
+    "fault_date": "2025-09-26",
+    "repair_start": "2026-06-08",
+    "estimated_repair_date": "2026-06-21",
+    "description": "1x Cable Fault (Service Impacting) between Hongkong to BU off Taiwan/Korea/Qingdao. NOTE: ETR delayed due to Vessel Thruster problem and repair in Singapore"
+  },
+  {
+    "segment_id": "EAC-K",
+    "fault_id": "SNI4047298",
+    "fault_date": "2025-12-09",
+    "repair_start": "2026-06-02",
+    "estimated_repair_date": "2026-06-12",
+    "description": "1x Cable Fault (Service Impacting) approx 48.27km from Korea CLS bet 1st and 2nd Repeaters. Fault #2 Shunt on 04-Feb-2026 bet Repeaters RK005 & RK006A. NOTE: ETR delayed due to Taiwan Port customs documentation and vessel DG breakdown"
+  },
+  {
+    "segment_id": "EAC-A",
+    "fault_id": "SNI4065418",
+    "fault_date": "2025-12-24",
+    "repair_start": "2026-08-01",
+    "estimated_repair_date": "2026-09-01",
+    "description": "1x Partial Fiber Fault (Service Impacting to 1x FP AB Traffic) due to Repeater's RA-007 LD failure"
+  },
+  {
+    "segment_id": "EAC-L",
+    "fault_id": "SNI4185947",
+    "fault_date": "2026-04-18",
+    "repair_start": "2026-08-06",
+    "estimated_repair_date": "2026-08-26",
+    "description": "1x Cable Fault (Service Impacting) located approx 477km from Ajigaura CLS"
+  },
+  {
+    "segment_id": "AAG-SIN-HKG",
+    "fault_id": "SNI4034705",
+    "fault_date": "2025-11-28",
+    "repair_start": null,
+    "estimated_repair_date": "TBC",
+    "description": "1x Cable Fault FP13 (Service Impacting) between Hongkong and Singapore. Fault still under investigation. Note: S1i (SNI3990453, 18-Oct-2025) 2x Non-Service Impacting Shunt Faults also active approx 110km from HKG Station to BU4"
+  },
+  {
+    "segment_id": "AAG-MNL-GUM",
+    "fault_id": "SNI44136624",
+    "fault_date": "2026-03-01",
+    "repair_start": null,
+    "estimated_repair_date": "TBC",
+    "description": "1x Partial Fiber Fault FP2 (Non-Service Impacting) between Philippines and Guam. NOTE: FP2 Traffic resumed 20-Apr-2026 after AAG confirmed internal patching issue at Guam CLS - not related to wet fiber"
+  }
+]
