@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import type { CableNode, CableSegment, DiversityType, RouteRequest } from '../types'
+import type { CableNode, CableSegment, CableSystem, DiversityType, RouteRequest } from '../types'
 import { useTheme } from '../theme'
 
 interface Props {
   nodes: CableNode[]
   segments: CableSegment[]
+  systems?: CableSystem[]
   onSearch: (req: RouteRequest) => void
   loading: boolean
   prefilledOrigin?: string
@@ -57,7 +58,7 @@ const nodeLabel = (n: CableNode) => {
   return `${n.name} (${n.id}) [${tag}]`
 }
 
-export function SearchForm({ nodes, segments, onSearch, loading, prefilledOrigin = '', prefilledDest = '' }: Props) {
+export function SearchForm({ nodes, segments, systems = [], onSearch, loading, prefilledOrigin = '', prefilledDest = '' }: Props) {
   const t = useTheme()
   const [startNode, setStartNode] = useState(prefilledOrigin)
   const [endNode, setEndNode] = useState(prefilledDest)
@@ -66,7 +67,16 @@ export function SearchForm({ nodes, segments, onSearch, loading, prefilledOrigin
   const [mustAvoidNodes, setMustAvoidNodes] = useState<string[]>([])
   const [mustAvoidSegs, setMustAvoidSegs] = useState<string[]>([])
   const [mustIncludeSegs, setMustIncludeSegs] = useState<string[]>([])
+  const [mustIncludeSystems, setMustIncludeSystems] = useState<string[]>([])
+  const [mustAvoidSystems, setMustAvoidSystems] = useState<string[]>([])
   const [advancedOpen, setAdvancedOpen] = useState(false)
+
+  // Unique system IDs from segments (preserves order of first appearance)
+  const segmentSystemIds = [...new Set(segments.map(s => s.system_id))]
+  const systemOptions = segmentSystemIds.map(id => {
+    const sys = systems.find(s => s.id === id)
+    return { id, name: sys?.name ?? id }
+  }).sort((a, b) => a.id.localeCompare(b.id))
 
   const groups = groupByCountry(nodes)
 
@@ -84,6 +94,8 @@ export function SearchForm({ nodes, segments, onSearch, loading, prefilledOrigin
       must_avoid_nodes: mustAvoidNodes,
       must_avoid_segments: mustAvoidSegs,
       must_include_segments: mustIncludeSegs,
+      must_include_systems: mustIncludeSystems,
+      must_avoid_systems: mustAvoidSystems,
       diversity,
     })
   }
@@ -153,7 +165,7 @@ export function SearchForm({ nodes, segments, onSearch, loading, prefilledOrigin
     </div>
   )
 
-  const advancedCount = mustIncludeNodes.length + mustAvoidNodes.length + mustAvoidSegs.length + mustIncludeSegs.length
+  const advancedCount = mustIncludeNodes.length + mustAvoidNodes.length + mustAvoidSegs.length + mustIncludeSegs.length + mustIncludeSystems.length + mustAvoidSystems.length
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -236,6 +248,28 @@ export function SearchForm({ nodes, segments, onSearch, loading, prefilledOrigin
                 {segments.map(s => (
                   <div key={s.id} style={multiItemStyle(mustIncludeSegs.includes(s.id))} onClick={() => toggleMulti(s.id, mustIncludeSegs, setMustIncludeSegs)}>
                     {s.name}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Must Include System <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(≥1 segment)</span></label>
+              <div style={multiBoxStyle}>
+                {systemOptions.map(s => (
+                  <div key={s.id} style={multiItemStyle(mustIncludeSystems.includes(s.id))} onClick={() => toggleMulti(s.id, mustIncludeSystems, setMustIncludeSystems)}>
+                    <strong>{s.id}</strong> — {s.name}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label style={labelStyle}>Must Avoid System</label>
+              <div style={multiBoxStyle}>
+                {systemOptions.map(s => (
+                  <div key={s.id} style={multiItemStyle(mustAvoidSystems.includes(s.id))} onClick={() => toggleMulti(s.id, mustAvoidSystems, setMustAvoidSystems)}>
+                    <strong>{s.id}</strong> — {s.name}
                   </div>
                 ))}
               </div>

@@ -71,6 +71,8 @@ export interface RouteRequest {
   must_avoid_nodes: string[]
   must_avoid_segments: string[]
   must_include_segments: string[]
+  must_include_systems: string[]
+  must_avoid_systems: string[]
   diversity: DiversityType
 }
 
@@ -153,4 +155,22 @@ export interface CityPairResponse {
   origin_city: string
   destination_city: string
   routes: CityPairRoute[]
+}
+
+export type NlpSortMode = 'cost' | 'length' | 'latency' | 'reliability' | 'outages'
+
+export interface NlpParseResponse {
+  start_node_id: string | null
+  end_node_id: string | null
+  must_include_nodes: string[]
+  must_avoid_nodes: string[]
+  must_include_segments: string[]
+  must_avoid_segments: string[]
+  must_include_systems: string[]
+  must_avoid_systems: string[]
+  diversity: DiversityType
+  sort_mode: NlpSortMode | null
+  explanation: string
+  confidence: 'high' | 'medium' | 'low'
+  ambiguities: string[]
 }

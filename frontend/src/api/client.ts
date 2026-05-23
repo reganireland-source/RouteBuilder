@@ -1,4 +1,4 @@
-import type { AppConfig, CableNode, CableSegment, CableSystem, CityInfo, CityPairResponse, InterconnectRule, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage } from '../types'
+import type { AppConfig, CableNode, CableSegment, CableSystem, CityInfo, CityPairResponse, InterconnectRule, NlpParseResponse, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage } from '../types'
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -83,6 +83,9 @@ export const api = {
   // City Pair
   getCities:        ()                                                   => get<CityInfo[]>('/api/city-pairs/cities'),
   searchCityPairs:  (origin: string, dest: string, max?: number)         => post<CityPairResponse>('/api/city-pairs/search', { origin_city: origin, destination_city: dest, max_results: max ?? 15 }),
+
+  // NLP
+  parseNlp: (text: string) => post<NlpParseResponse>('/api/nlp/parse', { text }),
 
   // Rules
   getRules:     ()                                                  => get<InterconnectRule[]>('/api/rules'),

@@ -39,9 +39,12 @@ interface Props {
   onUnpin: (pinId: string) => void
   diversityRequested?: boolean
   onNetOwnership: string[]
+  // Optional external sort control (e.g. driven by RoboTSA)
+  externalSortKey?: SortKey
+  externalPushOutagesDown?: boolean
 }
 
-type SortKey = 'hops' | 'latency' | 'availability' | 'cost' | 'capacity' | 'ownership'
+export type SortKey = 'hops' | 'latency' | 'availability' | 'cost' | 'capacity' | 'ownership'
 
 const NET_ORDER = { on_net: 0, mixed: 1, off_net: 2 }
 
@@ -88,11 +91,21 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
   })
 }
 
-export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership }: Props) {
+export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown }: Props) {
   const t = useTheme()
   const onNetSet = new Set(onNetOwnership)
-  const [sortKey, setSortKey] = useState<SortKey>('hops')
-  const [pushOutagesDown, setPushOutagesDown] = useState(false)
+  const [internalSortKey, setInternalSortKey] = useState<SortKey>('hops')
+  const [internalPushOutagesDown, setInternalPushOutagesDown] = useState(false)
+
+  // Sync from external when provided (e.g. RoboTSA sets the sort)
+  useEffect(() => { if (externalSortKey !== undefined) setInternalSortKey(externalSortKey) }, [externalSortKey])
+  useEffect(() => { if (externalPushOutagesDown !== undefined) setInternalPushOutagesDown(externalPushOutagesDown) }, [externalPushOutagesDown])
+
+  const sortKey = internalSortKey
+  const pushOutagesDown = internalPushOutagesDown
+  const setSortKey = setInternalSortKey
+  const setPushOutagesDown = setInternalPushOutagesDown
+
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
   const outagesById = Object.fromEntries(outages.map(o => [o.segment_id, o]))

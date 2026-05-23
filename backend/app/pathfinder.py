@@ -124,12 +124,14 @@ def find_routes(
     must_avoid_nodes: list[str],
     must_avoid_segments: list[str],
     must_include_segments: list[str],
+    must_include_systems: list[str],
+    must_avoid_systems: list[str],
     diversity: DiversityType,
     segments_by_id: dict[str, CableSegment],
     rules: list[InterconnectRule],
     k: int = 5,
 ) -> RouteResponse:
-    # Build working graph with avoided nodes/segments removed
+    # Build working graph with avoided nodes/segments/systems removed
     working_G = G.copy()
 
     for node_id in must_avoid_nodes:
@@ -142,6 +144,12 @@ def find_routes(
         if seg and working_G.has_edge(seg.start_node_id, seg.end_node_id):
             avoid_edges.add((seg.start_node_id, seg.end_node_id))
             working_G.remove_edge(seg.start_node_id, seg.end_node_id)
+
+    for sys_id in must_avoid_systems:
+        for seg in segments_by_id.values():
+            if seg.system_id == sys_id and working_G.has_edge(seg.start_node_id, seg.end_node_id):
+                avoid_edges.add((seg.start_node_id, seg.end_node_id))
+                working_G.remove_edge(seg.start_node_id, seg.end_node_id)
 
     if start not in working_G or end not in working_G:
         return RouteResponse(routes=[], primary_routes=[], diverse_routes=[])
@@ -157,13 +165,14 @@ def find_routes(
 
     all_waypoints = seg_waypoints + list(must_include_nodes)
 
-    # Find primary candidates
+    # Find primary candidates — use larger pool when must_include_systems filtering needed
+    raw_k = k * 10 if must_include_systems else k * 3
     if all_waypoints:
         candidates = _apply_waypoints(working_G, start, end, all_waypoints, rules, set(), k)
     else:
         try:
-            raw = itertools.islice(nx.shortest_simple_paths(working_G, start, end, weight="length_km"), k * 3)
-            candidates = [p for p in raw if validate_interconnect_rules(working_G, p, rules)][:k]
+            raw = itertools.islice(nx.shortest_simple_paths(working_G, start, end, weight="length_km"), raw_k)
+            candidates = [p for p in raw if validate_interconnect_rules(working_G, p, rules)]
         except nx.NetworkXNoPath:
             candidates = []
 
@@ -173,6 +182,19 @@ def find_routes(
             p for p in candidates
             if required_seg_ids.issubset(set(path_to_segment_ids(working_G, p)))
         ]
+
+    # Filter: each must_include_system needs at least one segment from that system
+    if must_include_systems:
+        seg_system = {s.id: s.system_id for s in segments_by_id.values()}
+        must_sys_set = set(must_include_systems)
+        candidates = [
+            p for p in candidates
+            if must_sys_set.issubset({
+                seg_system[sid] for sid in path_to_segment_ids(working_G, p) if sid in seg_system
+            })
+        ]
+
+    candidates = candidates[:k]
 
     if not candidates:
         return RouteResponse(routes=[], primary_routes=[], diverse_routes=[])

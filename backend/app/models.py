@@ -103,6 +103,8 @@ class RouteRequest(BaseModel):
     must_avoid_nodes: list[str] = []
     must_avoid_segments: list[str] = []
     must_include_segments: list[str] = []
+    must_include_systems: list[str] = []
+    must_avoid_systems: list[str] = []
     diversity: DiversityType = DiversityType.none
 
 
@@ -184,3 +186,25 @@ class SegmentOutageUpdate(BaseModel):
     repair_start: Optional[str] = None
     estimated_repair_date: Optional[str] = None
     description: Optional[str] = None
+
+
+# ── NLP route parsing ─────────────────────────────────────────────────────────
+
+class NlpParseRequest(BaseModel):
+    text: str
+
+
+class NlpParseResponse(BaseModel):
+    start_node_id: Optional[str] = None
+    end_node_id: Optional[str] = None
+    must_include_nodes: list[str] = []
+    must_avoid_nodes: list[str] = []
+    must_include_segments: list[str] = []
+    must_avoid_segments: list[str] = []
+    must_include_systems: list[str] = []
+    must_avoid_systems: list[str] = []
+    diversity: str = "none"
+    sort_mode: Optional[str] = None
+    explanation: str = ""
+    confidence: str = "low"
+    ambiguities: list[str] = []

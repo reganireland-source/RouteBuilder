@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react'
+import { lazy, Suspense, useState, useRef, useEffect } from 'react'
 import { Map } from './Map'
 import { SearchForm } from './SearchForm'
 import { RouteList } from './RouteList'
+import type { SortKey } from './RouteList'
 import { SystemViewer } from './SystemViewer'
 import { NodeFinder } from './NodeFinder'
 import { CityPairPanel } from './CityPairPanel'
@@ -12,9 +13,14 @@ import { useTheme } from '../theme'
 import type { ThemeMode } from '../theme'
 import type {
   AppConfig, AppMode, CableNode, CableSegment, CableSystem, InterconnectRule,
-  PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage,
+  NlpSortMode, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage,
   SelectedSystem, DiversityType,
 } from '../types'
+
+const NLP_ENABLED = import.meta.env.VITE_ENABLE_NLP === 'true'
+const NlpChat = NLP_ENABLED
+  ? lazy(() => import('./NlpChat'))
+  : null
 
 // ── Sheet snap positions ────────────────────────────────────────────────────
 type SheetSnap = 'peek' | 'mid' | 'full'
@@ -91,6 +97,9 @@ export interface MobileLayoutProps {
   onToggleHideNonActive:         () => void
   onToggleShowSegmentLabels:     () => void
   onToggleShowAllOutages:        () => void
+  onApplySort?:                  (mode: NlpSortMode) => void
+  nlpSortKey?:                   SortKey
+  nlpPushOutages?:               boolean
 }
 
 export function MobileLayout({
@@ -103,6 +112,7 @@ export function MobileLayout({
   onSetOrigin, onSetDest, onSetPair, onNodeClick, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
   switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowAllOutages,
+  onApplySort, nlpSortKey, nlpPushOutages,
   hideNonActive = false, showSegmentLabels = false, showAllOutages = false,
 }: MobileLayoutProps & { hideNonActive?: boolean; showSegmentLabels?: boolean; showAllOutages?: boolean }) {
   const t = useTheme()
@@ -349,8 +359,19 @@ export function MobileLayout({
                 </div>
               )}
 
+              {NlpChat && (
+                <Suspense fallback={null}>
+                  <NlpChat
+                    nodes={nodes}
+                    onSearch={onSearch}
+                    onSwitchMode={switchMode}
+                    onApplySort={onApplySort}
+                  />
+                </Suspense>
+              )}
+
               <SearchForm
-                nodes={nodes} segments={segments}
+                nodes={nodes} segments={segments} systems={systems}
                 onSearch={onSearch} loading={loading}
                 prefilledOrigin={prefilledOrigin} prefilledDest={prefilledDest}
               />
@@ -382,6 +403,8 @@ export function MobileLayout({
                     onUnpin={onUnpin}
                     diversityRequested={lastSearchDiversity !== 'none'}
                     onNetOwnership={config.on_net_ownership}
+                    externalSortKey={nlpSortKey}
+                    externalPushOutagesDown={nlpPushOutages}
                   />
                 </div>
               )}

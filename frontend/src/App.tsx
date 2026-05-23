@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Map } from './components/Map'
 import { SearchForm } from './components/SearchForm'
 import { RouteList } from './components/RouteList'
+import type { SortKey } from './components/RouteList'
 import { SystemViewer } from './components/SystemViewer'
 import { RefDataModal } from './components/RefDataModal'
 import { NodeInfoPanel } from './components/NodeInfoPanel'
@@ -12,7 +13,12 @@ import { MobileLayout } from './components/MobileLayout'
 import { generateStraightLineDiagram } from './utils/generateDiagram'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, type Theme, type ThemeMode } from './theme'
-import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, InterconnectRule, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem } from './types'
+import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, InterconnectRule, NlpSortMode, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem } from './types'
+
+const NLP_ENABLED = import.meta.env.VITE_ENABLE_NLP === 'true'
+const NlpChat = NLP_ENABLED
+  ? lazy(() => import('./components/NlpChat'))
+  : null
 
 const PIN_COLORS    = ['#f9e2af', '#94e2d5', '#cba6f7', '#f2cdcd', '#eba0ac']
 const SYSTEM_COLORS = ['#89b4fa', '#a6e3a1', '#f9e2af', '#94e2d5', '#cba6f7']
@@ -60,7 +66,25 @@ export default function App() {
   const [hideNonActive, setHideNonActive]           = useState(false)
   const [showSegmentLabels, setShowSegmentLabels]   = useState(false)
   const [showAllOutages, setShowAllOutages]         = useState(false)
+  const [nlpSortKey, setNlpSortKey]                 = useState<SortKey | undefined>(undefined)
+  const [nlpPushOutages, setNlpPushOutages]         = useState<boolean | undefined>(undefined)
   const pinCounter = useRef(0)
+
+  const NLP_SORT_MAP: Record<NlpSortMode, SortKey | null> = {
+    cost:        'cost',
+    length:      'hops',
+    latency:     'latency',
+    reliability: 'availability',
+    outages:     null,
+  }
+  function handleApplySort(mode: NlpSortMode) {
+    if (mode === 'outages') {
+      setNlpPushOutages(true)
+    } else {
+      const key = NLP_SORT_MAP[mode]
+      if (key) setNlpSortKey(key)
+    }
+  }
 
   useEffect(() => {
     Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules(), api.getConfig(), api.getOutages()])
@@ -191,6 +215,9 @@ export default function App() {
           onToggleShowSegmentLabels={() => setShowSegmentLabels(v => !v)}
           showAllOutages={showAllOutages}
           onToggleShowAllOutages={() => setShowAllOutages(v => !v)}
+          onApplySort={handleApplySort}
+          nlpSortKey={nlpSortKey}
+          nlpPushOutages={nlpPushOutages}
         />
       </ThemeContext.Provider>
     )
@@ -333,7 +360,7 @@ export default function App() {
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
             {mode === 'routebuilder' && (
               <>
-                <SearchForm nodes={nodes} segments={segments} onSearch={handleSearch} loading={loading} prefilledOrigin={prefilledOrigin} prefilledDest={prefilledDest} />
+                <SearchForm nodes={nodes} segments={segments} systems={systems} onSearch={handleSearch} loading={loading} prefilledOrigin={prefilledOrigin} prefilledDest={prefilledDest} />
                 {error && <div style={{ marginTop: 12, color: theme.red, fontSize: 13 }}>{error}</div>}
               </>
             )}
@@ -352,6 +379,16 @@ export default function App() {
               />
             )}
           </div>
+          {NlpChat && (
+            <Suspense fallback={null}>
+              <NlpChat
+                nodes={nodes}
+                onSearch={handleSearch}
+                onSwitchMode={switchMode}
+                onApplySort={handleApplySort}
+              />
+            </Suspense>
+          )}
           <HealthBar dataLoaded={nodes.length > 0} />
         </div>
 
@@ -396,6 +433,8 @@ export default function App() {
               onPin={handlePin} onUnpin={handleUnpin}
               diversityRequested={lastSearchDiversity !== 'none'}
               onNetOwnership={config.on_net_ownership}
+              externalSortKey={nlpSortKey}
+              externalPushOutagesDown={nlpPushOutages}
             />
           </div>
         </div>

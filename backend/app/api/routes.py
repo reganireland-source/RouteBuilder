@@ -24,6 +24,8 @@ def search_routes(request: RouteRequest):
         must_avoid_nodes=request.must_avoid_nodes,
         must_avoid_segments=request.must_avoid_segments,
         must_include_segments=request.must_include_segments,
+        must_include_systems=request.must_include_systems,
+        must_avoid_systems=request.must_avoid_systems,
         diversity=request.diversity,
         segments_by_id=segments_by_id,
         rules=rules,
