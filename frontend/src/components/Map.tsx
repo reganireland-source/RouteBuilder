@@ -136,6 +136,21 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         if (!start || !end) return []
 
         const isDown = !!outagesById[seg.id]
+        const lines = geoLines(start.lat, start.lng, end.lat, end.lng)
+
+        const tooltip = (
+          <Tooltip sticky>
+            <strong>{seg.name}</strong>
+            <br />{seg.system_id} · {seg.type} · {OWNERSHIP_LABEL[seg.ownership] ?? seg.ownership}
+            <br />{start.name} → {end.name}
+            <br />{seg.length_km.toLocaleString()} km · {seg.latency} ms · Cost: {seg.cost_weight}
+            {capacityById[seg.id] && (() => {
+              const cap = capacityById[seg.id]
+              const pct = Math.round((cap.available_capacity_t / cap.total_capacity_t) * 100)
+              return <><br />Capacity: {cap.available_capacity_t}T / {cap.total_capacity_t}T available ({pct}%)</>
+            })()}
+          </Tooltip>
+        )
 
         // Outage map mode: only show downed segments
         if (showAllOutages) {
@@ -143,7 +158,6 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
           const pathOptions = {
             color: '#ef4444', weight: 2.5, opacity: 0.95, dashArray: '6 3 2 3',
           }
-          const lines = geoLines(start.lat, start.lng, end.lat, end.lng)
           return lines.map((positions, i) => (
             <Polyline key={`${seg.id}-${i}`} positions={positions} pathOptions={pathOptions}>
               {i === 0 && tooltip}
@@ -175,27 +189,15 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
           weight  = segmentWeight[seg.id] ?? 1
           opacity = segmentOpacity[seg.id] ?? 0.35
         }
-        const pathOptions = {
-          color:     isDown ? '#ef4444' : color,
-          weight:    isDown ? 2.5 : weight,
-          opacity:   isDown ? 0.95 : opacity,
-          dashArray: isDown ? '6 3 2 3' : seg.type === 'terrestrial' ? '6 4' : undefined,
-        }
-        const lines = geoLines(start.lat, start.lng, end.lat, end.lng)
 
-        const tooltip = (
-          <Tooltip sticky>
-            <strong>{seg.name}</strong>
-            <br />{seg.system_id} · {seg.type} · {OWNERSHIP_LABEL[seg.ownership] ?? seg.ownership}
-            <br />{start.name} → {end.name}
-            <br />{seg.length_km.toLocaleString()} km · {seg.latency} ms · Cost: {seg.cost_weight}
-            {capacityById[seg.id] && (() => {
-              const cap = capacityById[seg.id]
-              const pct = Math.round((cap.available_capacity_t / cap.total_capacity_t) * 100)
-              return <><br />Capacity: {cap.available_capacity_t}T / {cap.total_capacity_t}T available ({pct}%)</>
-            })()}
-          </Tooltip>
-        )
+        // Only highlight as downed when segment is on an active route/pin
+        const showAsDown = isDown && isActiveSegment
+        const pathOptions = {
+          color:     showAsDown ? '#ef4444' : color,
+          weight:    showAsDown ? 2.5 : weight,
+          opacity:   showAsDown ? 0.95 : opacity,
+          dashArray: showAsDown ? '6 3 2 3' : seg.type === 'terrestrial' ? '6 4' : undefined,
+        }
 
         return lines.map((positions, i) => (
           <Polyline

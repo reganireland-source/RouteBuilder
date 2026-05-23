@@ -90,13 +90,24 @@ def _apply_waypoints(
         except nx.NetworkXNoPath:
             return []
 
-    # Combine sub-paths (stitch them together, deduplicating junction nodes)
+    # Combine sub-paths (stitch them together, deduplicating junction nodes).
+    # Reject any merge where a sub-path reuses an edge already in the base path,
+    # which would cause the same segment to appear twice in the route.
     combined: list[list[str]] = [[]]
     for sub_paths in segment_candidates:
         new_combined = []
         for base in combined:
+            base_edges = {
+                (min(base[j], base[j + 1]), max(base[j], base[j + 1]))
+                for j in range(len(base) - 1)
+            }
             for sub in sub_paths:
                 if base and base[-1] != sub[0]:
+                    continue
+                if any(
+                    (min(sub[j], sub[j + 1]), max(sub[j], sub[j + 1])) in base_edges
+                    for j in range(len(sub) - 1)
+                ):
                     continue
                 merged = base + sub[1:] if base else sub
                 new_combined.append(merged)
