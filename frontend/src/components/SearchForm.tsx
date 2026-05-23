@@ -540,18 +540,32 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
         )}
       </div>
 
+      <style>{`
+        @keyframes sea-sweep {
+          0%   { background-position: 0% 50% }
+          100% { background-position: 100% 50% }
+        }
+      `}</style>
+
       <button
         type="submit"
         disabled={loading || !startNode || !endNode}
         style={{
           padding: '8px 16px', borderRadius: 4, border: 'none',
-          background: loading ? t.borderSubtle : t.blue,
-          color: loading ? t.textFaint : t.bgBase,
-          fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
-          fontSize: 14,
+          fontWeight: 600, fontSize: 14,
+          cursor: loading ? 'not-allowed' : (!startNode || !endNode) ? 'not-allowed' : 'pointer',
+          color: (!startNode && !loading) || (!endNode && !loading) ? t.textFaint : '#e0f2fe',
+          background: loading
+            ? 'linear-gradient(90deg, #1e3a8a, #1d4ed8, #0ea5e9, #bae6fd, #e0f2fe, #bae6fd, #0ea5e9, #1d4ed8, #1e3a8a)'
+            : (!startNode || !endNode)
+              ? t.borderSubtle
+              : t.blue,
+          backgroundSize: loading ? '300% 100%' : '100% 100%',
+          animation: loading ? 'sea-sweep 1.6s ease-in-out infinite alternate' : 'none',
+          transition: 'background 0.3s',
         }}
       >
-        {loading ? 'Searching...' : 'Find Routes'}
+        {loading ? '🌊 Searching…' : 'Find Routes'}
       </button>
     </form>
   )
