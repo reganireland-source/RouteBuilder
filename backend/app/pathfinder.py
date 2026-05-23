@@ -72,6 +72,8 @@ def _apply_waypoints(
 ) -> list[list[str]]:
     """Find paths through mandatory waypoints in order."""
     checkpoints = [start] + waypoints + [end]
+    # Remove consecutive duplicates (e.g. when start == first waypoint)
+    checkpoints = [v for i, v in enumerate(checkpoints) if i == 0 or v != checkpoints[i - 1]]
     segment_candidates: list[list[list[str]]] = []
 
     working_G = G.copy()
@@ -133,9 +135,20 @@ def find_routes(
     if start not in working_G or end not in working_G:
         return RouteResponse(routes=[], primary_routes=[], diverse_routes=[])
 
+    # Expand must_include_segments into node waypoints so the pathfinder
+    # routes *through* those edges rather than post-filtering short paths.
+    required_seg_ids = set(must_include_segments)
+    seg_waypoints: list[str] = []
+    for seg_id in must_include_segments:
+        seg = segments_by_id.get(seg_id)
+        if seg:
+            seg_waypoints.extend([seg.start_node_id, seg.end_node_id])
+
+    all_waypoints = seg_waypoints + list(must_include_nodes)
+
     # Find primary candidates
-    if must_include_nodes:
-        candidates = _apply_waypoints(working_G, start, end, must_include_nodes, rules, set(), k)
+    if all_waypoints:
+        candidates = _apply_waypoints(working_G, start, end, all_waypoints, rules, set(), k)
     else:
         try:
             raw = itertools.islice(nx.shortest_simple_paths(working_G, start, end, weight="length_km"), k * 3)
@@ -143,8 +156,7 @@ def find_routes(
         except nx.NetworkXNoPath:
             candidates = []
 
-    # Filter to paths that include all required segments
-    required_seg_ids = set(must_include_segments)
+    # Final guard: confirm the required segments are actually on each path
     if required_seg_ids:
         candidates = [
             p for p in candidates
