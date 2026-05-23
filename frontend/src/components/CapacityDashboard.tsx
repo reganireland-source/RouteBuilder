@@ -28,42 +28,54 @@ function UtilBar({ used, total }: { used: number; total: number }) {
   )
 }
 
+interface EnrichedSeg {
+  id:        string
+  name:      string
+  system_id: string
+  type:      string
+  total:     number
+  avail:     number
+  used:      number
+  utilPct:   number
+}
+
 export function CapacityDashboard({ segments, capacity, onClose }: Props) {
   const t = useTheme()
 
-  const enriched = useMemo(() => {
-    const capById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
+  const enriched: EnrichedSeg[] = useMemo(() => {
     const segById = Object.fromEntries(segments.map(s => [s.id, s]))
-    return capacity
-      .map(c => {
-        const seg = segById[c.segment_id]
-        if (!seg) return null
-        return {
-          id:        c.segment_id,
-          name:      seg.name,
-          system_id: seg.system_id,
-          type:      seg.type,
-          total:     c.total_capacity_t,
-          avail:     c.available_capacity_t,
-          used:      c.total_capacity_t - c.available_capacity_t,
-          utilPct:   c.total_capacity_t > 0 ? (c.total_capacity_t - c.available_capacity_t) / c.total_capacity_t : 0,
-        }
+    const result: EnrichedSeg[] = []
+    for (const c of capacity) {
+      const seg = segById[c.segment_id]
+      if (!seg) continue
+      result.push({
+        id:        c.segment_id,
+        name:      seg.name,
+        system_id: seg.system_id,
+        type:      seg.type,
+        total:     c.total_capacity_t,
+        avail:     c.available_capacity_t,
+        used:      c.total_capacity_t - c.available_capacity_t,
+        utilPct:   c.total_capacity_t > 0
+          ? (c.total_capacity_t - c.available_capacity_t) / c.total_capacity_t
+          : 0,
       })
-      .filter(Boolean) as NonNullable<ReturnType<typeof useMemo<typeof enriched>>>
+    }
+    return result
   }, [segments, capacity])
 
-  const wetSegs  = enriched.filter(e => e.type === 'wet')
-  const terrSegs = enriched.filter(e => e.type === 'terrestrial')
+  const wetSegs  = enriched.filter((e: EnrichedSeg) => e.type === 'wet')
+  const terrSegs = enriched.filter((e: EnrichedSeg) => e.type === 'terrestrial')
 
-  const totalCap      = enriched.reduce((s, e) => s + e.total, 0)
-  const totalAvail    = enriched.reduce((s, e) => s + e.avail, 0)
+  const totalCap      = enriched.reduce((s: number, e: EnrichedSeg) => s + e.total, 0)
+  const totalAvail    = enriched.reduce((s: number, e: EnrichedSeg) => s + e.avail, 0)
   const totalUsed     = totalCap - totalAvail
 
-  const wetCap        = wetSegs.reduce((s, e) => s + e.total, 0)
-  const wetAvail      = wetSegs.reduce((s, e) => s + e.avail, 0)
+  const wetCap        = wetSegs.reduce((s: number, e: EnrichedSeg) => s + e.total, 0)
+  const wetAvail      = wetSegs.reduce((s: number, e: EnrichedSeg) => s + e.avail, 0)
 
-  const terrCap       = terrSegs.reduce((s, e) => s + e.total, 0)
-  const terrAvail     = terrSegs.reduce((s, e) => s + e.avail, 0)
+  const terrCap       = terrSegs.reduce((s: number, e: EnrichedSeg) => s + e.total, 0)
+  const terrAvail     = terrSegs.reduce((s: number, e: EnrichedSeg) => s + e.avail, 0)
 
   const topSpare      = [...enriched].sort((a, b) => b.avail - a.avail).slice(0, 15)
   const topCongested  = [...enriched].sort((a, b) => a.avail - b.avail).slice(0, 15)
@@ -71,7 +83,7 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
   const networkUtil   = totalCap > 0 ? Math.round((totalUsed / totalCap) * 100) : 0
 
   // ── Styles ────────────────────────────────────────────────────────────────
-  const statCard = (accent: string): React.CSSProperties => ({
+  const statCard = (_accent: string): React.CSSProperties => ({
     flex: 1, minWidth: 130, padding: '14px 16px', borderRadius: 8,
     background: t.bgCard, border: `1px solid ${t.border}`,
     display: 'flex', flexDirection: 'column', gap: 4,
