@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useTheme } from '../theme'
 
-type Status = 'checking' | 'ok' | 'error'
+type Status = 'checking' | 'ok' | 'error' | 'disabled'
 
 interface Indicator {
   label: string
@@ -14,6 +14,7 @@ const DOT_COLOR: Record<Status, string> = {
   ok:       '#a6e3a1',
   error:    '#f38ba8',
   checking: '#f9e2af',
+  disabled: '#6c7086',
 }
 
 interface Props {
@@ -24,6 +25,8 @@ export function HealthBar({ dataLoaded }: Props) {
   const t = useTheme()
   const [backendStatus, setBackendStatus] = useState<Status>('checking')
   const [backendDetail, setBackendDetail] = useState<string>('')
+  const [nlpStatus, setNlpStatus]         = useState<Status>('checking')
+  const [nlpDetail, setNlpDetail]         = useState<string>('')
 
   async function checkBackend() {
     setBackendStatus('checking')
@@ -37,9 +40,21 @@ export function HealthBar({ dataLoaded }: Props) {
     }
   }
 
+  async function checkNlp() {
+    try {
+      const n = await api.getNlpHealth()
+      setNlpStatus(n.status)
+      setNlpDetail(n.status === 'ok' ? n.detail : n.status === 'disabled' ? 'Not configured' : n.detail)
+    } catch {
+      setNlpStatus('error')
+      setNlpDetail('Unreachable')
+    }
+  }
+
   useEffect(() => {
     checkBackend()
-    const interval = setInterval(checkBackend, 30_000)
+    checkNlp()
+    const interval = setInterval(() => { checkBackend(); checkNlp() }, 30_000)
     return () => clearInterval(interval)
   }, [])
 
@@ -58,6 +73,11 @@ export function HealthBar({ dataLoaded }: Props) {
       label:  'Data',
       status: backendStatus === 'error' ? 'error' : dataLoaded ? 'ok' : 'checking',
       detail: dataLoaded ? 'Loaded' : backendStatus === 'error' ? 'Unavailable' : 'Loading…',
+    },
+    {
+      label:  'LLM API',
+      status: nlpStatus,
+      detail: nlpStatus === 'checking' ? 'Checking…' : nlpDetail,
     },
   ]
 
