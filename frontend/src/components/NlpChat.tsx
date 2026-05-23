@@ -93,7 +93,13 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort }: 
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
-      setError(msg.includes('503') ? 'RoboTSA is offline (NLP not configured on server)' : 'RoboTSA hit an error — please try again')
+      if (msg.includes('404')) {
+        setError('RoboTSA not enabled on server — set NLP_ENABLED=true and an API key in your backend env vars')
+      } else if (msg.includes('503')) {
+        setError('RoboTSA is offline — no LLM API key configured on server (set ANTHROPIC_API_KEY or AZURE_OPENAI_ENDPOINT)')
+      } else {
+        setError('RoboTSA hit an error — please try again')
+      }
     } finally {
       setLoading(false)
     }
