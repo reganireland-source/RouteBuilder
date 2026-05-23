@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import type { CableNode, CableSegment, CableSystem, DiversityType, RouteRequest } from '../types'
 import { useTheme } from '../theme'
 
@@ -36,26 +36,264 @@ function countryName(code: string) {
   return COUNTRY_NAMES[code] ?? code
 }
 
-function groupByCountry(nodes: CableNode[]) {
-  const map = new Map<string, CableNode[]>()
-  for (const n of nodes) {
-    if (n.type === 'branching_unit') continue
-    const existing = map.get(n.country) ?? []
-    existing.push(n)
-    map.set(n.country, existing)
-  }
-  return Array.from(map.entries())
-    .sort(([a], [b]) => countryName(a).localeCompare(countryName(b)))
-    .map(([code, group]) => ({
-      code,
-      label: countryName(code),
-      nodes: group.sort((a, b) => a.name.localeCompare(b.name)),
-    }))
+
+function FilteredNodeMulti({ nodes, exclude, selected, onToggle }: {
+  nodes: CableNode[]
+  exclude: string[]
+  selected: string[]
+  onToggle: (id: string) => void
+}) {
+  const t = useTheme()
+  const [query, setQuery] = useState('')
+
+  const typeTag = (n: CableNode) => n.type === 'landing_station' ? 'CLS' : 'POP'
+
+  const pool = nodes.filter(n => n.type !== 'branching_unit' && !exclude.includes(n.id))
+
+  const visible: CableNode[] = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const base = q
+      ? pool.filter(n =>
+          n.id.toLowerCase().includes(q) ||
+          n.name.toLowerCase().includes(q) ||
+          countryName(n.country).toLowerCase().includes(q) ||
+          n.country.toLowerCase().includes(q) ||
+          (n.owner ?? '').toLowerCase().includes(q)
+        )
+      : pool
+    return base.slice(0, 50)
+  }, [query, pool])
+
+  const selectedNodes = pool.filter(n => selected.includes(n.id))
+
+  return (
+    <div style={{ border: `1px solid ${t.border}`, borderRadius: 4, background: t.bgInput, overflow: 'hidden' }}>
+      {selectedNodes.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: '6px 8px', borderBottom: `1px solid ${t.border}` }}>
+          {selectedNodes.map(n => (
+            <span
+              key={n.id}
+              onClick={() => onToggle(n.id)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '2px 6px', borderRadius: 10,
+                background: t.blue + '22', border: `1px solid ${t.blue}44`,
+                color: t.blue, fontSize: 11, cursor: 'pointer',
+              }}
+            >
+              {n.name} <span style={{ fontSize: 13, lineHeight: 1 }}>×</span>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder="Filter nodes…"
+        style={{
+          width: '100%', padding: '5px 8px', border: 'none',
+          borderBottom: `1px solid ${t.border}`, background: t.bgInput,
+          color: t.text, fontSize: 12, boxSizing: 'border-box', outline: 'none',
+        }}
+      />
+      <div style={{ maxHeight: 130, overflowY: 'auto' }}>
+        {visible.length === 0
+          ? <div style={{ padding: '8px 10px', fontSize: 12, color: t.textFaintest }}>No nodes match</div>
+          : visible.map(n => {
+              const isSelected = selected.includes(n.id)
+              return (
+                <div
+                  key={n.id}
+                  onClick={() => onToggle(n.id)}
+                  style={{
+                    padding: '5px 8px', cursor: 'pointer', fontSize: 12,
+                    background: isSelected ? t.blue + '18' : 'transparent',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}
+                >
+                  <span style={{
+                    fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 3, flexShrink: 0,
+                    background: n.type === 'landing_station' ? t.blue + '22' : t.orange + '22',
+                    color: n.type === 'landing_station' ? t.blue : t.orange,
+                  }}>{typeTag(n)}</span>
+                  <span style={{ color: isSelected ? t.blue : t.text, fontWeight: isSelected ? 600 : 400, flex: 1 }}>
+                    {n.name}
+                  </span>
+                  <span style={{ color: t.textFaintest, fontSize: 10 }}>{n.id}</span>
+                </div>
+              )
+            })
+        }
+      </div>
+    </div>
+  )
 }
 
-const nodeLabel = (n: CableNode) => {
-  const tag = n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : 'POP'
-  return `${n.name} (${n.id}) [${tag}]`
+function NodeCombobox({ nodes, value, onChange, placeholder }: {
+  nodes: CableNode[]
+  value: string
+  onChange: (id: string) => void
+  placeholder: string
+}) {
+  const t = useTheme()
+  const [query, setQuery]       = useState('')
+  const [open, setOpen]         = useState(false)
+  const [activeIdx, setActiveIdx] = useState(-1)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef     = useRef<HTMLInputElement>(null)
+  const listRef      = useRef<HTMLDivElement>(null)
+
+  const selectedNode = nodes.find(n => n.id === value)
+
+  const filtered: CableNode[] = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return []
+    return nodes
+      .filter(n => n.type !== 'branching_unit')
+      .filter(n =>
+        n.id.toLowerCase().includes(q) ||
+        n.name.toLowerCase().includes(q) ||
+        countryName(n.country).toLowerCase().includes(q) ||
+        n.country.toLowerCase().includes(q) ||
+        (n.owner ?? '').toLowerCase().includes(q) ||
+        (n.trading_name ?? '').toLowerCase().includes(q)
+      )
+      .slice(0, 25)
+  }, [query, nodes])
+
+  useEffect(() => { setActiveIdx(-1) }, [filtered])
+
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+        setQuery('')
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [])
+
+  function select(id: string) {
+    onChange(id)
+    setOpen(false)
+    setQuery('')
+    setActiveIdx(-1)
+  }
+
+  function clear() {
+    onChange('')
+    setQuery('')
+    setOpen(false)
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Escape') { setOpen(false); setQuery(''); return }
+    if (!open || filtered.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveIdx((i: number) => Math.min(i + 1, filtered.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIdx((i: number) => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter' && activeIdx >= 0) {
+      e.preventDefault()
+      select(filtered[activeIdx].id)
+    }
+  }
+
+  const typeTag = (n: CableNode) =>
+    n.type === 'landing_station' ? 'CLS' : n.type === 'terrestrial_pop' ? 'POP' : 'BU'
+
+  const inputBase: React.CSSProperties = {
+    width: '100%', padding: '6px 8px', borderRadius: 4,
+    border: `1px solid ${t.border}`, background: t.bgInput, color: t.text,
+    fontSize: 13, boxSizing: 'border-box',
+  }
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      {selectedNode ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '6px 8px', borderRadius: 4,
+          border: `1px solid ${t.blue}`, background: t.bgInput,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: 13, color: t.text, fontWeight: 500 }}>{selectedNode.name}</span>
+            <span style={{ fontSize: 11, color: t.textFaint, marginLeft: 6 }}>
+              {selectedNode.id} · {typeTag(selectedNode)} · {countryName(selectedNode.country)}
+            </span>
+          </div>
+          <button
+            type="button" onClick={clear}
+            style={{
+              flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer',
+              color: t.textFaint, fontSize: 16, lineHeight: 1, padding: '0 2px',
+            }}
+          >×</button>
+        </div>
+      ) : (
+        <input
+          ref={inputRef}
+          value={query}
+          placeholder={placeholder}
+          onChange={e => { setQuery(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={onKeyDown}
+          style={inputBase}
+          autoComplete="off"
+        />
+      )}
+
+      {open && filtered.length > 0 && (
+        <div
+          ref={listRef}
+          style={{
+            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 1000,
+            background: t.bgPanel, border: `1px solid ${t.border}`,
+            borderRadius: 6, maxHeight: 240, overflowY: 'auto',
+            boxShadow: '0 8px 28px rgba(0,0,0,0.35)',
+          }}
+        >
+          {filtered.map((n, i) => (
+            <div
+              key={n.id}
+              onMouseDown={() => select(n.id)}
+              style={{
+                padding: '8px 12px', cursor: 'pointer',
+                background: i === activeIdx ? t.bgDeep : 'transparent',
+                borderBottom: i < filtered.length - 1 ? `1px solid ${t.border}` : 'none',
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 500, color: t.text }}>{n.name}</div>
+              <div style={{ fontSize: 11, color: t.textFaint, marginTop: 1 }}>
+                <span style={{
+                  display: 'inline-block', fontSize: 9, fontWeight: 700,
+                  padding: '1px 4px', borderRadius: 3, marginRight: 5,
+                  background: n.type === 'landing_station' ? t.blue + '22' : t.orange + '22',
+                  color: n.type === 'landing_station' ? t.blue : t.orange,
+                }}>{typeTag(n)}</span>
+                {n.id} · {countryName(n.country)}{n.owner ? ` · ${n.owner}` : ''}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {open && query.trim().length > 0 && filtered.length === 0 && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 1000,
+          background: t.bgPanel, border: `1px solid ${t.border}`,
+          borderRadius: 6, padding: '10px 12px',
+          boxShadow: '0 8px 28px rgba(0,0,0,0.35)',
+        }}>
+          <span style={{ fontSize: 12, color: t.textFaint }}>No nodes match "{query}"</span>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function SearchForm({ nodes, segments, systems = [], onSearch, loading, prefilledOrigin = '', prefilledDest = '' }: Props) {
@@ -77,8 +315,6 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
     const sys = systems.find(s => s.id === id)
     return { id, name: sys?.name ?? id }
   }).sort((a, b) => a.id.localeCompare(b.id))
-
-  const groups = groupByCountry(nodes)
 
   function toggleMulti(id: string, list: string[], setter: (v: string[]) => void) {
     setter(list.includes(id) ? list.filter(x => x !== id) : [...list, id])
@@ -111,17 +347,11 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
     borderRadius: 4, padding: '4px 0', background: t.bgInput,
   }
 
-  const multiItemStyle = (selected: boolean): React.CSSProperties => ({
+  const multiItemStyle = (sel: boolean): React.CSSProperties => ({
     padding: '3px 8px 3px 16px', cursor: 'pointer', fontSize: 12,
-    background: selected ? t.bgDeep : 'transparent',
-    color: selected ? t.blue : t.text,
+    background: sel ? t.bgDeep : 'transparent',
+    color: sel ? t.blue : t.text,
   })
-
-  const groupHeaderStyle: React.CSSProperties = {
-    padding: '4px 8px 2px', fontSize: 10, fontWeight: 700,
-    color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.06em',
-    borderTop: `1px solid ${t.border}`, marginTop: 2,
-  }
 
   const labelStyle: React.CSSProperties = {
     display: 'block', fontSize: 11, fontWeight: 600,
@@ -129,54 +359,18 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
     marginBottom: 4,
   }
 
-  const renderGroupedSelect = (placeholder: string, value: string, onChange: (v: string) => void) => (
-    <select value={value} onChange={e => onChange(e.target.value)} style={selectStyle} required>
-      <option value="">{placeholder}</option>
-      {groups.map(g => (
-        <optgroup key={g.code} label={g.label}>
-          {g.nodes.map(n => (
-            <option key={n.id} value={n.id}>{nodeLabel(n)}</option>
-          ))}
-        </optgroup>
-      ))}
-    </select>
-  )
-
-  const renderGroupedMulti = (
-    exclude: string[],
-    selected: string[],
-    onToggle: (id: string) => void,
-  ) => (
-    <div style={multiBoxStyle}>
-      {groups.map(g => {
-        const visible = g.nodes.filter(n => !exclude.includes(n.id))
-        if (visible.length === 0) return null
-        return (
-          <div key={g.code}>
-            <div style={groupHeaderStyle}>{g.label}</div>
-            {visible.map(n => (
-              <div key={n.id} style={multiItemStyle(selected.includes(n.id))} onClick={() => onToggle(n.id)}>
-                {nodeLabel(n)}
-              </div>
-            ))}
-          </div>
-        )
-      })}
-    </div>
-  )
-
   const advancedCount = mustIncludeNodes.length + mustAvoidNodes.length + mustAvoidSegs.length + mustIncludeSegs.length + mustIncludeSystems.length + mustAvoidSystems.length
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div>
         <label style={labelStyle}>Origin</label>
-        {renderGroupedSelect('Select origin...', startNode, setStartNode)}
+        <NodeCombobox nodes={nodes} value={startNode} onChange={setStartNode} placeholder="Search city, code, country, owner…" />
       </div>
 
       <div>
         <label style={labelStyle}>Destination</label>
-        {renderGroupedSelect('Select destination...', endNode, setEndNode)}
+        <NodeCombobox nodes={nodes} value={endNode} onChange={setEndNode} placeholder="Search city, code, country, owner…" />
       </div>
 
       <div>
@@ -223,12 +417,12 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
           <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: 10, borderTop: `1px solid ${t.border}` }}>
             <div>
               <label style={labelStyle}>Must Include Nodes</label>
-              {renderGroupedMulti([startNode, endNode], mustIncludeNodes, id => toggleMulti(id, mustIncludeNodes, setMustIncludeNodes))}
+              <FilteredNodeMulti nodes={nodes} exclude={[startNode, endNode]} selected={mustIncludeNodes} onToggle={id => toggleMulti(id, mustIncludeNodes, setMustIncludeNodes)} />
             </div>
 
             <div>
               <label style={labelStyle}>Must Avoid Nodes</label>
-              {renderGroupedMulti([startNode, endNode], mustAvoidNodes, id => toggleMulti(id, mustAvoidNodes, setMustAvoidNodes))}
+              <FilteredNodeMulti nodes={nodes} exclude={[startNode, endNode]} selected={mustAvoidNodes} onToggle={id => toggleMulti(id, mustAvoidNodes, setMustAvoidNodes)} />
             </div>
 
             <div>
