@@ -131,6 +131,7 @@ export function MobileLayout({
   const velocity    = useRef(0)  // px/ms, positive = downward
 
   const [capDashOpen, setCapDashOpen] = useState(false)
+  const [drawerOpen, setDrawerOpen]   = useState(false)
   const hasPins    = pinnedRoutes.length > 0
   const hasResults = response !== null
 
@@ -253,51 +254,140 @@ export function MobileLayout({
         </div>
       </div>
 
-      {/* ── Top-right icon buttons ──────────────────────────────────────── */}
-      <div style={{ position: 'fixed', top: 14, right: 14, zIndex: 100, display: 'flex', gap: 8 }}>
+      {/* ── Top-right drawer toggle + panel ────────────────────────────── */}
+      <div style={{ position: 'fixed', top: 14, right: 14, zIndex: 200 }}>
+
+        {/* Toggle button */}
         <button
-          onClick={onToggleShowAllOutages}
-          title="Show All Outages"
+          onClick={() => setDrawerOpen(o => !o)}
           style={{
-            ...floatBtn,
-            border: `1px solid ${showAllOutages ? t.red : t.border}`,
-            background: showAllOutages ? `${t.red}33` : t.bgPanel + 'f0',
-            color: showAllOutages ? t.red : t.textMuted,
-            fontSize: 16,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+            padding: '6px 10px', borderRadius: 10,
+            border: `1px solid ${drawerOpen ? t.blue : t.border}`,
+            background: drawerOpen ? t.blue + '22' : t.bgPanel + 'f0',
+            color: drawerOpen ? t.blue : t.textMuted,
+            cursor: 'pointer',
+            boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 2px 10px rgba(0,0,0,0.5)',
           }}
         >
-          🚢
+          <span style={{ fontSize: 18, lineHeight: 1 }}>{drawerOpen ? '✕' : '≡'}</span>
+          <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1 }}>
+            {drawerOpen ? 'Close' : 'Controls'}
+          </span>
         </button>
-        <button
-          onClick={onToggleShowSegmentLabels}
-          title="Toggle Segment Labels"
-          style={{
-            ...floatBtn,
-            border: `1px solid ${showSegmentLabels ? t.blue : t.border}`,
-            background: showSegmentLabels ? `${t.blue}33` : t.bgPanel + 'f0',
-            color: showSegmentLabels ? t.blue : t.textMuted,
-            fontSize: 13, fontWeight: 700,
-          }}
-        >
-          {showSegmentLabels ? 'A⃝' : 'A'}
-        </button>
-        <button
-          onClick={onToggleHideNonActive}
-          title="Hide Non-Active Cables"
-          style={{
-            ...floatBtn,
-            border: `1px solid ${hideNonActive ? t.blue : t.border}`,
-            background: hideNonActive ? `${t.blue}33` : t.bgPanel + 'f0',
-            color: hideNonActive ? t.blue : t.textMuted,
-            fontSize: 17,
-          }}
-        >
-          {hideNonActive ? '◉' : '◎'}
-        </button>
-        <button onClick={onOpenRefData} title="Reference Data" style={floatBtn}>⚙</button>
-        <button onClick={cycleTheme}    title="Cycle theme"    style={floatBtn}>
-          {themeMode === 'dark' ? '🌅' : themeMode === 'dusk' ? '☀️' : '🌙'}
-        </button>
+
+        {/* Drawer panel */}
+        {drawerOpen && (
+          <>
+            {/* Backdrop to close on outside tap */}
+            <div
+              onClick={() => setDrawerOpen(false)}
+              style={{ position: 'fixed', inset: 0, zIndex: -1 }}
+            />
+            <div style={{
+              position: 'absolute', top: 50, right: 0,
+              width: 220,
+              background: t.bgPanel,
+              border: `1px solid ${t.border}`,
+              borderRadius: 12,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+              overflow: 'hidden',
+            }}>
+              {/* Toggles */}
+              {[
+                {
+                  label: 'Show All Outages',
+                  icon: '🚢',
+                  active: showAllOutages,
+                  color: t.red,
+                  onClick: () => { onToggleShowAllOutages(); setDrawerOpen(false) },
+                },
+                {
+                  label: 'Segment Labels',
+                  icon: showSegmentLabels ? 'A⃝' : 'A',
+                  active: showSegmentLabels,
+                  color: t.blue,
+                  onClick: () => { onToggleShowSegmentLabels(); setDrawerOpen(false) },
+                },
+                {
+                  label: 'Hide Non-Active',
+                  icon: hideNonActive ? '◉' : '◎',
+                  active: hideNonActive,
+                  color: t.blue,
+                  onClick: () => { onToggleHideNonActive(); setDrawerOpen(false) },
+                },
+              ].map(item => (
+                <button
+                  key={item.label}
+                  onClick={item.onClick}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    width: '100%', padding: '13px 16px',
+                    background: item.active ? item.color + '18' : 'transparent',
+                    border: 'none', borderBottom: `1px solid ${t.border}`,
+                    cursor: 'pointer', textAlign: 'left',
+                  }}
+                >
+                  <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>{item.icon}</span>
+                  <span style={{ fontSize: 13, color: item.active ? item.color : t.text, fontWeight: item.active ? 600 : 400 }}>
+                    {item.label}
+                  </span>
+                  {item.active && (
+                    <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: item.color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>On</span>
+                  )}
+                </button>
+              ))}
+
+              {/* Actions */}
+              {[
+                {
+                  label: 'Network Capacity',
+                  icon: '📊',
+                  onClick: () => { setCapDashOpen(true); setDrawerOpen(false) },
+                },
+                {
+                  label: 'Reference Data',
+                  icon: '⚙',
+                  onClick: () => { onOpenRefData(); setDrawerOpen(false) },
+                },
+              ].map(item => (
+                <button
+                  key={item.label}
+                  onClick={item.onClick}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    width: '100%', padding: '13px 16px',
+                    background: 'transparent',
+                    border: 'none', borderBottom: `1px solid ${t.border}`,
+                    cursor: 'pointer', textAlign: 'left',
+                  }}
+                >
+                  <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>{item.icon}</span>
+                  <span style={{ fontSize: 13, color: t.text }}>{item.label}</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 14, color: t.textFaintest }}>›</span>
+                </button>
+              ))}
+
+              {/* Theme cycle */}
+              <button
+                onClick={() => { cycleTheme(); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  width: '100%', padding: '13px 16px',
+                  background: 'transparent', border: 'none',
+                  cursor: 'pointer', textAlign: 'left',
+                }}
+              >
+                <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>
+                  {themeMode === 'dark' ? '🌅' : themeMode === 'dusk' ? '☀️' : '🌙'}
+                </span>
+                <span style={{ fontSize: 13, color: t.text }}>
+                  {themeMode === 'dark' ? 'Switch to Dusk' : themeMode === 'dusk' ? 'Switch to Light' : 'Switch to Dark'}
+                </span>
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── Bottom sheet ────────────────────────────────────────────────── */}
@@ -344,26 +434,6 @@ export function MobileLayout({
           {/* ── Routes mode ───────────────────────────────────────────── */}
           {mode === 'routebuilder' && (
             <div style={{ padding: '14px 16px 32px' }}>
-
-              {/* Capacity dashboard shortcut */}
-              {capacity.length > 0 && (
-                <button
-                  onClick={() => setCapDashOpen(true)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    width: '100%', marginBottom: 10,
-                    padding: '7px 12px', borderRadius: 7,
-                    border: `1px solid ${t.border}`,
-                    background: t.bgCard, cursor: 'pointer',
-                    fontSize: 12, color: t.textMuted, fontWeight: 600,
-                    textAlign: 'left',
-                  }}
-                >
-                  <span>📊</span>
-                  <span>Network Capacity Dashboard</span>
-                  <span style={{ marginLeft: 'auto', color: t.textFaintest }}>›</span>
-                </button>
-              )}
 
               {/* Mini status / action bar */}
               {(hasResults || hasPins || loading) && (
