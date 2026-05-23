@@ -231,7 +231,7 @@ export function MobileLayout({
 
       {/* ── Top-left branding ───────────────────────────────────────────── */}
       <div style={{
-        position: 'fixed', top: 14, left: 14, zIndex: 100,
+        position: 'absolute', top: 14, left: 14, zIndex: 100,
         background: t.bgPanel + 'f0',
         borderRadius: 10, padding: '5px 10px',
         border: `1px solid ${t.border}`,
@@ -246,7 +246,7 @@ export function MobileLayout({
       </div>
 
       {/* ── Top-right drawer toggle + panel ────────────────────────────── */}
-      <div style={{ position: 'fixed', top: 14, right: 14, zIndex: 200 }}>
+      <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 200 }}>
 
         {/* Toggle button */}
         <button
