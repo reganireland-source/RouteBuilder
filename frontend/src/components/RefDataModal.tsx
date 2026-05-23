@@ -153,10 +153,10 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     borderBottom: `1px solid ${t.border}`, background: t.bgDeep,
   }
 
-  function Field({ label, val, k, src, setSrc, readOnly = false, type = 'text', options }: {
+  function Field({ label, val, k, src, setSrc, readOnly = false, type = 'text', options, placeholder }: {
     label: string; val?: unknown; k: string
     src: Record<string, unknown>; setSrc: (v: Record<string, unknown>) => void
-    readOnly?: boolean; type?: string; options?: { value: string; label: string }[]
+    readOnly?: boolean; type?: string; options?: { value: string; label: string }[]; placeholder?: string
   }) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -169,6 +169,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           </select>
         ) : (
           <input style={inputStyle} type={type} step={type === 'number' ? 'any' : undefined}
+            placeholder={placeholder}
             value={String(src[k] ?? '')}
             onChange={e => setSrc({ ...src, [k]: type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value })}
           />
