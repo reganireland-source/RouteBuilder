@@ -37,6 +37,89 @@ function countryName(code: string) {
 }
 
 
+function FilteredMulti({ items, selected, onToggle, placeholder }: {
+  items: { id: string; primary: string; secondary?: string }[]
+  selected: string[]
+  onToggle: (id: string) => void
+  placeholder: string
+}) {
+  const t = useTheme()
+  const [query, setQuery] = useState('')
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const base = q
+      ? items.filter(it =>
+          it.id.toLowerCase().includes(q) ||
+          it.primary.toLowerCase().includes(q) ||
+          (it.secondary ?? '').toLowerCase().includes(q)
+        )
+      : items
+    return base.slice(0, 50)
+  }, [query, items])
+
+  const selectedItems = items.filter(it => selected.includes(it.id))
+
+  return (
+    <div style={{ border: `1px solid ${t.border}`, borderRadius: 4, background: t.bgInput, overflow: 'hidden' }}>
+      {selectedItems.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: '6px 8px', borderBottom: `1px solid ${t.border}` }}>
+          {selectedItems.map(it => (
+            <span
+              key={it.id}
+              onClick={() => onToggle(it.id)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '2px 6px', borderRadius: 10,
+                background: t.blue + '22', border: `1px solid ${t.blue}44`,
+                color: t.blue, fontSize: 11, cursor: 'pointer',
+              }}
+            >
+              {it.primary} <span style={{ fontSize: 13, lineHeight: 1 }}>×</span>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          width: '100%', padding: '5px 8px', border: 'none',
+          borderBottom: `1px solid ${t.border}`, background: t.bgInput,
+          color: t.text, fontSize: 12, boxSizing: 'border-box', outline: 'none',
+        }}
+      />
+      <div style={{ maxHeight: 130, overflowY: 'auto' }}>
+        {visible.length === 0
+          ? <div style={{ padding: '8px 10px', fontSize: 12, color: t.textFaintest }}>No matches</div>
+          : visible.map(it => {
+              const isSelected = selected.includes(it.id)
+              return (
+                <div
+                  key={it.id}
+                  onClick={() => onToggle(it.id)}
+                  style={{
+                    padding: '5px 8px', cursor: 'pointer', fontSize: 12,
+                    background: isSelected ? t.blue + '18' : 'transparent',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}
+                >
+                  <span style={{ color: isSelected ? t.blue : t.text, fontWeight: isSelected ? 600 : 400, flex: 1 }}>
+                    {it.primary}
+                  </span>
+                  {it.secondary && (
+                    <span style={{ color: t.textFaintest, fontSize: 10 }}>{it.secondary}</span>
+                  )}
+                </div>
+              )
+            })
+        }
+      </div>
+    </div>
+  )
+}
+
 function FilteredNodeMulti({ nodes, exclude, selected, onToggle }: {
   nodes: CableNode[]
   exclude: string[]
@@ -342,17 +425,6 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
     fontSize: 13,
   }
 
-  const multiBoxStyle: React.CSSProperties = {
-    maxHeight: 110, overflowY: 'auto', border: `1px solid ${t.border}`,
-    borderRadius: 4, padding: '4px 0', background: t.bgInput,
-  }
-
-  const multiItemStyle = (sel: boolean): React.CSSProperties => ({
-    padding: '3px 8px 3px 16px', cursor: 'pointer', fontSize: 12,
-    background: sel ? t.bgDeep : 'transparent',
-    color: sel ? t.blue : t.text,
-  })
-
   const labelStyle: React.CSSProperties = {
     display: 'block', fontSize: 11, fontWeight: 600,
     color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em',
@@ -427,46 +499,42 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
 
             <div>
               <label style={labelStyle}>Must Avoid Segments</label>
-              <div style={multiBoxStyle}>
-                {segments.map(s => (
-                  <div key={s.id} style={multiItemStyle(mustAvoidSegs.includes(s.id))} onClick={() => toggleMulti(s.id, mustAvoidSegs, setMustAvoidSegs)}>
-                    {s.name}
-                  </div>
-                ))}
-              </div>
+              <FilteredMulti
+                items={segments.map(s => ({ id: s.id, primary: s.name, secondary: s.id }))}
+                selected={mustAvoidSegs}
+                onToggle={id => toggleMulti(id, mustAvoidSegs, setMustAvoidSegs)}
+                placeholder="Filter segments…"
+              />
             </div>
 
             <div>
               <label style={labelStyle}>Must Include Segments</label>
-              <div style={multiBoxStyle}>
-                {segments.map(s => (
-                  <div key={s.id} style={multiItemStyle(mustIncludeSegs.includes(s.id))} onClick={() => toggleMulti(s.id, mustIncludeSegs, setMustIncludeSegs)}>
-                    {s.name}
-                  </div>
-                ))}
-              </div>
+              <FilteredMulti
+                items={segments.map(s => ({ id: s.id, primary: s.name, secondary: s.id }))}
+                selected={mustIncludeSegs}
+                onToggle={id => toggleMulti(id, mustIncludeSegs, setMustIncludeSegs)}
+                placeholder="Filter segments…"
+              />
             </div>
 
             <div>
               <label style={labelStyle}>Must Include System <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(≥1 segment)</span></label>
-              <div style={multiBoxStyle}>
-                {systemOptions.map(s => (
-                  <div key={s.id} style={multiItemStyle(mustIncludeSystems.includes(s.id))} onClick={() => toggleMulti(s.id, mustIncludeSystems, setMustIncludeSystems)}>
-                    <strong>{s.id}</strong> — {s.name}
-                  </div>
-                ))}
-              </div>
+              <FilteredMulti
+                items={systemOptions.map(s => ({ id: s.id, primary: s.id, secondary: s.name }))}
+                selected={mustIncludeSystems}
+                onToggle={id => toggleMulti(id, mustIncludeSystems, setMustIncludeSystems)}
+                placeholder="Filter systems…"
+              />
             </div>
 
             <div>
               <label style={labelStyle}>Must Avoid System</label>
-              <div style={multiBoxStyle}>
-                {systemOptions.map(s => (
-                  <div key={s.id} style={multiItemStyle(mustAvoidSystems.includes(s.id))} onClick={() => toggleMulti(s.id, mustAvoidSystems, setMustAvoidSystems)}>
-                    <strong>{s.id}</strong> — {s.name}
-                  </div>
-                ))}
-              </div>
+              <FilteredMulti
+                items={systemOptions.map(s => ({ id: s.id, primary: s.id, secondary: s.name }))}
+                selected={mustAvoidSystems}
+                onToggle={id => toggleMulti(id, mustAvoidSystems, setMustAvoidSystems)}
+                placeholder="Filter systems…"
+              />
             </div>
           </div>
         )}
