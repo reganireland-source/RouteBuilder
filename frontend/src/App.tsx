@@ -12,7 +12,7 @@ import { MobileLayout } from './components/MobileLayout'
 import { generateStraightLineDiagram } from './utils/generateDiagram'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, type Theme, type ThemeMode } from './theme'
-import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, InterconnectRule, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SelectedSystem } from './types'
+import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, InterconnectRule, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem } from './types'
 
 const PIN_COLORS    = ['#f9e2af', '#94e2d5', '#cba6f7', '#f2cdcd', '#eba0ac']
 const SYSTEM_COLORS = ['#89b4fa', '#a6e3a1', '#f9e2af', '#94e2d5', '#cba6f7']
@@ -56,13 +56,14 @@ export default function App() {
   const [nearestNodeIds, setNearestNodeIds] = useState<string[]>([])
   const [prefilledOrigin, setPrefilledOrigin] = useState('')
   const [prefilledDest, setPrefilledDest]     = useState('')
+  const [outages, setOutages]                     = useState<SegmentOutage[]>([])
   const [hideNonActive, setHideNonActive]         = useState(false)
   const [showSegmentLabels, setShowSegmentLabels] = useState(false)
   const pinCounter = useRef(0)
 
   useEffect(() => {
-    Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules(), api.getConfig()])
-      .then(([n, s, c, sys, r, cfg]) => { setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r); setConfig(cfg) })
+    Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules(), api.getConfig(), api.getOutages()])
+      .then(([n, s, c, sys, r, cfg, o]) => { setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r); setConfig(cfg); setOutages(o) })
       .catch(() => setError('Failed to load network data'))
   }, [])
 
@@ -137,8 +138,8 @@ export default function App() {
   function clearAll()    { setResponse(null); setSelectedRouteIds([]); setPinnedRoutes([]); setError(null); setLastSearchDiversity('none') }
 
   async function handleDataChange() {
-    const [n, s, c, sys, r, cfg] = await Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules(), api.getConfig()])
-    setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r); setConfig(cfg)
+    const [n, s, c, sys, r, cfg, o] = await Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules(), api.getConfig(), api.getOutages()])
+    setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r); setConfig(cfg); setOutages(o)
   }
 
   const selectedRoutes: Route[] = response
@@ -154,7 +155,7 @@ export default function App() {
       <ThemeContext.Provider value={theme}>
         <MobileLayout
           nodes={nodes} segments={segments} systems={systems}
-          capacity={capacity} rules={rules}
+          capacity={capacity} outages={outages} rules={rules}
           response={response} selectedRoutes={selectedRoutes}
           selectedRouteIds={selectedRouteIds} pinnedRoutes={pinnedRoutes}
           selectedSystems={selectedSystems}
@@ -367,7 +368,7 @@ export default function App() {
               diverseRoutes={response?.diverse_routes ?? []}
               selectedRouteIds={selectedRouteIds}
               onSelectRoute={toggleRoute}
-              nodes={nodes} capacity={capacity}
+              nodes={nodes} capacity={capacity} outages={outages}
               pinnedRoutes={pinnedRoutes}
               onPin={handlePin} onUnpin={handleUnpin}
               diversityRequested={lastSearchDiversity !== 'none'}
@@ -382,6 +383,7 @@ export default function App() {
             <Map
               nodes={nodes} segments={segments} selectedRoutes={selectedRoutes}
               capacity={capacity} pinnedRoutes={pinnedRoutes} selectedSystems={selectedSystems}
+              outages={outages}
               onNodeClick={(node, x, y) => setSelectedNode({ node, x, y })}
               searchPin={searchPin ?? undefined}
               nearestNodeIds={nearestNodeIds}
@@ -408,7 +410,7 @@ export default function App() {
       {refDataOpen && (
         <RefDataModal
           nodes={nodes} segments={segments} systems={systems}
-          capacity={capacity} rules={rules} config={config}
+          capacity={capacity} outages={outages} rules={rules} config={config}
           onDataChange={handleDataChange}
           onClose={() => setRefDataOpen(false)}
         />

@@ -1,6 +1,6 @@
 from fastapi import FastAPI  # noqa: F401
 from fastapi.middleware.cors import CORSMiddleware
-from .api import nodes, segments, systems, routes, capacity, rules, health, config, city_pairs
+from .api import nodes, segments, systems, routes, capacity, rules, health, config, city_pairs, outages
 
 app = FastAPI(title="RouteBuilder API", version="0.1.0")
 
@@ -20,3 +20,4 @@ app.include_router(rules.router, prefix="/api")
 app.include_router(health.router, prefix="/api")
 app.include_router(config.router, prefix="/api")
 app.include_router(city_pairs.router, prefix="/api")
+app.include_router(outages.router, prefix="/api")

@@ -167,3 +167,20 @@ class CableSystemUpdate(BaseModel):
 class SegmentCapacityUpdate(BaseModel):
     total_capacity_t: Optional[float] = None
     available_capacity_t: Optional[float] = None
+
+
+class SegmentOutage(BaseModel):
+    segment_id: str
+    fault_id: str
+    fault_date: str
+    repair_start: Optional[str] = None
+    estimated_repair_date: Optional[str] = None
+    description: str
+
+
+class SegmentOutageUpdate(BaseModel):
+    fault_id: Optional[str] = None
+    fault_date: Optional[str] = None
+    repair_start: Optional[str] = None
+    estimated_repair_date: Optional[str] = None
+    description: Optional[str] = None

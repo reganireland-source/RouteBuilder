@@ -1,5 +1,5 @@
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip } from 'react-leaflet'
-import type { CableNode, CableSegment, PinnedRoute, Route, SegmentCapacity, SelectedSystem } from '../types'
+import type { CableNode, CableSegment, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
 import { useTheme } from '../theme'
 
 const OWNERSHIP_LABEL: Record<string, string> = {
@@ -22,6 +22,7 @@ interface Props {
   nearestNodeIds?: string[]
   hideNonActive?: boolean
   showSegmentLabels?: boolean
+  outages?: SegmentOutage[]
 }
 
 
@@ -54,12 +55,13 @@ function geoLines(
   return [[[lat1, nLng1], [lat2, nLng1 + d]]]
 }
 
-export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false }: Props) {
+export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, outages = [] }: Props) {
   const t = useTheme()
   const diversityColors: Record<number, string> = { 1: t.blue, 2: t.green }
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
 
+  const outagesById = Object.fromEntries(outages.map(o => [o.segment_id, o]))
   const systemViewerActive = selectedSystems.length > 0
   const systemColorMap: Record<string, string> = Object.fromEntries(
     selectedSystems.map(s => [s.systemId, s.color])
@@ -145,7 +147,13 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
           opacity = segmentOpacity[seg.id] ?? 0.35
         }
 
-        const pathOptions = { color, weight, opacity, dashArray: seg.type === 'terrestrial' ? '6 4' : undefined }
+        const isDown = !!outagesById[seg.id]
+        const pathOptions = {
+          color:     isDown ? '#ef4444' : color,
+          weight:    isDown ? 2.5 : weight,
+          opacity:   isDown ? 0.95 : opacity,
+          dashArray: isDown ? '6 3 2 3' : seg.type === 'terrestrial' ? '6 4' : undefined,
+        }
         const lines = geoLines(start.lat, start.lng, end.lat, end.lng)
 
         const tooltip = (

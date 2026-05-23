@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from .models import Node, CableSystem, CableSegment, InterconnectRule, SegmentCapacity, DisallowedPair
+from .models import Node, CableSystem, CableSegment, InterconnectRule, SegmentCapacity, DisallowedPair, SegmentOutage
 
 def _write(path: Path, data: list) -> None:
     with open(path, "w") as f:
@@ -47,6 +47,17 @@ def save_systems(systems: list[CableSystem]) -> None:
 
 def save_capacity(capacity: list[SegmentCapacity]) -> None:
     _write(DATA_DIR / "capacity.json", [c.model_dump() for c in capacity])
+
+
+def load_outages() -> list[SegmentOutage]:
+    path = DATA_DIR / "outages.json"
+    if not path.exists():
+        return []
+    with open(path) as f:
+        return [SegmentOutage(**item) for item in json.load(f)]
+
+def save_outages(outages: list[SegmentOutage]) -> None:
+    _write(DATA_DIR / "outages.json", [o.model_dump() for o in outages])
 
 
 def load_config() -> dict:

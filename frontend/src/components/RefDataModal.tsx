@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, InterconnectRule, SegmentCapacity } from '../types'
+import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, InterconnectRule, SegmentCapacity, SegmentOutage } from '../types'
 import { useTheme } from '../theme'
 import { api } from '../api/client'
 
@@ -13,7 +13,7 @@ const OWNERSHIP_LABEL: Record<string, string> = {
 
 const DEFAULT_ONNET = ['owned', 'consortium', 'iru']
 
-type DataTab = 'nodes' | 'segments' | 'systems' | 'capacity' | 'rules'
+type DataTab = 'nodes' | 'segments' | 'systems' | 'capacity' | 'outages' | 'rules'
 type Tab = DataTab | 'checks' | 'config'
 
 interface CheckResult {
@@ -28,13 +28,14 @@ interface Props {
   segments: CableSegment[]
   systems: CableSystem[]
   capacity: SegmentCapacity[]
+  outages: SegmentOutage[]
   rules: InterconnectRule[]
   config: AppConfig
   onDataChange: () => void
   onClose: () => void
 }
 
-export function RefDataModal({ nodes, segments, systems, capacity, rules, config, onDataChange, onClose }: Props) {
+export function RefDataModal({ nodes, segments, systems, capacity, outages, rules, config, onDataChange, onClose }: Props) {
   const t = useTheme()
   const [tab, setTab] = useState<Tab>('nodes')
   const [editId, setEditId] = useState<string | null>(null)
@@ -485,6 +486,77 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, config
     )
   }
 
+  // ── Outages tab ──────────────────────────────────────────────────────────────
+
+  function OutagesTab() {
+    const filtered = outages.filter(o =>
+      !filter || o.segment_id.toLowerCase().includes(filter.toLowerCase()) ||
+      o.fault_id.toLowerCase().includes(filter.toLowerCase())
+    )
+    return (
+      <>
+        {adding && (
+          <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            <Field label="Segment ID *"    k="segment_id"            src={addValues} setSrc={setAddValues} />
+            <Field label="Fault ID *"      k="fault_id"              src={addValues} setSrc={setAddValues} />
+            <Field label="Fault Date *"    k="fault_date"            src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD" />
+            <Field label="Repair Start"    k="repair_start"          src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD or TBC" />
+            <Field label="ETA Repair"      k="estimated_repair_date" src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD or TBC" />
+            <Field label="Description *"   k="description"           src={addValues} setSrc={setAddValues} />
+            <SaveCancel
+              onSave={() => saveAdd(() => api.createOutage(addValues as unknown as SegmentOutage))}
+              onCancel={() => { setAdding(false); setAddValues({}) }}
+            />
+          </div>
+        )}
+        <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
+          <div style={colH(2)}>Segment</div>
+          <div style={colH(2)}>Fault ID</div>
+          <div style={colH(2)}>Fault Date</div>
+          <div style={colH(2)}>Repair Start</div>
+          <div style={colH(2)}>ETA</div>
+          <div style={colH(3)}>Description</div>
+          <div style={{ width: 140 }} />
+        </div>
+        {filtered.map(o => (
+          <div key={o.segment_id} style={rowStyle(editId === o.segment_id)}>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
+              <div style={cell(2)}><code style={{ fontSize: 11 }}>{o.segment_id}</code></div>
+              <div style={cell(2)}>{o.fault_id}</div>
+              <div style={cell(2)}>{o.fault_date}</div>
+              <div style={cell(2)}>{o.repair_start ?? '—'}</div>
+              <div style={{ ...cell(2), color: o.estimated_repair_date === 'TBC' ? t.orange : t.text }}>
+                {o.estimated_repair_date ?? '—'}
+              </div>
+              <div style={{ ...cell(3), fontSize: 11, color: t.textMuted }}>{o.description}</div>
+              <ActionsCell id={o.segment_id}
+                onEdit={() => startEdit(o.segment_id, {
+                  fault_id: o.fault_id, fault_date: o.fault_date,
+                  repair_start: o.repair_start ?? '', estimated_repair_date: o.estimated_repair_date ?? '',
+                  description: o.description,
+                })}
+                onDelete={() => confirmDelete(() => api.deleteOutage(o.segment_id))}
+              />
+            </div>
+            {editId === o.segment_id && (
+              <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                <Field label="Fault ID"       k="fault_id"              src={editValues} setSrc={setEditValues} />
+                <Field label="Fault Date"     k="fault_date"            src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD" />
+                <Field label="Repair Start"   k="repair_start"          src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD or TBC" />
+                <Field label="ETA Repair"     k="estimated_repair_date" src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD or TBC" />
+                <Field label="Description"    k="description"           src={editValues} setSrc={setEditValues} />
+                <SaveCancel
+                  onSave={() => saveEdit(() => api.updateOutage(o.segment_id, editValues as Partial<SegmentOutage>))}
+                  onCancel={() => setEditId(null)}
+                />
+              </div>
+            )}
+          </div>
+        ))}
+      </>
+    )
+  }
+
   // ── Rules tab ────────────────────────────────────────────────────────────────
 
   type FlatPair = { node_id: string; idx: number; pair: DisallowedPair | AllowedPair; kind: 'blacklist' | 'whitelist' }
@@ -854,12 +926,13 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, config
   // ── Counts & add defaults ────────────────────────────────────────────────────
 
   const totalPairs = rules.reduce((n, r) => n + r.disallowed_pairs.length + (r.allowed_pairs?.length ?? 0), 0)
-  const counts: Record<DataTab, number> = { nodes: nodes.length, segments: segments.length, systems: systems.length, capacity: capacity.length, rules: totalPairs }
+  const counts: Record<DataTab, number> = { nodes: nodes.length, segments: segments.length, systems: systems.length, capacity: capacity.length, outages: outages.length, rules: totalPairs }
   const addDefaults: Record<DataTab, Record<string, unknown>> = {
     nodes:    { id: '', name: '', country: '', type: 'landing_station', lat: 0, lng: 0, owner: 'Telstra', trading_name: '', description: '' },
     segments: { id: '', name: '', system_id: '', start_node_id: '', end_node_id: '', type: 'wet', length_km: 0, latency: 0, cost_weight: 1, reliability: 0.9999, ownership: 'consortium' },
     systems:  { id: '', name: '', description: '' },
     capacity: { segment_id: '', total_capacity_t: 1.0, available_capacity_t: 1.0 },
+    outages:  { segment_id: '', fault_id: '', fault_date: '', repair_start: '', estimated_repair_date: 'TBC', description: '' },
     rules:    { node_id: '', kind: 'blacklist', system_a: '', system_b: '', reason: '' },
   }
 
@@ -880,7 +953,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, config
 
         {/* Tab bar + filter + add */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 20px', borderBottom: `1px solid ${t.border}`, flexShrink: 0, background: t.bgDeep }}>
-          {(['nodes', 'segments', 'systems', 'capacity', 'rules'] as DataTab[]).map(tb => (
+          {(['nodes', 'segments', 'systems', 'capacity', 'outages', 'rules'] as DataTab[]).map(tb => (
             <button key={tb} onClick={() => switchTab(tb)} style={{
               padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
               fontSize: 12, fontWeight: tab === tb ? 700 : 400,
@@ -931,6 +1004,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, rules, config
           {tab === 'segments' && <SegmentTab />}
           {tab === 'systems'  && <SystemTab />}
           {tab === 'capacity' && <CapacityTab />}
+          {tab === 'outages'  && <OutagesTab />}
           {tab === 'rules'    && <RulesTab />}
           {tab === 'checks'   && <ChecksTab />}
           {tab === 'config'   && <ConfigTab />}

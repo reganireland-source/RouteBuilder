@@ -12,7 +12,7 @@ import { useTheme } from '../theme'
 import type { ThemeMode } from '../theme'
 import type {
   AppConfig, AppMode, CableNode, CableSegment, CableSystem, InterconnectRule,
-  PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity,
+  PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage,
   SelectedSystem, DiversityType,
 } from '../types'
 
@@ -51,6 +51,7 @@ export interface MobileLayoutProps {
   segments: CableSegment[]
   systems: CableSystem[]
   capacity: SegmentCapacity[]
+  outages: SegmentOutage[]
   rules: InterconnectRule[]
   response: RouteResponse | null
   selectedRoutes: Route[]
@@ -92,7 +93,7 @@ export interface MobileLayoutProps {
 }
 
 export function MobileLayout({
-  nodes, segments, systems, capacity, rules,
+  nodes, segments, systems, capacity, outages, rules,
   response, selectedRoutes, selectedRouteIds, pinnedRoutes, selectedSystems,
   mode, loading, error, selectedNode, searchPin, nearestNodeIds,
   prefilledOrigin, prefilledDest, lastSearchDiversity,
@@ -212,6 +213,7 @@ export function MobileLayout({
             nearestNodeIds={nearestNodeIds}
             hideNonActive={hideNonActive}
             showSegmentLabels={showSegmentLabels}
+            outages={outages}
           />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: t.textFaint, background: t.bgMap }}>
@@ -359,6 +361,7 @@ export function MobileLayout({
                     onSelectRoute={onToggleRoute}
                     nodes={nodes}
                     capacity={capacity}
+                    outages={outages}
                     pinnedRoutes={pinnedRoutes}
                     onPin={onPin}
                     onUnpin={onUnpin}
@@ -414,7 +417,7 @@ export function MobileLayout({
       {refDataOpen && (
         <RefDataModal
           nodes={nodes} segments={segments} systems={systems}
-          capacity={capacity} rules={rules} config={config}
+          capacity={capacity} outages={outages} rules={rules} config={config}
           onDataChange={onDataChange}
           onClose={onCloseRefData}
         />

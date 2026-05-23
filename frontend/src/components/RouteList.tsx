@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import type { Route, CableNode, SegmentCapacity, PinnedRoute } from '../types'
+import type { Route, CableNode, SegmentCapacity, SegmentOutage, PinnedRoute } from '../types'
 import { useTheme } from '../theme'
 
 function useIsMobile(): boolean {
@@ -33,6 +33,7 @@ interface Props {
   onSelectRoute: (id: string) => void
   nodes: CableNode[]
   capacity: SegmentCapacity[]
+  outages?: SegmentOutage[]
   pinnedRoutes: PinnedRoute[]
   onPin: (route: Route) => void
   onUnpin: (pinId: string) => void
@@ -52,6 +53,10 @@ const SORT_OPTIONS: { key: SortKey; icon: string; label: string; dir: 'asc' | 'd
   { key: 'capacity',     icon: '◈',  label: 'Capacity',  dir: 'desc' },
   { key: 'ownership',    icon: '◉',  label: 'Own',       dir: 'asc'  },
 ]
+
+function routeHasOutage(route: Route, outagesById: Record<string, SegmentOutage>): boolean {
+  return route.segments.some(s => !!outagesById[s.segment_id])
+}
 
 function routeKey(r: Route) { return r.nodes.join('|') }
 
@@ -83,12 +88,14 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
   })
 }
 
-export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes, capacity, pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership }: Props) {
+export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership }: Props) {
   const t = useTheme()
   const onNetSet = new Set(onNetOwnership)
   const [sortKey, setSortKey] = useState<SortKey>('hops')
+  const [pushOutagesDown, setPushOutagesDown] = useState(false)
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
+  const outagesById = Object.fromEntries(outages.map(o => [o.segment_id, o]))
   const pinnedKeys = new Set(pinnedRoutes.map(p => routeKey(p.route)))
   const canPin = pinnedRoutes.length < 5
 
@@ -99,9 +106,18 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
     return null
   }
 
+  function applySort(routes: Route[]): Route[] {
+    const base = sortRoutes(routes, sortKey, capacityById, onNetSet)
+    if (!pushOutagesDown) return base
+    return [
+      ...base.filter(r => !routeHasOutage(r, outagesById)),
+      ...base.filter(r =>  routeHasOutage(r, outagesById)),
+    ]
+  }
+
   const sorted = {
-    primary: sortRoutes(primaryRoutes, sortKey, capacityById, onNetSet),
-    diverse:  sortRoutes(diverseRoutes,  sortKey, capacityById, onNetSet),
+    primary: applySort(primaryRoutes),
+    diverse:  applySort(diverseRoutes),
   }
 
   return (
@@ -120,6 +136,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
               onUnpin={() => onUnpin(p.pinId)}
               nodesById={nodesById}
               capacityById={capacityById}
+              outagesById={outagesById}
               onNetSet={onNetSet}
             />
           ))}
@@ -153,6 +170,23 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
                 </button>
               )
             })}
+            <button
+              onClick={() => setPushOutagesDown(v => !v)}
+              title="Push routes with segments under repair to the bottom"
+              style={{
+                flex: '1 0 44px', display: 'flex', flexDirection: 'column', alignItems: 'center',
+                gap: 2, padding: '5px 3px', borderRadius: 6,
+                border: `1px solid ${pushOutagesDown ? t.red : t.border}`,
+                background: pushOutagesDown ? t.red + '22' : t.bgCard,
+                color: pushOutagesDown ? t.red : t.textFaint,
+                cursor: 'pointer', fontSize: 10, fontWeight: pushOutagesDown ? 700 : 400,
+                letterSpacing: '0.04em', textTransform: 'uppercase', transition: 'all 0.15s',
+              }}
+            >
+              <span style={{ fontSize: 15, lineHeight: 1 }}>🚢</span>
+              <span>UP</span>
+              <span style={{ fontSize: 9, opacity: 0.7 }}>↓ last</span>
+            </button>
           </div>
 
           {sorted.primary.length > 0 && (
@@ -165,6 +199,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
                   onSelect={onSelectRoute}
                   nodesById={nodesById}
                   capacityById={capacityById}
+                  outagesById={outagesById}
                   color={t.blue}
                   isPinned={pinnedKeys.has(routeKey(r))}
                   canPin={canPin}
@@ -184,6 +219,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
                   onSelect={onSelectRoute}
                   nodesById={nodesById}
                   capacityById={capacityById}
+                  outagesById={outagesById}
                   color={t.green}
                   isPinned={pinnedKeys.has(routeKey(r))}
                   canPin={canPin}
@@ -217,11 +253,12 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
   )
 }
 
-function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, onNetSet }: {
+function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, onNetSet }: {
   pinned: PinnedRoute
   onUnpin: () => void
   nodesById: Record<string, { name: string; type?: string }>
   capacityById: Record<string, SegmentCapacity>
+  outagesById: Record<string, SegmentOutage>
   onNetSet: Set<string>
 }) {
   const t = useTheme()
@@ -243,6 +280,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, onNetSet }:
   const reliabilityPct = (route.end_to_end_reliability * 100).toFixed(3)
   const { cap: estCap, systemId: bottleneckId } = estimatedCapacity(route, capacityById)
   const estCapColor = estCap < 0.5 ? t.red : estCap < 1.0 ? t.orange : t.green
+  const hasOutage = routeHasOutage(route, outagesById)
 
   return (
     <div
@@ -278,6 +316,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, onNetSet }:
             <span style={{ fontSize: 12, fontWeight: 600, color }}>{route.id}</span>
             <span style={{ fontSize: 11, fontWeight: 400, color: t.textMuted }}>{wetSystems.join(' · ')}</span>
             <NetBadge route={route} onNetSet={onNetSet} />
+            {hasOutage && <OutageBadge />}
           </div>
           <span style={{ fontSize: 11, color: t.textFaint, flexShrink: 0 }}>{route.nodes.length - 1} hops</span>
         </div>
@@ -324,25 +363,26 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, onNetSet }:
 
         {isMobile && segmentsOpen && (
           <div style={{ marginTop: 8 }}>
-            <SegmentBreakdownRows route={route} capacityById={capacityById} onNetSet={onNetSet} />
+            <SegmentBreakdownRows route={route} capacityById={capacityById} outagesById={outagesById} onNetSet={onNetSet} />
           </div>
         )}
       </div>
 
       {!isMobile && hovered && createPortal(
-        <SegmentTooltip route={route} capacityById={capacityById} pos={tooltipPos} onNetSet={onNetSet} />,
+        <SegmentTooltip route={route} capacityById={capacityById} outagesById={outagesById} pos={tooltipPos} onNetSet={onNetSet} />,
         document.body
       )}
     </div>
   )
 }
 
-function RouteCard({ route, selected, onSelect, nodesById, capacityById, color, isPinned, canPin, onPin, onNetSet }: {
+function RouteCard({ route, selected, onSelect, nodesById, capacityById, outagesById, color, isPinned, canPin, onPin, onNetSet }: {
   route: Route
   selected: boolean
   onSelect: (id: string) => void
   nodesById: Record<string, { name: string; type?: string }>
   capacityById: Record<string, SegmentCapacity>
+  outagesById: Record<string, SegmentOutage>
   color: string
   isPinned: boolean
   canPin: boolean
@@ -368,6 +408,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, color, 
   const { cap: estCap, systemId: bottleneckId } = estimatedCapacity(route, capacityById)
   const estCapColor = estCap < 0.5 ? t.red : estCap < 1.0 ? t.orange : t.green
   const pinDisabled = !isPinned && !canPin
+  const hasOutage = routeHasOutage(route, outagesById)
 
   return (
     <div
@@ -387,6 +428,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, color, 
           <span style={{ fontSize: 12, fontWeight: 600, color }}>{route.id}</span>
           <span style={{ fontSize: 11, fontWeight: 400, color: t.textMuted }}>{wetSystems.join(' · ')}</span>
           <NetBadge route={route} onNetSet={onNetSet} />
+          {hasOutage && <OutageBadge />}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: t.textFaint }}>{route.nodes.length - 1} hops</span>
@@ -448,12 +490,12 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, color, 
 
       {isMobile && segmentsOpen && (
         <div style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
-          <SegmentBreakdownRows route={route} capacityById={capacityById} onNetSet={onNetSet} />
+          <SegmentBreakdownRows route={route} capacityById={capacityById} outagesById={outagesById} onNetSet={onNetSet} />
         </div>
       )}
 
       {!isMobile && hovered && createPortal(
-        <SegmentTooltip route={route} capacityById={capacityById} pos={tooltipPos} onNetSet={onNetSet} />,
+        <SegmentTooltip route={route} capacityById={capacityById} outagesById={outagesById} pos={tooltipPos} onNetSet={onNetSet} />,
         document.body
       )}
     </div>
@@ -478,9 +520,10 @@ function NetBadge({ route, onNetSet }: { route: Route; onNetSet: Set<string> }) 
   )
 }
 
-function SegmentBreakdownRows({ route, capacityById, onNetSet }: {
+function SegmentBreakdownRows({ route, capacityById, outagesById, onNetSet }: {
   route: Route
   capacityById: Record<string, SegmentCapacity>
+  outagesById: Record<string, SegmentOutage>
   onNetSet: Set<string>
 }) {
   const t = useTheme()
@@ -495,6 +538,7 @@ function SegmentBreakdownRows({ route, capacityById, onNetSet }: {
         const onNet = seg.type === 'wet' ? onNetSet.has(seg.ownership) : null
         const netColor = onNet === true ? t.green : onNet === false ? t.red : null
         const netLabel = onNet === true ? 'ON-NET' : onNet === false ? 'OFF-NET' : null
+        const outage = outagesById[seg.segment_id]
         return (
           <div key={seg.segment_id} style={{ marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${t.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -509,6 +553,20 @@ function SegmentBreakdownRows({ route, capacityById, onNetSet }: {
                     background: netColor + '22', color: netColor, border: `1px solid ${netColor + '55'}`,
                   }}>
                     {netLabel}
+                  </span>
+                )}
+                {outage && (
+                  <span
+                    title={[
+                      `Fault ID: ${outage.fault_id}`,
+                      `Fault Date: ${outage.fault_date}`,
+                      `Repair Start: ${outage.repair_start ?? 'TBC'}`,
+                      `ETA: ${outage.estimated_repair_date ?? 'TBC'}`,
+                      outage.description,
+                    ].join('\n')}
+                    style={{ cursor: 'help', fontSize: 13, lineHeight: 1 }}
+                  >
+                    ⚠️🚢
                   </span>
                 )}
               </div>
@@ -538,9 +596,10 @@ function SegmentBreakdownRows({ route, capacityById, onNetSet }: {
   )
 }
 
-function SegmentTooltip({ route, capacityById, pos, onNetSet }: {
+function SegmentTooltip({ route, capacityById, outagesById, pos, onNetSet }: {
   route: Route
   capacityById: Record<string, SegmentCapacity>
+  outagesById: Record<string, SegmentOutage>
   pos: { top: number; left: number }
   onNetSet: Set<string>
 }) {
@@ -555,8 +614,21 @@ function SegmentTooltip({ route, capacityById, pos, onNetSet }: {
         fontFamily: 'system-ui, sans-serif', pointerEvents: 'none',
       }}
     >
-      <SegmentBreakdownRows route={route} capacityById={capacityById} onNetSet={onNetSet} />
+      <SegmentBreakdownRows route={route} capacityById={capacityById} outagesById={outagesById} onNetSet={onNetSet} />
     </div>
+  )
+}
+
+function OutageBadge() {
+  const t = useTheme()
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
+      letterSpacing: '0.04em', whiteSpace: 'nowrap',
+      background: t.red + '22', color: t.red, border: `1px solid ${t.red + '55'}`,
+    }}>
+      ⚠ 🚢 UNDER REPAIR
+    </span>
   )
 }
 

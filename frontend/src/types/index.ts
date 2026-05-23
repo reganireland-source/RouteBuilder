@@ -86,6 +86,15 @@ export interface SegmentCapacity {
   available_capacity_t: number
 }
 
+export interface SegmentOutage {
+  segment_id: string
+  fault_id: string
+  fault_date: string
+  repair_start?: string | null
+  estimated_repair_date?: string | null
+  description: string
+}
+
 export interface DisallowedPair {
   system_a: string
   system_b: string
