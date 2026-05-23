@@ -256,13 +256,6 @@ export function MobileLayout({
       {/* ── Top-right icon buttons ──────────────────────────────────────── */}
       <div style={{ position: 'fixed', top: 14, right: 14, zIndex: 100, display: 'flex', gap: 8 }}>
         <button
-          onClick={() => setCapDashOpen(true)}
-          title="Network Capacity Dashboard"
-          style={{ ...floatBtn, fontSize: 16 }}
-        >
-          📊
-        </button>
-        <button
           onClick={onToggleShowAllOutages}
           title="Show All Outages"
           style={{
@@ -351,6 +344,26 @@ export function MobileLayout({
           {/* ── Routes mode ───────────────────────────────────────────── */}
           {mode === 'routebuilder' && (
             <div style={{ padding: '14px 16px 32px' }}>
+
+              {/* Capacity dashboard shortcut */}
+              {capacity.length > 0 && (
+                <button
+                  onClick={() => setCapDashOpen(true)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    width: '100%', marginBottom: 10,
+                    padding: '7px 12px', borderRadius: 7,
+                    border: `1px solid ${t.border}`,
+                    background: t.bgCard, cursor: 'pointer',
+                    fontSize: 12, color: t.textMuted, fontWeight: 600,
+                    textAlign: 'left',
+                  }}
+                >
+                  <span>📊</span>
+                  <span>Network Capacity Dashboard</span>
+                  <span style={{ marginLeft: 'auto', color: t.textFaintest }}>›</span>
+                </button>
+              )}
 
               {/* Mini status / action bar */}
               {(hasResults || hasPins || loading) && (
