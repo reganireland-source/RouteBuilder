@@ -281,6 +281,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   const { cap: estCap, systemId: bottleneckId } = estimatedCapacity(route, capacityById)
   const estCapColor = estCap < 0.5 ? t.red : estCap < 1.0 ? t.orange : t.green
   const hasOutage = routeHasOutage(route, outagesById)
+  const repairDateLabel = hasOutage ? latestRepairDate(route, outagesById) : ''
 
   return (
     <div
@@ -316,7 +317,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
             <span style={{ fontSize: 12, fontWeight: 600, color }}>{route.id}</span>
             <span style={{ fontSize: 11, fontWeight: 400, color: t.textMuted }}>{wetSystems.join(' · ')}</span>
             <NetBadge route={route} onNetSet={onNetSet} />
-            {hasOutage && <OutageBadge />}
+            {hasOutage && <OutageBadge repairDate={repairDateLabel} />}
           </div>
           <span style={{ fontSize: 11, color: t.textFaint, flexShrink: 0 }}>{route.nodes.length - 1} hops</span>
         </div>
@@ -409,6 +410,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
   const estCapColor = estCap < 0.5 ? t.red : estCap < 1.0 ? t.orange : t.green
   const pinDisabled = !isPinned && !canPin
   const hasOutage = routeHasOutage(route, outagesById)
+  const repairDateLabel = hasOutage ? latestRepairDate(route, outagesById) : ''
 
   return (
     <div
@@ -564,9 +566,12 @@ function SegmentBreakdownRows({ route, capacityById, outagesById, onNetSet }: {
                       `ETA: ${outage.estimated_repair_date ?? 'TBC'}`,
                       outage.description,
                     ].join('\n')}
-                    style={{ cursor: 'help', fontSize: 13, lineHeight: 1 }}
+                    style={{ cursor: 'help', display: 'inline-flex', alignItems: 'center', gap: 3 }}
                   >
-                    ⚠️🚢
+                    <span style={{ fontSize: 13, lineHeight: 1 }}>⚠️🚢</span>
+                    <span style={{ fontSize: 10, fontWeight: 600, color: t.red }}>
+                      {formatRepairDate(outage.estimated_repair_date)}
+                    </span>
                   </span>
                 )}
               </div>
@@ -619,15 +624,34 @@ function SegmentTooltip({ route, capacityById, outagesById, pos, onNetSet }: {
   )
 }
 
-function OutageBadge() {
+function formatRepairDate(date: string | null | undefined): string {
+  if (!date || date === 'TBC') return 'Date TBC'
+  const m = date.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`
+  return 'Date TBC'
+}
+
+function latestRepairDate(route: Route, outagesById: Record<string, SegmentOutage>): string {
+  const isoDates = route.segments
+    .map(s => outagesById[s.segment_id]?.estimated_repair_date)
+    .filter((d): d is string => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d))
+    .sort()
+  if (isoDates.length === 0) return 'Date TBC'
+  return formatRepairDate(isoDates[isoDates.length - 1])
+}
+
+function OutageBadge({ repairDate }: { repairDate: string }) {
   const t = useTheme()
   return (
-    <span style={{
-      fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
-      letterSpacing: '0.04em', whiteSpace: 'nowrap',
-      background: t.red + '22', color: t.red, border: `1px solid ${t.red + '55'}`,
-    }}>
-      ⚠ 🚢 UNDER REPAIR
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+      <span style={{
+        fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
+        letterSpacing: '0.04em',
+        background: t.red + '22', color: t.red, border: `1px solid ${t.red + '55'}`,
+      }}>
+        ⚠ 🚢 UNDER REPAIR
+      </span>
+      <span style={{ fontSize: 10, color: t.red, fontWeight: 600 }}>{repairDate}</span>
     </span>
   )
 }
