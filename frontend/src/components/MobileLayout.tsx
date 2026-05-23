@@ -194,15 +194,6 @@ export function MobileLayout({
     transition: 'color 0.15s, border-color 0.15s',
   })
 
-  const floatBtn: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    width: 38, height: 38, borderRadius: 19,
-    border: `1px solid ${t.border}`,
-    background: t.bgPanel + 'f0',
-    color: t.textMuted, cursor: 'pointer', fontSize: 15,
-    boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 2px 10px rgba(0,0,0,0.5)',
-  }
-
   const smallBtn = (destructive = false): React.CSSProperties => ({
     padding: '4px 10px', borderRadius: 4, border: `1px solid ${t.border}`,
     background: 'transparent', color: destructive ? t.red : t.textMuted,
