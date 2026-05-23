@@ -39,7 +39,7 @@ interface Props {
   onUnpin: (pinId: string) => void
   diversityRequested?: boolean
   onNetOwnership: string[]
-  // Optional external sort control (e.g. driven by RoboTSA)
+  // Optional external sort control (e.g. driven by TSABuddy)
   externalSortKey?: SortKey
   externalPushOutagesDown?: boolean
 }
@@ -97,7 +97,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
   const [internalSortKey, setInternalSortKey] = useState<SortKey>('hops')
   const [internalPushOutagesDown, setInternalPushOutagesDown] = useState(false)
 
-  // Sync from external when provided (e.g. RoboTSA sets the sort)
+  // Sync from external when provided (e.g. TSABuddy sets the sort)
   useEffect(() => { if (externalSortKey !== undefined) setInternalSortKey(externalSortKey) }, [externalSortKey])
   useEffect(() => { if (externalPushOutagesDown !== undefined) setInternalPushOutagesDown(externalPushOutagesDown) }, [externalPushOutagesDown])
 

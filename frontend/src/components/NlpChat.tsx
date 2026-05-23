@@ -10,7 +10,7 @@ interface Props {
   onApplySort?: (mode: NlpSortMode) => void
 }
 
-function RoboTSAAvatar({ size = 28 }: { size?: number }) {
+function TSABuddyAvatar({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
       {/* Antenna */}
@@ -94,11 +94,11 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort }: 
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
       if (msg.includes('404')) {
-        setError('RoboTSA not enabled on server — set NLP_ENABLED=true and an API key in your backend env vars')
+        setError('TSABuddy not enabled on server — set NLP_ENABLED=true and an API key in your backend env vars')
       } else if (msg.includes('503')) {
-        setError('RoboTSA is offline — no LLM API key configured on server (set ANTHROPIC_API_KEY or AZURE_OPENAI_ENDPOINT)')
+        setError('TSABuddy is offline — no LLM API key configured on server (set ANTHROPIC_API_KEY or AZURE_OPENAI_ENDPOINT)')
       } else {
-        setError('RoboTSA hit an error — please try again')
+        setError('TSABuddy hit an error — please try again')
       }
     } finally {
       setLoading(false)
@@ -123,9 +123,9 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort }: 
           cursor: 'pointer', color: t.text,
         }}
       >
-        <RoboTSAAvatar size={22} />
+        <TSABuddyAvatar size={22} />
         <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.03em', flex: 1, textAlign: 'left' }}>
-          RoboTSA
+          TSABuddy
         </span>
         <span style={{ fontSize: 10, color: t.textFaint }}>
           {expanded ? '▲' : '▼'}
@@ -194,7 +194,7 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort }: 
             <div style={{ marginTop: 10 }}>
               {/* Explanation + confidence */}
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 6 }}>
-                <RoboTSAAvatar size={18} />
+                <TSABuddyAvatar size={18} />
                 <p style={{ fontSize: 11, color: t.text, lineHeight: 1.5, flex: 1, margin: 0 }}>
                   {result.explanation}
                 </p>
