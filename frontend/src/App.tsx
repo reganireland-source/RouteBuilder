@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Map } from './components/Map'
 import { SearchForm } from './components/SearchForm'
 import { RouteList } from './components/RouteList'
@@ -45,6 +46,7 @@ export default function App() {
   function cycleTheme() { setThemeMode(m => m === 'dark' ? 'dusk' : m === 'dusk' ? 'light' : 'dark') }
 
   const [refDataOpen, setRefDataOpen] = useState(false)
+  const [guideOpen,   setGuideOpen]   = useState(false)
   const [mode, setMode]               = useState<AppMode>('routebuilder')
   const [nodes, setNodes]             = useState<CableNode[]>([])
   const [segments, setSegments]       = useState<CableSegment[]>([])
@@ -210,6 +212,7 @@ export default function App() {
           onDataChange={handleDataChange}
           config={config}
           switchMode={switchMode}
+          onOpenGuide={() => setGuideOpen(true)}
           clearSearch={clearSearch}
           clearAll={clearAll}
           cycleTheme={cycleTheme}
@@ -222,7 +225,30 @@ export default function App() {
           onApplySort={handleApplySort}
           nlpSortKey={nlpSortKey}
           nlpPushOutages={nlpPushOutages}
+          onOpenGuide={() => setGuideOpen(true)}
         />
+        {guideOpen && createPortal(
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 2000,
+            background: theme.bgBase,
+            overflowY: 'auto',
+          }}>
+            <button
+              onClick={() => setGuideOpen(false)}
+              style={{
+                position: 'fixed', top: 16, right: 20, zIndex: 2001,
+                background: theme.bgCard, border: `1px solid ${theme.border}`,
+                borderRadius: '50%', width: 36, height: 36,
+                fontSize: 18, lineHeight: 1, cursor: 'pointer',
+                color: theme.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              }}
+              title="Close guide"
+            >×</button>
+            <UserGuide />
+          </div>,
+          document.body
+        )}
       </ThemeContext.Provider>
     )
   }
@@ -318,7 +344,7 @@ export default function App() {
         }}>
           <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${theme.border}` }}>
             <div
-              onClick={() => switchMode('guide')}
+              onClick={() => setGuideOpen(true)}
               style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 2, cursor: 'pointer' }}
               title="Open platform guide"
             >
@@ -333,7 +359,7 @@ export default function App() {
             <button style={tabStyle(mode === 'citypair')}     onClick={() => switchMode('citypair')}>City Pairs</button>
             <button style={tabStyle(mode === 'systemviewer')} onClick={() => switchMode('systemviewer')}>Cable System</button>
             <button style={tabStyle(mode === 'nodefinder')}   onClick={() => switchMode('nodefinder')}>Node Search</button>
-            <button style={tabStyle(mode === 'guide')}        onClick={() => switchMode('guide')}>Guide</button>
+            <button style={tabStyle(false)}                   onClick={() => setGuideOpen(true)}>Guide</button>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
@@ -368,7 +394,6 @@ export default function App() {
                 onSetDest={handleSetDest}
               />
             )}
-            {mode === 'guide' && <UserGuide />}
           </div>
           <HealthBar dataLoaded={nodes.length > 0} />
         </div>
@@ -465,6 +490,29 @@ export default function App() {
           onDataChange={handleDataChange}
           onClose={() => setRefDataOpen(false)}
         />
+      )}
+
+      {guideOpen && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 2000,
+          background: theme.bgBase,
+          overflowY: 'auto',
+        }}>
+          <button
+            onClick={() => setGuideOpen(false)}
+            style={{
+              position: 'fixed', top: 16, right: 20, zIndex: 2001,
+              background: theme.bgCard, border: `1px solid ${theme.border}`,
+              borderRadius: '50%', width: 36, height: 36,
+              fontSize: 18, lineHeight: 1, cursor: 'pointer',
+              color: theme.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+            }}
+            title="Close guide"
+          >×</button>
+          <UserGuide />
+        </div>,
+        document.body
       )}
     </ThemeContext.Provider>
   )

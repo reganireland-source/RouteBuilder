@@ -10,7 +10,6 @@ import { NodeInfoPanel } from './NodeInfoPanel'
 import { RefDataModal } from './RefDataModal'
 import { HealthBar } from './HealthBar'
 import { CapacityDashboard } from './CapacityDashboard'
-import { UserGuide } from './UserGuide'
 import { generateStraightLineDiagram } from '../utils/generateDiagram'
 import { useTheme } from '../theme'
 import type { ThemeMode } from '../theme'
@@ -103,6 +102,7 @@ export interface MobileLayoutProps {
   onApplySort?:                  (mode: NlpSortMode) => void
   nlpSortKey?:                   SortKey
   nlpPushOutages?:               boolean
+  onOpenGuide:                   () => void
 }
 
 export function MobileLayout({
@@ -115,7 +115,7 @@ export function MobileLayout({
   onSetOrigin, onSetDest, onSetPair, onNodeClick, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
   switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowAllOutages,
-  onApplySort, nlpSortKey, nlpPushOutages,
+  onApplySort, nlpSortKey, nlpPushOutages, onOpenGuide,
   hideNonActive = false, showSegmentLabels = false, showAllOutages = false,
 }: MobileLayoutProps & { hideNonActive?: boolean; showSegmentLabels?: boolean; showAllOutages?: boolean }) {
   const t = useTheme()
@@ -233,7 +233,7 @@ export function MobileLayout({
 
       {/* ── Top-left branding ───────────────────────────────────────────── */}
       <div
-        onClick={() => switchMode('guide')}
+        onClick={onOpenGuide}
         title="Open platform guide"
         style={{
           position: 'absolute', top: 14, left: 14, zIndex: 100,
@@ -423,7 +423,7 @@ export function MobileLayout({
           <button style={tabBtn(mode === 'citypair')}     onClick={() => tapTab('citypair')}>City Pairs</button>
           <button style={tabBtn(mode === 'systemviewer')} onClick={() => tapTab('systemviewer')}>Cables</button>
           <button style={tabBtn(mode === 'nodefinder')}   onClick={() => tapTab('nodefinder')}>Nodes</button>
-          <button style={tabBtn(mode === 'guide')}        onClick={() => tapTab('guide')}>Guide</button>
+          <button style={tabBtn(false)}                   onClick={onOpenGuide}>Guide</button>
         </div>
 
         {/* Scrollable content — clipped to sheet height automatically */}
@@ -531,12 +531,6 @@ export function MobileLayout({
             </div>
           )}
 
-          {/* ── Guide mode ────────────────────────────────────────────── */}
-          {mode === 'guide' && (
-            <div style={{ padding: '14px 0 32px' }}>
-              <UserGuide />
-            </div>
-          )}
         </div>
         <HealthBar dataLoaded={nodes.length > 0} />
       </div>
