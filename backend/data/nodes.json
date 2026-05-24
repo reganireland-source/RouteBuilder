@@ -852,8 +852,8 @@
   {
     "id": "CPSA",
     "name": "Capepisa",
-    "lat": 18.5,
-    "lng": 121.9,
+    "lat": 14.35,
+    "lng": 120.88,
     "type": "landing_station",
     "country": "PH"
   },
@@ -1203,5 +1203,29 @@
     "country": "US",
     "owner": "Equinix",
     "description": "Equinix MI3 \u2013 Miami, FL"
+  },
+  {
+    "id": "SIN3",
+    "name": "Changi (EAC)",
+    "lat": 1.3535,
+    "lng": 103.982,
+    "type": "landing_station",
+    "country": "SG"
+  },
+  {
+    "id": "SIN4",
+    "name": "Changi (C2C)",
+    "lat": 1.3545,
+    "lng": 103.983,
+    "type": "landing_station",
+    "country": "SG"
+  },
+  {
+    "id": "SHA1",
+    "name": "Shanghai",
+    "lat": 31.23,
+    "lng": 121.47,
+    "type": "terrestrial_pop",
+    "country": "CN"
   }
 ]
