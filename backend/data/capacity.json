@@ -738,5 +738,15 @@
     "segment_id": "C2C-S7",
     "total_capacity_t": 2.5,
     "available_capacity_t": 0.8
+  },
+  {
+    "segment_id": "TERRESTRIAL_IN05",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 1.0
+  },
+  {
+    "segment_id": "TERRESTRIAL_IN06",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 0.9
   }
 ]

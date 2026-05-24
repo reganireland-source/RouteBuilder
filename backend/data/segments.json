@@ -2328,5 +2328,31 @@
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
     "latency": 0.025
+  },
+  {
+    "id": "TERRESTRIAL_IN05",
+    "name": "Terrestrial Mumbai\u2013Bangalore",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "BOM1",
+    "end_node_id": "BLR1",
+    "type": "terrestrial",
+    "length_km": 980,
+    "reliability": 0.9989,
+    "cost_weight": 3,
+    "ownership": "iru",
+    "latency": 4.9
+  },
+  {
+    "id": "TERRESTRIAL_IN06",
+    "name": "Terrestrial New Delhi\u2013Chennai",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "DEL1",
+    "end_node_id": "MAA1",
+    "type": "terrestrial",
+    "length_km": 2100,
+    "reliability": 0.9985,
+    "cost_weight": 6,
+    "ownership": "iru",
+    "latency": 10.5
   }
 ]
