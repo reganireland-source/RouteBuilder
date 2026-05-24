@@ -195,6 +195,7 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
           border: `1px solid ${t.border}`,
           boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
           overflow: 'hidden',
+          fontFamily: 'system-ui, sans-serif',
         }}
       >
         {/* Header */}
