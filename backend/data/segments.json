@@ -1075,7 +1075,7 @@
     "length_km": 9400,
     "reliability": 0.9995,
     "cost_weight": 19,
-    "ownership": "consortium",
+    "ownership": "iru",
     "latency": 47.0
   },
   {
@@ -1088,7 +1088,7 @@
     "length_km": 2700,
     "reliability": 0.9995,
     "cost_weight": 9,
-    "ownership": "consortium",
+    "ownership": "iru",
     "latency": 13.5
   },
   {
@@ -1101,7 +1101,7 @@
     "length_km": 2800,
     "reliability": 0.9995,
     "cost_weight": 9,
-    "ownership": "consortium",
+    "ownership": "iru",
     "latency": 14.0
   },
   {
@@ -1114,7 +1114,7 @@
     "length_km": 1200,
     "reliability": 0.9995,
     "cost_weight": 5,
-    "ownership": "consortium",
+    "ownership": "iru",
     "latency": 6.0
   },
   {
@@ -1127,7 +1127,7 @@
     "length_km": 1200,
     "reliability": 0.9995,
     "cost_weight": 5,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 6.0
   },
   {
@@ -1140,7 +1140,7 @@
     "length_km": 4800,
     "reliability": 0.9995,
     "cost_weight": 12,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 24.0
   },
   {
@@ -1153,7 +1153,7 @@
     "length_km": 10200,
     "reliability": 0.9995,
     "cost_weight": 20,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 51.0
   },
   {
@@ -1192,7 +1192,7 @@
     "length_km": 4100,
     "reliability": 0.9995,
     "cost_weight": 11,
-    "ownership": "consortium",
+    "ownership": "iru",
     "latency": 20.5
   },
   {
@@ -1205,7 +1205,7 @@
     "length_km": 5100,
     "reliability": 0.9995,
     "cost_weight": 13,
-    "ownership": "consortium",
+    "ownership": "iru",
     "latency": 25.5
   },
   {
@@ -1218,7 +1218,7 @@
     "length_km": 3200,
     "reliability": 0.9995,
     "cost_weight": 10,
-    "ownership": "consortium",
+    "ownership": "iru",
     "latency": 16.0
   },
   {
@@ -1231,7 +1231,7 @@
     "length_km": 900,
     "reliability": 0.9995,
     "cost_weight": 5,
-    "ownership": "consortium",
+    "ownership": "iru",
     "latency": 4.5
   },
   {
@@ -1244,7 +1244,7 @@
     "length_km": 2600,
     "reliability": 0.9993,
     "cost_weight": 8,
-    "ownership": "consortium",
+    "ownership": "integrated_lit_lease",
     "latency": 13.0
   },
   {
@@ -1257,7 +1257,7 @@
     "length_km": 2900,
     "reliability": 0.9993,
     "cost_weight": 9,
-    "ownership": "consortium",
+    "ownership": "iru",
     "latency": 14.5
   },
   {
@@ -1270,7 +1270,7 @@
     "length_km": 5300,
     "reliability": 0.9989,
     "cost_weight": 17,
-    "ownership": "consortium",
+    "ownership": "iru",
     "latency": 26.5
   },
   {
@@ -1283,7 +1283,7 @@
     "length_km": 4200,
     "reliability": 0.9991,
     "cost_weight": 13,
-    "ownership": "consortium",
+    "ownership": "iru",
     "latency": 21.0
   },
   {
@@ -1296,7 +1296,7 @@
     "length_km": 2500,
     "reliability": 0.9993,
     "cost_weight": 8,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 12.5
   },
   {
@@ -1309,7 +1309,7 @@
     "length_km": 1200,
     "reliability": 0.9995,
     "cost_weight": 4,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 6.0
   },
   {
@@ -1322,7 +1322,7 @@
     "length_km": 2100,
     "reliability": 0.9994,
     "cost_weight": 7,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 10.5
   },
   {
@@ -1335,7 +1335,7 @@
     "length_km": 1200,
     "reliability": 0.9995,
     "cost_weight": 4,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 6.0
   },
   {
@@ -1348,7 +1348,7 @@
     "length_km": 2100,
     "reliability": 0.9994,
     "cost_weight": 7,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 10.5
   },
   {
@@ -1361,7 +1361,7 @@
     "length_km": 800,
     "reliability": 0.9996,
     "cost_weight": 3,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 4.0
   },
   {
@@ -1374,7 +1374,7 @@
     "length_km": 1100,
     "reliability": 0.9995,
     "cost_weight": 4,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 5.5
   },
   {
@@ -1387,7 +1387,7 @@
     "length_km": 2500,
     "reliability": 0.9993,
     "cost_weight": 8,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 12.5
   },
   {
@@ -1426,7 +1426,7 @@
     "length_km": 1950,
     "reliability": 0.9995,
     "cost_weight": 6,
-    "ownership": "consortium",
+    "ownership": "iru",
     "latency": 9.75
   },
   {
@@ -1439,7 +1439,7 @@
     "length_km": 1100,
     "reliability": 0.9996,
     "cost_weight": 4,
-    "ownership": "consortium",
+    "ownership": "iru",
     "latency": 5.5
   },
   {
@@ -1452,7 +1452,7 @@
     "length_km": 4500,
     "reliability": 0.999,
     "cost_weight": 14,
-    "ownership": "consortium",
+    "ownership": "integrated_lit_lease",
     "latency": 22.5
   },
   {
@@ -1465,7 +1465,7 @@
     "length_km": 1800,
     "reliability": 0.9995,
     "cost_weight": 6,
-    "ownership": "consortium",
+    "ownership": "integrated_lit_lease",
     "latency": 9.0
   },
   {
@@ -1478,7 +1478,7 @@
     "length_km": 800,
     "reliability": 0.9997,
     "cost_weight": 3,
-    "ownership": "consortium",
+    "ownership": "integrated_lit_lease",
     "latency": 4.0
   },
   {
@@ -1634,7 +1634,7 @@
     "length_km": 2650,
     "reliability": 0.9993,
     "cost_weight": 8,
-    "ownership": "owned",
+    "ownership": "iru",
     "latency": 13.25
   },
   {
@@ -1647,7 +1647,7 @@
     "length_km": 241,
     "reliability": 0.9998,
     "cost_weight": 1,
-    "ownership": "owned",
+    "ownership": "iru",
     "latency": 1.21
   },
   {
@@ -1660,7 +1660,7 @@
     "length_km": 7500,
     "reliability": 0.9988,
     "cost_weight": 24,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 37.5
   },
   {
@@ -1673,7 +1673,7 @@
     "length_km": 2400,
     "reliability": 0.9993,
     "cost_weight": 9,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 12.0
   },
   {
@@ -1686,7 +1686,7 @@
     "length_km": 2800,
     "reliability": 0.9993,
     "cost_weight": 10,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 14.0
   },
   {
@@ -1699,7 +1699,7 @@
     "length_km": 4900,
     "reliability": 0.9991,
     "cost_weight": 17,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 24.5
   },
   {
@@ -1712,7 +1712,7 @@
     "length_km": 2600,
     "reliability": 0.9993,
     "cost_weight": 9,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 13.0
   },
   {
@@ -1725,7 +1725,7 @@
     "length_km": 1000,
     "reliability": 0.9995,
     "cost_weight": 5,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 5.0
   },
   {
@@ -1738,7 +1738,7 @@
     "length_km": 2000,
     "reliability": 0.9994,
     "cost_weight": 7,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 10.0
   },
   {
@@ -1751,7 +1751,7 @@
     "length_km": 2400,
     "reliability": 0.9993,
     "cost_weight": 8,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 12.0
   },
   {
@@ -1764,7 +1764,7 @@
     "length_km": 2200,
     "reliability": 0.9994,
     "cost_weight": 8,
-    "ownership": "consortium",
+    "ownership": "offnet_resell",
     "latency": 11.0
   }
 ]
