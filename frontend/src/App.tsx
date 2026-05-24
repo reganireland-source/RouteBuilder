@@ -332,6 +332,16 @@ export default function App() {
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
             {mode === 'routebuilder' && (
               <>
+                {NlpChat && (
+                  <Suspense fallback={null}>
+                    <NlpChat
+                      nodes={nodes}
+                      onSearch={handleSearch}
+                      onSwitchMode={switchMode}
+                      onApplySort={handleApplySort}
+                    />
+                  </Suspense>
+                )}
                 <SearchForm nodes={nodes} segments={segments} systems={systems} onSearch={handleSearch} loading={loading} prefilledOrigin={prefilledOrigin} prefilledDest={prefilledDest} />
                 {error && <div style={{ marginTop: 12, color: theme.red, fontSize: 13 }}>{error}</div>}
               </>
@@ -351,16 +361,6 @@ export default function App() {
               />
             )}
           </div>
-          {NlpChat && (
-            <Suspense fallback={null}>
-              <NlpChat
-                nodes={nodes}
-                onSearch={handleSearch}
-                onSwitchMode={switchMode}
-                onApplySort={handleApplySort}
-              />
-            </Suspense>
-          )}
           <HealthBar dataLoaded={nodes.length > 0} />
         </div>
 
