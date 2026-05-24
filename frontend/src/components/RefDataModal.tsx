@@ -126,6 +126,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   const inputStyle: React.CSSProperties = {
     background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 3,
     color: t.text, fontSize: 12, padding: '3px 6px', width: '100%', boxSizing: 'border-box',
+    fontFamily: 'inherit',
   }
 
   const selectStyle: React.CSSProperties = { ...inputStyle }
@@ -1124,7 +1125,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         </div>
 
         {/* Table body */}
-        <div style={{ flex: 1, overflowY: 'auto', fontFamily: 'system-ui, sans-serif' }}>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
           {tab === 'nodes'    && <NodeTab />}
           {tab === 'segments' && <SegmentTab />}
           {tab === 'systems'  && <SystemTab />}
