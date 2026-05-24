@@ -111,6 +111,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     width: '92vw', height: '88vh', display: 'flex', flexDirection: 'column',
     background: t.bgPanel, borderRadius: 8, border: `1px solid ${t.border}`,
     boxShadow: '0 8px 40px rgba(0,0,0,0.5)', overflow: 'hidden',
+    fontFamily: 'system-ui, sans-serif',
   }
 
   const colH = (flex: number): React.CSSProperties => ({
