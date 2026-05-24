@@ -552,7 +552,7 @@ function MarginBadge({ margin }: { margin: number | null }) {
       color,
       border: `1px solid ${color + '55'}`,
     }}>
-      $ {margin.toFixed(1)}
+      {margin.toFixed(1)}
     </span>
   )
 }
