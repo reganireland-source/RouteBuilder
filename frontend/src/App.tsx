@@ -225,7 +225,6 @@ export default function App() {
           onApplySort={handleApplySort}
           nlpSortKey={nlpSortKey}
           nlpPushOutages={nlpPushOutages}
-          onOpenGuide={() => setGuideOpen(true)}
         />
         {guideOpen && createPortal(
           <div style={{
