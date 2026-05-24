@@ -1,9 +1,18 @@
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI  # noqa: F401
 from fastapi.middleware.cors import CORSMiddleware
 from .api import nodes, segments, systems, routes, capacity, rules, health, config, city_pairs, outages
+from .db import init_db
 
-app = FastAPI(title="RouteBuilder API", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(title="RouteBuilder API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
