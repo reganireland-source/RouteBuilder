@@ -62,7 +62,12 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
 
-  const outagesById = Object.fromEntries(outages.map(o => [o.segment_id, o]))
+  // segment_id → all faults on that segment (a segment can have multiple active faults)
+  const outagesBySegId = outages.reduce<Record<string, typeof outages>>((acc, o) => {
+    ;(acc[o.segment_id] ??= []).push(o)
+    return acc
+  }, {})
+  const outageSegIds = new Set(outages.map(o => o.segment_id))
 
   // In outage-map mode, collect nodes that belong to downed segments
   const outageNodeIds = showAllOutages
@@ -135,7 +140,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         const end = nodesById[seg.end_node_id]
         if (!start || !end) return []
 
-        const isDown = !!outagesById[seg.id]
+        const isDown = outageSegIds.has(seg.id)
         const lines = geoLines(start.lat, start.lng, end.lat, end.lng)
 
         const tooltip = (
@@ -155,12 +160,26 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         // Outage map mode: only show downed segments
         if (showAllOutages) {
           if (!isDown) return []
+          const segFaults = outagesBySegId[seg.id] ?? []
+          const outageTooltip = (
+            <Tooltip sticky>
+              <strong>{seg.name}</strong>
+              <br />{start.name} → {end.name} · {seg.length_km.toLocaleString()} km
+              {segFaults.map(f => (
+                <span key={f.fault_id}>
+                  <br /><strong style={{ color: '#ef4444' }}>{f.fault_id}</strong> · {f.fault_date}
+                  {f.repair_start && <> · repair {f.repair_start}</>}
+                  <br /><span style={{ fontSize: 11 }}>{f.description}</span>
+                </span>
+              ))}
+            </Tooltip>
+          )
           const pathOptions = {
             color: '#ef4444', weight: 2.5, opacity: 0.95, dashArray: '6 3 2 3',
           }
           return lines.map((positions, i) => (
             <Polyline key={`${seg.id}-${i}`} positions={positions} pathOptions={pathOptions}>
-              {i === 0 && tooltip}
+              {i === 0 && outageTooltip}
               {i === 0 && showSegmentLabels && (
                 <Tooltip permanent direction="center" className="seg-label" offset={[0, 0]}>{seg.id}</Tooltip>
               )}

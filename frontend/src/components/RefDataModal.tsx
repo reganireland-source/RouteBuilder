@@ -528,7 +528,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           <div style={{ width: 140 }} />
         </div>
         {filtered.map(o => (
-          <div key={o.segment_id} style={rowStyle(editId === o.segment_id)}>
+          <div key={o.fault_id} style={rowStyle(editId === o.fault_id)}>
             <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
               <div style={cell(2)}><code style={{ fontSize: 11 }}>{o.segment_id}</code></div>
               <div style={cell(2)}>{o.fault_id}</div>
@@ -538,16 +538,16 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                 {o.estimated_repair_date ?? '—'}
               </div>
               <div style={{ ...cell(3), fontSize: 11, color: t.textMuted }}>{o.description}</div>
-              <ActionsCell id={o.segment_id}
-                onEdit={() => startEdit(o.segment_id, {
+              <ActionsCell id={o.fault_id}
+                onEdit={() => startEdit(o.fault_id, {
                   fault_id: o.fault_id, fault_date: o.fault_date,
                   repair_start: o.repair_start ?? '', estimated_repair_date: o.estimated_repair_date ?? '',
                   description: o.description,
                 })}
-                onDelete={() => confirmDelete(() => api.deleteOutage(o.segment_id))}
+                onDelete={() => confirmDelete(() => api.deleteOutage(o.fault_id))}
               />
             </div>
-            {editId === o.segment_id && (
+            {editId === o.fault_id && (
               <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(3, 1fr)' }}>
                 <Field label="Fault ID"       k="fault_id"              src={editValues} setSrc={setEditValues} />
                 <Field label="Fault Date"     k="fault_date"            src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD" />
@@ -555,7 +555,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                 <Field label="ETA Repair"     k="estimated_repair_date" src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD or TBC" />
                 <Field label="Description"    k="description"           src={editValues} setSrc={setEditValues} />
                 <SaveCancel
-                  onSave={() => saveEdit(() => api.updateOutage(o.segment_id, editValues as Partial<SegmentOutage>))}
+                  onSave={() => saveEdit(() => api.updateOutage(o.fault_id, editValues as Partial<SegmentOutage>))}
                   onCancel={() => setEditId(null)}
                 />
               </div>

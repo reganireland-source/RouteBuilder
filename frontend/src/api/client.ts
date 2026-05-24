@@ -73,8 +73,8 @@ export const api = {
   // Outages
   getOutages:     ()                                                   => get<SegmentOutage[]>('/api/outages'),
   createOutage:   (data: SegmentOutage)                                => post<SegmentOutage>('/api/outages', data),
-  updateOutage:   (segId: string, data: Partial<SegmentOutage>)        => put<SegmentOutage>(`/api/outages/${segId}`, data),
-  deleteOutage:   (segId: string)                                      => del(`/api/outages/${segId}`),
+  updateOutage:   (faultId: string, data: Partial<SegmentOutage>)      => put<SegmentOutage>(`/api/outages/${faultId}`, data),
+  deleteOutage:   (faultId: string)                                    => del(`/api/outages/${faultId}`),
 
   // Config
   getConfig:    ()                    => get<AppConfig>('/api/config'),
