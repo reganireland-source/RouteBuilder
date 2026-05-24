@@ -316,7 +316,6 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   const hasOutage = routeHasOutage(route, outagesById)
   const repairDateLabel = hasOutage ? latestRepairDate(route, outagesById) : ''
   const routeMargin = computeRouteMargin(route, systemsById)
-  const marginColor = routeMargin == null ? t.textFaint : routeMargin >= 7.5 ? t.green : routeMargin >= 4.5 ? t.orange : t.red
 
   return (
     <div
@@ -352,6 +351,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
             <span style={{ fontSize: 12, fontWeight: 600, color }}>{route.id}</span>
             <span style={{ fontSize: 11, fontWeight: 400, color: t.textMuted }}>{wetSystems.join(' · ')}</span>
             <NetBadge route={route} onNetSet={onNetSet} />
+            <MarginBadge margin={routeMargin} />
             {hasOutage && <OutageBadge repairDate={repairDateLabel} />}
           </div>
           <span style={{ fontSize: 11, color: t.textFaint, flexShrink: 0 }}>{route.nodes.length - 1} hops</span>
@@ -362,7 +362,6 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
         </div>
 
         <div style={{ display: 'flex', gap: 12, fontSize: 11, color: t.textMuted, marginBottom: 5 }}>
-          <span>$ <strong style={{ color: marginColor }}>{routeMargin != null ? routeMargin.toFixed(1) : '—'}</strong></span>
           <span>{route.total_length_km.toLocaleString()} km</span>
           <span>RTD: <strong style={{ color: t.text }}>{(route.total_latency * 2).toFixed(0)} ms</strong></span>
           <span>Avail: <strong style={{ color: t.text }}>{reliabilityPct}%</strong></span>
@@ -448,7 +447,6 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
   const hasOutage = routeHasOutage(route, outagesById)
   const repairDateLabel = hasOutage ? latestRepairDate(route, outagesById) : ''
   const routeMargin = computeRouteMargin(route, systemsById)
-  const marginColor = routeMargin == null ? t.textFaint : routeMargin >= 7.5 ? t.green : routeMargin >= 4.5 ? t.orange : t.red
 
   return (
     <div
@@ -468,6 +466,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
           <span style={{ fontSize: 12, fontWeight: 600, color }}>{route.id}</span>
           <span style={{ fontSize: 11, fontWeight: 400, color: t.textMuted }}>{wetSystems.join(' · ')}</span>
           <NetBadge route={route} onNetSet={onNetSet} />
+          <MarginBadge margin={routeMargin} />
           {hasOutage && <OutageBadge repairDate={repairDateLabel} />}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -493,7 +492,6 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
       </div>
 
       <div style={{ display: 'flex', gap: 12, fontSize: 11, color: t.textMuted, marginBottom: 5 }}>
-        <span>$ <strong style={{ color: marginColor }}>{routeMargin != null ? routeMargin.toFixed(1) : '—'}</strong></span>
         <span>{route.total_length_km.toLocaleString()} km</span>
         <span>RTD: <strong style={{ color: t.text }}>{(route.total_latency * 2).toFixed(0)} ms</strong></span>
         <span>Avail: <strong style={{ color: t.text }}>{reliabilityPct}%</strong></span>
@@ -539,6 +537,23 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
         document.body
       )}
     </div>
+  )
+}
+
+function MarginBadge({ margin }: { margin: number | null }) {
+  const t = useTheme()
+  if (margin == null) return null
+  const color = margin >= 7.5 ? t.green : margin >= 4.5 ? t.orange : t.red
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
+      letterSpacing: '0.04em', whiteSpace: 'nowrap',
+      background: color + '22',
+      color,
+      border: `1px solid ${color + '55'}`,
+    }}>
+      $ {margin.toFixed(1)}
+    </span>
   )
 }
 

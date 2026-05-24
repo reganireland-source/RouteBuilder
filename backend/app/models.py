@@ -48,6 +48,7 @@ class CableSystem(BaseModel):
     id: str
     name: str
     description: str
+    margin: Optional[float] = None
 
 
 class CableSegment(BaseModel):
@@ -165,6 +166,7 @@ class CableSegmentUpdate(BaseModel):
 class CableSystemUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    margin: Optional[float] = None
 
 class SegmentCapacityUpdate(BaseModel):
     total_capacity_t: Optional[float] = None

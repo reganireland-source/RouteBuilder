@@ -390,10 +390,11 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     return (
       <>
         {adding && (
-          <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(3, 1fr)' }}>
+          <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(4, 1fr)' }}>
             <Field label="ID *"          k="id"          src={addValues} setSrc={setAddValues} />
             <Field label="Name *"        k="name"        src={addValues} setSrc={setAddValues} />
             <Field label="Description"   k="description" src={addValues} setSrc={setAddValues} />
+            <Field label="Margin (1–10)" k="margin"      src={addValues} setSrc={setAddValues} type="number" />
             <SaveCancel
               onSave={() => saveAdd(() => api.createSystem(addValues as unknown as CableSystem))}
               onCancel={() => { setAdding(false); setAddValues({}) }}
@@ -401,32 +402,39 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           </div>
         )}
         <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
-          <div style={colH(1.5)}>ID</div><div style={colH(3)}>Name</div><div style={colH(5)}>Description</div>
+          <div style={colH(1.5)}>ID</div><div style={colH(3)}>Name</div><div style={colH(4)}>Description</div><div style={colH(1)}>Margin</div>
           <div style={{ width: 140 }} />
         </div>
-        {filtered.map(s => (
-          <div key={s.id} style={rowStyle(editId === s.id)}>
-            <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
-              <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{s.id}</code></div>
-              <div style={cell(3)}>{s.name}</div>
-              <div style={cell(5)}>{s.description}</div>
-              <ActionsCell id={s.id}
-                onEdit={() => startEdit(s.id, { name: s.name, description: s.description })}
-                onDelete={() => confirmDelete(() => api.deleteSystem(s.id))}
-              />
-            </div>
-            {editId === s.id && (
-              <div style={{ ...editFormRow, gridTemplateColumns: '1fr 2fr' }}>
-                <Field label="Name"        k="name"        src={editValues} setSrc={setEditValues} />
-                <Field label="Description" k="description" src={editValues} setSrc={setEditValues} />
-                <SaveCancel
-                  onSave={() => saveEdit(() => api.updateSystem(s.id, editValues as Partial<CableSystem>))}
-                  onCancel={() => setEditId(null)}
+        {filtered.map(s => {
+          const mc = s.margin == null ? t.textFaint : s.margin >= 7.5 ? t.green : s.margin >= 4.5 ? t.orange : t.red
+          return (
+            <div key={s.id} style={rowStyle(editId === s.id)}>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
+                <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{s.id}</code></div>
+                <div style={cell(3)}>{s.name}</div>
+                <div style={cell(4)}>{s.description}</div>
+                <div style={{ ...cell(1), fontWeight: 700, color: mc }}>
+                  {s.margin != null ? s.margin.toFixed(1) : '—'}
+                </div>
+                <ActionsCell id={s.id}
+                  onEdit={() => startEdit(s.id, { name: s.name, description: s.description, margin: s.margin })}
+                  onDelete={() => confirmDelete(() => api.deleteSystem(s.id))}
                 />
               </div>
-            )}
-          </div>
-        ))}
+              {editId === s.id && (
+                <div style={{ ...editFormRow, gridTemplateColumns: '1fr 2fr 1fr' }}>
+                  <Field label="Name"        k="name"        src={editValues} setSrc={setEditValues} />
+                  <Field label="Description" k="description" src={editValues} setSrc={setEditValues} />
+                  <Field label="Margin (1–10)" k="margin"    src={editValues} setSrc={setEditValues} type="number" />
+                  <SaveCancel
+                    onSave={() => saveEdit(() => api.updateSystem(s.id, editValues as Partial<CableSystem>))}
+                    onCancel={() => setEditId(null)}
+                  />
+                </div>
+              )}
+            </div>
+          )
+        })}
       </>
     )
   }
@@ -931,7 +939,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   const addDefaults: Record<DataTab, Record<string, unknown>> = {
     nodes:    { id: '', name: '', country: '', type: 'landing_station', lat: 0, lng: 0, owner: 'Telstra', trading_name: '', description: '' },
     segments: { id: '', name: '', system_id: '', start_node_id: '', end_node_id: '', type: 'wet', length_km: 0, latency: 0, cost_weight: 1, reliability: 0.9999, ownership: 'consortium' },
-    systems:  { id: '', name: '', description: '' },
+    systems:  { id: '', name: '', description: '', margin: 8 },
     capacity: { segment_id: '', total_capacity_t: 1.0, available_capacity_t: 1.0 },
     outages:  { segment_id: '', fault_id: '', fault_date: '', repair_start: '', estimated_repair_date: 'TBC', description: '' },
     rules:    { node_id: '', kind: 'blacklist', system_a: '', system_b: '', reason: '' },
