@@ -339,6 +339,8 @@ export default function App() {
                       onSearch={handleSearch}
                       onSwitchMode={switchMode}
                       onApplySort={handleApplySort}
+                      onSetOrigin={handleSetOrigin}
+                      onSetDest={handleSetDest}
                     />
                   </Suspense>
                 )}

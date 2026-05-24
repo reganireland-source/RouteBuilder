@@ -8,6 +8,8 @@ interface Props {
   onSearch: (req: RouteRequest) => void
   onSwitchMode: (mode: AppMode) => void
   onApplySort?: (mode: NlpSortMode) => void
+  onSetOrigin?: (nodeId: string) => void
+  onSetDest?: (nodeId: string) => void
 }
 
 function TSABuddyAvatar({ size = 28 }: { size?: number }) {
@@ -48,7 +50,7 @@ const EXAMPLES = [
   'SIN3 to TKO1 on EAC, full diversity',
 ]
 
-export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort }: Props) {
+export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort, onSetOrigin, onSetDest }: Props) {
   const t = useTheme()
   const [input, setInput]           = useState('')
   const [loading, setLoading]       = useState(false)
@@ -76,6 +78,8 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort }: 
       // Auto-search if confidence is high or medium and we have endpoints
       if ((res.confidence === 'high' || res.confidence === 'medium') && res.start_node_id && res.end_node_id) {
         onSwitchMode('routebuilder')
+        onSetOrigin?.(res.start_node_id)
+        onSetDest?.(res.end_node_id)
         onSearch({
           start_node_id:          res.start_node_id,
           end_node_id:            res.end_node_id,
@@ -116,6 +120,8 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort }: 
       borderTop: `1px solid ${borderColor}`,
       background: panelBg,
       flexShrink: 0,
+      minWidth: 0,
+      overflow: 'hidden',
     }}>
       {/* Header — always visible */}
       <button
@@ -198,7 +204,7 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort }: 
               {/* Explanation + confidence */}
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 6 }}>
                 <TSABuddyAvatar size={18} />
-                <p style={{ fontSize: 11, color: t.text, lineHeight: 1.5, flex: 1, margin: 0 }}>
+                <p style={{ fontSize: 11, color: t.text, lineHeight: 1.5, flex: 1, margin: 0, minWidth: 0, wordBreak: 'break-word' }}>
                   {result.explanation}
                 </p>
               </div>
@@ -263,7 +269,7 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort }: 
               {result.ambiguities.length > 0 && (
                 <div style={{ marginTop: 6 }}>
                   {result.ambiguities.map((a, i) => (
-                    <div key={i} style={{ fontSize: 10, color: t.orange, lineHeight: 1.5 }}>⚠ {a}</div>
+                    <div key={i} style={{ fontSize: 10, color: t.orange, lineHeight: 1.5, wordBreak: 'break-word' }}>⚠ {a}</div>
                   ))}
                 </div>
               )}
@@ -273,6 +279,8 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort }: 
                 <button
                   onClick={() => {
                     onSwitchMode('routebuilder')
+                    onSetOrigin?.(result.start_node_id!)
+                    onSetDest?.(result.end_node_id!)
                     onSearch({
                       start_node_id:          result.start_node_id!,
                       end_node_id:            result.end_node_id!,

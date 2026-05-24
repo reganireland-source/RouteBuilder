@@ -450,6 +450,8 @@ export function MobileLayout({
                     onSearch={onSearch}
                     onSwitchMode={switchMode}
                     onApplySort={onApplySort}
+                    onSetOrigin={onSetOrigin}
+                    onSetDest={onSetDest}
                   />
                 </Suspense>
               )}
