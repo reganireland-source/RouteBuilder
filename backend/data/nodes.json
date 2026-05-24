@@ -1227,5 +1227,165 @@
     "lng": 121.47,
     "type": "terrestrial_pop",
     "country": "CN"
+  },
+  {
+    "id": "BDN1",
+    "name": "Bandon",
+    "lat": 43.1201,
+    "lng": -124.4074,
+    "type": "landing_station",
+    "country": "US"
+  },
+  {
+    "id": "HPT1",
+    "name": "Harbour Pointe",
+    "lat": 47.8651,
+    "lng": -122.2645,
+    "type": "landing_station",
+    "country": "US"
+  },
+  {
+    "id": "GRB1",
+    "name": "Grover Beach",
+    "lat": 35.1213,
+    "lng": -120.6207,
+    "type": "landing_station",
+    "country": "US"
+  },
+  {
+    "id": "FUJ1",
+    "name": "Fujairah",
+    "lat": 25.1288,
+    "lng": 56.3265,
+    "type": "landing_station",
+    "country": "AE"
+  },
+  {
+    "id": "OMN1",
+    "name": "Barka",
+    "lat": 23.674,
+    "lng": 57.889,
+    "type": "landing_station",
+    "country": "OM"
+  },
+  {
+    "id": "MCT1",
+    "name": "Muscat",
+    "lat": 23.613,
+    "lng": 58.592,
+    "type": "landing_station",
+    "country": "OM"
+  },
+  {
+    "id": "DOH1",
+    "name": "Doha",
+    "lat": 25.2854,
+    "lng": 51.531,
+    "type": "landing_station",
+    "country": "QA"
+  },
+  {
+    "id": "JED1",
+    "name": "Jeddah",
+    "lat": 21.4858,
+    "lng": 39.1925,
+    "type": "landing_station",
+    "country": "SA"
+  },
+  {
+    "id": "ADN1",
+    "name": "Aden",
+    "lat": 12.7855,
+    "lng": 45.0187,
+    "type": "landing_station",
+    "country": "YE"
+  },
+  {
+    "id": "CMB1",
+    "name": "Colombo",
+    "lat": 6.8346,
+    "lng": 79.8653,
+    "type": "landing_station",
+    "country": "LK"
+  },
+  {
+    "id": "KHI1",
+    "name": "Karachi",
+    "lat": 24.8607,
+    "lng": 67.0104,
+    "type": "landing_station",
+    "country": "PK"
+  },
+  {
+    "id": "VUT1",
+    "name": "Vung Tau",
+    "lat": 10.346,
+    "lng": 107.0843,
+    "type": "landing_station",
+    "country": "VN"
+  },
+  {
+    "id": "SHV1",
+    "name": "Sihanoukville",
+    "lat": 10.6267,
+    "lng": 103.523,
+    "type": "landing_station",
+    "country": "KH"
+  },
+  {
+    "id": "SAT1",
+    "name": "Satun",
+    "lat": 6.6238,
+    "lng": 100.0673,
+    "type": "landing_station",
+    "country": "TH"
+  },
+  {
+    "id": "NGW1",
+    "name": "Ngwe Saung",
+    "lat": 17.2532,
+    "lng": 94.5239,
+    "type": "landing_station",
+    "country": "MM"
+  },
+  {
+    "id": "EGR1",
+    "name": "Zafarana",
+    "lat": 29.1206,
+    "lng": 32.6628,
+    "type": "landing_station",
+    "country": "EG"
+  },
+  {
+    "id": "EGM1",
+    "name": "Abu Talat",
+    "lat": 31.07,
+    "lng": 29.33,
+    "type": "landing_station",
+    "country": "EG"
+  },
+  {
+    "id": "CHN1",
+    "name": "Chania",
+    "lat": 35.5138,
+    "lng": 24.018,
+    "type": "landing_station",
+    "country": "GR"
+  },
+  {
+    "id": "BAR1",
+    "name": "Bari",
+    "lat": 41.1171,
+    "lng": 16.8719,
+    "type": "landing_station",
+    "country": "IT"
+  },
+  {
+    "id": "MRS1",
+    "name": "Marseille",
+    "lat": 43.2965,
+    "lng": 5.3818,
+    "type": "landing_station",
+    "country": "FR"
   }
 ]

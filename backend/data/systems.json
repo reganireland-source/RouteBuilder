@@ -165,5 +165,41 @@
     "name": "Apricot",
     "description": "Google/Meta/NTT/PLDT/SoftBank consortium cable \u2014 Singapore to Japan (Shima/Maruyama) and Guam via Philippines (Daet) and Philippine Sea branching unit. ~12,000 km. RFS 2024.",
     "margin": 2
+  },
+  {
+    "id": "FASTER",
+    "name": "FASTER",
+    "description": "Trans-Pacific, Bandon OR\u2013Chikura\u2013Shima\u2013Tamsui",
+    "margin": 4
+  },
+  {
+    "id": "PC1N",
+    "name": "PC-1 North",
+    "description": "Trans-Pacific, Harbour Pointe WA\u2013Ajigaura",
+    "margin": 6
+  },
+  {
+    "id": "PC1S",
+    "name": "PC-1 South",
+    "description": "Trans-Pacific, Grover Beach CA\u2013Shima",
+    "margin": 6
+  },
+  {
+    "id": "UNITY",
+    "name": "Unity",
+    "description": "Trans-Pacific, Chikura\u2013Hawaii\u2013Los Angeles",
+    "margin": 8
+  },
+  {
+    "id": "BBG",
+    "name": "Bay of Bengal Gateway",
+    "description": "Oman\u2013India\u2013Sri Lanka\u2013Malaysia",
+    "margin": 8
+  },
+  {
+    "id": "AAE1",
+    "name": "AAE-1",
+    "description": "Hong Kong\u2013SE Asia\u2013India\u2013Middle East\u2013Europe",
+    "margin": 8
   }
 ]
