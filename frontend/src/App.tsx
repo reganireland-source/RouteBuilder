@@ -11,6 +11,7 @@ import { CityPairPanel } from './components/CityPairPanel'
 import { HealthBar } from './components/HealthBar'
 import { MobileLayout } from './components/MobileLayout'
 import { CapacityDashboard } from './components/CapacityDashboard'
+import { UserGuide } from './components/UserGuide'
 import { generateStraightLineDiagram } from './utils/generateDiagram'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, type Theme, type ThemeMode } from './theme'
@@ -328,6 +329,7 @@ export default function App() {
             <button style={tabStyle(mode === 'citypair')}     onClick={() => switchMode('citypair')}>City Pairs</button>
             <button style={tabStyle(mode === 'systemviewer')} onClick={() => switchMode('systemviewer')}>Cable System</button>
             <button style={tabStyle(mode === 'nodefinder')}   onClick={() => switchMode('nodefinder')}>Node Search</button>
+            <button style={tabStyle(mode === 'guide')}        onClick={() => switchMode('guide')}>Guide</button>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
@@ -362,6 +364,7 @@ export default function App() {
                 onSetDest={handleSetDest}
               />
             )}
+            {mode === 'guide' && <UserGuide />}
           </div>
           <HealthBar dataLoaded={nodes.length > 0} />
         </div>

@@ -10,6 +10,7 @@ import { NodeInfoPanel } from './NodeInfoPanel'
 import { RefDataModal } from './RefDataModal'
 import { HealthBar } from './HealthBar'
 import { CapacityDashboard } from './CapacityDashboard'
+import { UserGuide } from './UserGuide'
 import { generateStraightLineDiagram } from '../utils/generateDiagram'
 import { useTheme } from '../theme'
 import type { ThemeMode } from '../theme'
@@ -418,6 +419,7 @@ export function MobileLayout({
           <button style={tabBtn(mode === 'citypair')}     onClick={() => tapTab('citypair')}>City Pairs</button>
           <button style={tabBtn(mode === 'systemviewer')} onClick={() => tapTab('systemviewer')}>Cables</button>
           <button style={tabBtn(mode === 'nodefinder')}   onClick={() => tapTab('nodefinder')}>Nodes</button>
+          <button style={tabBtn(mode === 'guide')}        onClick={() => tapTab('guide')}>Guide</button>
         </div>
 
         {/* Scrollable content — clipped to sheet height automatically */}
@@ -522,6 +524,13 @@ export function MobileLayout({
                 onSetOrigin={onSetOrigin}
                 onSetDest={onSetDest}
               />
+            </div>
+          )}
+
+          {/* ── Guide mode ────────────────────────────────────────────── */}
+          {mode === 'guide' && (
+            <div style={{ padding: '14px 0 32px' }}>
+              <UserGuide />
             </div>
           )}
         </div>

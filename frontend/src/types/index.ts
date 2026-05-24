@@ -2,7 +2,7 @@ export type NodeType = 'landing_station' | 'terrestrial_pop' | 'branching_unit'
 export type SegmentType = 'wet' | 'terrestrial'
 export type Ownership = 'owned' | 'iru' | 'consortium' | 'integrated_lit_lease' | 'offnet_resell'
 export type DiversityType = 'none' | 'terrestrial_origin' | 'terrestrial_destination' | 'terrestrial_both' | 'wet' | 'full' | 'full_nodes'
-export type AppMode = 'routebuilder' | 'systemviewer' | 'nodefinder' | 'citypair'
+export type AppMode = 'routebuilder' | 'systemviewer' | 'nodefinder' | 'citypair' | 'guide'
 
 export interface AppConfig {
   on_net_ownership: string[]
