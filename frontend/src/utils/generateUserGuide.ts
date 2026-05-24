@@ -19,7 +19,7 @@ const ORANGE: [number,number,number] = [249,115, 22]
 function footer(doc: jsPDF, page: number, total: number) {
   doc.setFontSize(6)
   doc.setTextColor(...GREY5)
-  doc.text('TELSTRA INTERNATIONAL CONFIDENTIAL — RouteBuilder Platform Guide', M, PAGE_H - 7)
+  doc.text('INTERNATIONAL TELCO CONFIDENTIAL — RouteBuilder Platform Guide', M, PAGE_H - 7)
   doc.text(`${page} / ${total}`, PAGE_W - M, PAGE_H - 7, { align: 'right' })
   doc.setDrawColor(...GREY5)
   doc.setLineWidth(0.15)
@@ -31,7 +31,7 @@ function pageHeader(doc: jsPDF, title: string) {
   doc.rect(0, 0, PAGE_W, 14, 'F')
   doc.setFontSize(7)
   doc.setTextColor(...GREY5)
-  doc.text('TELSTRA INTERNATIONAL · ROUTEBUILDER', M, 9)
+  doc.text('INTERNATIONAL TELCO · ROUTEBUILDER', M, 9)
   doc.setTextColor(...WHITE)
   doc.setFontSize(7)
   doc.text(title.toUpperCase(), PAGE_W - M, 9, { align: 'right' })
@@ -132,7 +132,7 @@ function drawCover(doc: jsPDF) {
 
   doc.setFontSize(8)
   doc.setTextColor(80, 100, 140)
-  doc.text('Telstra International · Subsea Network Intelligence', M, 73)
+  doc.text('International Telco · Subsea Network Intelligence', M, 73)
 
   // One-liner
   doc.setFontSize(13)
@@ -160,7 +160,7 @@ function drawCover(doc: jsPDF) {
   doc.setFont('helvetica', 'normal')
   y += 7
 
-  const intro = `RouteBuilder is Telstra International's intelligent route design platform — purpose-built to replace ` +
+  const intro = `RouteBuilder is an intelligent route design platform — purpose-built to replace ` +
     `spreadsheets and tribal knowledge with a fast, visual, commercially-aware tool that any sales or network engineer can use.\n\n` +
     `Before RouteBuilder, designing a subsea route meant consulting experienced staff, cross-referencing network diagrams, ` +
     `and manually calculating diversity options and commercial margins. It was slow, inconsistent, and unscalable. ` +
@@ -183,7 +183,7 @@ function drawCover(doc: jsPDF) {
     ['Subsea Sales Specialists', 'Design routes, assess commercial margin and prepare customer-ready outputs — fast.'],
     ['Network Engineers',        'Validate path options, diversity requirements and capacity constraints with precision.'],
     ['Sales Engineers',          'Combine commercial and technical insight to build compelling, differentiated proposals.'],
-    ['Future: Enterprise Customers', 'A self-serve portal for sophisticated buyers to explore Telstra\'s network themselves.'],
+    ['Future: Enterprise Customers', 'A self-serve portal for sophisticated buyers to explore the network themselves.'],
   ]
 
   for (const [role, desc] of users) {
@@ -211,19 +211,19 @@ function drawFeatures(doc: jsPDF) {
 
   const features: [string, string, string][] = [
     ['🗺', 'PoP Route Builder',
-      'Find optimal paths between any two nodes on Telstra\'s 86-node subsea network. Configure diversity requirements (wet, full, terrestrial or full-node diversity), enforce via or avoid constraints on specific nodes, segments or cable systems, and see all viable paths ranked instantly.'],
+      'Find optimal paths between any two nodes on our 86-node subsea network. Configure diversity requirements (wet, full, terrestrial or full-node diversity), enforce via or avoid constraints on specific nodes, segments or cable systems, and see all viable paths ranked instantly.'],
     ['🤖', 'TSABuddy — AI Route Assistant',
       'Type your request in plain English: "Singapore to Hong Kong on EAC with wet diversity, sort by latency." TSABuddy interprets the request, configures all route parameters, triggers the search, and applies the right sort order — automatically. Powered by Claude AI.'],
     ['🌏', 'City Pairs',
-      'Explore city-to-city connectivity across Telstra\'s subsea network. See all viable system itineraries, intermediate cable landing stations, and key metrics including latency, distance and reliability — without needing to know individual node IDs.'],
+      'Explore city-to-city connectivity across our subsea network. See all viable system itineraries, intermediate cable landing stations, and key metrics including latency, distance and reliability — without needing to know individual node IDs.'],
     ['💰', 'Margin Scoring',
       'Every route is automatically scored for commercial margin (1–10) based on the cable systems used and their ownership classification, weighted proportionally by segment distance. Backhaul is excluded. Sort routes by margin to surface the most commercially attractive options first — green (≥7.5), amber (4.5–7.5) or red (<4.5).'],
     ['📡', 'Capacity Dashboard',
       'A full-network capacity view across all 148 segments, showing total and available capacity in terabits, with utilisation colour-coding. Segmented between wet and backhaul segments. Instantly spot where capacity is constrained and factor it into route decisions.'],
     ['🔀', 'On-Net / Off-Net Classification',
-      'Routes are automatically classified as On-Net, Off-Net or Mixed based on Telstra\'s network ownership profile. The mix percentage is shown for blended routes. This shapes the commercial narrative — on-net routes carry better margin and SLA quality.'],
+      'Routes are automatically classified as On-Net, Off-Net or Mixed based on our network ownership profile. The mix percentage is shown for blended routes. This shapes the commercial narrative — on-net routes carry better margin and SLA quality.'],
     ['🛰', 'Cable System Viewer',
-      'Toggle any of Telstra\'s 28 cable systems on the live map to explore coverage, topology and branching unit structure. Ideal for understanding the network before building a route or briefing a customer.'],
+      'Toggle any of the 28 cable systems on the live map to explore coverage, topology and branching unit structure. Ideal for understanding the network before building a route or briefing a customer.'],
     ['🔍', 'Node Search',
       'Look up any of the 86 nodes in the network — cable landing stations, terrestrial PoPs or subsea branching units. View its connections, cable systems and geographic position, then jump directly into a route search from any node.'],
     ['📌', 'Pinned Routes & Straight-Line Diagram Export',
@@ -393,7 +393,7 @@ function drawVision(doc: jsPDF) {
     ['Real-Time Network Data',       'Connect RouteBuilder to live NMS feeds for real-time capacity, latency measurements and outage data — removing the lag between network events and commercial decision-making.', GREEN,  'In Planning'],
     ['Quoting & Pricing Integration','Bridge commercial margin scores to actual pricing outputs, enabling sales engineers to generate indicative quotes directly from a route design — cutting the time from enquiry to proposal.', ORANGE, 'In Planning'],
     ['AI-Driven Recommendations',   'TSABuddy evolves beyond route parsing into a full commercial advisor: surfacing market intelligence, flagging competitive alternatives and proactively suggesting route optimisations based on capacity trends.', BLUE,   'Future'],
-    ['Customer-Facing Portal',       'A white-label or Telstra-branded self-serve experience for enterprise customers — letting sophisticated buyers explore the network, model routes and initiate enquiries without needing to engage the sales team first.', BLUE,   'Future'],
+    ['Customer-Facing Portal',       'A white-label self-serve experience for enterprise customers — letting sophisticated buyers explore the network, model routes and initiate enquiries without needing to engage the sales team first.', BLUE,   'Future'],
   ]
 
   for (const [title, desc, color, tag] of roadmap) {
@@ -428,7 +428,7 @@ function drawVision(doc: jsPDF) {
   y += 6
 
   const ambition = `RouteBuilder began as a tool to replace spreadsheets. Its ambition is to become the commercial ` +
-    `intelligence layer for Telstra International's subsea network — a platform where every route decision is faster, ` +
+    `intelligence layer for the subsea network — a platform where every route decision is faster, ` +
     `every customer interaction is better informed, and every commercial opportunity is visible the moment it arises.\n\n` +
     `The network knowledge that today lives in the heads of experienced staff will become a scalable, accessible, ` +
     `AI-augmented capability available to every person in the business.`

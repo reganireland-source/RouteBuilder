@@ -5,7 +5,7 @@ const FEATURES = [
   {
     icon: '🗺',
     title: 'PoP Route Builder',
-    desc: 'Find optimal paths between any two nodes on Telstra\'s 86-node subsea network. Configure wet, full or terrestrial diversity, enforce via/avoid constraints on specific nodes, segments or cable systems, and see all viable paths ranked instantly.',
+    desc: 'Find optimal paths between any two nodes on our 86-node subsea network. Configure wet, full or terrestrial diversity, enforce via/avoid constraints on specific nodes, segments or cable systems, and see all viable paths ranked instantly.',
   },
   {
     icon: '🤖',
@@ -15,7 +15,7 @@ const FEATURES = [
   {
     icon: '🌏',
     title: 'City Pairs',
-    desc: 'Explore city-to-city connectivity across Telstra\'s subsea network. See all viable system itineraries, intermediate cable landing stations, and key metrics — without needing to know individual node IDs.',
+    desc: 'Explore city-to-city connectivity across our subsea network. See all viable system itineraries, intermediate cable landing stations, and key metrics — without needing to know individual node IDs.',
   },
   {
     icon: '💰',
@@ -30,12 +30,12 @@ const FEATURES = [
   {
     icon: '🔀',
     title: 'On-Net / Off-Net Classification',
-    desc: 'Routes are automatically classified as On-Net, Off-Net or Mixed based on Telstra\'s network ownership. The on-net percentage is shown for blended routes, shaping the commercial narrative.',
+    desc: 'Routes are automatically classified as On-Net, Off-Net or Mixed based on network ownership. The on-net percentage is shown for blended routes, shaping the commercial narrative.',
   },
   {
     icon: '🛰',
     title: 'Cable System Viewer',
-    desc: 'Toggle any of Telstra\'s 28 cable systems on the live map to explore coverage, topology and branching unit structure — ideal for network briefings and customer conversations.',
+    desc: 'Toggle any of the 28 cable systems on the live map to explore coverage, topology and branching unit structure — ideal for network briefings and customer conversations.',
   },
   {
     icon: '🔍',
@@ -115,7 +115,7 @@ export function UserGuide() {
 
         <div style={{ position: 'relative' }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(147,197,253,0.8)', marginBottom: 10 }}>
-            Telstra International
+            International Telco
           </div>
           <div style={{ fontSize: 36, fontWeight: 800, color: '#fff', lineHeight: 1.1, marginBottom: 8 }}>
             Route<span style={{ color: '#60a5fa' }}>Builder</span>
@@ -244,7 +244,7 @@ export function UserGuide() {
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
             {[
-              ['ON-NET / OFF-NET / MIXED', 'Ownership classification. Mixed shows the % of route on Telstra infrastructure.'],
+              ['ON-NET / OFF-NET / MIXED', 'Ownership classification. Mixed shows the % of route on our infrastructure.'],
               ['MARGIN X.X', 'Weighted average commercial margin score. Green ≥7.5, amber ≥4.5, red below 4.5.'],
               ['⚠ Repair Date', 'One or more segments on this route have an active outage. Shows estimated repair date.'],
               ['Hops', 'Number of segments. Branching unit nodes are hidden from the path display for readability.'],
@@ -274,7 +274,7 @@ export function UserGuide() {
           <p style={{ fontSize: 12, color: 'rgba(160,190,255,0.85)', margin: 0, lineHeight: 1.6 }}>
             The network knowledge that today lives in the heads of experienced staff will become a scalable,
             accessible, AI-augmented capability available to every person in the business — and, ultimately,
-            to Telstra International's customers themselves.
+            to our customers themselves.
           </p>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
@@ -299,7 +299,7 @@ export function UserGuide() {
 
       {/* ── Footer ── */}
       <div style={{ textAlign: 'center', padding: '20px 0 0', borderTop: `1px solid ${t.border}` }}>
-        <div style={{ fontSize: 11, color: t.textFaint, marginBottom: 8 }}>Telstra International · RouteBuilder</div>
+        <div style={{ fontSize: 11, color: t.textFaint, marginBottom: 8 }}>International Telco · RouteBuilder</div>
         <button
           onClick={generateUserGuidePDF}
           style={{

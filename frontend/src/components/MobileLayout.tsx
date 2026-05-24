@@ -247,7 +247,7 @@ export function MobileLayout({
         <img src="/favicon.svg" alt="" style={{ width: 22, height: 22, flexShrink: 0 }} />
         <div>
           <div style={{ fontSize: 13, fontWeight: 700, color: t.text, lineHeight: 1.25 }}>RouteBuilder</div>
-          <div style={{ fontSize: 9, color: t.textFaint, letterSpacing: '0.04em', marginTop: 1 }}>Telstra International</div>
+          <div style={{ fontSize: 9, color: t.textFaint, letterSpacing: '0.04em', marginTop: 1 }}>International Telco</div>
         </div>
       </div>
 

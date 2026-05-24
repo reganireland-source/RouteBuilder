@@ -350,7 +350,7 @@ export default function App() {
               <img src="/favicon.svg" alt="" style={{ width: 28, height: 28, flexShrink: 0 }} />
               <h1 style={{ fontSize: 18, fontWeight: 700, color: theme.text }}>RouteBuilder</h1>
             </div>
-            <p style={{ fontSize: 11, color: theme.textFaint }}>Telstra International · Subsea Circuit Design</p>
+            <p style={{ fontSize: 11, color: theme.textFaint }}>International Telco · Subsea Circuit Design</p>
           </div>
 
           <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>

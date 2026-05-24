@@ -257,7 +257,7 @@ function drawCover(doc: jsPDF, pinnedRoutes: PinnedRoute[], nodesById: Record<st
 
   doc.setFontSize(9)
   doc.setTextColor(160, 160, 200)
-  doc.text('RouteBuilder · Telstra International', MARGIN, 33)
+  doc.text('RouteBuilder · International Telco', MARGIN, 33)
 
   // Date
   doc.setFontSize(8)
