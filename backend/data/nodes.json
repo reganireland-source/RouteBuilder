@@ -768,5 +768,133 @@
     "owner": "Apricot Consortium",
     "trading_name": "Apricot Philippine Sea Branching Unit Apricot Consortium",
     "description": "Submarine cable branching unit for the Apricot cable system in the Philippine Sea, fanning out to Japan (Shima and Maruyama) and Guam"
+  },
+  {
+    "id": "CHKK",
+    "name": "Chung Hom Kok",
+    "lat": 22.245,
+    "lng": 114.205,
+    "type": "landing_station",
+    "country": "HK"
+  },
+  {
+    "id": "TKOH",
+    "name": "Tseung Kwan O",
+    "lat": 22.31,
+    "lng": 114.26,
+    "type": "landing_station",
+    "country": "HK"
+  },
+  {
+    "id": "TAMS",
+    "name": "Tamsui",
+    "lat": 25.17,
+    "lng": 121.44,
+    "type": "landing_station",
+    "country": "TW"
+  },
+  {
+    "id": "FSHA",
+    "name": "Fangshan",
+    "lat": 22.37,
+    "lng": 120.62,
+    "type": "landing_station",
+    "country": "TW"
+  },
+  {
+    "id": "SHMA",
+    "name": "Shima",
+    "lat": 34.33,
+    "lng": 136.83,
+    "type": "landing_station",
+    "country": "JP"
+  },
+  {
+    "id": "AJIG",
+    "name": "Ajigaura",
+    "lat": 36.39,
+    "lng": 140.63,
+    "type": "landing_station",
+    "country": "JP"
+  },
+  {
+    "id": "CHKR",
+    "name": "Chikura",
+    "lat": 34.92,
+    "lng": 139.95,
+    "type": "landing_station",
+    "country": "JP"
+  },
+  {
+    "id": "SDRI",
+    "name": "Shinduri",
+    "lat": 36.7,
+    "lng": 126.15,
+    "type": "landing_station",
+    "country": "KR"
+  },
+  {
+    "id": "QDAO",
+    "name": "Qingdao",
+    "lat": 36.07,
+    "lng": 120.38,
+    "type": "landing_station",
+    "country": "CN"
+  },
+  {
+    "id": "NHUI",
+    "name": "Nanhui",
+    "lat": 31.05,
+    "lng": 121.8,
+    "type": "landing_station",
+    "country": "CN"
+  },
+  {
+    "id": "CPSA",
+    "name": "Capepisa",
+    "lat": 18.5,
+    "lng": 121.9,
+    "type": "landing_station",
+    "country": "PH"
+  },
+  {
+    "id": "NSGU",
+    "name": "Nasugbu",
+    "lat": 14.07,
+    "lng": 120.63,
+    "type": "landing_station",
+    "country": "PH"
+  },
+  {
+    "id": "BUEP",
+    "name": "EAC BU Pacific",
+    "lat": 27.0,
+    "lng": 126.5,
+    "type": "branching_unit",
+    "country": ""
+  },
+  {
+    "id": "BUEC",
+    "name": "EAC BU China Sea",
+    "lat": 22.5,
+    "lng": 117.5,
+    "type": "branching_unit",
+    "country": ""
+  },
+  {
+    "id": "BUEY",
+    "name": "EAC BU Yellow Sea",
+    "lat": 34.0,
+    "lng": 123.0,
+    "type": "branching_unit",
+    "country": ""
+  },
+  {
+    "id": "BUCT",
+    "name": "C2C BU Taiwan",
+    "lat": 22.5,
+    "lng": 116.5,
+    "type": "branching_unit",
+    "country": ""
   }
 ]

@@ -125,16 +125,6 @@
     "available_capacity_t": 1.7
   },
   {
-    "segment_id": "EAC-TYO-ICN",
-    "total_capacity_t": 5.0,
-    "available_capacity_t": 2.6
-  },
-  {
-    "segment_id": "EAC-ICN-HKG",
-    "total_capacity_t": 4.6,
-    "available_capacity_t": 2.1
-  },
-  {
     "segment_id": "TERRESTRIAL_AU01",
     "total_capacity_t": 3.2,
     "available_capacity_t": 1.5
@@ -363,51 +353,6 @@
     "segment_id": "TERRESTRIAL_MY02",
     "total_capacity_t": 5.4,
     "available_capacity_t": 3.3
-  },
-  {
-    "segment_id": "EAC-HKG-MNL",
-    "total_capacity_t": 6.0,
-    "available_capacity_t": 0.9
-  },
-  {
-    "segment_id": "EAC-MNL-SIN",
-    "total_capacity_t": 2.1,
-    "available_capacity_t": 1.0
-  },
-  {
-    "segment_id": "EAC-SIN-HKG",
-    "total_capacity_t": 3.5,
-    "available_capacity_t": 1.6
-  },
-  {
-    "segment_id": "C2C-HKG-MNL",
-    "total_capacity_t": 2.8,
-    "available_capacity_t": 2.5
-  },
-  {
-    "segment_id": "C2C-MNL-TPE",
-    "total_capacity_t": 2.6,
-    "available_capacity_t": 2.3
-  },
-  {
-    "segment_id": "C2C-TPE-TYO",
-    "total_capacity_t": 5.4,
-    "available_capacity_t": 0.7
-  },
-  {
-    "segment_id": "C2C-TYO-ICN",
-    "total_capacity_t": 5.7,
-    "available_capacity_t": 2.9
-  },
-  {
-    "segment_id": "C2C-ICN-HKG",
-    "total_capacity_t": 2.2,
-    "available_capacity_t": 0.2
-  },
-  {
-    "segment_id": "C2C-HKG-SIN",
-    "total_capacity_t": 2.5,
-    "available_capacity_t": 0.8
   },
   {
     "segment_id": "BIFROST-LAX-GUM",
@@ -678,5 +623,120 @@
     "segment_id": "APRICOT-BU-GUM",
     "total_capacity_t": 16.0,
     "available_capacity_t": 12.0
+  },
+  {
+    "segment_id": "EAC-2A1",
+    "total_capacity_t": 3.5,
+    "available_capacity_t": 1.6
+  },
+  {
+    "segment_id": "EAC-2B1",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 0.9
+  },
+  {
+    "segment_id": "EAC-2B2",
+    "total_capacity_t": 2.1,
+    "available_capacity_t": 1.0
+  },
+  {
+    "segment_id": "EAC-A",
+    "total_capacity_t": 5.0,
+    "available_capacity_t": 2.6
+  },
+  {
+    "segment_id": "EAC-B",
+    "total_capacity_t": 4.6,
+    "available_capacity_t": 2.1
+  },
+  {
+    "segment_id": "EAC-C",
+    "total_capacity_t": 5.0,
+    "available_capacity_t": 2.1
+  },
+  {
+    "segment_id": "EAC-D",
+    "total_capacity_t": 6.0,
+    "available_capacity_t": 0.9
+  },
+  {
+    "segment_id": "EAC-E",
+    "total_capacity_t": 4.6,
+    "available_capacity_t": 2.1
+  },
+  {
+    "segment_id": "EAC-F1",
+    "total_capacity_t": 5.0,
+    "available_capacity_t": 2.6
+  },
+  {
+    "segment_id": "EAC-F2",
+    "total_capacity_t": 4.6,
+    "available_capacity_t": 2.3
+  },
+  {
+    "segment_id": "EAC-K",
+    "total_capacity_t": 5.0,
+    "available_capacity_t": 2.6
+  },
+  {
+    "segment_id": "EAC-L",
+    "total_capacity_t": 4.6,
+    "available_capacity_t": 2.1
+  },
+  {
+    "segment_id": "EAC-M",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 0.8
+  },
+  {
+    "segment_id": "C2C-S1",
+    "total_capacity_t": 2.8,
+    "available_capacity_t": 2.5
+  },
+  {
+    "segment_id": "C2C-S2A",
+    "total_capacity_t": 2.6,
+    "available_capacity_t": 2.3
+  },
+  {
+    "segment_id": "C2C-S2B",
+    "total_capacity_t": 5.4,
+    "available_capacity_t": 0.7
+  },
+  {
+    "segment_id": "C2C-S3A",
+    "total_capacity_t": 5.7,
+    "available_capacity_t": 2.9
+  },
+  {
+    "segment_id": "C2C-S3B",
+    "total_capacity_t": 5.7,
+    "available_capacity_t": 2.9
+  },
+  {
+    "segment_id": "C2C-S3C",
+    "total_capacity_t": 5.7,
+    "available_capacity_t": 2.9
+  },
+  {
+    "segment_id": "C2C-S4",
+    "total_capacity_t": 2.2,
+    "available_capacity_t": 0.2
+  },
+  {
+    "segment_id": "C2C-S5",
+    "total_capacity_t": 2.5,
+    "available_capacity_t": 0.8
+  },
+  {
+    "segment_id": "C2C-S6",
+    "total_capacity_t": 2.6,
+    "available_capacity_t": 2.3
+  },
+  {
+    "segment_id": "C2C-S7",
+    "total_capacity_t": 2.5,
+    "available_capacity_t": 0.8
   }
 ]
