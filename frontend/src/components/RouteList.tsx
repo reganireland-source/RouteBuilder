@@ -547,7 +547,7 @@ function MarginBadge({ margin }: { margin: number | null }) {
   return (
     <span style={{
       fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
-      letterSpacing: '0.04em', whiteSpace: 'nowrap',
+      letterSpacing: '0.04em', whiteSpace: 'nowrap', textTransform: 'uppercase',
       background: color + '22',
       color,
       border: `1px solid ${color + '55'}`,
