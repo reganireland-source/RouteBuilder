@@ -10,6 +10,7 @@ interface Props {
   loading: boolean
   prefilledOrigin?: string
   prefilledDest?: string
+  prefill?: Partial<RouteRequest>
 }
 
 const COUNTRY_NAMES: Record<string, string> = {
@@ -379,7 +380,7 @@ function NodeCombobox({ nodes, value, onChange, placeholder }: {
   )
 }
 
-export function SearchForm({ nodes, segments, systems = [], onSearch, loading, prefilledOrigin = '', prefilledDest = '' }: Props) {
+export function SearchForm({ nodes, segments, systems = [], onSearch, loading, prefilledOrigin = '', prefilledDest = '', prefill }: Props) {
   const t = useTheme()
   const [startNode, setStartNode] = useState(prefilledOrigin)
   const [endNode, setEndNode] = useState(prefilledDest)
@@ -391,6 +392,33 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
   const [mustIncludeSystems, setMustIncludeSystems] = useState<string[]>([])
   const [mustAvoidSystems, setMustAvoidSystems] = useState<string[]>([])
   const [advancedOpen, setAdvancedOpen] = useState(false)
+
+  // Sync external prefill (from TSABuddy) — new object reference = new fill
+  useEffect(() => {
+    if (!prefill) return
+    if (prefill.start_node_id)     setStartNode(prefill.start_node_id)
+    if (prefill.end_node_id)       setEndNode(prefill.end_node_id)
+    if (prefill.diversity)         setDiversity(prefill.diversity)
+    if (prefill.must_include_nodes)    setMustIncludeNodes(prefill.must_include_nodes)
+    if (prefill.must_avoid_nodes)      setMustAvoidNodes(prefill.must_avoid_nodes)
+    if (prefill.must_include_segments) setMustIncludeSegs(prefill.must_include_segments)
+    if (prefill.must_avoid_segments)   setMustAvoidSegs(prefill.must_avoid_segments)
+    if (prefill.must_include_systems)  setMustIncludeSystems(prefill.must_include_systems)
+    if (prefill.must_avoid_systems)    setMustAvoidSystems(prefill.must_avoid_systems)
+    const hasAdvanced = (
+      (prefill.must_include_nodes?.length    ?? 0) > 0 ||
+      (prefill.must_avoid_nodes?.length      ?? 0) > 0 ||
+      (prefill.must_include_segments?.length ?? 0) > 0 ||
+      (prefill.must_avoid_segments?.length   ?? 0) > 0 ||
+      (prefill.must_include_systems?.length  ?? 0) > 0 ||
+      (prefill.must_avoid_systems?.length    ?? 0) > 0
+    )
+    if (hasAdvanced) setAdvancedOpen(true)
+  }, [prefill])
+
+  // Sync origin/dest set from map node clicks
+  useEffect(() => { if (prefilledOrigin) setStartNode(prefilledOrigin) }, [prefilledOrigin])
+  useEffect(() => { if (prefilledDest)   setEndNode(prefilledDest)   }, [prefilledDest])
 
   // Unique system IDs from segments (preserves order of first appearance)
   const segmentSystemIds = [...new Set(segments.map(s => s.system_id))]

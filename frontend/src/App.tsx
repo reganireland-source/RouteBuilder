@@ -63,6 +63,7 @@ export default function App() {
   const [nearestNodeIds, setNearestNodeIds] = useState<string[]>([])
   const [prefilledOrigin, setPrefilledOrigin] = useState('')
   const [prefilledDest, setPrefilledDest]     = useState('')
+  const [searchPrefill, setSearchPrefill]     = useState<Partial<RouteRequest> | undefined>(undefined)
   const [outages, setOutages]                       = useState<SegmentOutage[]>([])
   const [capDashOpen, setCapDashOpen]               = useState(false)
   const [hideNonActive, setHideNonActive]           = useState(false)
@@ -339,12 +340,11 @@ export default function App() {
                       onSearch={handleSearch}
                       onSwitchMode={switchMode}
                       onApplySort={handleApplySort}
-                      onSetOrigin={handleSetOrigin}
-                      onSetDest={handleSetDest}
+                      onPrefill={req => setSearchPrefill({...req})}
                     />
                   </Suspense>
                 )}
-                <SearchForm nodes={nodes} segments={segments} systems={systems} onSearch={handleSearch} loading={loading} prefilledOrigin={prefilledOrigin} prefilledDest={prefilledDest} />
+                <SearchForm nodes={nodes} segments={segments} systems={systems} onSearch={handleSearch} loading={loading} prefilledOrigin={prefilledOrigin} prefilledDest={prefilledDest} prefill={searchPrefill} />
                 {error && <div style={{ marginTop: 12, color: theme.red, fontSize: 13 }}>{error}</div>}
               </>
             )}

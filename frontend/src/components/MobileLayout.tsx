@@ -130,8 +130,9 @@ export function MobileLayout({
   const lastTime    = useRef(0)
   const velocity    = useRef(0)  // px/ms, positive = downward
 
-  const [capDashOpen, setCapDashOpen] = useState(false)
-  const [drawerOpen, setDrawerOpen]   = useState(false)
+  const [capDashOpen, setCapDashOpen]   = useState(false)
+  const [drawerOpen, setDrawerOpen]     = useState(false)
+  const [searchPrefill, setSearchPrefill] = useState<import('../types').RouteRequest | undefined>(undefined)
   const hasPins    = pinnedRoutes.length > 0
   const hasResults = response !== null
 
@@ -450,8 +451,7 @@ export function MobileLayout({
                     onSearch={onSearch}
                     onSwitchMode={switchMode}
                     onApplySort={onApplySort}
-                    onSetOrigin={onSetOrigin}
-                    onSetDest={onSetDest}
+                    onPrefill={req => setSearchPrefill({...req} as import('../types').RouteRequest)}
                   />
                 </Suspense>
               )}
@@ -460,6 +460,7 @@ export function MobileLayout({
                 nodes={nodes} segments={segments} systems={systems}
                 onSearch={onSearch} loading={loading}
                 prefilledOrigin={prefilledOrigin} prefilledDest={prefilledDest}
+                prefill={searchPrefill}
               />
 
               {error && (

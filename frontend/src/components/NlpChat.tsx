@@ -8,8 +8,7 @@ interface Props {
   onSearch: (req: RouteRequest) => void
   onSwitchMode: (mode: AppMode) => void
   onApplySort?: (mode: NlpSortMode) => void
-  onSetOrigin?: (nodeId: string) => void
-  onSetDest?: (nodeId: string) => void
+  onPrefill?: (req: Partial<RouteRequest>) => void
 }
 
 function TSABuddyAvatar({ size = 28 }: { size?: number }) {
@@ -50,7 +49,7 @@ const EXAMPLES = [
   'SIN3 to TKO1 on EAC, full diversity',
 ]
 
-export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort, onSetOrigin, onSetDest }: Props) {
+export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort, onPrefill }: Props) {
   const t = useTheme()
   const [input, setInput]           = useState('')
   const [loading, setLoading]       = useState(false)
@@ -78,9 +77,7 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort, on
       // Auto-search if confidence is high or medium and we have endpoints
       if ((res.confidence === 'high' || res.confidence === 'medium') && res.start_node_id && res.end_node_id) {
         onSwitchMode('routebuilder')
-        onSetOrigin?.(res.start_node_id)
-        onSetDest?.(res.end_node_id)
-        onSearch({
+        const req: RouteRequest = {
           start_node_id:          res.start_node_id,
           end_node_id:            res.end_node_id,
           must_include_nodes:     res.must_include_nodes,
@@ -90,7 +87,9 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort, on
           must_include_systems:   res.must_include_systems,
           must_avoid_systems:     res.must_avoid_systems,
           diversity:              res.diversity,
-        })
+        }
+        onPrefill?.({...req})
+        onSearch(req)
         if (res.sort_mode && onApplySort) {
           onApplySort(res.sort_mode)
         }
@@ -279,9 +278,7 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort, on
                 <button
                   onClick={() => {
                     onSwitchMode('routebuilder')
-                    onSetOrigin?.(result.start_node_id!)
-                    onSetDest?.(result.end_node_id!)
-                    onSearch({
+                    const req: RouteRequest = {
                       start_node_id:          result.start_node_id!,
                       end_node_id:            result.end_node_id!,
                       must_include_nodes:     result.must_include_nodes,
@@ -291,7 +288,9 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort, on
                       must_include_systems:   result.must_include_systems,
                       must_avoid_systems:     result.must_avoid_systems,
                       diversity:              result.diversity,
-                    })
+                    }
+                    onPrefill?.({...req})
+                    onSearch(req)
                     if (result.sort_mode && onApplySort) onApplySort(result.sort_mode)
                   }}
                   style={{
