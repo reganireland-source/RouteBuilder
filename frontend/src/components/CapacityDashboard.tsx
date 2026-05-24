@@ -93,7 +93,7 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
   })
 
   const bigNum: React.CSSProperties = {
-    fontSize: 26, fontWeight: 800, lineHeight: 1.1, color: t.text,
+    fontSize: 26, fontWeight: 800, lineHeight: 1.1, color: t.text, whiteSpace: 'nowrap',
   }
 
   const subLabel: React.CSSProperties = {
