@@ -39,20 +39,31 @@ function normalizeLng(lng: number): number {
 }
 
 /**
- * Return Leaflet Polyline positions for a segment, always taking the
- * shortest arc.  Both endpoints are first Pacific-normalised so that
- * American nodes appear east of the antimeridian in the same world-copy
- * as Asia/Pacific nodes.  The result is always a single array (no split).
+ * Return Leaflet Polyline positions for a segment.  When waypoints are
+ * provided (static ocean-routing hints) the path threads through them;
+ * otherwise a direct arc is drawn.  All longitudes are Pacific-normalised
+ * so transpacific cables render as single lines without antimeridian splits.
  */
 function geoLines(
   lat1: number, lng1: number,
   lat2: number, lng2: number,
+  waypoints?: [number, number][],
 ): [number, number][][] {
   const nLng1 = normalizeLng(lng1)
   const nLng2 = normalizeLng(lng2)
   let d = nLng2 - nLng1
   if (d >  180) d -= 360
   if (d < -180) d += 360
+
+  if (waypoints && waypoints.length > 0) {
+    const pts: [number, number][] = [
+      [lat1, nLng1],
+      ...waypoints.map(([wlat, wlng]): [number, number] => [wlat, normalizeLng(wlng)]),
+      [lat2, nLng1 + d],
+    ]
+    return [pts]
+  }
+
   return [[[lat1, nLng1], [lat2, nLng1 + d]]]
 }
 
@@ -141,7 +152,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         if (!start || !end) return []
 
         const isDown = outageSegIds.has(seg.id)
-        const lines = geoLines(start.lat, start.lng, end.lat, end.lng)
+        const lines = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined)
 
         const tooltip = (
           <Tooltip sticky>

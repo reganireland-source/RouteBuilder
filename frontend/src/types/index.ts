@@ -39,6 +39,7 @@ export interface CableSegment {
   cost_weight: number
   ownership: Ownership
   latency: number
+  waypoints?: [number, number][]
 }
 
 export interface RouteSegmentDetail {

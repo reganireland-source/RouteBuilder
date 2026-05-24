@@ -63,6 +63,7 @@ class CableSegment(BaseModel):
     cost_weight: float        # relative cost units
     ownership: Ownership
     latency: Optional[float] = None
+    waypoints: Optional[list[list[float]]] = None
 
 
 class DisallowedPair(BaseModel):
@@ -162,6 +163,7 @@ class CableSegmentUpdate(BaseModel):
     cost_weight: Optional[float] = None
     ownership: Optional[Ownership] = None
     latency: Optional[float] = None
+    waypoints: Optional[list[list[float]]] = None
 
 class CableSystemUpdate(BaseModel):
     name: Optional[str] = None

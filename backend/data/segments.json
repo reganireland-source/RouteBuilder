@@ -166,7 +166,21 @@
     "reliability": 0.9996,
     "cost_weight": 5,
     "ownership": "owned",
-    "latency": 5.5
+    "latency": 5.5,
+    "waypoints": [
+      [
+        -5.5,
+        107.5
+      ],
+      [
+        -3.0,
+        108.5
+      ],
+      [
+        -0.5,
+        107.0
+      ]
+    ]
   },
   {
     "id": "INDIGO_W-SIN-BOM",
@@ -231,7 +245,37 @@
     "reliability": 0.9989,
     "cost_weight": 8,
     "ownership": "consortium",
-    "latency": 8.5
+    "latency": 8.5,
+    "waypoints": [
+      [
+        11.5,
+        47.0
+      ],
+      [
+        13.0,
+        51.0
+      ],
+      [
+        17.0,
+        56.5
+      ],
+      [
+        22.5,
+        58.5
+      ],
+      [
+        24.0,
+        57.0
+      ],
+      [
+        26.5,
+        56.5
+      ],
+      [
+        26.0,
+        55.5
+      ]
+    ]
   },
   {
     "id": "SMW3-DXB-LON",
@@ -959,7 +1003,29 @@
     "reliability": 0.9995,
     "cost_weight": 9,
     "ownership": "iru",
-    "latency": 14.0
+    "latency": 14.0,
+    "waypoints": [
+      [
+        9.0,
+        119.5
+      ],
+      [
+        4.0,
+        118.0
+      ],
+      [
+        -0.5,
+        117.5
+      ],
+      [
+        -4.5,
+        114.0
+      ],
+      [
+        -5.5,
+        110.0
+      ]
+    ]
   },
   {
     "id": "BIFROST-JAK-SIN",
@@ -972,7 +1038,21 @@
     "reliability": 0.9995,
     "cost_weight": 5,
     "ownership": "iru",
-    "latency": 6.0
+    "latency": 6.0,
+    "waypoints": [
+      [
+        -5.5,
+        107.5
+      ],
+      [
+        -3.0,
+        108.5
+      ],
+      [
+        -0.5,
+        107.0
+      ]
+    ]
   },
   {
     "id": "ECHO-SIN-JAK",
@@ -985,7 +1065,21 @@
     "reliability": 0.9995,
     "cost_weight": 5,
     "ownership": "offnet_resell",
-    "latency": 6.0
+    "latency": 6.0,
+    "waypoints": [
+      [
+        -0.5,
+        107.0
+      ],
+      [
+        -3.0,
+        108.5
+      ],
+      [
+        -5.5,
+        107.5
+      ]
+    ]
   },
   {
     "id": "ECHO-JAK-GUM",
@@ -2678,7 +2772,17 @@
     "reliability": 0.9996,
     "cost_weight": 1,
     "ownership": "consortium",
-    "latency": 2.5
+    "latency": 2.5,
+    "waypoints": [
+      [
+        23.5,
+        57.0
+      ],
+      [
+        23.0,
+        57.5
+      ]
+    ]
   },
   {
     "id": "BBG-OMN-BOM",
@@ -2704,7 +2808,29 @@
     "reliability": 0.9991,
     "cost_weight": 1,
     "ownership": "consortium",
-    "latency": 4.75
+    "latency": 4.75,
+    "waypoints": [
+      [
+        16.0,
+        70.5
+      ],
+      [
+        10.0,
+        73.5
+      ],
+      [
+        7.5,
+        75.5
+      ],
+      [
+        6.5,
+        77.5
+      ],
+      [
+        6.5,
+        79.2
+      ]
+    ]
   },
   {
     "id": "BBG-CMB-MAA",
@@ -2717,7 +2843,33 @@
     "reliability": 0.9997,
     "cost_weight": 1,
     "ownership": "consortium",
-    "latency": 1.6
+    "latency": 1.6,
+    "waypoints": [
+      [
+        6.2,
+        79.0
+      ],
+      [
+        5.8,
+        80.5
+      ],
+      [
+        6.5,
+        81.5
+      ],
+      [
+        8.5,
+        81.8
+      ],
+      [
+        11.5,
+        81.5
+      ],
+      [
+        13.0,
+        80.8
+      ]
+    ]
   },
   {
     "id": "BBG-MAA-PEN",
@@ -2769,7 +2921,21 @@
     "reliability": 0.9996,
     "cost_weight": 1,
     "ownership": "consortium",
-    "latency": 2.0
+    "latency": 2.0,
+    "waypoints": [
+      [
+        8.0,
+        106.5
+      ],
+      [
+        8.5,
+        104.5
+      ],
+      [
+        9.5,
+        103.5
+      ]
+    ]
   },
   {
     "id": "AAE1-SHV-PEN",
@@ -2795,7 +2961,17 @@
     "reliability": 0.9996,
     "cost_weight": 1,
     "ownership": "consortium",
-    "latency": 2.0
+    "latency": 2.0,
+    "waypoints": [
+      [
+        5.5,
+        99.5
+      ],
+      [
+        6.2,
+        99.3
+      ]
+    ]
   },
   {
     "id": "AAE1-SAT-NGW",
@@ -2821,7 +2997,33 @@
     "reliability": 0.9974,
     "cost_weight": 4,
     "ownership": "consortium",
-    "latency": 14.5
+    "latency": 14.5,
+    "waypoints": [
+      [
+        14.0,
+        90.0
+      ],
+      [
+        8.0,
+        85.0
+      ],
+      [
+        6.5,
+        79.0
+      ],
+      [
+        7.0,
+        75.5
+      ],
+      [
+        10.0,
+        73.0
+      ],
+      [
+        15.0,
+        71.5
+      ]
+    ]
   },
   {
     "id": "AAE1-BOM-KHI",
@@ -2834,7 +3036,21 @@
     "reliability": 0.9993,
     "cost_weight": 1,
     "ownership": "consortium",
-    "latency": 4.0
+    "latency": 4.0,
+    "waypoints": [
+      [
+        18.0,
+        70.5
+      ],
+      [
+        21.0,
+        66.5
+      ],
+      [
+        23.5,
+        65.5
+      ]
+    ]
   },
   {
     "id": "AAE1-KHI-MCT",
@@ -2873,7 +3089,37 @@
     "reliability": 0.9995,
     "cost_weight": 1,
     "ownership": "consortium",
-    "latency": 3.0
+    "latency": 3.0,
+    "waypoints": [
+      [
+        23.0,
+        57.5
+      ],
+      [
+        22.0,
+        57.0
+      ],
+      [
+        22.5,
+        55.5
+      ],
+      [
+        24.5,
+        57.0
+      ],
+      [
+        26.5,
+        56.8
+      ],
+      [
+        26.8,
+        54.5
+      ],
+      [
+        25.8,
+        52.5
+      ]
+    ]
   },
   {
     "id": "AAE1-FUJ-JED",
@@ -2899,7 +3145,29 @@
     "reliability": 0.999,
     "cost_weight": 2,
     "ownership": "consortium",
-    "latency": 5.5
+    "latency": 5.5,
+    "waypoints": [
+      [
+        19.0,
+        39.5
+      ],
+      [
+        15.0,
+        41.0
+      ],
+      [
+        13.0,
+        43.0
+      ],
+      [
+        11.5,
+        43.8
+      ],
+      [
+        12.0,
+        44.5
+      ]
+    ]
   },
   {
     "id": "AAE1-ADN-DJI",
@@ -2912,7 +3180,17 @@
     "reliability": 0.9997,
     "cost_weight": 1,
     "ownership": "consortium",
-    "latency": 1.5
+    "latency": 1.5,
+    "waypoints": [
+      [
+        12.0,
+        44.0
+      ],
+      [
+        11.5,
+        43.0
+      ]
+    ]
   },
   {
     "id": "AAE1-DJI-EGR",
@@ -2925,7 +3203,25 @@
     "reliability": 0.998,
     "cost_weight": 3,
     "ownership": "consortium",
-    "latency": 11.0
+    "latency": 11.0,
+    "waypoints": [
+      [
+        14.5,
+        41.5
+      ],
+      [
+        18.0,
+        39.5
+      ],
+      [
+        22.5,
+        37.5
+      ],
+      [
+        27.0,
+        33.8
+      ]
+    ]
   },
   {
     "id": "AAE1-EGM-CHN",
