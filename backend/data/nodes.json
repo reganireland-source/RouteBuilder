@@ -1,338 +1,772 @@
 [
   {
-    "id": "PERA",
+    "id": "PER1",
     "name": "Perth",
     "lat": -31.9505,
     "lng": 115.8605,
     "type": "landing_station",
-    "country": "AU"
+    "country": "AU",
+    "owner": "Telstra",
+    "trading_name": "Perth Telstra",
+    "description": "A CLS location in Perth, Western Australia, owned by Telstra"
   },
   {
-    "id": "SYDN",
+    "id": "PER2",
+    "name": "Perth Metro",
+    "lat": -31.86,
+    "lng": 115.88,
+    "type": "terrestrial_pop",
+    "country": "AU",
+    "owner": "Equinix",
+    "trading_name": "Perth Metro Equinix",
+    "description": "An Equinix data centre in Perth Metro serving as a terrestrial POP"
+  },
+  {
+    "id": "SYD1",
     "name": "Sydney",
     "lat": -33.8688,
     "lng": 151.2093,
     "type": "landing_station",
-    "country": "AU"
+    "country": "AU",
+    "owner": "Telstra",
+    "trading_name": "Sydney Telstra",
+    "description": "A CLS location in Sydney, New South Wales, owned by Telstra"
   },
   {
-    "id": "MELB",
+    "id": "SYD2",
+    "name": "Sydney Metro",
+    "lat": -33.795,
+    "lng": 151.12,
+    "type": "terrestrial_pop",
+    "country": "AU",
+    "owner": "Equinix",
+    "trading_name": "Sydney Metro Equinix",
+    "description": "An Equinix data centre in Sydney Metro serving as a terrestrial POP"
+  },
+  {
+    "id": "MEL1",
     "name": "Melbourne",
     "lat": -37.8136,
     "lng": 144.9631,
     "type": "landing_station",
-    "country": "AU"
+    "country": "AU",
+    "owner": "Telstra",
+    "trading_name": "Melbourne Telstra",
+    "description": "A CLS location in Melbourne, Victoria, owned by Telstra"
   },
   {
-    "id": "BRIS",
+    "id": "MEL2",
+    "name": "Melbourne Metro",
+    "lat": -37.826,
+    "lng": 144.94,
+    "type": "terrestrial_pop",
+    "country": "AU",
+    "owner": "Equinix",
+    "trading_name": "Melbourne Metro Equinix",
+    "description": "An Equinix data centre in Melbourne Metro serving as a terrestrial POP"
+  },
+  {
+    "id": "BRI1",
     "name": "Brisbane",
     "lat": -27.4698,
     "lng": 153.0251,
     "type": "landing_station",
-    "country": "AU"
+    "country": "AU",
+    "owner": "Telstra",
+    "trading_name": "Brisbane Telstra",
+    "description": "A CLS location in Brisbane, Queensland, owned by Telstra"
   },
   {
-    "id": "DARW",
+    "id": "BRI2",
+    "name": "Brisbane Metro",
+    "lat": -27.455,
+    "lng": 153.031,
+    "type": "terrestrial_pop",
+    "country": "AU",
+    "owner": "Equinix",
+    "trading_name": "Brisbane Metro Equinix",
+    "description": "An Equinix data centre in Brisbane Metro serving as a terrestrial POP"
+  },
+  {
+    "id": "DAR1",
     "name": "Darwin",
     "lat": -12.4634,
     "lng": 130.8456,
     "type": "landing_station",
-    "country": "AU"
+    "country": "AU",
+    "owner": "Telstra",
+    "trading_name": "Darwin Telstra",
+    "description": "A CLS location in Darwin, Northern Territory, owned by Telstra"
   },
   {
-    "id": "AKLB",
+    "id": "DAR2",
+    "name": "Darwin Metro",
+    "lat": -12.446,
+    "lng": 130.842,
+    "type": "terrestrial_pop",
+    "country": "AU",
+    "owner": "Telstra",
+    "trading_name": "Darwin Metro Telstra",
+    "description": "A terrestrial POP in Darwin Metro owned by Telstra"
+  },
+  {
+    "id": "CBR1",
+    "name": "Canberra",
+    "lat": -35.2809,
+    "lng": 149.13,
+    "type": "terrestrial_pop",
+    "country": "AU",
+    "owner": "Telstra",
+    "trading_name": "Canberra Telstra",
+    "description": "A terrestrial POP in Canberra, ACT, owned by Telstra"
+  },
+  {
+    "id": "AKL1",
     "name": "Auckland",
     "lat": -36.8509,
     "lng": 174.7645,
     "type": "landing_station",
-    "country": "NZ"
+    "country": "NZ",
+    "owner": "Spark NZ",
+    "trading_name": "Auckland Spark NZ",
+    "description": "A CLS location in Auckland, New Zealand, owned by Spark NZ"
   },
   {
-    "id": "SING",
+    "id": "AKL2",
+    "name": "Auckland Metro",
+    "lat": -36.843,
+    "lng": 174.762,
+    "type": "terrestrial_pop",
+    "country": "NZ",
+    "owner": "Spark NZ",
+    "trading_name": "Auckland Metro Spark NZ",
+    "description": "A terrestrial POP in Auckland Metro owned by Spark NZ"
+  },
+  {
+    "id": "WLG1",
+    "name": "Wellington",
+    "lat": -41.2866,
+    "lng": 174.7756,
+    "type": "terrestrial_pop",
+    "country": "NZ",
+    "owner": "Spark NZ",
+    "trading_name": "Wellington Spark NZ",
+    "description": "A terrestrial POP in Wellington, New Zealand, owned by Spark NZ"
+  },
+  {
+    "id": "SIN1",
     "name": "Singapore",
     "lat": 1.3521,
     "lng": 103.8198,
     "type": "landing_station",
-    "country": "SG"
+    "country": "SG",
+    "owner": "Singtel",
+    "trading_name": "Singapore Singtel",
+    "description": "A CLS location in Singapore owned by Singtel"
   },
   {
-    "id": "CHKK",
-    "name": "Chung Hom Kok",
-    "lat": 22.245,
-    "lng": 114.205,
+    "id": "SIN2",
+    "name": "Jurong",
+    "lat": 1.3399,
+    "lng": 103.7011,
+    "type": "terrestrial_pop",
+    "country": "SG",
+    "owner": "Equinix",
+    "trading_name": "Jurong Equinix",
+    "description": "An Equinix data centre in Jurong, Singapore, serving as a terrestrial POP"
+  },
+  {
+    "id": "HKG1",
+    "name": "Hong Kong",
+    "lat": 22.3193,
+    "lng": 114.1694,
     "type": "landing_station",
-    "country": "HK"
+    "country": "HK",
+    "owner": "PCCW Global",
+    "trading_name": "Hong Kong PCCW Global",
+    "description": "A CLS location in Hong Kong owned by PCCW Global"
   },
   {
-    "id": "TOKY",
+    "id": "HKG2",
+    "name": "Kowloon",
+    "lat": 22.3176,
+    "lng": 114.1734,
+    "type": "terrestrial_pop",
+    "country": "HK",
+    "owner": "Equinix",
+    "trading_name": "Kowloon Equinix",
+    "description": "An Equinix data centre in Kowloon, Hong Kong, serving as a terrestrial POP"
+  },
+  {
+    "id": "TYO1",
     "name": "Tokyo",
     "lat": 35.6762,
     "lng": 139.6503,
     "type": "landing_station",
-    "country": "JP"
+    "country": "JP",
+    "owner": "NTT",
+    "trading_name": "Tokyo NTT",
+    "description": "A CLS location in Tokyo, Japan, owned by NTT"
   },
   {
-    "id": "OSAK",
+    "id": "TYO2",
+    "name": "Tokyo Metro",
+    "lat": 35.688,
+    "lng": 139.763,
+    "type": "terrestrial_pop",
+    "country": "JP",
+    "owner": "Equinix",
+    "trading_name": "Tokyo Metro Equinix",
+    "description": "An Equinix data centre in Tokyo Metro serving as a terrestrial POP"
+  },
+  {
+    "id": "OSA1",
     "name": "Osaka",
     "lat": 34.6937,
     "lng": 135.5023,
     "type": "landing_station",
-    "country": "JP"
+    "country": "JP",
+    "owner": "NTT",
+    "trading_name": "Osaka NTT",
+    "description": "A CLS location in Osaka, Japan, owned by NTT"
   },
   {
-    "id": "GUMA",
+    "id": "OSA2",
+    "name": "Osaka Metro",
+    "lat": 34.677,
+    "lng": 135.502,
+    "type": "terrestrial_pop",
+    "country": "JP",
+    "owner": "NTT",
+    "trading_name": "Osaka Metro NTT",
+    "description": "A terrestrial POP in Osaka Metro owned by NTT"
+  },
+  {
+    "id": "NGO1",
+    "name": "Nagoya",
+    "lat": 35.1815,
+    "lng": 136.9066,
+    "type": "terrestrial_pop",
+    "country": "JP",
+    "owner": "NTT",
+    "trading_name": "Nagoya NTT",
+    "description": "A terrestrial POP in Nagoya, Japan, owned by NTT"
+  },
+  {
+    "id": "GUM1",
     "name": "Guam",
     "lat": 13.4443,
     "lng": 144.7937,
     "type": "landing_station",
-    "country": "GU"
+    "country": "GU",
+    "owner": "GTA",
+    "trading_name": "Guam GTA",
+    "description": "A CLS location in Guam owned by GTA (Guam Telephone Authority)"
   },
   {
-    "id": "HAWI",
+    "id": "GUM2",
+    "name": "Hag\u00e5t\u00f1a",
+    "lat": 13.4745,
+    "lng": 144.7504,
+    "type": "terrestrial_pop",
+    "country": "GU",
+    "owner": "GTA",
+    "trading_name": "Hag\u00e5t\u00f1a GTA",
+    "description": "A terrestrial POP in Hag\u00e5t\u00f1a, Guam, owned by GTA"
+  },
+  {
+    "id": "HAW1",
     "name": "Hawaii",
     "lat": 21.3069,
     "lng": -157.8583,
     "type": "landing_station",
-    "country": "US"
+    "country": "US",
+    "owner": "Hawaiian Telcom",
+    "trading_name": "Hawaii Hawaiian Telcom",
+    "description": "A CLS location in Hawaii owned by Hawaiian Telcom"
   },
   {
-    "id": "LAXA",
+    "id": "HAW2",
+    "name": "Honolulu",
+    "lat": 21.295,
+    "lng": -157.855,
+    "type": "terrestrial_pop",
+    "country": "US",
+    "owner": "Equinix",
+    "trading_name": "Honolulu Equinix",
+    "description": "An Equinix data centre in Honolulu, Hawaii, serving as a terrestrial POP"
+  },
+  {
+    "id": "LAX1",
     "name": "Los Angeles",
     "lat": 34.0522,
     "lng": -118.2437,
     "type": "landing_station",
-    "country": "US"
+    "country": "US",
+    "owner": "Lumen",
+    "trading_name": "Los Angeles Lumen",
+    "description": "A CLS location in Los Angeles, California, owned by Lumen Technologies"
   },
   {
-    "id": "SEAT",
+    "id": "LAX2",
+    "name": "Los Angeles Metro",
+    "lat": 34.055,
+    "lng": -118.26,
+    "type": "terrestrial_pop",
+    "country": "US",
+    "owner": "Equinix",
+    "trading_name": "Los Angeles Metro Equinix",
+    "description": "An Equinix data centre in Los Angeles Metro serving as a terrestrial POP"
+  },
+  {
+    "id": "SEA1",
     "name": "Seattle",
     "lat": 47.6062,
     "lng": -122.3321,
     "type": "landing_station",
-    "country": "US"
+    "country": "US",
+    "owner": "Lumen",
+    "trading_name": "Seattle Lumen",
+    "description": "A CLS location in Seattle, Washington, owned by Lumen Technologies"
   },
   {
-    "id": "MNLA",
+    "id": "SEA2",
+    "name": "Seattle Metro",
+    "lat": 47.62,
+    "lng": -122.336,
+    "type": "terrestrial_pop",
+    "country": "US",
+    "owner": "Equinix",
+    "trading_name": "Seattle Metro Equinix",
+    "description": "An Equinix data centre in Seattle Metro serving as a terrestrial POP"
+  },
+  {
+    "id": "SFO1",
+    "name": "San Francisco",
+    "lat": 37.7749,
+    "lng": -122.4194,
+    "type": "landing_station",
+    "country": "US",
+    "owner": "Lumen",
+    "trading_name": "San Francisco Lumen",
+    "description": "A CLS location in San Francisco, California, owned by Lumen Technologies"
+  },
+  {
+    "id": "NYC1",
+    "name": "New York",
+    "lat": 40.7128,
+    "lng": -74.006,
+    "type": "terrestrial_pop",
+    "country": "US",
+    "owner": "Equinix",
+    "trading_name": "New York Equinix",
+    "description": "An Equinix data centre in New York City serving as a terrestrial POP"
+  },
+  {
+    "id": "MNL1",
     "name": "Manila",
     "lat": 14.5995,
     "lng": 120.9842,
     "type": "landing_station",
-    "country": "PH"
+    "country": "PH",
+    "owner": "PLDT",
+    "trading_name": "Manila PLDT",
+    "description": "A CLS location in Manila, Philippines, owned by PLDT"
   },
   {
-    "id": "TPEI",
+    "id": "MNL2",
+    "name": "Makati",
+    "lat": 14.554,
+    "lng": 121.024,
+    "type": "terrestrial_pop",
+    "country": "PH",
+    "owner": "Equinix",
+    "trading_name": "Makati Equinix",
+    "description": "An Equinix data centre in Makati, Metro Manila, serving as a terrestrial POP"
+  },
+  {
+    "id": "MNL3",
+    "name": "Clark",
+    "lat": 15.1847,
+    "lng": 120.5554,
+    "type": "terrestrial_pop",
+    "country": "PH",
+    "owner": "PLDT",
+    "trading_name": "Clark PLDT",
+    "description": "A terrestrial POP in Clark, Pampanga, Philippines, owned by PLDT"
+  },
+  {
+    "id": "TPE1",
     "name": "Taipei",
     "lat": 25.033,
     "lng": 121.5654,
     "type": "landing_station",
-    "country": "TW"
+    "country": "TW",
+    "owner": "Chunghwa Telecom",
+    "trading_name": "Taipei Chunghwa Telecom",
+    "description": "A CLS location in Taipei, Taiwan, owned by Chunghwa Telecom"
   },
   {
-    "id": "INCN",
+    "id": "TPE2",
+    "name": "Taipei Metro",
+    "lat": 25.076,
+    "lng": 121.597,
+    "type": "terrestrial_pop",
+    "country": "TW",
+    "owner": "Equinix",
+    "trading_name": "Taipei Metro Equinix",
+    "description": "An Equinix data centre in Taipei Metro serving as a terrestrial POP"
+  },
+  {
+    "id": "KHH1",
+    "name": "Kaohsiung",
+    "lat": 22.6273,
+    "lng": 120.3014,
+    "type": "terrestrial_pop",
+    "country": "TW",
+    "owner": "Chunghwa Telecom",
+    "trading_name": "Kaohsiung Chunghwa Telecom",
+    "description": "A terrestrial POP in Kaohsiung, Taiwan, owned by Chunghwa Telecom"
+  },
+  {
+    "id": "ICN1",
     "name": "Seoul",
     "lat": 37.5665,
     "lng": 126.978,
     "type": "landing_station",
-    "country": "KR"
+    "country": "KR",
+    "owner": "KT Corporation",
+    "trading_name": "Seoul KT Corporation",
+    "description": "A CLS location in Seoul, South Korea, owned by KT Corporation"
   },
   {
-    "id": "MUMH",
+    "id": "ICN2",
+    "name": "Seoul Gangnam",
+    "lat": 37.497,
+    "lng": 127.028,
+    "type": "terrestrial_pop",
+    "country": "KR",
+    "owner": "Equinix",
+    "trading_name": "Seoul Gangnam Equinix",
+    "description": "An Equinix data centre in Gangnam, Seoul, serving as a terrestrial POP"
+  },
+  {
+    "id": "PUS1",
+    "name": "Busan",
+    "lat": 35.1796,
+    "lng": 129.0756,
+    "type": "terrestrial_pop",
+    "country": "KR",
+    "owner": "KT Corporation",
+    "trading_name": "Busan KT Corporation",
+    "description": "A terrestrial POP in Busan, South Korea, owned by KT Corporation"
+  },
+  {
+    "id": "BOM1",
     "name": "Mumbai",
     "lat": 19.076,
     "lng": 72.8777,
     "type": "landing_station",
-    "country": "IN"
+    "country": "IN",
+    "owner": "Tata Communications",
+    "trading_name": "Mumbai Tata Communications",
+    "description": "A CLS location in Mumbai, India, owned by Tata Communications"
   },
   {
-    "id": "MAAC",
+    "id": "BOM2",
+    "name": "Mumbai Metro",
+    "lat": 19.065,
+    "lng": 72.868,
+    "type": "terrestrial_pop",
+    "country": "IN",
+    "owner": "Equinix",
+    "trading_name": "Mumbai Metro Equinix",
+    "description": "An Equinix data centre in Mumbai Metro serving as a terrestrial POP"
+  },
+  {
+    "id": "MAA1",
     "name": "Chennai",
     "lat": 13.0827,
     "lng": 80.2707,
     "type": "landing_station",
-    "country": "IN"
+    "country": "IN",
+    "owner": "Tata Communications",
+    "trading_name": "Chennai Tata Communications",
+    "description": "A CLS location in Chennai, India, owned by Tata Communications"
   },
   {
-    "id": "DJIB",
+    "id": "MAA2",
+    "name": "Chennai Metro",
+    "lat": 13.061,
+    "lng": 80.248,
+    "type": "terrestrial_pop",
+    "country": "IN",
+    "owner": "Tata Communications",
+    "trading_name": "Chennai Metro Tata Communications",
+    "description": "A terrestrial POP in Chennai Metro owned by Tata Communications"
+  },
+  {
+    "id": "DEL1",
+    "name": "New Delhi",
+    "lat": 28.6139,
+    "lng": 77.209,
+    "type": "terrestrial_pop",
+    "country": "IN",
+    "owner": "Tata Communications",
+    "trading_name": "New Delhi Tata Communications",
+    "description": "A terrestrial POP in New Delhi, India, owned by Tata Communications"
+  },
+  {
+    "id": "BLR1",
+    "name": "Bangalore",
+    "lat": 12.9716,
+    "lng": 77.5946,
+    "type": "terrestrial_pop",
+    "country": "IN",
+    "owner": "Tata Communications",
+    "trading_name": "Bangalore Tata Communications",
+    "description": "A terrestrial POP in Bangalore, India, owned by Tata Communications"
+  },
+  {
+    "id": "DJI1",
     "name": "Djibouti",
     "lat": 11.8251,
     "lng": 42.5903,
     "type": "landing_station",
-    "country": "DJ"
+    "country": "DJ",
+    "owner": "Djibouti Telecom",
+    "trading_name": "Djibouti Djibouti Telecom",
+    "description": "A CLS location in Djibouti owned by Djibouti Telecom"
   },
   {
-    "id": "DUBA",
+    "id": "DJI2",
+    "name": "Djibouti City Hub",
+    "lat": 11.5892,
+    "lng": 43.1456,
+    "type": "terrestrial_pop",
+    "country": "DJ",
+    "owner": "Djibouti Telecom",
+    "trading_name": "Djibouti City Hub Djibouti Telecom",
+    "description": "A terrestrial hub POP in Djibouti City owned by Djibouti Telecom"
+  },
+  {
+    "id": "DXB1",
     "name": "Dubai",
     "lat": 25.2048,
     "lng": 55.2708,
     "type": "landing_station",
-    "country": "AE"
+    "country": "AE",
+    "owner": "e&",
+    "trading_name": "Dubai e&",
+    "description": "A CLS location in Dubai, UAE, owned by e& (Emirates Telecommunications)"
   },
   {
-    "id": "LOND",
+    "id": "DXB2",
+    "name": "Dubai Metro",
+    "lat": 25.188,
+    "lng": 55.266,
+    "type": "terrestrial_pop",
+    "country": "AE",
+    "owner": "Equinix",
+    "trading_name": "Dubai Metro Equinix",
+    "description": "An Equinix data centre in Dubai Metro serving as a terrestrial POP"
+  },
+  {
+    "id": "AUH1",
+    "name": "Abu Dhabi",
+    "lat": 24.4539,
+    "lng": 54.3773,
+    "type": "terrestrial_pop",
+    "country": "AE",
+    "owner": "e&",
+    "trading_name": "Abu Dhabi e&",
+    "description": "A terrestrial POP in Abu Dhabi, UAE, owned by e& (Emirates Telecommunications)"
+  },
+  {
+    "id": "LON1",
     "name": "London",
     "lat": 51.5074,
     "lng": -0.1278,
     "type": "landing_station",
-    "country": "GB"
+    "country": "GB",
+    "owner": "BT",
+    "trading_name": "London BT",
+    "description": "A CLS location in London, UK, owned by BT"
   },
   {
-    "id": "FRAN",
+    "id": "LON2",
+    "name": "London Docklands",
+    "lat": 51.505,
+    "lng": -0.022,
+    "type": "terrestrial_pop",
+    "country": "GB",
+    "owner": "Equinix",
+    "trading_name": "London Docklands Equinix",
+    "description": "An Equinix data centre in London Docklands serving as a terrestrial POP"
+  },
+  {
+    "id": "MAN1",
+    "name": "Manchester",
+    "lat": 53.4808,
+    "lng": -2.2426,
+    "type": "terrestrial_pop",
+    "country": "GB",
+    "owner": "BT",
+    "trading_name": "Manchester BT",
+    "description": "A terrestrial POP in Manchester, UK, owned by BT"
+  },
+  {
+    "id": "FRA1",
     "name": "Frankfurt",
     "lat": 50.1109,
     "lng": 8.6821,
     "type": "terrestrial_pop",
-    "country": "DE"
+    "country": "DE",
+    "owner": "Equinix",
+    "trading_name": "Frankfurt Equinix",
+    "description": "An Equinix data centre in Frankfurt, Germany, serving as a terrestrial POP"
   },
   {
-    "id": "JKRT",
+    "id": "JAK1",
     "name": "Jakarta",
     "lat": -6.2088,
     "lng": 106.8456,
     "type": "landing_station",
-    "country": "ID"
+    "country": "ID",
+    "owner": "Telkom Indonesia",
+    "trading_name": "Jakarta Telkom Indonesia",
+    "description": "A CLS location in Jakarta, Indonesia, owned by Telkom Indonesia"
   },
   {
-    "id": "KULM",
+    "id": "JAK2",
+    "name": "Jakarta Metro",
+    "lat": -6.209,
+    "lng": 106.818,
+    "type": "terrestrial_pop",
+    "country": "ID",
+    "owner": "Equinix",
+    "trading_name": "Jakarta Metro Equinix",
+    "description": "An Equinix data centre in Jakarta Metro serving as a terrestrial POP"
+  },
+  {
+    "id": "SUB1",
+    "name": "Surabaya",
+    "lat": -7.2575,
+    "lng": 112.7521,
+    "type": "terrestrial_pop",
+    "country": "ID",
+    "owner": "Telkom Indonesia",
+    "trading_name": "Surabaya Telkom Indonesia",
+    "description": "A terrestrial POP in Surabaya, Indonesia, owned by Telkom Indonesia"
+  },
+  {
+    "id": "KUL1",
     "name": "Kuala Lumpur",
     "lat": 3.139,
     "lng": 101.6869,
     "type": "landing_station",
-    "country": "MY"
+    "country": "MY",
+    "owner": "Telekom Malaysia",
+    "trading_name": "Kuala Lumpur Telekom Malaysia",
+    "description": "A CLS location in Kuala Lumpur, Malaysia, owned by Telekom Malaysia"
   },
   {
-    "id": "TKOH",
-    "name": "Tseung Kwan O",
-    "lat": 22.31,
-    "lng": 114.26,
-    "type": "landing_station",
-    "country": "HK"
-  },
-  {
-    "id": "TAMS",
-    "name": "Tamsui",
-    "lat": 25.17,
-    "lng": 121.44,
-    "type": "landing_station",
-    "country": "TW"
-  },
-  {
-    "id": "FSHA",
-    "name": "Fangshan",
-    "lat": 22.37,
-    "lng": 120.62,
-    "type": "landing_station",
-    "country": "TW"
-  },
-  {
-    "id": "SHMA",
-    "name": "Shima",
-    "lat": 34.33,
-    "lng": 136.83,
-    "type": "landing_station",
-    "country": "JP"
-  },
-  {
-    "id": "AJIG",
-    "name": "Ajigaura",
-    "lat": 36.39,
-    "lng": 140.63,
-    "type": "landing_station",
-    "country": "JP"
-  },
-  {
-    "id": "CHKR",
-    "name": "Chikura",
-    "lat": 34.92,
-    "lng": 139.95,
-    "type": "landing_station",
-    "country": "JP"
-  },
-  {
-    "id": "SDRI",
-    "name": "Shinduri",
-    "lat": 36.7,
-    "lng": 126.15,
-    "type": "landing_station",
-    "country": "KR"
-  },
-  {
-    "id": "PUSA",
-    "name": "Pusan",
-    "lat": 35.18,
-    "lng": 129.08,
-    "type": "landing_station",
-    "country": "KR"
-  },
-  {
-    "id": "QDAO",
-    "name": "Qingdao",
-    "lat": 36.07,
-    "lng": 120.38,
-    "type": "landing_station",
-    "country": "CN"
-  },
-  {
-    "id": "NHUI",
-    "name": "Nanhui",
-    "lat": 31.05,
-    "lng": 121.8,
-    "type": "landing_station",
-    "country": "CN"
-  },
-  {
-    "id": "SHGH",
-    "name": "Shanghai",
-    "lat": 31.23,
-    "lng": 121.47,
+    "id": "KUL2",
+    "name": "Kuala Lumpur Metro",
+    "lat": 3.158,
+    "lng": 101.712,
     "type": "terrestrial_pop",
-    "country": "CN"
+    "country": "MY",
+    "owner": "Equinix",
+    "trading_name": "Kuala Lumpur Metro Equinix",
+    "description": "An Equinix data centre in Kuala Lumpur Metro serving as a terrestrial POP"
   },
   {
-    "id": "CPSA",
-    "name": "Capepisa",
-    "lat": 18.5,
-    "lng": 121.9,
+    "id": "PEN1",
+    "name": "Penang",
+    "lat": 5.4141,
+    "lng": 100.3288,
+    "type": "terrestrial_pop",
+    "country": "MY",
+    "owner": "Telekom Malaysia",
+    "trading_name": "Penang Telekom Malaysia",
+    "description": "A terrestrial POP in Penang, Malaysia, owned by Telekom Malaysia"
+  },
+  {
+    "id": "FJI1",
+    "name": "Suva",
+    "lat": -18.1248,
+    "lng": 178.4501,
     "type": "landing_station",
-    "country": "PH"
+    "country": "FJ",
+    "owner": "Telecom Fiji",
+    "trading_name": "Suva Telecom Fiji",
+    "description": "A CLS location in Suva, Fiji, owned by Telecom Fiji (ATH)"
   },
   {
-    "id": "NSGU",
-    "name": "Nasugbu",
-    "lat": 14.07,
-    "lng": 120.63,
+    "id": "VLI1",
+    "name": "Port Vila",
+    "lat": -17.7334,
+    "lng": 168.3215,
     "type": "landing_station",
-    "country": "PH"
+    "country": "VU",
+    "owner": "Telstra",
+    "trading_name": "Port Vila Telstra",
+    "description": "A CLS location in Port Vila, Vanuatu, operated by Telstra Pacific"
   },
   {
-    "id": "BUEP",
-    "name": "EAC BU Pacific",
-    "lat": 27.0,
-    "lng": 126.5,
+    "id": "JGABU1",
+    "name": "JGA Branching Unit (Coral Sea)",
+    "lat": -22.0,
+    "lng": 156.0,
     "type": "branching_unit",
-    "country": ""
+    "country": "AU",
+    "owner": "JGA Consortium",
+    "trading_name": "JGA Branching Unit (Coral Sea) JGA Consortium",
+    "description": "Submarine cable branching unit for the Japan-Guam-Australia cable in the Coral Sea"
   },
   {
-    "id": "BUEC",
-    "name": "EAC BU China Sea",
-    "lat": 22.5,
-    "lng": 117.5,
+    "id": "SXNBU1",
+    "name": "Southern Cross NEXT Branching Unit",
+    "lat": -13.0,
+    "lng": -171.0,
     "type": "branching_unit",
-    "country": ""
+    "country": "WS",
+    "owner": "Southern Cross Cable Network",
+    "trading_name": "Southern Cross NEXT Branching Unit Southern Cross Cable Network",
+    "description": "Submarine cable branching unit for the Southern Cross NEXT cable system"
   },
   {
-    "id": "BUEY",
-    "name": "EAC BU Yellow Sea",
-    "lat": 34.0,
-    "lng": 123.0,
-    "type": "branching_unit",
-    "country": ""
+    "id": "TIN1",
+    "name": "Tinian",
+    "lat": 15.0,
+    "lng": 145.6,
+    "type": "landing_station",
+    "country": "MP",
+    "owner": "IT&E Overseas",
+    "trading_name": "Tinian IT&E Overseas",
+    "description": "A CLS location in Tinian, Northern Mariana Islands, owned by IT&E Overseas"
   },
   {
-    "id": "BUCT",
-    "name": "C2C BU Taiwan",
-    "lat": 22.5,
-    "lng": 116.5,
+    "id": "JUPBU1",
+    "name": "Jupiter North Pacific Branching Unit",
+    "lat": 35.0,
+    "lng": 158.0,
     "type": "branching_unit",
-    "country": ""
+    "country": "MP",
+    "owner": "Jupiter Consortium",
+    "trading_name": "Jupiter North Pacific Branching Unit Jupiter Consortium",
+    "description": "Submarine cable branching unit for the Jupiter cable system in the North Pacific, connecting the US West Coast spur to Japan and Philippines branches"
+  },
+  {
+    "id": "APRICOTBU1",
+    "name": "Apricot Philippine Sea Branching Unit",
+    "lat": 20.0,
+    "lng": 127.0,
+    "type": "branching_unit",
+    "country": "PH",
+    "owner": "Apricot Consortium",
+    "trading_name": "Apricot Philippine Sea Branching Unit Apricot Consortium",
+    "description": "Submarine cable branching unit for the Apricot cable system in the Philippine Sea, fanning out to Japan (Shima and Maruyama) and Guam"
   }
 ]

@@ -1,10 +1,5 @@
 [
   {
-    "id": "SXCS",
-    "name": "Southern Cross Cable System",
-    "description": "Transpacific cable connecting Australia and New Zealand to the United States via Hawaii"
-  },
-  {
     "id": "AJC",
     "name": "Australia-Japan Cable",
     "description": "Cable connecting Australia to Japan via Guam"
@@ -52,16 +47,96 @@
   {
     "id": "EAC",
     "name": "East Asia Crossing",
-    "description": "Cable connecting Japan, Korea, China, Taiwan, Hong Kong, Philippines, and Singapore"
-  },
-  {
-    "id": "C2C",
-    "name": "C2C",
-    "description": "Cable connecting Singapore, Hong Kong, Philippines, Taiwan, China, Korea, and Japan"
+    "description": "Cable connecting Japan, Korea, and Southeast Asia"
   },
   {
     "id": "TERRESTRIAL",
     "name": "Terrestrial",
     "description": "Terrestrial fibre segments"
+  },
+  {
+    "id": "C2C",
+    "name": "City to City",
+    "description": "Pacnet ring cable system connecting major East Asian cities: Hong Kong, Manila, Taipei, Tokyo, Seoul with branch to Singapore"
+  },
+  {
+    "id": "BIFROST",
+    "name": "BiFrost",
+    "description": "Meta/Amazon/Keppel/Telin Pacific cable \u2014 US West Coast to Singapore via Guam, Philippines and Indonesia. RFS Oct 2025. Main trunk 16,556 km."
+  },
+  {
+    "id": "ECHO",
+    "name": "Echo",
+    "description": "Google/Meta transpacific cable \u2014 Singapore (Changi/Telstra) to US West Coast (Eureka CA) via Indonesia and Guam. Main trunk 16,206 km. RFS 2024\u201325."
+  },
+  {
+    "id": "TOPAZ",
+    "name": "Topaz",
+    "description": "Google private cable \u2014 US Pacific Northwest (Vancouver/Port Alberni BC) to Japan (Takahagi/Ibaraki + Shima/Mie). ~10,000 km. RFS Jun 2024."
+  },
+  {
+    "id": "TABUA",
+    "name": "Tabua",
+    "description": "Google (Starfish) South Pacific cable \u2014 Los Angeles to Sydney/Queensland via Hawaii and Fiji. Main trunk 13,323 km. RFS Q1 2026."
+  },
+  {
+    "id": "JGA",
+    "name": "Japan Guam Australia",
+    "description": "Google/Telstra/KDDI/SoftBank/AT&T transpacific cable connecting Japan to Australia via Guam and Darwin. ~9,200 km. RFS 2020."
+  },
+  {
+    "id": "SEAUS",
+    "name": "SEA-US",
+    "description": "Southeast Asia \u2013 United States cable connecting Philippines and Guam to Hawaii and Los Angeles. ~15,000 km. Consortium: Globe, PLDT, Telstra, Teleguam, Hawaiian Telcom."
+  },
+  {
+    "id": "SJC2",
+    "name": "Southeast Asia Japan Cable 2",
+    "description": "High-capacity cable connecting Singapore, Philippines, Taiwan, Japan and South Korea. ~10,500 km. Owners: NTT, SoftBank, PLDT, Globe, Chunghwa, Singtel, KT. RFS 2021."
+  },
+  {
+    "id": "ADC",
+    "name": "Asia Direct Cable",
+    "description": "Regional intra-Asia cable connecting Japan, Taiwan, Hong Kong, Philippines and Singapore. ~6,500 km. Owners: NTT, Chunghwa Telecom, PCCW, PLDT, StarHub."
+  },
+  {
+    "id": "JUNO",
+    "name": "JUNO",
+    "description": "Japan\u2013US trans-Pacific cable connecting Tokyo to US Pacific Northwest via Hawaii. ~10,600 km. Google-backed consortium with KDDI and NTT."
+  },
+  {
+    "id": "PROA",
+    "name": "Proa",
+    "description": "Google-owned regional cable connecting Shima (Japan), Tinian (Northern Mariana Islands) and Guam. 2,891 km. Supplier: NEC. RFS 2026."
+  },
+  {
+    "id": "BALIKULA",
+    "name": "Balikula",
+    "description": "South Pacific cable connecting Brisbane, Vanuatu (Port Vila) and Fiji. ~3,050 km. Google/Telstra. Provides first direct fibre connectivity to Vanuatu."
+  },
+  {
+    "id": "SCC_N",
+    "name": "Southern Cross Cable \u2013 North",
+    "description": "Original Southern Cross north route: Sydney (Brookvale) to Hawaii (Kahe Point, Oahu) via Suva, Fiji, then onward to Nedonna Beach, Oregon. ~13,700 km. Owners: Spark NZ (38%), Singtel (30%), Telstra (25%), Verizon (6%). RFS 2000."
+  },
+  {
+    "id": "SCC_S",
+    "name": "Southern Cross Cable \u2013 South",
+    "description": "Original Southern Cross south route: Sydney (Alexandria) to Morro Bay, California via Auckland (Takapuna) and Hawaii (Spencer Beach, Big Island). ~14,400 km. Same consortium as SCC_N. RFS 2000."
+  },
+  {
+    "id": "SXNEXT",
+    "name": "Southern Cross NEXT",
+    "description": "Upgraded transpacific cable: Hermosa Beach (LA) to Sydney and Auckland via Hawaii, with Fiji branch. 15,857 km, 72 Tbps. Same consortium plus ASN supply. RFS July 2022."
+  },
+  {
+    "id": "JUPITER",
+    "name": "Jupiter",
+    "description": "Meta/Amazon consortium transpacific cable \u2014 US West Coast (Pacific City, Oregon) to Japan (Chikura/Shima) and Philippines (Daet) via North Pacific branching unit. ~14,500 km. RFS 2020."
+  },
+  {
+    "id": "APRICOT",
+    "name": "Apricot",
+    "description": "Google/Meta/NTT/PLDT/SoftBank consortium cable \u2014 Singapore to Japan (Shima/Maruyama) and Guam via Philippines (Daet) and Philippine Sea branching unit. ~12,000 km. RFS 2024."
   }
 ]
