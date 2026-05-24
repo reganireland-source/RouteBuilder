@@ -1,68 +1,7 @@
 import { useTheme } from '../theme'
 import { generateUserGuidePDF } from '../utils/generateUserGuide'
+import type { CableNode, CableSegment, CableSystem } from '../types'
 
-const FEATURES = [
-  {
-    icon: '🗺',
-    title: 'PoP Route Builder',
-    desc: 'Find optimal paths between any two nodes on our 86-node subsea network. Configure wet, full or terrestrial diversity, enforce via/avoid constraints on specific nodes, segments or cable systems, and see all viable paths ranked instantly.',
-  },
-  {
-    icon: '🤖',
-    title: 'TSABuddy — AI Route Assistant',
-    desc: 'Type your request in plain English: "Singapore to Hong Kong on EAC with wet diversity, sort by latency." TSABuddy interprets the request, fills all search parameters and triggers the search automatically. Powered by Claude AI.',
-  },
-  {
-    icon: '🌏',
-    title: 'City Pairs',
-    desc: 'Explore city-to-city connectivity across our subsea network. See all viable system itineraries, intermediate cable landing stations, and key metrics — without needing to know individual node IDs.',
-  },
-  {
-    icon: '💰',
-    title: 'Margin Scoring',
-    desc: 'Every route is automatically scored for commercial margin (1–10) based on cable system ownership, weighted by segment distance. Sort routes by margin to surface the most commercially attractive options first.',
-  },
-  {
-    icon: '📡',
-    title: 'Capacity Dashboard',
-    desc: 'A full-network capacity view across all 148 segments, showing total and available capacity in terabits with utilisation colour-coding. Instantly identify where capacity is constrained.',
-  },
-  {
-    icon: '🔀',
-    title: 'On-Net / Off-Net Classification',
-    desc: 'Routes are automatically classified as On-Net, Off-Net or Mixed based on network ownership. The on-net percentage is shown for blended routes, shaping the commercial narrative.',
-  },
-  {
-    icon: '🛰',
-    title: 'Cable System Viewer',
-    desc: 'Toggle any of the 28 cable systems on the live map to explore coverage, topology and branching unit structure — ideal for network briefings and customer conversations.',
-  },
-  {
-    icon: '🔍',
-    title: 'Node Search',
-    desc: 'Look up any of the 86 nodes in the network. View connections, cable systems and geographic position, then jump directly into a route search from any node.',
-  },
-  {
-    icon: '📌',
-    title: 'Pinned Routes & SLD Export',
-    desc: 'Pin up to 5 routes for comparison, then export a professional branded straight-line diagram PDF — a cover page plus per-route diagrams with proportional segment layout — ready for customer delivery.',
-  },
-  {
-    icon: '🗄',
-    title: 'Ref Data Management',
-    desc: 'Full CRUD for all network data: nodes, segments, systems, capacity, outages and interconnect rules. Margin scores, ownership classifications and node positions are all editable within the app.',
-  },
-  {
-    icon: '🚨',
-    title: 'Live Outage Awareness',
-    desc: 'Active segment outages appear on route cards with repair date estimates. Push outage-affected routes to the bottom with one click — keeping viable options front and centre during a network incident.',
-  },
-  {
-    icon: '📱',
-    title: 'Mobile-First Design',
-    desc: 'Full feature parity on phones and tablets. Demo routes, answer customer questions and build proposals from anywhere — in a meeting room, at a customer site, or in the field.',
-  },
-]
 
 const STEPS = [
   { title: 'Open PoP Routes', desc: 'Select the PoP Routes tab. TSABuddy appears at the top — use it for natural language, or configure the search manually below.' },
@@ -81,8 +20,44 @@ const ROADMAP = [
   { icon: '🌐', title: 'Customer-Facing Portal',        desc: 'A self-serve experience for enterprise customers to explore the network, model routes and initiate enquiries independently.', tag: 'Future', color: '#3b82f6' },
 ]
 
-export function UserGuide() {
+interface Props {
+  nodes: CableNode[]
+  segments: CableSegment[]
+  systems: CableSystem[]
+}
+
+export function UserGuide({ nodes, segments, systems }: Props) {
   const t = useTheme()
+  const nodeCount    = nodes.length
+  const segmentCount = segments.length
+  const systemCount  = systems.filter(s => s.id !== 'TERRESTRIAL').length
+
+  const FEATURES = [
+    { icon: '🗺', title: 'PoP Route Builder',
+      desc: `Find optimal paths between any two nodes on our ${nodeCount}-node subsea network. Configure wet, full or terrestrial diversity, enforce via/avoid constraints on specific nodes, segments or cable systems, and see all viable paths ranked instantly.` },
+    { icon: '🤖', title: 'TSABuddy — AI Route Assistant',
+      desc: 'Type your request in plain English: "Singapore to Hong Kong on EAC with wet diversity, sort by latency." TSABuddy interprets the request, fills all search parameters and triggers the search automatically. Powered by Claude AI.' },
+    { icon: '🌏', title: 'City Pairs',
+      desc: 'Explore city-to-city connectivity across our subsea network. See all viable system itineraries, intermediate cable landing stations, and key metrics — without needing to know individual node IDs.' },
+    { icon: '💰', title: 'Margin Scoring',
+      desc: 'Every route is automatically scored for commercial margin (1–10) based on cable system ownership, weighted by segment distance. Sort routes by margin to surface the most commercially attractive options first.' },
+    { icon: '📡', title: 'Capacity Dashboard',
+      desc: `A full-network capacity view across all ${segmentCount} segments, showing total and available capacity in terabits with utilisation colour-coding. Instantly identify where capacity is constrained.` },
+    { icon: '🔀', title: 'On-Net / Off-Net Classification',
+      desc: 'Routes are automatically classified as On-Net, Off-Net or Mixed based on network ownership. The on-net percentage is shown for blended routes, shaping the commercial narrative.' },
+    { icon: '🛰', title: 'Cable System Viewer',
+      desc: `Toggle any of the ${systemCount} cable systems on the live map to explore coverage, topology and branching unit structure — ideal for network briefings and customer conversations.` },
+    { icon: '🔍', title: 'Node Search',
+      desc: `Look up any of the ${nodeCount} nodes in the network. View connections, cable systems and geographic position, then jump directly into a route search from any node.` },
+    { icon: '📌', title: 'Pinned Routes & SLD Export',
+      desc: 'Pin up to 5 routes for comparison, then export a professional branded straight-line diagram PDF — a cover page plus per-route diagrams with proportional segment layout — ready for customer delivery.' },
+    { icon: '🗄', title: 'Ref Data Management',
+      desc: 'Full CRUD for all network data: nodes, segments, systems, capacity, outages and interconnect rules. Margin scores, ownership classifications and node positions are all editable within the app.' },
+    { icon: '🚨', title: 'Live Outage Awareness',
+      desc: 'Active segment outages appear on route cards with repair date estimates. Push outage-affected routes to the bottom with one click — keeping viable options front and centre during a network incident.' },
+    { icon: '📱', title: 'Mobile-First Design',
+      desc: 'Full feature parity on phones and tablets. Demo routes, answer customer questions and build proposals from anywhere — in a meeting room, at a customer site, or in the field.' },
+  ]
 
   const card = (style?: Record<string, unknown>): Record<string, unknown> => ({
     background: t.bgCard,
@@ -129,7 +104,7 @@ export function UserGuide() {
             validate diversity, and deliver a customer-ready straight-line diagram — all from one interface.
           </p>
           <button
-            onClick={generateUserGuidePDF}
+            onClick={() => generateUserGuidePDF(nodeCount, segmentCount, systemCount)}
             style={{
               marginTop: 24, padding: '10px 22px', borderRadius: 8,
               background: '#2563eb', border: '1px solid rgba(255,255,255,0.2)',
@@ -145,9 +120,9 @@ export function UserGuide() {
       {/* ── Stats strip ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 28 }}>
         {[
-          ['86', 'Nodes', 'Landing stations, terrestrial PoPs & branching units'],
-          ['148', 'Segments', 'Wet & backhaul across 28 cable systems'],
-          ['28', 'Cable Systems', 'Owned, consortium, IRU & partner capacity'],
+          [String(nodeCount),    'Nodes',         'Landing stations, terrestrial PoPs & branching units'],
+          [String(segmentCount), 'Segments',       `Wet & backhaul across ${systemCount} cable systems`],
+          [String(systemCount),  'Cable Systems',  'Owned, consortium, IRU & partner capacity'],
         ].map(([num, label, sub]) => (
           <div key={label} style={{ ...card(), textAlign: 'center', padding: '18px 12px' }}>
             <div style={{ fontSize: 32, fontWeight: 800, color: t.blue, lineHeight: 1 }}>{num}</div>
@@ -301,7 +276,7 @@ export function UserGuide() {
       <div style={{ textAlign: 'center', padding: '20px 0 0', borderTop: `1px solid ${t.border}` }}>
         <div style={{ fontSize: 11, color: t.textFaint, marginBottom: 8 }}>International Telco · RouteBuilder</div>
         <button
-          onClick={generateUserGuidePDF}
+          onClick={() => generateUserGuidePDF(nodeCount, segmentCount, systemCount)}
           style={{
             padding: '9px 20px', borderRadius: 7,
             background: t.blue, border: 'none',

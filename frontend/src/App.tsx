@@ -244,7 +244,7 @@ export default function App() {
               }}
               title="Close guide"
             >×</button>
-            <UserGuide />
+            <UserGuide nodes={nodes} segments={segments} systems={systems} />
           </div>,
           document.body
         )}
@@ -509,7 +509,7 @@ export default function App() {
             }}
             title="Close guide"
           >×</button>
-          <UserGuide />
+          <UserGuide nodes={nodes} segments={segments} systems={systems} />
         </div>,
         document.body
       )}

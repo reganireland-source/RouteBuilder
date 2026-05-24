@@ -203,7 +203,7 @@ function drawCover(doc: jsPDF) {
   footer(doc, 1, 5)
 }
 
-function drawFeatures(doc: jsPDF) {
+function drawFeatures(doc: jsPDF, nodeCount: number, segmentCount: number, systemCount: number) {
   pageHeader(doc, 'Key Features')
 
   let y = 24
@@ -211,7 +211,7 @@ function drawFeatures(doc: jsPDF) {
 
   const features: [string, string, string][] = [
     ['🗺', 'PoP Route Builder',
-      'Find optimal paths between any two nodes on our 86-node subsea network. Configure diversity requirements (wet, full, terrestrial or full-node diversity), enforce via or avoid constraints on specific nodes, segments or cable systems, and see all viable paths ranked instantly.'],
+      `Find optimal paths between any two nodes on our ${nodeCount}-node subsea network. Configure diversity requirements (wet, full, terrestrial or full-node diversity), enforce via or avoid constraints on specific nodes, segments or cable systems, and see all viable paths ranked instantly.`],
     ['🤖', 'TSABuddy — AI Route Assistant',
       'Type your request in plain English: "Singapore to Hong Kong on EAC with wet diversity, sort by latency." TSABuddy interprets the request, configures all route parameters, triggers the search, and applies the right sort order — automatically. Powered by Claude AI.'],
     ['🌏', 'City Pairs',
@@ -219,13 +219,13 @@ function drawFeatures(doc: jsPDF) {
     ['💰', 'Margin Scoring',
       'Every route is automatically scored for commercial margin (1–10) based on the cable systems used and their ownership classification, weighted proportionally by segment distance. Backhaul is excluded. Sort routes by margin to surface the most commercially attractive options first — green (≥7.5), amber (4.5–7.5) or red (<4.5).'],
     ['📡', 'Capacity Dashboard',
-      'A full-network capacity view across all 148 segments, showing total and available capacity in terabits, with utilisation colour-coding. Segmented between wet and backhaul segments. Instantly spot where capacity is constrained and factor it into route decisions.'],
+      `A full-network capacity view across all ${segmentCount} segments, showing total and available capacity in terabits, with utilisation colour-coding. Segmented between wet and backhaul segments. Instantly spot where capacity is constrained and factor it into route decisions.`],
     ['🔀', 'On-Net / Off-Net Classification',
       'Routes are automatically classified as On-Net, Off-Net or Mixed based on our network ownership profile. The mix percentage is shown for blended routes. This shapes the commercial narrative — on-net routes carry better margin and SLA quality.'],
     ['🛰', 'Cable System Viewer',
-      'Toggle any of the 28 cable systems on the live map to explore coverage, topology and branching unit structure. Ideal for understanding the network before building a route or briefing a customer.'],
+      `Toggle any of the ${systemCount} cable systems on the live map to explore coverage, topology and branching unit structure. Ideal for understanding the network before building a route or briefing a customer.`],
     ['🔍', 'Node Search',
-      'Look up any of the 86 nodes in the network — cable landing stations, terrestrial PoPs or subsea branching units. View its connections, cable systems and geographic position, then jump directly into a route search from any node.'],
+      `Look up any of the ${nodeCount} nodes in the network — cable landing stations, terrestrial PoPs or subsea branching units. View its connections, cable systems and geographic position, then jump directly into a route search from any node.`],
     ['📌', 'Pinned Routes & Straight-Line Diagram Export',
       'Pin up to 5 routes for side-by-side comparison. Export a professional, branded straight-line diagram PDF — cover page plus per-route pages with proportional segment layout, node labels and network metadata — ready for customer presentations.'],
     ['🗄', 'Ref Data Management',
@@ -240,7 +240,7 @@ function drawFeatures(doc: jsPDF) {
   footer(doc, 2, 5)
 }
 
-function drawMoreFeatures(doc: jsPDF) {
+function drawMoreFeatures(doc: jsPDF, nodeCount: number, segmentCount: number, systemCount: number) {
   pageHeader(doc, 'Key Features (continued)')
 
   let y = 24
@@ -263,9 +263,9 @@ function drawMoreFeatures(doc: jsPDF) {
   y = sectionTitle(doc, 'Network Coverage', y)
 
   const stats: [string, string, string][] = [
-    ['86',  'Nodes', 'Cable landing stations, terrestrial PoPs and subsea branching units across APAC, the Middle East, Europe and North America'],
-    ['148', 'Segments', 'Wet and backhaul segments across 28 cable systems, with capacity, reliability and margin data for each'],
-    ['28',  'Cable Systems', 'Including owned systems (AJC, Indigo, TGA), consortium (EAC, C2C, AAG, APG, SMW3/4) and partner capacity'],
+    [String(nodeCount),    'Nodes',        'Cable landing stations, terrestrial PoPs and subsea branching units across APAC, the Middle East, Europe and North America'],
+    [String(segmentCount), 'Segments',     `Wet and backhaul segments across ${systemCount} cable systems, with capacity, reliability and margin data for each`],
+    [String(systemCount),  'Cable Systems','Including owned systems (AJC, Indigo, TGA), consortium (EAC, C2C, AAG, APG, SMW3/4) and partner capacity'],
   ]
 
   for (const [num, label, desc] of stats) {
@@ -440,12 +440,12 @@ function drawVision(doc: jsPDF) {
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
-export function generateUserGuidePDF() {
+export function generateUserGuidePDF(nodeCount = 0, segmentCount = 0, systemCount = 0) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
   drawCover(doc)
-  doc.addPage(); drawFeatures(doc)
-  doc.addPage(); drawMoreFeatures(doc)
+  doc.addPage(); drawFeatures(doc, nodeCount, segmentCount, systemCount)
+  doc.addPage(); drawMoreFeatures(doc, nodeCount, segmentCount, systemCount)
   doc.addPage(); drawUserGuide(doc)
   doc.addPage(); drawVision(doc)
 
