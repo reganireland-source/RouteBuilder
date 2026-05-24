@@ -232,14 +232,18 @@ export function MobileLayout({
       </div>
 
       {/* ── Top-left branding ───────────────────────────────────────────── */}
-      <div style={{
-        position: 'absolute', top: 14, left: 14, zIndex: 100,
-        background: t.bgPanel + 'f0',
-        borderRadius: 10, padding: '5px 10px',
-        border: `1px solid ${t.border}`,
-        boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 2px 10px rgba(0,0,0,0.5)',
-        display: 'flex', alignItems: 'center', gap: 8,
-      }}>
+      <div
+        onClick={() => switchMode('guide')}
+        title="Open platform guide"
+        style={{
+          position: 'absolute', top: 14, left: 14, zIndex: 100,
+          background: t.bgPanel + 'f0',
+          borderRadius: 10, padding: '5px 10px',
+          border: `1px solid ${t.border}`,
+          boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 2px 10px rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+        }}
+      >
         <img src="/favicon.svg" alt="" style={{ width: 22, height: 22, flexShrink: 0 }} />
         <div>
           <div style={{ fontSize: 13, fontWeight: 700, color: t.text, lineHeight: 1.25 }}>RouteBuilder</div>

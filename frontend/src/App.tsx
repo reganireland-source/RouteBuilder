@@ -317,7 +317,11 @@ export default function App() {
           background: theme.bgPanel, borderRight: `1px solid ${theme.border}`,
         }}>
           <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${theme.border}` }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 2 }}>
+            <div
+              onClick={() => switchMode('guide')}
+              style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 2, cursor: 'pointer' }}
+              title="Open platform guide"
+            >
               <img src="/favicon.svg" alt="" style={{ width: 28, height: 28, flexShrink: 0 }} />
               <h1 style={{ fontSize: 18, fontWeight: 700, color: theme.text }}>RouteBuilder</h1>
             </div>
