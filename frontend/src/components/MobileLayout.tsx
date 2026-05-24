@@ -413,14 +413,14 @@ export function MobileLayout({
 
         {/* Mode tabs */}
         <div style={{ flexShrink: 0, display: 'flex', borderBottom: `1px solid ${t.border}` }}>
-          <button style={tabBtn(mode === 'routebuilder')} onClick={() => tapTab('routebuilder')}>PoP Routes</button>
+          <button style={tabBtn(mode === 'routebuilder')} onClick={() => tapTab('routebuilder')}>Routes</button>
           <button style={tabBtn(mode === 'citypair')}     onClick={() => tapTab('citypair')}>City Pairs</button>
-          <button style={tabBtn(mode === 'systemviewer')} onClick={() => tapTab('systemviewer')}>Cable System</button>
-          <button style={tabBtn(mode === 'nodefinder')}   onClick={() => tapTab('nodefinder')}>Node Search</button>
+          <button style={tabBtn(mode === 'systemviewer')} onClick={() => tapTab('systemviewer')}>Cables</button>
+          <button style={tabBtn(mode === 'nodefinder')}   onClick={() => tapTab('nodefinder')}>Nodes</button>
         </div>
 
         {/* Scrollable content — clipped to sheet height automatically */}
-        <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' } as React.CSSProperties}>
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain' } as React.CSSProperties}>
 
           {/* ── Routes mode ───────────────────────────────────────────── */}
           {mode === 'routebuilder' && (
