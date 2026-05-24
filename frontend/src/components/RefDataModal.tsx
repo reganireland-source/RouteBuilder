@@ -352,7 +352,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                 </span>
               </div>
               <ActionsCell id={s.id}
-                onEdit={() => startEdit(s.id, { name: s.name, system_id: s.system_id, start_node_id: s.start_node_id, end_node_id: s.end_node_id, type: s.type, length_km: s.length_km, latency: s.latency, cost_weight: s.cost_weight, reliability: s.reliability, ownership: s.ownership })}
+                onEdit={() => startEdit(s.id, { name: s.name, system_id: s.system_id, start_node_id: s.start_node_id, end_node_id: s.end_node_id, type: s.type, length_km: s.length_km, latency: s.latency, cost_weight: s.cost_weight, reliability: s.reliability, ownership: s.ownership, waypoints: s.waypoints ? JSON.parse(JSON.stringify(s.waypoints)) : [] })}
                 onDelete={() => confirmDelete(() => api.deleteSegment(s.id))}
               />
             </div>
@@ -368,8 +368,83 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                 <Field label="Cost Weight"  k="cost_weight"   src={editValues} setSrc={setEditValues} type="number" />
                 <Field label="Reliability"  k="reliability"   src={editValues} setSrc={setEditValues} type="number" />
                 <Field label="Ownership"    k="ownership"     src={editValues} setSrc={setEditValues} options={ownerOpts} />
+                {/* Waypoints editor */}
+                <div style={{ gridColumn: '1 / -1', marginTop: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                    <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Ocean Waypoints
+                    </label>
+                    <span style={{ fontSize: 10, color: t.textFaintest }}>
+                      Intermediate lat/lng points that keep wet segments in the ocean — ordered from start to end node
+                    </span>
+                  </div>
+                  {((editValues.waypoints as [number, number][]) ?? []).map(([wlat, wlng], wi) => (
+                    <div key={wi} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                      <span style={{ fontSize: 10, color: t.textFaint, width: 20, textAlign: 'right', flexShrink: 0 }}>{wi + 1}</span>
+                      <input
+                        type="number" step="any" placeholder="Lat"
+                        value={wlat}
+                        style={{ ...inputStyle, width: 90 }}
+                        onChange={e => {
+                          const wps = [...((editValues.waypoints as [number, number][]) ?? [])]
+                          wps[wi] = [parseFloat(e.target.value) || 0, wps[wi][1]]
+                          setEditValues({ ...editValues, waypoints: wps })
+                        }}
+                      />
+                      <input
+                        type="number" step="any" placeholder="Lng"
+                        value={wlng}
+                        style={{ ...inputStyle, width: 90 }}
+                        onChange={e => {
+                          const wps = [...((editValues.waypoints as [number, number][]) ?? [])]
+                          wps[wi] = [wps[wi][0], parseFloat(e.target.value) || 0]
+                          setEditValues({ ...editValues, waypoints: wps })
+                        }}
+                      />
+                      <button
+                        title="Move up"
+                        disabled={wi === 0}
+                        onClick={() => {
+                          const wps = [...((editValues.waypoints as [number, number][]) ?? [])]
+                          ;[wps[wi - 1], wps[wi]] = [wps[wi], wps[wi - 1]]
+                          setEditValues({ ...editValues, waypoints: wps })
+                        }}
+                        style={{ fontSize: 11, padding: '2px 6px', borderRadius: 3, border: `1px solid ${t.border}`, background: 'transparent', color: t.textFaint, cursor: wi === 0 ? 'not-allowed' : 'pointer', opacity: wi === 0 ? 0.3 : 1 }}
+                      >↑</button>
+                      <button
+                        title="Move down"
+                        disabled={wi === ((editValues.waypoints as [number, number][]) ?? []).length - 1}
+                        onClick={() => {
+                          const wps = [...((editValues.waypoints as [number, number][]) ?? [])]
+                          ;[wps[wi], wps[wi + 1]] = [wps[wi + 1], wps[wi]]
+                          setEditValues({ ...editValues, waypoints: wps })
+                        }}
+                        style={{ fontSize: 11, padding: '2px 6px', borderRadius: 3, border: `1px solid ${t.border}`, background: 'transparent', color: t.textFaint, cursor: wi === ((editValues.waypoints as [number, number][]) ?? []).length - 1 ? 'not-allowed' : 'pointer', opacity: wi === ((editValues.waypoints as [number, number][]) ?? []).length - 1 ? 0.3 : 1 }}
+                      >↓</button>
+                      <button
+                        title="Remove waypoint"
+                        onClick={() => {
+                          const wps = ((editValues.waypoints as [number, number][]) ?? []).filter((_, j) => j !== wi)
+                          setEditValues({ ...editValues, waypoints: wps })
+                        }}
+                        style={{ fontSize: 11, padding: '2px 7px', borderRadius: 3, border: `1px solid ${t.red}44`, background: 'transparent', color: t.red, cursor: 'pointer' }}
+                      >×</button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => {
+                      const wps = [...((editValues.waypoints as [number, number][]) ?? []), [0, 0] as [number, number]]
+                      setEditValues({ ...editValues, waypoints: wps })
+                    }}
+                    style={{ fontSize: 11, padding: '3px 10px', borderRadius: 3, border: `1px solid ${t.blue}`, background: 'transparent', color: t.blue, cursor: 'pointer', marginTop: 2 }}
+                  >+ Add waypoint</button>
+                </div>
                 <SaveCancel
-                  onSave={() => saveEdit(() => api.updateSegment(s.id, editValues as Partial<CableSegment>))}
+                  onSave={() => {
+                    const wps = (editValues.waypoints as [number, number][]) ?? []
+                    const payload = { ...editValues, waypoints: wps.length > 0 ? wps : null }
+                    saveEdit(() => api.updateSegment(s.id, payload as Partial<CableSegment>))
+                  }}
                   onCancel={() => setEditId(null)}
                 />
               </div>
@@ -778,6 +853,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   const [checkResults, setCheckResults] = useState<CheckResult[] | null>(null)
   const [checkLoading, setCheckLoading] = useState(false)
   const [checkError, setCheckError] = useState<string | null>(null)
+  const [reseedStatus, setReseedStatus] = useState<string | null>(null)
+  const [reseedLoading, setReseedLoading] = useState(false)
 
   async function runChecks() {
     setCheckLoading(true); setCheckError(null)
@@ -817,6 +894,24 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       </div>
     )
 
+    async function runReseed() {
+      setReseedLoading(true); setReseedStatus(null)
+      try {
+        const r = await api.adminReseed()
+        if (r.status === 'skipped') {
+          setReseedStatus(`Skipped — ${r.reason}`)
+        } else {
+          const counts = r.reseeded!
+          setReseedStatus(`Reseeded: ${counts.segments} segments · ${counts.nodes} nodes · ${counts.systems} systems · ${counts.capacity} capacity · ${counts.outages} outages · ${counts.rules} rules`)
+          onDataChange()
+        }
+      } catch (e) {
+        setReseedStatus(`Error: ${e}`)
+      } finally {
+        setReseedLoading(false)
+      }
+    }
+
     return (
       <div style={{ padding: '20px 24px', maxWidth: 680 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
@@ -833,6 +928,27 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             </span>
           )}
           {checkError && <span style={{ fontSize: 12, color: t.red }}>{checkError}</span>}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, padding: '12px 14px', background: t.bgDeep, borderRadius: 6, border: `1px solid ${t.border}` }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 2 }}>Sync JSON → Postgres</div>
+            <div style={{ fontSize: 11, color: t.textFaint }}>
+              Force-reload all data from the bundled JSON files into the database. Use this after deploying new seed data (e.g. waypoints).
+            </div>
+            {reseedStatus && (
+              <div style={{ fontSize: 11, marginTop: 6, color: reseedStatus.startsWith('Error') ? t.red : t.green }}>
+                {reseedStatus}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={runReseed}
+            disabled={reseedLoading}
+            style={{ padding: '6px 14px', borderRadius: 4, border: `1px solid ${t.orange}`, background: 'transparent', color: t.orange, fontWeight: 600, fontSize: 12, cursor: reseedLoading ? 'not-allowed' : 'pointer', flexShrink: 0 }}
+          >
+            {reseedLoading ? 'Reseeding…' : '⟳ Reseed from JSON'}
+          </button>
         </div>
 
         {checkLoading && (

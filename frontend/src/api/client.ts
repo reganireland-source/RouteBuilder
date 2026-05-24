@@ -84,6 +84,7 @@ export const api = {
   getHealth:    () => get<{ status: string; nodes: number; segments: number; systems: number }>('/api/health'),
   getChecks:    () => get<{ all_passed: boolean; error_count: number; warning_count: number; checks: { name: string; passed: boolean; severity: string; message: string }[] }>('/api/health/checks'),
   getNlpHealth: () => get<{ status: 'ok' | 'disabled' | 'error'; provider: string | null; detail: string }>('/api/health/nlp'),
+  adminReseed:  () => post<{ status: string; reason?: string; reseeded?: Record<string, number> }>('/api/health/admin/reseed', {}),
 
   // City Pair
   getCities:        ()                                                   => get<CityInfo[]>('/api/city-pairs/cities'),

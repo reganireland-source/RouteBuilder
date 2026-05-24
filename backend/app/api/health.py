@@ -1,9 +1,13 @@
 import os
+import json
+from pathlib import Path
 from fastapi import APIRouter
-from ..data_loader import load_nodes, load_segments, load_systems
+from ..data_loader import load_nodes, load_segments, load_systems, save_nodes, save_systems, save_segments, save_capacity, save_outages, save_rules, load_capacity, load_outages, load_rules
 from ..data_checks import run_all_checks, checks_summary
 
 router = APIRouter(prefix="/health", tags=["health"])
+
+DATA_DIR = Path(__file__).parent.parent.parent / "data"
 
 
 @router.get("")
@@ -24,6 +28,50 @@ def health_check():
 @router.get("/checks")
 def integrity_checks():
     return checks_summary(run_all_checks())
+
+
+@router.post("/admin/reseed")
+def admin_reseed():
+    """Force-write all data from the bundled JSON files into Postgres and bust the cache.
+    Safe to call repeatedly — does a full replace on each table.
+    No-op (returns skipped) when not using Postgres."""
+    from ..db import DATABASE_URL
+    from ..models import Node, CableSystem, CableSegment, SegmentCapacity, SegmentOutage, InterconnectRule
+
+    if not DATABASE_URL:
+        return {"status": "skipped", "reason": "not using postgres — data lives in JSON files already"}
+
+    def _load(filename, model):
+        path = DATA_DIR / filename
+        if not path.exists():
+            return []
+        return [model(**item) for item in json.loads(path.read_text())]
+
+    nodes    = _load("nodes.json",    Node)
+    systems  = _load("systems.json",  CableSystem)
+    segments = _load("segments.json", CableSegment)
+    capacity = _load("capacity.json", SegmentCapacity)
+    outages  = _load("outages.json",  SegmentOutage)
+    rules    = _load("rules.json",    InterconnectRule)
+
+    save_nodes(nodes)
+    save_systems(systems)
+    save_segments(segments)
+    save_capacity(capacity)
+    save_outages(outages)
+    save_rules(rules)
+
+    return {
+        "status": "ok",
+        "reseeded": {
+            "nodes":    len(nodes),
+            "systems":  len(systems),
+            "segments": len(segments),
+            "capacity": len(capacity),
+            "outages":  len(outages),
+            "rules":    len(rules),
+        },
+    }
 
 
 @router.get("/nlp")
