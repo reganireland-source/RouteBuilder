@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import type { Route, CableNode, SegmentCapacity, SegmentOutage, PinnedRoute } from '../types'
+import type { Route, CableNode, CableSystem, SegmentCapacity, SegmentOutage, PinnedRoute } from '../types'
 import { useTheme } from '../theme'
 
 function useIsMobile(): boolean {
@@ -32,6 +32,7 @@ interface Props {
   selectedRouteIds: string[]
   onSelectRoute: (id: string) => void
   nodes: CableNode[]
+  systems: CableSystem[]
   capacity: SegmentCapacity[]
   outages?: SegmentOutage[]
   pinnedRoutes: PinnedRoute[]
@@ -44,7 +45,7 @@ interface Props {
   externalPushOutagesDown?: boolean
 }
 
-export type SortKey = 'hops' | 'latency' | 'availability' | 'cost' | 'capacity' | 'ownership'
+export type SortKey = 'hops' | 'latency' | 'availability' | 'margin' | 'capacity' | 'ownership'
 
 const NET_ORDER = { on_net: 0, mixed: 1, off_net: 2 }
 
@@ -52,10 +53,24 @@ const SORT_OPTIONS: { key: SortKey; icon: string; label: string; dir: 'asc' | 'd
   { key: 'hops',         icon: '⬡',  label: 'Hops',      dir: 'asc'  },
   { key: 'latency',      icon: '⚡', label: 'RTD',       dir: 'asc'  },
   { key: 'availability', icon: '🛡', label: 'Avail',     dir: 'desc' },
-  { key: 'cost',         icon: '◆',  label: 'Cost',      dir: 'asc'  },
+  { key: 'margin',       icon: '$',  label: 'Margin',    dir: 'desc' },
   { key: 'capacity',     icon: '◈',  label: 'Capacity',  dir: 'desc' },
   { key: 'ownership',    icon: '◉',  label: 'Own',       dir: 'asc'  },
 ]
+
+function computeRouteMargin(route: Route, systemsById: Record<string, CableSystem>): number | null {
+  const wetSegs = route.segments.filter(s => s.type === 'wet')
+  if (wetSegs.length === 0) return null
+  let totalKm = 0, weightedSum = 0
+  for (const s of wetSegs) {
+    const margin = systemsById[s.system_id]?.margin
+    if (margin == null) continue
+    totalKm += s.length_km
+    weightedSum += s.length_km * margin
+  }
+  if (totalKm === 0) return null
+  return weightedSum / totalKm
+}
 
 function routeHasOutage(route: Route, outagesById: Record<string, SegmentOutage>): boolean {
   return route.segments.some(s => !!outagesById[s.segment_id])
@@ -74,13 +89,13 @@ function estimatedCapacity(route: Route, capacityById: Record<string, SegmentCap
   return { cap: min === Infinity ? 0 : min, systemId: bottleneck }
 }
 
-function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, SegmentCapacity>, onNetSet: Set<string>): Route[] {
+function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, SegmentCapacity>, onNetSet: Set<string>, systemsById: Record<string, CableSystem>): Route[] {
   return [...routes].sort((a, b) => {
     switch (key) {
       case 'hops':         return (a.nodes.length - 1) - (b.nodes.length - 1)
       case 'latency':      return a.total_latency - b.total_latency
       case 'availability': return b.end_to_end_reliability - a.end_to_end_reliability
-      case 'cost':         return a.total_cost - b.total_cost
+      case 'margin':       return (computeRouteMargin(b, systemsById) ?? 0) - (computeRouteMargin(a, systemsById) ?? 0)
       case 'capacity':     return estimatedCapacity(b, capacityById).cap - estimatedCapacity(a, capacityById).cap
       case 'ownership': {
         const ac = classifyRoute(a, onNetSet), bc = classifyRoute(b, onNetSet)
@@ -91,9 +106,10 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
   })
 }
 
-export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown }: Props) {
+export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown }: Props) {
   const t = useTheme()
   const onNetSet = new Set(onNetOwnership)
+  const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
   const [internalSortKey, setInternalSortKey] = useState<SortKey>('hops')
   const [internalPushOutagesDown, setInternalPushOutagesDown] = useState(false)
 
@@ -120,7 +136,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
   }
 
   function applySort(routes: Route[]): Route[] {
-    const base = sortRoutes(routes, sortKey, capacityById, onNetSet)
+    const base = sortRoutes(routes, sortKey, capacityById, onNetSet, systemsById)
     if (!pushOutagesDown) return base
     return [
       ...base.filter(r => !routeHasOutage(r, outagesById)),
@@ -151,6 +167,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
               capacityById={capacityById}
               outagesById={outagesById}
               onNetSet={onNetSet}
+              systemsById={systemsById}
             />
           ))}
         </div>
@@ -218,6 +235,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
                   canPin={canPin}
                   onPin={onPin}
                   onNetSet={onNetSet}
+                  systemsById={systemsById}
                 />
               ))}
             </div>
@@ -238,6 +256,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
                   canPin={canPin}
                   onPin={onPin}
                   onNetSet={onNetSet}
+                  systemsById={systemsById}
                 />
               ))}
             </div>
@@ -266,13 +285,14 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
   )
 }
 
-function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, onNetSet }: {
+function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, onNetSet, systemsById }: {
   pinned: PinnedRoute
   onUnpin: () => void
   nodesById: Record<string, { name: string; type?: string }>
   capacityById: Record<string, SegmentCapacity>
   outagesById: Record<string, SegmentOutage>
   onNetSet: Set<string>
+  systemsById: Record<string, CableSystem>
 }) {
   const t = useTheme()
   const isMobile = useIsMobile()
@@ -295,6 +315,8 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   const estCapColor = estCap < 0.5 ? t.red : estCap < 1.0 ? t.orange : t.green
   const hasOutage = routeHasOutage(route, outagesById)
   const repairDateLabel = hasOutage ? latestRepairDate(route, outagesById) : ''
+  const routeMargin = computeRouteMargin(route, systemsById)
+  const marginColor = routeMargin == null ? t.textFaint : routeMargin >= 7.5 ? t.green : routeMargin >= 4.5 ? t.orange : t.red
 
   return (
     <div
@@ -340,7 +362,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
         </div>
 
         <div style={{ display: 'flex', gap: 12, fontSize: 11, color: t.textMuted, marginBottom: 5 }}>
-          <span>Cost: <strong style={{ color: t.text }}>{route.total_cost}</strong></span>
+          <span>$ <strong style={{ color: marginColor }}>{routeMargin != null ? routeMargin.toFixed(1) : '—'}</strong></span>
           <span>{route.total_length_km.toLocaleString()} km</span>
           <span>RTD: <strong style={{ color: t.text }}>{(route.total_latency * 2).toFixed(0)} ms</strong></span>
           <span>Avail: <strong style={{ color: t.text }}>{reliabilityPct}%</strong></span>
@@ -390,7 +412,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   )
 }
 
-function RouteCard({ route, selected, onSelect, nodesById, capacityById, outagesById, color, isPinned, canPin, onPin, onNetSet }: {
+function RouteCard({ route, selected, onSelect, nodesById, capacityById, outagesById, color, isPinned, canPin, onPin, onNetSet, systemsById }: {
   route: Route
   selected: boolean
   onSelect: (id: string) => void
@@ -402,6 +424,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
   canPin: boolean
   onPin: (route: Route) => void
   onNetSet: Set<string>
+  systemsById: Record<string, CableSystem>
 }) {
   const t = useTheme()
   const isMobile = useIsMobile()
@@ -424,6 +447,8 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
   const pinDisabled = !isPinned && !canPin
   const hasOutage = routeHasOutage(route, outagesById)
   const repairDateLabel = hasOutage ? latestRepairDate(route, outagesById) : ''
+  const routeMargin = computeRouteMargin(route, systemsById)
+  const marginColor = routeMargin == null ? t.textFaint : routeMargin >= 7.5 ? t.green : routeMargin >= 4.5 ? t.orange : t.red
 
   return (
     <div
@@ -468,7 +493,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
       </div>
 
       <div style={{ display: 'flex', gap: 12, fontSize: 11, color: t.textMuted, marginBottom: 5 }}>
-        <span>Cost: <strong style={{ color: t.text }}>{route.total_cost}</strong></span>
+        <span>$ <strong style={{ color: marginColor }}>{routeMargin != null ? routeMargin.toFixed(1) : '—'}</strong></span>
         <span>{route.total_length_km.toLocaleString()} km</span>
         <span>RTD: <strong style={{ color: t.text }}>{(route.total_latency * 2).toFixed(0)} ms</strong></span>
         <span>Avail: <strong style={{ color: t.text }}>{reliabilityPct}%</strong></span>

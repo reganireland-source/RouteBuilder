@@ -24,6 +24,7 @@ export interface CableSystem {
   id: string
   name: string
   description: string
+  margin?: number
 }
 
 export interface CableSegment {

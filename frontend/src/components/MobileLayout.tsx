@@ -483,6 +483,7 @@ export function MobileLayout({
                     selectedRouteIds={selectedRouteIds}
                     onSelectRoute={onToggleRoute}
                     nodes={nodes}
+                    systems={systems}
                     capacity={capacity}
                     outages={outages}
                     pinnedRoutes={pinnedRoutes}

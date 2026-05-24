@@ -74,7 +74,7 @@ export default function App() {
   const pinCounter = useRef(0)
 
   const NLP_SORT_MAP: Record<NlpSortMode, SortKey | null> = {
-    cost:        'cost',
+    cost:        'margin',
     length:      'hops',
     latency:     'latency',
     reliability: 'availability',
@@ -402,7 +402,7 @@ export default function App() {
               diverseRoutes={response?.diverse_routes ?? []}
               selectedRouteIds={selectedRouteIds}
               onSelectRoute={toggleRoute}
-              nodes={nodes} capacity={capacity} outages={outages}
+              nodes={nodes} systems={systems} capacity={capacity} outages={outages}
               pinnedRoutes={pinnedRoutes}
               onPin={handlePin} onUnpin={handleUnpin}
               diversityRequested={lastSearchDiversity !== 'none'}
