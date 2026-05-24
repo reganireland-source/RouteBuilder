@@ -4,6 +4,21 @@ from .models import Node, CableSystem, CableSegment, InterconnectRule, SegmentCa
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
+# ── In-memory cache ───────────────────────────────────────────────────────────
+# Populated on first read, invalidated on any write.
+# Keeps route-search performance on par with the old JSON-file approach while
+# still persisting all mutations to PostgreSQL.
+_cache: dict[str, object] = {}
+
+def _get(key: str):
+    return _cache.get(key)
+
+def _set(key: str, value: object) -> None:
+    _cache[key] = value
+
+def _bust(key: str) -> None:
+    _cache.pop(key, None)
+
 
 def _use_db() -> bool:
     from .db import DATABASE_URL
@@ -52,12 +67,19 @@ def _db_replace_all(table: str, pk: str, pk_field: str, items) -> None:
 # ── Nodes ─────────────────────────────────────────────────────────────────────
 
 def load_nodes() -> list[Node]:
+    cached = _get("nodes")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
     if _use_db():
-        return _db_load_all("nodes", "id", Node)
-    with open(DATA_DIR / "nodes.json") as f:
-        return [Node(**item) for item in json.load(f)]
+        result = _db_load_all("nodes", "id", Node)
+    else:
+        with open(DATA_DIR / "nodes.json") as f:
+            result = [Node(**item) for item in json.load(f)]
+    _set("nodes", result)
+    return result
 
 def save_nodes(nodes: list[Node]) -> None:
+    _bust("nodes")
     if _use_db():
         _db_replace_all("nodes", "id", "id", nodes)
         return
@@ -67,12 +89,19 @@ def save_nodes(nodes: list[Node]) -> None:
 # ── Systems ───────────────────────────────────────────────────────────────────
 
 def load_systems() -> list[CableSystem]:
+    cached = _get("systems")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
     if _use_db():
-        return _db_load_all("systems", "id", CableSystem)
-    with open(DATA_DIR / "systems.json") as f:
-        return [CableSystem(**item) for item in json.load(f)]
+        result = _db_load_all("systems", "id", CableSystem)
+    else:
+        with open(DATA_DIR / "systems.json") as f:
+            result = [CableSystem(**item) for item in json.load(f)]
+    _set("systems", result)
+    return result
 
 def save_systems(systems: list[CableSystem]) -> None:
+    _bust("systems")
     if _use_db():
         _db_replace_all("systems", "id", "id", systems)
         return
@@ -82,12 +111,19 @@ def save_systems(systems: list[CableSystem]) -> None:
 # ── Segments ──────────────────────────────────────────────────────────────────
 
 def load_segments() -> list[CableSegment]:
+    cached = _get("segments")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
     if _use_db():
-        return _db_load_all("segments", "id", CableSegment)
-    with open(DATA_DIR / "segments.json") as f:
-        return [CableSegment(**item) for item in json.load(f)]
+        result = _db_load_all("segments", "id", CableSegment)
+    else:
+        with open(DATA_DIR / "segments.json") as f:
+            result = [CableSegment(**item) for item in json.load(f)]
+    _set("segments", result)
+    return result
 
 def save_segments(segments: list[CableSegment]) -> None:
+    _bust("segments")
     if _use_db():
         _db_replace_all("segments", "id", "id", segments)
         return
@@ -97,12 +133,19 @@ def save_segments(segments: list[CableSegment]) -> None:
 # ── Capacity ──────────────────────────────────────────────────────────────────
 
 def load_capacity() -> list[SegmentCapacity]:
+    cached = _get("capacity")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
     if _use_db():
-        return _db_load_all("capacity", "segment_id", SegmentCapacity)
-    with open(DATA_DIR / "capacity.json") as f:
-        return [SegmentCapacity(**item) for item in json.load(f)]
+        result = _db_load_all("capacity", "segment_id", SegmentCapacity)
+    else:
+        with open(DATA_DIR / "capacity.json") as f:
+            result = [SegmentCapacity(**item) for item in json.load(f)]
+    _set("capacity", result)
+    return result
 
 def save_capacity(capacity: list[SegmentCapacity]) -> None:
+    _bust("capacity")
     if _use_db():
         _db_replace_all("capacity", "segment_id", "segment_id", capacity)
         return
@@ -112,15 +155,22 @@ def save_capacity(capacity: list[SegmentCapacity]) -> None:
 # ── Outages ───────────────────────────────────────────────────────────────────
 
 def load_outages() -> list[SegmentOutage]:
+    cached = _get("outages")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
     if _use_db():
-        return _db_load_all("outages", "fault_id", SegmentOutage)
-    path = DATA_DIR / "outages.json"
-    if not path.exists():
-        return []
-    with open(path) as f:
-        return [SegmentOutage(**item) for item in json.load(f)]
+        result = _db_load_all("outages", "fault_id", SegmentOutage)
+    else:
+        path = DATA_DIR / "outages.json"
+        if not path.exists():
+            return []
+        with open(path) as f:
+            result = [SegmentOutage(**item) for item in json.load(f)]
+    _set("outages", result)
+    return result
 
 def save_outages(outages: list[SegmentOutage]) -> None:
+    _bust("outages")
     if _use_db():
         _db_replace_all("outages", "fault_id", "fault_id", outages)
         return
@@ -130,12 +180,19 @@ def save_outages(outages: list[SegmentOutage]) -> None:
 # ── Rules ─────────────────────────────────────────────────────────────────────
 
 def load_rules() -> list[InterconnectRule]:
+    cached = _get("rules")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
     if _use_db():
-        return _db_load_all("rules", "node_id", InterconnectRule)
-    with open(DATA_DIR / "rules.json") as f:
-        return [InterconnectRule(**item) for item in json.load(f)]
+        result = _db_load_all("rules", "node_id", InterconnectRule)
+    else:
+        with open(DATA_DIR / "rules.json") as f:
+            result = [InterconnectRule(**item) for item in json.load(f)]
+    _set("rules", result)
+    return result
 
 def save_rules(rules: list[InterconnectRule]) -> None:
+    _bust("rules")
     if _use_db():
         _db_replace_all("rules", "node_id", "node_id", rules)
         return
@@ -145,22 +202,29 @@ def save_rules(rules: list[InterconnectRule]) -> None:
 # ── Config ────────────────────────────────────────────────────────────────────
 
 def load_config() -> dict:
+    cached = _get("config")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
     if _use_db():
         conn = _get_conn()
         try:
             with conn.cursor() as cur:
                 cur.execute("SELECT value FROM config WHERE key = 'main'")
                 row = cur.fetchone()
-                return row["value"] if row else {"on_net_ownership": ["owned", "consortium", "iru"]}
+                result = row["value"] if row else {"on_net_ownership": ["owned", "consortium", "iru"]}
         finally:
             conn.close()
-    path = DATA_DIR / "config.json"
-    if not path.exists():
-        return {"on_net_ownership": ["owned", "consortium", "iru"]}
-    with open(path) as f:
-        return json.load(f)
+    else:
+        path = DATA_DIR / "config.json"
+        if not path.exists():
+            return {"on_net_ownership": ["owned", "consortium", "iru"]}
+        with open(path) as f:
+            result = json.load(f)
+    _set("config", result)
+    return result
 
 def save_config(config: dict) -> None:
+    _bust("config")
     if _use_db():
         conn = _get_conn()
         try:

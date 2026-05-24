@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useTheme } from '../theme'
 import { generateUserGuidePDF } from '../utils/generateUserGuide'
 import type { CableNode, CableSegment, CableSystem } from '../types'
@@ -28,6 +29,8 @@ interface Props {
 
 export function UserGuide({ nodes, segments, systems }: Props) {
   const t = useTheme()
+  const [page, setPage] = useState<1 | 2>(1)
+
   const nodeCount    = nodes.length
   const segmentCount = segments.length
   const systemCount  = systems.filter(s => s.id !== 'TERRESTRIAL').length
@@ -72,11 +75,372 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     color: t.blue, marginBottom: 14,
   }
 
+  // ── Page switcher tabs ─────────────────────────────────────────────────────
+  const pageTabs = (
+    <div style={{
+      display: 'flex', gap: 6, justifyContent: 'center',
+      marginBottom: 32, paddingTop: 8,
+    }}>
+      {([
+        [1, '📖 Product Overview'],
+        [2, '🏗 Architecture'],
+      ] as [1|2, string][]).map(([p, label]) => (
+        <button
+          key={p}
+          onClick={() => setPage(p)}
+          style={{
+            padding: '8px 22px', borderRadius: 24, cursor: 'pointer',
+            fontSize: 12, fontWeight: 700, letterSpacing: '0.02em',
+            border: page === p ? `1px solid ${t.blue}` : `1px solid ${t.border}`,
+            background: page === p ? t.blue : t.bgCard,
+            color: page === p ? '#fff' : t.textMuted,
+            transition: 'all 0.15s',
+          }}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+
+  // ── Architecture page ──────────────────────────────────────────────────────
+  if (page === 2) {
+    const tier = (
+      bg: string, border: string, icon: string,
+      title: string, sub: string, badges: string[],
+      detail: string,
+    ) => (
+      <div style={{
+        background: bg, border: `1px solid ${border}`,
+        borderRadius: 12, padding: '20px 22px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 12 }}>
+          <span style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>{icon}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', marginBottom: 3 }}>{title}</div>
+            <div style={{ fontSize: 11, color: 'rgba(200,220,255,0.75)', lineHeight: 1.5 }}>{sub}</div>
+          </div>
+        </div>
+        <p style={{ fontSize: 11, color: 'rgba(185,210,255,0.85)', lineHeight: 1.7, margin: '0 0 14px' }}>{detail}</p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {badges.map(b => (
+            <span key={b} style={{
+              fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
+              background: 'rgba(255,255,255,0.08)', color: 'rgba(210,230,255,0.9)',
+              border: '1px solid rgba(255,255,255,0.12)', letterSpacing: '0.04em',
+            }}>{b}</span>
+          ))}
+        </div>
+      </div>
+    )
+
+    const flow = (num: string, color: string, title: string, steps: string[]) => (
+      <div style={{ ...card() as React.CSSProperties, borderLeft: `4px solid ${color}`, paddingLeft: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+            background: color + '22', border: `2px solid ${color}`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 12, fontWeight: 800, color,
+          }}>{num}</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{title}</div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          {steps.map((s, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+                <div style={{
+                  width: 20, height: 20, borderRadius: '50%',
+                  background: i === 0 ? color : t.bgDeep,
+                  border: `1px solid ${i === 0 ? color : t.border}`,
+                  fontSize: 9, fontWeight: 700,
+                  color: i === 0 ? '#fff' : t.textFaint,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>{i + 1}</div>
+                {i < steps.length - 1 && (
+                  <div style={{ width: 1, height: 14, background: t.border, margin: '2px 0' }} />
+                )}
+              </div>
+              <div style={{
+                fontSize: 11, color: t.textMuted, lineHeight: 1.5,
+                paddingBottom: i < steps.length - 1 ? 4 : 0,
+              }}>{s}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+
+    return (
+      <div style={{
+        maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
+        fontFamily: 'system-ui, sans-serif', color: t.text,
+      }}>
+        {pageTabs}
+
+        {/* ── Hero ── */}
+        <div style={{
+          background: 'linear-gradient(135deg, #070d1f 0%, #0f1e3c 50%, #1a1040 100%)',
+          borderRadius: 12, padding: '44px 40px 40px', marginBottom: 28,
+          position: 'relative', overflow: 'hidden',
+        }}>
+          <div style={{ position: 'absolute', right: -60, top: -60, width: 280, height: 280, borderRadius: '50%', background: 'rgba(99,102,241,0.06)' }} />
+          <div style={{ position: 'absolute', left: -30, bottom: -40, width: 200, height: 200, borderRadius: '50%', background: 'rgba(59,130,246,0.05)' }} />
+          <div style={{ position: 'relative' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(147,197,253,0.7)', marginBottom: 10 }}>
+              Technical Architecture
+            </div>
+            <div style={{ fontSize: 34, fontWeight: 800, color: '#fff', lineHeight: 1.1, marginBottom: 10 }}>
+              How Route<span style={{ color: '#818cf8' }}>Builder</span> Works
+            </div>
+            <p style={{ fontSize: 13, color: 'rgba(160,190,240,0.85)', maxWidth: 560, lineHeight: 1.75, margin: 0 }}>
+              RouteBuilder is a modern cloud-native application — a browser-based interface, a Python intelligence engine, a persistent database, and an AI layer — each doing what it does best, working together in real time.
+            </p>
+          </div>
+        </div>
+
+        {/* ── Architecture diagram ── */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={sectionLabel}>System Architecture</div>
+
+          {/* Diagram: three tiers connected with arrows */}
+          <div style={{
+            background: 'linear-gradient(160deg, #070d1f 0%, #0d1730 100%)',
+            borderRadius: 12, padding: '28px 24px', border: '1px solid rgba(99,102,241,0.2)',
+          }}>
+
+            {/* Top tier: Browser */}
+            <div style={{
+              background: 'rgba(37,99,235,0.15)', border: '1px solid rgba(59,130,246,0.35)',
+              borderRadius: 10, padding: '14px 20px',
+              display: 'flex', alignItems: 'center', gap: 16,
+            }}>
+              <span style={{ fontSize: 26, flexShrink: 0 }}>🌐</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#93c5fd' }}>Your Browser</div>
+                <div style={{ fontSize: 11, color: 'rgba(147,197,253,0.7)', marginTop: 2 }}>
+                  The entire interface — map, route cards, search, dashboards — runs here as a React application, delivered globally via Vercel's CDN
+                </div>
+              </div>
+              <div style={{
+                fontSize: 9, fontWeight: 700, padding: '4px 10px', borderRadius: 20,
+                background: 'rgba(37,99,235,0.3)', color: '#93c5fd',
+                border: '1px solid rgba(59,130,246,0.4)', whiteSpace: 'nowrap',
+              }}>React · Vercel</div>
+            </div>
+
+            {/* Arrow down */}
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8, padding: '10px 0' }}>
+              <div style={{ flex: 1, height: 1, background: 'rgba(99,102,241,0.2)', maxWidth: 100 }} />
+              <div style={{ fontSize: 10, color: 'rgba(147,197,253,0.5)', fontWeight: 600, letterSpacing: '0.06em' }}>
+                HTTPS · API calls
+              </div>
+              <div style={{ flex: 1, height: 1, background: 'rgba(99,102,241,0.2)', maxWidth: 100 }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 2 }}>
+              <div style={{ fontSize: 16, color: 'rgba(99,102,241,0.6)' }}>⇅</div>
+            </div>
+
+            {/* Middle tier: Backend */}
+            <div style={{
+              background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.35)',
+              borderRadius: 10, padding: '14px 20px', marginTop: 4,
+              display: 'flex', alignItems: 'center', gap: 16,
+            }}>
+              <span style={{ fontSize: 26, flexShrink: 0 }}>⚙️</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: '#a5b4fc' }}>API Backend</div>
+                <div style={{ fontSize: 11, color: 'rgba(165,180,252,0.7)', marginTop: 2 }}>
+                  The intelligence engine — finds optimal routes through the network graph, enforces diversity and constraints, computes margin, latency and availability, serves all data to the browser
+                </div>
+              </div>
+              <div style={{
+                fontSize: 9, fontWeight: 700, padding: '4px 10px', borderRadius: 20,
+                background: 'rgba(99,102,241,0.25)', color: '#a5b4fc',
+                border: '1px solid rgba(99,102,241,0.4)', whiteSpace: 'nowrap',
+              }}>FastAPI · Railway</div>
+            </div>
+
+            {/* Arrow split down to two */}
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 60 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                  <div style={{ fontSize: 14, color: 'rgba(34,197,94,0.5)' }}>⇣</div>
+                  <div style={{ fontSize: 9, color: 'rgba(34,197,94,0.5)', fontWeight: 600, letterSpacing: '0.05em' }}>reads / writes</div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                  <div style={{ fontSize: 14, color: 'rgba(251,146,60,0.5)' }}>⇣</div>
+                  <div style={{ fontSize: 9, color: 'rgba(251,146,60,0.5)', fontWeight: 600, letterSpacing: '0.05em' }}>NLP requests</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom tier: DB + AI side by side */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{
+                background: 'rgba(22,163,74,0.12)', border: '1px solid rgba(34,197,94,0.3)',
+                borderRadius: 10, padding: '14px 16px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <span style={{ fontSize: 22 }}>🗄</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#86efac' }}>PostgreSQL Database</div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(134,239,172,0.6)', marginTop: 1 }}>Railway · Persistent</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(134,239,172,0.7)', lineHeight: 1.6 }}>
+                  All network data lives here — nodes, segments, systems, capacity, outages. Survives redeployments. Every GUI edit writes through immediately.
+                </div>
+              </div>
+              <div style={{
+                background: 'rgba(234,88,12,0.12)', border: '1px solid rgba(251,146,60,0.3)',
+                borderRadius: 10, padding: '14px 16px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <span style={{ fontSize: 22 }}>🤖</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#fdba74' }}>Claude AI</div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(253,186,116,0.6)', marginTop: 1 }}>Anthropic · TSABuddy</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(253,186,116,0.7)', lineHeight: 1.6 }}>
+                  Plain-English route requests are interpreted by Claude, which extracts nodes, constraints, diversity preferences and sort order — then hands them back to the route engine.
+                </div>
+              </div>
+            </div>
+
+            {/* Map tiles note */}
+            <div style={{
+              marginTop: 12, padding: '10px 16px', borderRadius: 8,
+              background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)',
+              display: 'flex', alignItems: 'center', gap: 10,
+            }}>
+              <span style={{ fontSize: 16 }}>🗺</span>
+              <div style={{ fontSize: 10, color: 'rgba(180,200,255,0.5)', lineHeight: 1.5 }}>
+                <strong style={{ color: 'rgba(180,200,255,0.7)' }}>Map tiles</strong> are fetched directly by the browser from CARTO's global tile servers — the backend never handles map imagery, keeping it fast.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Component deep-dives ── */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={sectionLabel}>The Four Layers</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+            {tier(
+              'linear-gradient(135deg, rgba(37,99,235,0.18) 0%, rgba(29,78,216,0.08) 100%)',
+              'rgba(59,130,246,0.3)', '🌐',
+              'Frontend — What You See',
+              'React application · Deployed on Vercel',
+              ['React 18', 'Vite', 'TypeScript', 'Leaflet Maps', 'Vercel CDN'],
+              'Every screen you interact with — the map, the search form, route cards, the capacity dashboard, ref data tables — is a React application running entirely inside your browser. It\'s delivered from Vercel\'s global edge network, so it loads fast regardless of where you are. When you click "Find Routes", the browser sends a request to the backend and renders whatever comes back — it doesn\'t do the route calculation itself.',
+            )}
+
+            {tier(
+              'linear-gradient(135deg, rgba(99,102,241,0.18) 0%, rgba(79,70,229,0.08) 100%)',
+              'rgba(99,102,241,0.3)', '⚙️',
+              'Backend — The Intelligence Engine',
+              'FastAPI (Python) · Deployed on Railway',
+              ['FastAPI', 'Python', 'NetworkX', 'Graph Algorithms', 'Railway'],
+              'This is where the route-finding actually happens. The backend models the entire cable network as a mathematical graph — nodes connected by weighted edges — and uses graph traversal algorithms to discover all valid paths between any two points, respecting diversity constraints, via/avoid rules and ownership filters. It also calculates RTD, availability, margin scores and capacity at every step. All API calls from the browser flow through here.',
+            )}
+
+            {tier(
+              'linear-gradient(135deg, rgba(22,163,74,0.18) 0%, rgba(21,128,61,0.08) 100%)',
+              'rgba(34,197,94,0.3)', '🗄',
+              'Database — Persistent Memory',
+              'PostgreSQL · Hosted on Railway',
+              ['PostgreSQL', 'Railway', 'Persistent', 'JSONB Storage'],
+              `All reference data — the ${nodeCount} nodes, ${segmentCount} segments, ${systemCount} cable systems, capacity figures, outage records and interconnect rules — lives in a PostgreSQL database. Unlike a file on a server, this database is independent of the application itself. It survives redeployments, code updates and server restarts. Every edit made through the Ref Data panel writes directly and permanently to this store.`,
+            )}
+
+            {tier(
+              'linear-gradient(135deg, rgba(234,88,12,0.18) 0%, rgba(194,65,12,0.08) 100%)',
+              'rgba(251,146,60,0.3)', '🤖',
+              'AI Layer — TSABuddy',
+              'Claude by Anthropic · Natural Language Interface',
+              ['Claude AI', 'Anthropic', 'NLP', 'Structured Extraction', 'TSABuddy'],
+              'TSABuddy is powered by Claude — Anthropic\'s AI model. When you type a plain-English route request, the backend sends your text to Claude with a structured prompt describing the network\'s parameters. Claude reads the request and returns a JSON object with extracted values: origin node, destination node, diversity setting, systems to avoid, and sort preference. The backend validates that output and hands it back to the browser to pre-fill the search form.',
+            )}
+
+          </div>
+        </div>
+
+        {/* ── Data flows ── */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={sectionLabel}>How the Key Flows Work</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+
+            {flow('A', t.blue, 'Searching for a Route', [
+              'You enter an origin, destination and any constraints in the browser',
+              'Browser sends the request to the FastAPI backend via HTTPS',
+              'Backend loads the network graph and runs a modified Dijkstra / BFS traversal to find all valid paths',
+              'Each result is scored for RTD, availability, margin and capacity',
+              'Results are returned to the browser and rendered as route cards, with matching segments highlighted on the map',
+            ])}
+
+            {flow('B', '#a5b4fc', 'Using TSABuddy', [
+              'You type a natural language request ("SIN to HKG on EAC, wet diversity")',
+              'Browser sends the text to the backend\'s NLP endpoint',
+              'Backend forwards it to Claude AI with a structured prompt defining all valid node IDs and parameter options',
+              'Claude returns a structured JSON with extracted route parameters',
+              'Backend validates the output and returns it to the browser, which fills all form fields and triggers the search automatically',
+            ])}
+
+            {flow('C', '#86efac', 'Editing Reference Data', [
+              'You add, update or delete a node, segment, system or outage via the Ref Data panel',
+              'Browser calls the appropriate REST API endpoint on the backend (POST, PUT or DELETE)',
+              'Backend validates the change and writes it to PostgreSQL',
+              'The database update is immediate and permanent — visible to all users on next page load',
+              'The change flows into route calculations on the next search, with no restart required',
+            ])}
+
+          </div>
+        </div>
+
+        {/* ── Tech stack ── */}
+        <div style={{ marginBottom: 32 }}>
+          <div style={sectionLabel}>Technology Stack</div>
+          <div style={{ ...card() as React.CSSProperties }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+              {[
+                { layer: 'Frontend', items: ['React 18', 'TypeScript', 'Vite', 'Leaflet / OpenStreetMap'] },
+                { layer: 'Backend', items: ['Python 3.11', 'FastAPI', 'NetworkX', 'Pydantic'] },
+                { layer: 'Database', items: ['PostgreSQL', 'psycopg2', 'JSONB storage'] },
+                { layer: 'AI', items: ['Claude (Anthropic)', 'Structured NLP extraction'] },
+                { layer: 'Hosting', items: ['Vercel (frontend)', 'Railway (backend + DB)'] },
+                { layer: 'Map Tiles', items: ['CARTO (dark & light themes)'] },
+              ].map(({ layer, items }) => (
+                <div key={layer}>
+                  <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.blue, marginBottom: 6 }}>{layer}</div>
+                  {items.map(item => (
+                    <div key={item} style={{
+                      fontSize: 11, color: t.textMuted, padding: '3px 0',
+                      borderBottom: `1px solid ${t.border}`, lineHeight: 1.4,
+                    }}>{item}</div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Footer ── */}
+        <div style={{ textAlign: 'center', padding: '20px 0 0', borderTop: `1px solid ${t.border}` }}>
+          <div style={{ fontSize: 11, color: t.textFaint }}>International Telco · RouteBuilder · Architecture Overview</div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Page 1: Product Overview ───────────────────────────────────────────────
   return (
     <div style={{
       maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
       fontFamily: 'system-ui, sans-serif', color: t.text,
     }}>
+      {pageTabs}
 
       {/* ── Hero ── */}
       <div style={{
@@ -84,7 +448,6 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         borderRadius: 12, padding: '44px 40px 40px', marginBottom: 28,
         position: 'relative', overflow: 'hidden',
       }}>
-        {/* decorative circles */}
         <div style={{ position: 'absolute', right: -40, top: -40, width: 220, height: 220, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
         <div style={{ position: 'absolute', right: 40, bottom: -60, width: 160, height: 160, borderRadius: '50%', background: 'rgba(255,255,255,0.03)' }} />
 

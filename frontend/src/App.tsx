@@ -103,14 +103,19 @@ export default function App() {
     setMode(next)
   }
 
+  const [searchDuration, setSearchDuration] = useState<number | null>(null)
+
   async function handleSearch(req: RouteRequest) {
     setLoading(true)
     setError(null)
     setResponse(null)
     setSelectedRouteIds([])
+    setSearchDuration(null)
     setLastSearchDiversity(req.diversity)
+    const t0 = performance.now()
     try {
       const res = await api.searchRoutes(req)
+      setSearchDuration((performance.now() - t0) / 1000)
       setResponse(res)
       const autoSelect = [res.primary_routes[0]?.id, res.diverse_routes[0]?.id].filter(Boolean) as string[]
       setSelectedRouteIds(autoSelect)
@@ -165,8 +170,8 @@ export default function App() {
     setSearchPin(pin); setNearestNodeIds(ids)
   }
 
-  function clearSearch() { setResponse(null); setSelectedRouteIds([]); setError(null); setLastSearchDiversity('none') }
-  function clearAll()    { setResponse(null); setSelectedRouteIds([]); setPinnedRoutes([]); setError(null); setLastSearchDiversity('none') }
+  function clearSearch() { setResponse(null); setSelectedRouteIds([]); setError(null); setLastSearchDiversity('none'); setSearchDuration(null) }
+  function clearAll()    { setResponse(null); setSelectedRouteIds([]); setPinnedRoutes([]); setError(null); setLastSearchDiversity('none'); setSearchDuration(null) }
 
   async function handleDataChange() {
     const [n, s, c, sys, r, cfg, o] = await Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules(), api.getConfig(), api.getOutages()])
@@ -407,7 +412,12 @@ export default function App() {
             display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
           }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: theme.textFaint, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Routes</span>
-            {hasResults && <span style={{ fontSize: 11, color: theme.textFaintest }}>{response!.primary_routes.length + response!.diverse_routes.length} found</span>}
+            {hasResults && (
+              <span style={{ fontSize: 11, color: theme.textFaintest }}>
+                {response!.primary_routes.length + response!.diverse_routes.length} found
+                {searchDuration !== null && <span style={{ color: theme.textFaintest, opacity: 0.7 }}> · {searchDuration < 1 ? `${(searchDuration * 1000).toFixed(0)}ms` : `${searchDuration.toFixed(2)}s`}</span>}
+              </span>
+            )}
             {hasPins    && <span style={{ fontSize: 11, color: theme.textFaintest }}>· {pinnedRoutes.length} pinned</span>}
             {loading    && <span style={{ fontSize: 11, color: theme.blue }}>Searching…</span>}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>

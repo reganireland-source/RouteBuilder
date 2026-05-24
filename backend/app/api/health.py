@@ -8,6 +8,7 @@ router = APIRouter(prefix="/health", tags=["health"])
 
 @router.get("")
 def health_check():
+    from ..db import DATABASE_URL
     nodes    = load_nodes()
     segments = load_segments()
     systems  = load_systems()
@@ -16,6 +17,7 @@ def health_check():
         "nodes":    len(nodes),
         "segments": len(segments),
         "systems":  len(systems),
+        "storage":  "postgres" if DATABASE_URL else "json",
     }
 
 

@@ -25,8 +25,10 @@ export function HealthBar({ dataLoaded }: Props) {
   const t = useTheme()
   const [backendStatus, setBackendStatus] = useState<Status>('checking')
   const [backendDetail, setBackendDetail] = useState<string>('')
-  const [nlpStatus, setNlpStatus]         = useState<Status>('checking')
-  const [nlpDetail, setNlpDetail]         = useState<string>('')
+  const [dataDetail,    setDataDetail]    = useState<string>('Loading…')
+  const [dataStatus,    setDataStatus]    = useState<Status>('checking')
+  const [nlpStatus,     setNlpStatus]     = useState<Status>('checking')
+  const [nlpDetail,     setNlpDetail]     = useState<string>('')
 
   async function checkBackend() {
     setBackendStatus('checking')
@@ -34,9 +36,14 @@ export function HealthBar({ dataLoaded }: Props) {
       const h = await api.getHealth()
       setBackendStatus('ok')
       setBackendDetail(`${h.nodes} nodes · ${h.segments} segs · ${h.systems} systems`)
+      const storage = (h as unknown as Record<string, string>).storage ?? 'json'
+      setDataStatus('ok')
+      setDataDetail(storage === 'postgres' ? 'PostgreSQL' : 'JSON files')
     } catch {
       setBackendStatus('error')
       setBackendDetail('Unreachable')
+      setDataStatus('error')
+      setDataDetail('Unavailable')
     }
   }
 
@@ -58,6 +65,11 @@ export function HealthBar({ dataLoaded }: Props) {
     return () => clearInterval(interval)
   }, [])
 
+  // While backend hasn't responded yet, mirror dataLoaded for the DATA dot
+  const effectiveDataStatus: Status = backendStatus === 'checking'
+    ? (dataLoaded ? 'ok' : 'checking')
+    : dataStatus
+
   const indicators: Indicator[] = [
     {
       label:  'Frontend',
@@ -71,8 +83,8 @@ export function HealthBar({ dataLoaded }: Props) {
     },
     {
       label:  'Data',
-      status: backendStatus === 'error' ? 'error' : dataLoaded ? 'ok' : 'checking',
-      detail: dataLoaded ? 'Loaded' : backendStatus === 'error' ? 'Unavailable' : 'Loading…',
+      status: effectiveDataStatus,
+      detail: effectiveDataStatus === 'checking' ? 'Loading…' : dataDetail,
     },
     {
       label:  'LLM API',
