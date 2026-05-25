@@ -932,25 +932,33 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           {checkError && <span style={{ fontSize: 12, color: t.red }}>{checkError}</span>}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, padding: '12px 14px', background: t.bgDeep, borderRadius: 6, border: `1px solid ${t.border}` }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 2 }}>Sync JSON → Postgres</div>
-            <div style={{ fontSize: 11, color: t.textFaint }}>
-              Force-reload all data from the bundled JSON files into the database. Use this after deploying new seed data (e.g. waypoints).
-            </div>
-            {reseedStatus && (
-              <div style={{ fontSize: 11, marginTop: 6, color: reseedStatus.startsWith('Error') ? t.red : t.green }}>
-                {reseedStatus}
-              </div>
-            )}
+        <div style={{ marginBottom: 24, borderRadius: 6, border: `1px solid #f38ba8`, overflow: 'hidden' }}>
+          <div style={{ background: '#f38ba822', padding: '8px 14px', borderBottom: '1px solid #f38ba8', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14 }}>⚠️</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#f38ba8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Factory Reset — Destructive</span>
           </div>
-          <button
-            onClick={runReseed}
-            disabled={reseedLoading}
-            style={{ padding: '6px 14px', borderRadius: 4, border: `1px solid ${t.orange}`, background: 'transparent', color: t.orange, fontWeight: 600, fontSize: 12, cursor: reseedLoading ? 'not-allowed' : 'pointer', flexShrink: 0 }}
-          >
-            {reseedLoading ? 'Reseeding…' : '⟳ Reseed from JSON'}
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: t.bgDeep }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 2 }}>Reseed from JSON</div>
+              <div style={{ fontSize: 11, color: t.textFaint }}>
+                Wipes all data in Postgres and replaces it with the bundled JSON files from the deployed build.
+                <strong style={{ color: '#f38ba8' }}> Any changes made via the API (nodes, segments, systems, rules) will be permanently lost.</strong>
+                {' '}Only use this to recover from a corrupted database or after a deliberate JSON baseline update.
+              </div>
+              {reseedStatus && (
+                <div style={{ fontSize: 11, marginTop: 6, color: reseedStatus.startsWith('Error') ? t.red : t.green }}>
+                  {reseedStatus}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={runReseed}
+              disabled={reseedLoading}
+              style={{ padding: '6px 14px', borderRadius: 4, border: `1px solid #f38ba8`, background: 'transparent', color: '#f38ba8', fontWeight: 600, fontSize: 12, cursor: reseedLoading ? 'not-allowed' : 'pointer', flexShrink: 0 }}
+            >
+              {reseedLoading ? 'Reseeding…' : '⟳ Reseed from JSON'}
+            </button>
+          </div>
         </div>
 
         {checkLoading && (
