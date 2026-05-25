@@ -7,7 +7,7 @@ and consumed by both the frontend and the pytest suite.
 from __future__ import annotations
 import re
 from dataclasses import dataclass, asdict
-from .data_loader import load_nodes, load_segments, load_systems, load_capacity, load_rules
+from .data_loader import load_nodes, load_segments, load_systems, load_capacity, load_rules, load_outages
 
 # Accepts 4-char IATA-style codes, branching-unit IDs (e.g. APRICOTBU1),
 # and vendor-prefixed IDs with a single hyphen separator (e.g. EQ-SY1).
@@ -28,6 +28,7 @@ def run_all_checks() -> list[CheckResult]:
     systems  = load_systems()
     capacity = load_capacity()
     rules    = load_rules()
+    outages  = load_outages()
 
     node_ids    = {n.id for n in nodes}
     segment_ids = {s.id for s in segments}
@@ -99,6 +100,21 @@ def run_all_checks() -> list[CheckResult]:
     check("Node longitudes in [-180, 180]","error", [n.id for n in nodes if not (-180 <= n.lng <= 180)])
     valid_node_types = {"landing_station", "terrestrial_pop", "branching_unit"}
     check("Node types valid",              "error", [n.id for n in nodes if n.type not in valid_node_types])
+
+    # ── Outage cross-references ────────────────────────────────────────────────
+    check("Outage segment_ids exist",      "error", [o.segment_id for o in outages if o.segment_id not in segment_ids])
+
+    # ── Latency/length plausibility (wet segments only) ────────────────────────
+    # Light in fibre propagates at ~5 µs/km (0.005 ms/km). Flag wet segments
+    # whose recorded latency implies a speed outside ±40% of that baseline,
+    # which would indicate a data-entry error rather than legitimate variation.
+    _LO, _HI = 0.003, 0.007  # ms/km bounds
+    bad_latency = [
+        s.id for s in segments
+        if s.type == "wet" and s.latency is not None and s.length_km
+        and not (_LO <= s.latency / s.length_km <= _HI)
+    ]
+    check("Wet segment latency consistent with length", "error", bad_latency)
 
     # ── Coverage warnings ──────────────────────────────────────────────────────
     referenced_nodes = {s.start_node_id for s in segments} | {s.end_node_id for s in segments}
