@@ -170,7 +170,11 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         ) : (
-          <input style={inputStyle} type={type} step={type === 'number' ? 'any' : undefined}
+          <input
+            style={inputStyle}
+            type={type === 'decimal' ? 'text' : type}
+            inputMode={type === 'decimal' ? 'decimal' : undefined}
+            step={type === 'number' ? 'any' : undefined}
             placeholder={placeholder}
             value={String(src[k] ?? '')}
             onChange={e => setSrc({ ...src, [k]: type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value })}
@@ -526,11 +530,30 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       <>
         {adding && (
           <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(3, 1fr)' }}>
-            <Field label="Segment ID *"  k="segment_id"          src={addValues} setSrc={setAddValues} />
-            <Field label="Total (T)"     k="total_capacity_t"    src={addValues} setSrc={setAddValues} type="number" />
-            <Field label="Available (T)" k="available_capacity_t" src={addValues} setSrc={setAddValues} type="number" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Segment ID *</label>
+              <input
+                style={inputStyle}
+                list="cap-segment-datalist"
+                placeholder="Type to filter segments…"
+                value={String(addValues.segment_id ?? '')}
+                onChange={e => setAddValues({ ...addValues, segment_id: e.target.value })}
+              />
+              <datalist id="cap-segment-datalist">
+                {segments.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </datalist>
+            </div>
+            <Field label="Total (T)"     k="total_capacity_t"    src={addValues} setSrc={setAddValues} type="decimal" placeholder="e.g. 4.5" />
+            <Field label="Available (T)" k="available_capacity_t" src={addValues} setSrc={setAddValues} type="decimal" placeholder="e.g. 2.0" />
             <SaveCancel
-              onSave={() => saveAdd(() => api.createCapacity(addValues as unknown as SegmentCapacity))}
+              onSave={() => {
+                const vals = {
+                  segment_id: String(addValues.segment_id ?? ''),
+                  total_capacity_t: parseFloat(String(addValues.total_capacity_t)) || 0,
+                  available_capacity_t: parseFloat(String(addValues.available_capacity_t)) || 0,
+                }
+                saveAdd(() => api.createCapacity(vals as unknown as SegmentCapacity))
+              }}
               onCancel={() => { setAdding(false); setAddValues({}) }}
             />
           </div>
@@ -557,10 +580,16 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
               </div>
               {editId === c.segment_id && (
                 <div style={{ ...editFormRow, gridTemplateColumns: '1fr 1fr' }}>
-                  <Field label="Total (T)"     k="total_capacity_t"     src={editValues} setSrc={setEditValues} type="number" />
-                  <Field label="Available (T)" k="available_capacity_t" src={editValues} setSrc={setEditValues} type="number" />
+                  <Field label="Total (T)"     k="total_capacity_t"     src={editValues} setSrc={setEditValues} type="decimal" placeholder="e.g. 4.5" />
+                  <Field label="Available (T)" k="available_capacity_t" src={editValues} setSrc={setEditValues} type="decimal" placeholder="e.g. 2.0" />
                   <SaveCancel
-                    onSave={() => saveEdit(() => api.updateCapacity(c.segment_id, editValues as Partial<SegmentCapacity>))}
+                    onSave={() => {
+                      const vals = {
+                        total_capacity_t: parseFloat(String(editValues.total_capacity_t)) || 0,
+                        available_capacity_t: parseFloat(String(editValues.available_capacity_t)) || 0,
+                      }
+                      saveEdit(() => api.updateCapacity(c.segment_id, vals as Partial<SegmentCapacity>))
+                    }}
                     onCancel={() => setEditId(null)}
                   />
                 </div>
