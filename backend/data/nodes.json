@@ -810,6 +810,28 @@
     "country": "JP"
   },
   {
+    "id": "MNB1",
+    "name": "Minamiboso",
+    "lat": 35.1562,
+    "lng": 140.0346,
+    "type": "landing_station",
+    "country": "JP",
+    "owner": "Seren Juno",
+    "trading_name": "Minamiboso Seren Juno",
+    "description": "JUNO cable landing station at Minamiboso, Chiba Prefecture, Japan"
+  },
+  {
+    "id": "JUNO-BU1",
+    "name": "JUNO Pacific Branching Unit",
+    "lat": 34.8,
+    "lng": 142.5,
+    "type": "branching_unit",
+    "country": "JP",
+    "owner": "Seren Juno",
+    "trading_name": "JUNO Pacific BU",
+    "description": "JUNO submarine cable branching unit where the Minamiboso and Shima spurs meet before the transpacific trunk"
+  },
+  {
     "id": "AJIG",
     "name": "Ajigaura",
     "lat": 36.39,
