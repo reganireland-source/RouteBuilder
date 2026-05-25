@@ -48,6 +48,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   const [filter, setFilter] = useState('')
   const [showRulesHelp, setShowRulesHelp] = useState(false)
   const [onNetOwnership, setOnNetOwnership] = useState<Set<string>>(() => new Set(config.on_net_ownership))
+  const [capSegmentOpen, setCapSegmentOpen] = useState(false)
 
   function isOnNet(ownership: string) { return onNetOwnership.has(ownership) }
 
@@ -530,18 +531,31 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       <>
         {adding && (
           <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(3, 1fr)' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
               <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Segment ID *</label>
               <input
                 style={inputStyle}
-                list="cap-segment-datalist"
                 placeholder="Type to filter segments…"
                 value={String(addValues.segment_id ?? '')}
-                onChange={e => setAddValues({ ...addValues, segment_id: e.target.value })}
+                onChange={e => { setAddValues({ ...addValues, segment_id: e.target.value }); setCapSegmentOpen(true) }}
+                onFocus={() => setCapSegmentOpen(true)}
+                onBlur={() => setTimeout(() => setCapSegmentOpen(false), 150)}
               />
-              <datalist id="cap-segment-datalist">
-                {segments.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </datalist>
+              {capSegmentOpen && (() => {
+                const q = String(addValues.segment_id ?? '').toLowerCase()
+                const hits = q ? segments.filter(s => s.id.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)).slice(0, 12) : []
+                return hits.length > 0 ? (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 300, background: t.bgDeep, border: `1px solid ${t.border}`, borderRadius: 4, maxHeight: 220, overflowY: 'auto', boxShadow: '0 6px 16px rgba(0,0,0,0.5)', marginTop: 2 }}>
+                    {hits.map(s => (
+                      <div key={s.id} onMouseDown={() => { setAddValues({ ...addValues, segment_id: s.id }); setCapSegmentOpen(false) }}
+                        style={{ padding: '6px 10px', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'baseline', borderBottom: `1px solid ${t.border}` }}>
+                        <code style={{ fontSize: 11, color: t.blue, flexShrink: 0 }}>{s.id}</code>
+                        <span style={{ fontSize: 11, color: t.textFaint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null
+              })()}
             </div>
             <Field label="Total (T)"     k="total_capacity_t"    src={addValues} setSrc={setAddValues} type="decimal" placeholder="e.g. 4.5" />
             <Field label="Available (T)" k="available_capacity_t" src={addValues} setSrc={setAddValues} type="decimal" placeholder="e.g. 2.0" />
@@ -1167,7 +1181,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           {tab === 'nodes'    && <NodeTab />}
           {tab === 'segments' && <SegmentTab />}
           {tab === 'systems'  && <SystemTab />}
-          {tab === 'capacity' && <CapacityTab />}
+          {tab === 'capacity' && CapacityTab()}
           {tab === 'outages'  && <OutagesTab />}
           {tab === 'rules'    && <RulesTab />}
           {tab === 'checks'   && <ChecksTab />}
