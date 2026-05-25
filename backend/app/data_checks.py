@@ -9,7 +9,9 @@ import re
 from dataclasses import dataclass, asdict
 from .data_loader import load_nodes, load_segments, load_systems, load_capacity, load_rules
 
-NODE_ID_RE = re.compile(r'^[A-Z0-9]{4}$')
+# Accepts 4-char IATA-style codes, branching-unit IDs (e.g. APRICOTBU1),
+# and vendor-prefixed IDs with a single hyphen separator (e.g. EQ-SY1).
+NODE_ID_RE = re.compile(r'^[A-Z0-9][A-Z0-9\-]{1,11}$')
 
 
 @dataclass
@@ -90,7 +92,7 @@ def run_all_checks() -> list[CheckResult]:
 
     # ── Node ID format ────────────────────────────────────────────────────────
     bad_ids = [n.id for n in nodes if not NODE_ID_RE.match(n.id)]
-    check("Node IDs are 4-char alphanumeric", "error", bad_ids)
+    check("Node IDs are valid format", "error", bad_ids)
 
     # ── Node coordinate sanity ─────────────────────────────────────────────────
     check("Node latitudes in [-90, 90]",   "error", [n.id for n in nodes if not (-90 <= n.lat <= 90)])

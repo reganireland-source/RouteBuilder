@@ -963,5 +963,255 @@
     "segment_id": "TERRESTRIAL_EU03",
     "total_capacity_t": 3.0,
     "available_capacity_t": 2.0
+  },
+  {
+    "segment_id": "EQ_AU_SY01",
+    "total_capacity_t": 0.2,
+    "available_capacity_t": 0.1
+  },
+  {
+    "segment_id": "EQ_AU_SY03",
+    "total_capacity_t": 0.2,
+    "available_capacity_t": 0.1
+  },
+  {
+    "segment_id": "EQ_AU_ME01",
+    "total_capacity_t": 0.2,
+    "available_capacity_t": 0.1
+  },
+  {
+    "segment_id": "EQ_AU_BQ01",
+    "total_capacity_t": 0.2,
+    "available_capacity_t": 0.1
+  },
+  {
+    "segment_id": "EQ_AU_PE01",
+    "total_capacity_t": 0.1,
+    "available_capacity_t": 0.1
+  },
+  {
+    "segment_id": "EQ_AU_SY04",
+    "total_capacity_t": 0.1,
+    "available_capacity_t": 0.05
+  },
+  {
+    "segment_id": "EQ_AU_ME02",
+    "total_capacity_t": 0.1,
+    "available_capacity_t": 0.05
+  },
+  {
+    "segment_id": "EQ_JP_TY01",
+    "total_capacity_t": 0.2,
+    "available_capacity_t": 0.1
+  },
+  {
+    "segment_id": "EQ_JP_TY02",
+    "total_capacity_t": 0.2,
+    "available_capacity_t": 0.1
+  },
+  {
+    "segment_id": "EQ_JP_OS01",
+    "total_capacity_t": 0.2,
+    "available_capacity_t": 0.1
+  },
+  {
+    "segment_id": "EQ_JP_NG01",
+    "total_capacity_t": 0.1,
+    "available_capacity_t": 0.1
+  },
+  {
+    "segment_id": "EQ_JP_TY03",
+    "total_capacity_t": 0.1,
+    "available_capacity_t": 0.05
+  },
+  {
+    "segment_id": "EQ_JP_OS02",
+    "total_capacity_t": 0.1,
+    "available_capacity_t": 0.05
+  },
+  {
+    "segment_id": "EQ_KR_SL01",
+    "total_capacity_t": 0.2,
+    "available_capacity_t": 0.1
+  },
+  {
+    "segment_id": "EQ_KR_BS01",
+    "total_capacity_t": 0.1,
+    "available_capacity_t": 0.1
+  },
+  {
+    "segment_id": "EQ_US_LA01",
+    "total_capacity_t": 0.4,
+    "available_capacity_t": 0.2
+  },
+  {
+    "segment_id": "EQ_US_SE02",
+    "total_capacity_t": 0.2,
+    "available_capacity_t": 0.1
+  },
+  {
+    "segment_id": "EQ_US_CH01",
+    "total_capacity_t": 0.2,
+    "available_capacity_t": 0.1
+  },
+  {
+    "segment_id": "EQ_US_NY01",
+    "total_capacity_t": 0.4,
+    "available_capacity_t": 0.2
+  },
+  {
+    "segment_id": "EQ_US_DA01",
+    "total_capacity_t": 0.2,
+    "available_capacity_t": 0.1
+  },
+  {
+    "segment_id": "EQ_US_MI01",
+    "total_capacity_t": 0.2,
+    "available_capacity_t": 0.1
+  },
+  {
+    "segment_id": "EQ_US_LA02",
+    "total_capacity_t": 0.2,
+    "available_capacity_t": 0.1
+  },
+  {
+    "segment_id": "EQ_US_SE03",
+    "total_capacity_t": 0.1,
+    "available_capacity_t": 0.05
+  },
+  {
+    "segment_id": "EQ_US_CH02",
+    "total_capacity_t": 0.1,
+    "available_capacity_t": 0.05
+  },
+  {
+    "segment_id": "EQ_US_NY05",
+    "total_capacity_t": 0.2,
+    "available_capacity_t": 0.1
+  },
+  {
+    "segment_id": "EQ_US_NY09",
+    "total_capacity_t": 0.1,
+    "available_capacity_t": 0.05
+  },
+  {
+    "segment_id": "EQ_US_DA02",
+    "total_capacity_t": 0.1,
+    "available_capacity_t": 0.05
+  },
+  {
+    "segment_id": "EQ_US_MI03",
+    "total_capacity_t": 0.1,
+    "available_capacity_t": 0.05
+  },
+  {
+    "segment_id": "TERRESTRIAL_CN01",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 1.0
+  },
+  {
+    "segment_id": "TERRESTRIAL_CN02",
+    "total_capacity_t": 1.2,
+    "available_capacity_t": 0.6
+  },
+  {
+    "segment_id": "TERRESTRIAL_HK02",
+    "total_capacity_t": 3.0,
+    "available_capacity_t": 1.8
+  },
+  {
+    "segment_id": "TERRESTRIAL_JP05",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 1.0
+  },
+  {
+    "segment_id": "TERRESTRIAL_JP06",
+    "total_capacity_t": 2.6,
+    "available_capacity_t": 1.3
+  },
+  {
+    "segment_id": "TERRESTRIAL_JP07",
+    "total_capacity_t": 3.0,
+    "available_capacity_t": 1.5
+  },
+  {
+    "segment_id": "TERRESTRIAL_KR03",
+    "total_capacity_t": 2.4,
+    "available_capacity_t": 1.2
+  },
+  {
+    "segment_id": "TERRESTRIAL_KR04",
+    "total_capacity_t": 1.8,
+    "available_capacity_t": 0.9
+  },
+  {
+    "segment_id": "TERRESTRIAL_PH03",
+    "total_capacity_t": 1.2,
+    "available_capacity_t": 0.7
+  },
+  {
+    "segment_id": "TERRESTRIAL_PH04",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 1.2
+  },
+  {
+    "segment_id": "TERRESTRIAL_PH05",
+    "total_capacity_t": 1.4,
+    "available_capacity_t": 0.8
+  },
+  {
+    "segment_id": "TERRESTRIAL_SG03",
+    "total_capacity_t": 4.0,
+    "available_capacity_t": 2.4
+  },
+  {
+    "segment_id": "TERRESTRIAL_SG04",
+    "total_capacity_t": 3.6,
+    "available_capacity_t": 2.0
+  },
+  {
+    "segment_id": "TERRESTRIAL_SG05",
+    "total_capacity_t": 3.6,
+    "available_capacity_t": 2.0
+  },
+  {
+    "segment_id": "TERRESTRIAL_TW03",
+    "total_capacity_t": 1.8,
+    "available_capacity_t": 0.9
+  },
+  {
+    "segment_id": "TERRESTRIAL_TW04",
+    "total_capacity_t": 3.2,
+    "available_capacity_t": 1.7
+  },
+  {
+    "segment_id": "TERRESTRIAL_TW05",
+    "total_capacity_t": 3.0,
+    "available_capacity_t": 1.6
+  },
+  {
+    "segment_id": "TERRESTRIAL_US07",
+    "total_capacity_t": 0.8,
+    "available_capacity_t": 0.4
+  },
+  {
+    "segment_id": "TERRESTRIAL_US08",
+    "total_capacity_t": 1.0,
+    "available_capacity_t": 0.5
+  },
+  {
+    "segment_id": "TERRESTRIAL_US09",
+    "total_capacity_t": 1.2,
+    "available_capacity_t": 0.6
+  },
+  {
+    "segment_id": "TERRESTRIAL_US10",
+    "total_capacity_t": 0.8,
+    "available_capacity_t": 0.4
+  },
+  {
+    "segment_id": "TERRESTRIAL_US11",
+    "total_capacity_t": 0.8,
+    "available_capacity_t": 0.4
   }
 ]
