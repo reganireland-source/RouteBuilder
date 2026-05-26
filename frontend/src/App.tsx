@@ -272,14 +272,15 @@ export default function App() {
 
   // ── Desktop layout ───────────────────────────────────────────────────────
   const tabStyle = (active: boolean): React.CSSProperties => ({
-    flex: 1, padding: '6px 4px', border: 'none', cursor: 'pointer',
+    flex: 1, padding: '7px 3px 6px', border: 'none', cursor: 'pointer',
     background: active ? theme.bgBase : theme.bgPanel,
     color: active ? theme.text : theme.textFaint,
-    fontSize: 10, fontWeight: active ? 700 : 400,
+    fontSize: 9, fontWeight: active ? 700 : 400,
     textTransform: 'uppercase', letterSpacing: '0.04em',
-    lineHeight: 1.25,
+    lineHeight: 1.2,
     borderBottom: active ? `2px solid ${theme.blue}` : `2px solid transparent`,
     transition: 'all 0.15s',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
   })
 
   return (
@@ -377,13 +378,13 @@ export default function App() {
         {/* Collapsible panels wrapper */}
         <div style={{
           display: 'flex', overflow: 'hidden', flexShrink: 0,
-          width: panelsOpen ? 860 : 0,
+          width: panelsOpen ? 960 : 0,
           transition: 'width 0.3s ease',
         }}>
 
         {/* Left panel */}
         <div style={{
-          width: 340, flexShrink: 0, display: 'flex', flexDirection: 'column',
+          width: 440, flexShrink: 0, display: 'flex', flexDirection: 'column',
           background: theme.bgPanel, borderRight: `1px solid ${theme.border}`,
         }}>
           <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${theme.border}` }}>
@@ -399,12 +400,12 @@ export default function App() {
           </div>
 
           <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
-            <button style={tabStyle(mode === 'routebuilder')}   onClick={() => switchMode('routebuilder')}>PoP Routes</button>
-            <button style={tabStyle(mode === 'citypair')}       onClick={() => switchMode('citypair')}>City Pairs</button>
-            <button style={tabStyle(mode === 'systemviewer')}   onClick={() => switchMode('systemviewer')}>Cables</button>
-            <button style={tabStyle(mode === 'countryviewer')}  onClick={() => switchMode('countryviewer')}>Country</button>
-            <button style={tabStyle(mode === 'nodefinder')}     onClick={() => switchMode('nodefinder')}>Nodes</button>
-            <button style={tabStyle(false)}                     onClick={() => setGuideOpen(true)}>Guide</button>
+            <button style={tabStyle(mode === 'routebuilder')}  onClick={() => switchMode('routebuilder')}><span style={{ fontSize: 14 }}>↔</span>Pop Routes</button>
+            <button style={tabStyle(mode === 'citypair')}      onClick={() => switchMode('citypair')}><span style={{ fontSize: 14 }}>🏙</span>City Pairs</button>
+            <button style={tabStyle(mode === 'systemviewer')}  onClick={() => switchMode('systemviewer')}><span style={{ fontSize: 14 }}>🌊</span>Subsea Systems</button>
+            <button style={tabStyle(mode === 'countryviewer')} onClick={() => switchMode('countryviewer')}><span style={{ fontSize: 14 }}>🌍</span>Country Viewer</button>
+            <button style={tabStyle(mode === 'nodefinder')}    onClick={() => switchMode('nodefinder')}><span style={{ fontSize: 14 }}>🔍</span>Node Search</button>
+            <button style={tabStyle(false)}                    onClick={() => setGuideOpen(true)}><span style={{ fontSize: 14 }}>📖</span>Guide</button>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
