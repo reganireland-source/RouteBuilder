@@ -4,6 +4,11 @@ import { useTheme } from '../theme'
 
 const ALL_SPEEDS: PortSpeed[] = ['1G', '10G', '100G', '400G']
 
+// Column layout constants — keep header and product rows in sync
+const DOT_SIZE  = 13   // px — dot diameter
+const DOT_GAP   = 14   // px — gap between dots
+const LABEL_W   = 50   // px — product label column width
+
 // Maximum speeds each product type is capable of (defines N/A vs red)
 const PRODUCT_MAX: Record<string, Set<PortSpeed>> = {
   ipt:   new Set(['1G', '10G', '100G', '400G']),
@@ -21,35 +26,67 @@ const COLO_LABELS: Record<number, string> = {
   5: 'Non-Productized Partner Resell',
 }
 
+// Per-category visual style
+const CAT_STYLE = {
+  backbone:   { bg: 'rgba(59,130,246,0.15)',  border: 'rgba(59,130,246,0.4)',  text: '#60a5fa',  dot: '#3b82f6' },
+  underlay:   { bg: 'rgba(139,92,246,0.15)',  border: 'rgba(139,92,246,0.4)',  text: '#a78bfa',  dot: '#8b5cf6' },
+  colocation: { bg: 'rgba(251,191,36,0.15)',  border: 'rgba(251,191,36,0.4)',  text: '#fbbf24',  dot: '#f59e0b' },
+}
+
 type DotState = 'green' | 'red' | 'na'
 
 function Dot({ state }: { state: DotState }) {
   if (state === 'na') {
     return (
-      <div style={{ width: 11, height: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ width: 5, height: 1.5, borderRadius: 1, background: 'rgba(255,255,255,0.08)' }} />
+      <div style={{ width: DOT_SIZE, height: DOT_SIZE, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <div style={{ width: 6, height: 2, borderRadius: 1, background: 'rgba(255,255,255,0.1)' }} />
       </div>
     )
   }
   const green = state === 'green'
   return (
     <div style={{
-      width: 11, height: 11, borderRadius: '50%', flexShrink: 0,
+      width: DOT_SIZE, height: DOT_SIZE, borderRadius: '50%', flexShrink: 0,
       background: green ? '#16a34a' : '#3f0f0f',
       border: `1px solid ${green ? '#22c55e' : '#7f1d1d'}`,
-      boxShadow: green ? '0 0 6px rgba(34,197,94,0.6)' : '0 0 4px rgba(239,68,68,0.25)',
+      boxShadow: green ? '0 0 7px rgba(34,197,94,0.65)' : '0 0 4px rgba(239,68,68,0.25)',
     }} />
   )
 }
 
-function CategoryIndicator({ active }: { active: boolean }) {
+function CategoryBadge({ label, active, category }: { label: string; active: boolean; category: 'backbone' | 'underlay' | 'colocation' }) {
+  const s = CAT_STYLE[category]
   return (
     <div style={{
-      width: 7, height: 7, borderRadius: '50%', flexShrink: 0, marginTop: 1,
-      background: active ? '#16a34a' : '#3f0f0f',
-      border: `1px solid ${active ? '#22c55e' : '#7f1d1d'}`,
-      boxShadow: active ? '0 0 5px rgba(34,197,94,0.7)' : '0 0 3px rgba(239,68,68,0.2)',
-    }} />
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      padding: '3px 9px 3px 6px', borderRadius: 5, marginBottom: 7,
+      background: s.bg, border: `1px solid ${s.border}`,
+    }}>
+      <div style={{
+        width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+        background: active ? s.dot : '#3f0f0f',
+        border: `1px solid ${active ? s.dot : '#7f1d1d'}`,
+        boxShadow: active ? `0 0 5px ${s.dot}99` : '0 0 3px rgba(239,68,68,0.2)',
+      }} />
+      <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', color: active ? s.text : '#6b7280' }}>{label}</span>
+    </div>
+  )
+}
+
+// Speed column header row — must use same LABEL_W + DOT_SIZE + DOT_GAP as rows below
+function SpeedHeader() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
+      <div style={{ width: LABEL_W, flexShrink: 0 }} />
+      <div style={{ display: 'flex', gap: DOT_GAP }}>
+        {ALL_SPEEDS.map(s => (
+          <span key={s} style={{
+            width: DOT_SIZE, textAlign: 'center', flexShrink: 0,
+            fontSize: 10, fontWeight: 700, color: '#6b7280', letterSpacing: '0.02em',
+          }}>{s}</span>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -57,9 +94,9 @@ function ProductMatrixRow({ label, productKey, available }: { label: string; pro
   const maxSpeeds = PRODUCT_MAX[productKey]
   const availSet = new Set(available ?? [])
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-      <span style={{ width: 52, flexShrink: 0, fontSize: 10, fontWeight: 600, color: '#6b7280' }}>{label}</span>
-      <div style={{ display: 'flex', gap: 10 }}>
+    <div style={{ display: 'flex', alignItems: 'center' }}>
+      <span style={{ width: LABEL_W, flexShrink: 0, fontSize: 11, fontWeight: 600, color: '#9ca3af' }}>{label}</span>
+      <div style={{ display: 'flex', gap: DOT_GAP }}>
         {ALL_SPEEDS.map(speed => {
           const applicable = maxSpeeds.has(speed)
           const state: DotState = !applicable ? 'na' : availSet.has(speed) ? 'green' : 'red'
@@ -69,6 +106,7 @@ function ProductMatrixRow({ label, productKey, available }: { label: string; pro
     </div>
   )
 }
+
 
 const OWNER_LOGOS: Record<string, string> = {
   'Telstra':        '/logos/telstra.svg',
@@ -217,28 +255,16 @@ export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onC
           const underlayActive = !!(ul?.gid?.length || ul?.ipvpn?.length)
           const coloActive     = !!co
           return (
-            <div style={{ padding: '10px 12px', borderBottom: `1px solid ${t.border}` }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+            <div style={{ padding: '10px 12px 14px', borderBottom: `1px solid ${t.border}` }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
                 Product Coverage
               </div>
 
-              {/* Speed column headers */}
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6, paddingLeft: 29 }}>
-                <div style={{ width: 52, flexShrink: 0 }} />
-                <div style={{ display: 'flex', gap: 10 }}>
-                  {ALL_SPEEDS.map(s => (
-                    <span key={s} style={{ width: 11, fontSize: 7.5, fontWeight: 700, color: '#4b5563', textAlign: 'center', letterSpacing: '0.02em' }}>{s}</span>
-                  ))}
-                </div>
-              </div>
-
               {/* BACKBONE */}
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <CategoryIndicator active={backboneActive} />
-                  <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: backboneActive ? '#22c55e' : '#4b5563' }}>Backbone</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 13 }}>
+              <div style={{ marginBottom: 10 }}>
+                <CategoryBadge label="Backbone" active={backboneActive} category="backbone" />
+                <SpeedHeader />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                   <ProductMatrixRow label="IPT"  productKey="ipt"  available={bb?.ipt  as PortSpeed[]} />
                   <ProductMatrixRow label="EPL"  productKey="epl"  available={bb?.epl  as PortSpeed[]} />
                   <ProductMatrixRow label="EVPL" productKey="evpl" available={bb?.evpl as PortSpeed[]} />
@@ -246,12 +272,10 @@ export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onC
               </div>
 
               {/* UNDERLAY */}
-              <div style={{ marginBottom: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <CategoryIndicator active={underlayActive} />
-                  <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: underlayActive ? '#22c55e' : '#4b5563' }}>Underlay</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 13 }}>
+              <div style={{ marginBottom: 10 }}>
+                <CategoryBadge label="Underlay" active={underlayActive} category="underlay" />
+                <SpeedHeader />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                   <ProductMatrixRow label="GID"    productKey="gid"   available={ul?.gid   as PortSpeed[]} />
                   <ProductMatrixRow label="IP VPN" productKey="ipvpn" available={ul?.ipvpn as PortSpeed[]} />
                 </div>
@@ -259,26 +283,21 @@ export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onC
 
               {/* COLOCATION */}
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <CategoryIndicator active={coloActive} />
-                  <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: coloActive ? '#22c55e' : '#4b5563' }}>Colocation</span>
-                </div>
-                <div style={{ paddingLeft: 13 }}>
-                  {coloActive ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                      <span style={{
-                        fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 3, flexShrink: 0,
-                        background: 'rgba(34,197,94,0.1)', color: '#22c55e',
-                        border: '1px solid rgba(34,197,94,0.25)', letterSpacing: '0.04em',
-                      }}>Cat {co!.category}</span>
-                      <span style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.3 }}>
-                        {COLO_LABELS[co!.category]}
-                      </span>
-                    </div>
-                  ) : (
-                    <span style={{ fontSize: 10, color: '#4b5563', fontStyle: 'italic' }}>Not configured</span>
-                  )}
-                </div>
+                <CategoryBadge label="Colocation" active={coloActive} category="colocation" />
+                {coloActive ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 2 }}>
+                    <span style={{
+                      fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 4, flexShrink: 0,
+                      background: CAT_STYLE.colocation.bg, color: CAT_STYLE.colocation.text,
+                      border: `1px solid ${CAT_STYLE.colocation.border}`, letterSpacing: '0.04em',
+                    }}>Cat {co!.category}</span>
+                    <span style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.3 }}>
+                      {COLO_LABELS[co!.category]}
+                    </span>
+                  </div>
+                ) : (
+                  <span style={{ fontSize: 10, color: '#4b5563', fontStyle: 'italic' }}>Not configured</span>
+                )}
               </div>
             </div>
           )
