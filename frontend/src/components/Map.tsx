@@ -234,7 +234,13 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
           ))
         }
 
-        const isActiveSegment = !!segmentColor[seg.id] || !!(systemViewerActive && systemColorMap[seg.system_id])
+        const isCountryHighlightedSeg = countryActive && (
+          countryHighlight!.systemColors.has(seg.system_id) ||
+          countryHighlight!.terrestrialSegIds.has(seg.id)
+        )
+        const isActiveSegment = !!segmentColor[seg.id] ||
+          !!(systemViewerActive && systemColorMap[seg.system_id]) ||
+          isCountryHighlightedSeg
         if (hideNonActive && !isActiveSegment) return []
 
         let color: string

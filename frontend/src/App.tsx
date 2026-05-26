@@ -110,6 +110,7 @@ export default function App() {
   function switchMode(next: AppMode) {
     if (next === 'systemviewer') { setResponse(null); setSelectedRouteIds([]); setError(null) }
     if (next !== 'countryviewer') setCountryHighlight(null)
+    if (next === 'countryviewer') setShowSegmentLabels(true)
     setMode(next)
   }
 
@@ -354,13 +355,13 @@ export default function App() {
         {/* Collapsible panels wrapper */}
         <div style={{
           display: 'flex', overflow: 'hidden', flexShrink: 0,
-          width: panelsOpen ? 700 : 0,
+          width: panelsOpen ? 860 : 0,
           transition: 'width 0.3s ease',
         }}>
 
         {/* Left panel */}
         <div style={{
-          width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column',
+          width: 340, flexShrink: 0, display: 'flex', flexDirection: 'column',
           background: theme.bgPanel, borderRight: `1px solid ${theme.border}`,
         }}>
           <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${theme.border}` }}>
@@ -428,7 +429,7 @@ export default function App() {
 
         {/* Middle panel */}
         <div style={{
-          width: 420, flexShrink: 0, display: 'flex', flexDirection: 'column',
+          width: 520, flexShrink: 0, display: 'flex', flexDirection: 'column',
           background: theme.bgDeep, borderRight: `1px solid ${theme.border}`,
         }}>
           <div style={{
