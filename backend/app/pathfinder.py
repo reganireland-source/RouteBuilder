@@ -130,6 +130,8 @@ def find_routes(
     segments_by_id: dict[str, CableSegment],
     rules: list[InterconnectRule],
     k: int = 5,
+    max_wet_hops: int | None = None,
+    max_terrestrial_hops: int | None = None,
 ) -> RouteResponse:
     # Build working graph with avoided nodes/segments/systems removed
     working_G = G.copy()
@@ -193,6 +195,29 @@ def find_routes(
                 seg_system[sid] for sid in path_to_segment_ids(working_G, p) if sid in seg_system
             })
         ]
+
+    # Filter by max hop counts — each segment is one hop, classified by type
+    if max_wet_hops is not None or max_terrestrial_hops is not None:
+        def hop_counts(path: list[str]) -> tuple[int, int]:
+            wet = terr = 0
+            for seg_id in path_to_segment_ids(working_G, path):
+                seg = segments_by_id.get(seg_id)
+                if seg:
+                    if seg.type == "wet":
+                        wet += 1
+                    else:
+                        terr += 1
+            return wet, terr
+
+        filtered = []
+        for p in candidates:
+            wet_c, terr_c = hop_counts(p)
+            if max_wet_hops is not None and wet_c > max_wet_hops:
+                continue
+            if max_terrestrial_hops is not None and terr_c > max_terrestrial_hops:
+                continue
+            filtered.append(p)
+        candidates = filtered
 
     candidates = candidates[:k]
 

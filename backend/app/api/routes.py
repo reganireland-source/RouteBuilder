@@ -29,4 +29,6 @@ def search_routes(request: RouteRequest):
         diversity=request.diversity,
         segments_by_id=segments_by_id,
         rules=rules,
+        max_wet_hops=request.max_wet_hops,
+        max_terrestrial_hops=request.max_terrestrial_hops,
     )

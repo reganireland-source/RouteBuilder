@@ -130,6 +130,8 @@ class RouteRequest(BaseModel):
     must_include_systems: list[str] = []
     must_avoid_systems: list[str] = []
     diversity: DiversityType = DiversityType.none
+    max_wet_hops: Optional[int] = None
+    max_terrestrial_hops: Optional[int] = None
 
 
 class RouteSegmentDetail(BaseModel):

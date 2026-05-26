@@ -94,6 +94,8 @@ export interface RouteRequest {
   must_include_systems: string[]
   must_avoid_systems: string[]
   diversity: DiversityType
+  max_wet_hops?: number
+  max_terrestrial_hops?: number
 }
 
 export interface RouteResponse {

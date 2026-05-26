@@ -175,11 +175,13 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
       style={{ height: '100%', width: '100%', background: t.bgMap }}
       minZoom={2}
       maxZoom={10}
+      worldCopyJump={true}
     >
       <TileLayer
         key={t.mapTileUrl}
         url={t.mapTileUrl}
         attribution='&copy; <a href="https://carto.com/">CARTO</a>'
+        noWrap={false}
       />
 
       <MapFlyTo highlight={countryHighlight} />
