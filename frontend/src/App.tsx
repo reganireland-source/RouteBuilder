@@ -70,6 +70,7 @@ export default function App() {
   const [searchPrefill, setSearchPrefill]     = useState<Partial<RouteRequest> | undefined>(undefined)
   const [outages, setOutages]                       = useState<SegmentOutage[]>([])
   const [capDashOpen, setCapDashOpen]               = useState(false)
+  const [ctrlMenuOpen, setCtrlMenuOpen]             = useState(false)
   const [hideNonActive, setHideNonActive]           = useState(false)
   const [showSegmentLabels, setShowSegmentLabels]   = useState(false)
   const [showAllOutages, setShowAllOutages]         = useState(false)
@@ -287,93 +288,120 @@ export default function App() {
     <ThemeContext.Provider value={theme}>
       <div style={{ display: 'flex', height: '100vh', background: theme.bgBase, color: theme.text, fontFamily: 'system-ui, sans-serif', overflow: 'hidden' }}>
 
-        {/* Top-right control bar */}
-        <div style={{
-          position: 'fixed', top: 12, right: 12, zIndex: 1000,
-          display: 'flex', alignItems: 'center', gap: 8,
-        }}>
-          {/* Capacity dashboard */}
-          <button
-            onClick={() => setCapDashOpen(true)}
-            title="Network Capacity Dashboard"
-            style={topBtn(theme, themeMode)}
-          >
-            <span style={{ fontSize: 13 }}>📊</span>
-            Capacity
-          </button>
+        {/* Top-right control menu */}
+        {(() => {
+          const activeToggles = [showAllOutages, hideNonActive, showSegmentLabels, subseaOnly, backhaulOnly].filter(Boolean).length
+          return (
+            <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 1000 }}>
+              <button
+                onClick={() => setCtrlMenuOpen(o => !o)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 7,
+                  padding: '7px 14px', borderRadius: 10,
+                  border: `1px solid ${ctrlMenuOpen ? theme.blue : theme.border}`,
+                  background: ctrlMenuOpen ? theme.blue + '22' : theme.bgPanel,
+                  color: ctrlMenuOpen ? theme.blue : theme.textMuted,
+                  cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                  boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.12)' : '0 2px 10px rgba(0,0,0,0.5)',
+                }}
+              >
+                <span style={{ fontSize: 16, lineHeight: 1 }}>{ctrlMenuOpen ? '✕' : '≡'}</span>
+                Controls
+                {activeToggles > 0 && !ctrlMenuOpen && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, lineHeight: 1,
+                    background: theme.blue + '33', color: theme.blue,
+                    borderRadius: 10, padding: '2px 6px',
+                  }}>{activeToggles}</span>
+                )}
+              </button>
 
-          {/* Show all outages toggle */}
-          <button
-            onClick={() => setShowAllOutages(v => !v)}
-            title="Show All Outages"
-            style={topBtn(theme, themeMode, showAllOutages ? theme.red : undefined)}
-          >
-            <span style={{ fontSize: 13 }}>🚢</span>
-            {showAllOutages ? 'Outage Map' : 'Outages'}
-          </button>
+              {ctrlMenuOpen && (
+                <>
+                  <div onClick={() => setCtrlMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: -1 }} />
+                  <div style={{
+                    position: 'absolute', top: 42, right: 0,
+                    width: 240,
+                    background: theme.bgPanel,
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: 12,
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                    overflow: 'hidden',
+                  }}>
+                    {/* Toggles */}
+                    {[
+                      { label: 'Show All Outages', icon: '🚢', active: showAllOutages, color: theme.red,  onClick: () => setShowAllOutages(v => !v) },
+                      { label: 'Hide Inactive',    icon: hideNonActive      ? '◉' : '◎', active: hideNonActive,      color: theme.blue, onClick: () => setHideNonActive(v => !v) },
+                      { label: 'Seg Labels',       icon: showSegmentLabels  ? '◉' : '◎', active: showSegmentLabels,  color: theme.blue, onClick: () => setShowSegmentLabels(v => !v) },
+                      { label: 'Subsea Only',      icon: '🌊', active: subseaOnly,   color: theme.blue, onClick: () => { setSubseaOnly(v => !v);   if (!subseaOnly)   setBackhaulOnly(false) } },
+                      { label: 'Backhaul Only',    icon: '🗺',  active: backhaulOnly, color: theme.blue, onClick: () => { setBackhaulOnly(v => !v); if (!backhaulOnly) setSubseaOnly(false)  } },
+                    ].map(item => (
+                      <button
+                        key={item.label}
+                        onClick={item.onClick}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 12,
+                          width: '100%', padding: '12px 16px',
+                          background: item.active ? item.color + '18' : 'transparent',
+                          border: 'none', borderBottom: `1px solid ${theme.border}`,
+                          cursor: 'pointer', textAlign: 'left',
+                        }}
+                      >
+                        <span style={{ fontSize: 16, width: 22, textAlign: 'center' }}>{item.icon}</span>
+                        <span style={{ fontSize: 13, color: item.active ? item.color : theme.text, fontWeight: item.active ? 600 : 400, flex: 1 }}>
+                          {item.label}
+                        </span>
+                        {item.active && (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: item.color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>On</span>
+                        )}
+                      </button>
+                    ))}
 
-          {/* Hide non-active cables toggle */}
-          <button
-            onClick={() => setHideNonActive(v => !v)}
-            title="Hide Non-Active Cables"
-            style={topBtn(theme, themeMode, hideNonActive ? theme.blue : undefined)}
-          >
-            <span style={{ fontSize: 13 }}>{hideNonActive ? '◉' : '◎'}</span>
-            Hide Inactive
-          </button>
+                    {/* Actions */}
+                    {[
+                      { label: 'Capacity', icon: '📊', onClick: () => { setCapDashOpen(true);  setCtrlMenuOpen(false) } },
+                      { label: 'Ref Data', icon: '⚙',  onClick: () => { setRefDataOpen(true);  setCtrlMenuOpen(false) } },
+                    ].map(item => (
+                      <button
+                        key={item.label}
+                        onClick={item.onClick}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 12,
+                          width: '100%', padding: '12px 16px',
+                          background: 'transparent',
+                          border: 'none', borderBottom: `1px solid ${theme.border}`,
+                          cursor: 'pointer', textAlign: 'left',
+                        }}
+                      >
+                        <span style={{ fontSize: 16, width: 22, textAlign: 'center' }}>{item.icon}</span>
+                        <span style={{ fontSize: 13, color: theme.text, flex: 1 }}>{item.label}</span>
+                        <span style={{ fontSize: 14, color: theme.textFaintest }}>›</span>
+                      </button>
+                    ))}
 
-          {/* Segment labels toggle */}
-          <button
-            onClick={() => setShowSegmentLabels(v => !v)}
-            title="Toggle Segment Labels"
-            style={topBtn(theme, themeMode, showSegmentLabels ? theme.blue : undefined)}
-          >
-            <span style={{ fontSize: 13 }}>{showSegmentLabels ? '◉' : '◎'}</span>
-            Seg Labels
-          </button>
-
-          {/* Subsea only toggle */}
-          <button
-            onClick={() => { setSubseaOnly(v => !v); if (!subseaOnly) setBackhaulOnly(false) }}
-            title="Show subsea segments only — hide terrestrial backhaul"
-            style={topBtn(theme, themeMode, subseaOnly ? theme.blue : undefined)}
-          >
-            <span style={{ fontSize: 13 }}>🌊</span>
-            Subsea Only
-          </button>
-
-          {/* Backhaul only toggle */}
-          <button
-            onClick={() => { setBackhaulOnly(v => !v); if (!backhaulOnly) setSubseaOnly(false) }}
-            title="Show terrestrial backhaul segments only — hide subsea"
-            style={topBtn(theme, themeMode, backhaulOnly ? theme.blue : undefined)}
-          >
-            <span style={{ fontSize: 13 }}>🗺</span>
-            Backhaul Only
-          </button>
-
-          {/* Ref data button */}
-          <button
-            onClick={() => setRefDataOpen(true)}
-            title="Reference Data Editor"
-            style={topBtn(theme, themeMode)}
-          >
-            <span style={{ fontSize: 14 }}>⚙</span>
-            Ref Data
-          </button>
-
-          {/* Theme toggle */}
-          <button
-            onClick={cycleTheme}
-            title="Cycle theme"
-            style={topBtn(theme, themeMode)}
-          >
-            <span style={{ fontSize: 14 }}>
-              {themeMode === 'dark' ? '🌅' : themeMode === 'dusk' ? '☀️' : '🌙'}
-            </span>
-            {themeMode === 'dark' ? 'Dusk' : themeMode === 'dusk' ? 'Light' : 'Dark'}
-          </button>
-        </div>
+                    {/* Theme */}
+                    <button
+                      onClick={cycleTheme}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        width: '100%', padding: '12px 16px',
+                        background: 'transparent', border: 'none',
+                        cursor: 'pointer', textAlign: 'left',
+                      }}
+                    >
+                      <span style={{ fontSize: 16, width: 22, textAlign: 'center' }}>
+                        {themeMode === 'dark' ? '🌅' : themeMode === 'dusk' ? '☀️' : '🌙'}
+                      </span>
+                      <span style={{ fontSize: 13, color: theme.text, flex: 1 }}>
+                        {themeMode === 'dark' ? 'Switch to Dusk' : themeMode === 'dusk' ? 'Switch to Light' : 'Switch to Dark'}
+                      </span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Collapsible panels wrapper */}
         <div style={{
@@ -607,15 +635,3 @@ function clearBtnStyle(theme: Theme, destructive = false): React.CSSProperties {
   }
 }
 
-function topBtn(theme: Theme, themeMode: ThemeMode, accent?: string): React.CSSProperties {
-  return {
-    display: 'flex', alignItems: 'center', gap: 6,
-    padding: '6px 12px', borderRadius: 20,
-    border: `1px solid ${accent ? accent + '88' : theme.border}`,
-    background: accent ? accent + '22' : theme.bgPanel,
-    color: accent ?? theme.textMuted,
-    cursor: 'pointer', fontSize: 12, fontWeight: 600,
-    boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.12)' : '0 2px 8px rgba(0,0,0,0.4)',
-    transition: 'all 0.2s',
-  }
-}
