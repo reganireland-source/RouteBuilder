@@ -73,6 +73,8 @@ export default function App() {
   const [hideNonActive, setHideNonActive]           = useState(false)
   const [showSegmentLabels, setShowSegmentLabels]   = useState(false)
   const [showAllOutages, setShowAllOutages]         = useState(false)
+  const [subseaOnly, setSubseaOnly]                 = useState(false)
+  const [backhaulOnly, setBackhaulOnly]             = useState(false)
   const [nlpSortKey, setNlpSortKey]                 = useState<SortKey | undefined>(undefined)
   const [nlpPushOutages, setNlpPushOutages]         = useState<boolean | undefined>(undefined)
   const [countryHighlight, setCountryHighlight]     = useState<CountryHighlight | null>(null)
@@ -329,6 +331,26 @@ export default function App() {
             Seg Labels
           </button>
 
+          {/* Subsea only toggle */}
+          <button
+            onClick={() => { setSubseaOnly(v => !v); if (!subseaOnly) setBackhaulOnly(false) }}
+            title="Show subsea segments only — hide terrestrial backhaul"
+            style={topBtn(theme, themeMode, subseaOnly ? theme.blue : undefined)}
+          >
+            <span style={{ fontSize: 13 }}>🌊</span>
+            Subsea Only
+          </button>
+
+          {/* Backhaul only toggle */}
+          <button
+            onClick={() => { setBackhaulOnly(v => !v); if (!backhaulOnly) setSubseaOnly(false) }}
+            title="Show terrestrial backhaul segments only — hide subsea"
+            style={topBtn(theme, themeMode, backhaulOnly ? theme.blue : undefined)}
+          >
+            <span style={{ fontSize: 13 }}>🗺</span>
+            Backhaul Only
+          </button>
+
           {/* Ref data button */}
           <button
             onClick={() => setRefDataOpen(true)}
@@ -513,6 +535,8 @@ export default function App() {
               hideNonActive={hideNonActive}
               showSegmentLabels={showSegmentLabels}
               showAllOutages={showAllOutages}
+              subseaOnly={subseaOnly}
+              backhaulOnly={backhaulOnly}
               countryHighlight={countryHighlight}
             />
           ) : (

@@ -26,6 +26,8 @@ interface Props {
   showAllOutages?: boolean
   outages?: SegmentOutage[]
   countryHighlight?: CountryHighlight | null
+  subseaOnly?: boolean
+  backhaulOnly?: boolean
 }
 
 function MapFlyTo({ highlight }: { highlight: CountryHighlight | null | undefined }) {
@@ -88,7 +90,7 @@ function geoLines(
   return [[[lat1, nLng1], [lat2, nLng1 + d]]]
 }
 
-export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showAllOutages = false, outages = [], countryHighlight }: Props) {
+export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showAllOutages = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false }: Props) {
   const t = useTheme()
   const diversityColors: Record<number, string> = { 1: t.blue, 2: t.green }
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
@@ -234,10 +236,9 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
           ))
         }
 
-        const isCountryHighlightedSeg = countryActive && (
-          countryHighlight!.systemColors.has(seg.system_id) ||
-          countryHighlight!.terrestrialSegIds.has(seg.id)
-        )
+        const isSubseaHighlight = countryActive && countryHighlight!.systemColors.has(seg.system_id) && !backhaulOnly
+        const isTerrestrialHighlight = countryActive && countryHighlight!.terrestrialSegIds.has(seg.id) && !subseaOnly
+        const isCountryHighlightedSeg = isSubseaHighlight || isTerrestrialHighlight
         const isActiveSegment = !!segmentColor[seg.id] ||
           !!(systemViewerActive && systemColorMap[seg.system_id]) ||
           isCountryHighlightedSeg
@@ -248,10 +249,9 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         let opacity: number
 
         if (countryActive) {
-          const sysColor = countryHighlight!.systemColors.get(seg.system_id)
-          if (sysColor) {
-            color = sysColor; weight = 3.5; opacity = 0.95
-          } else if (countryHighlight!.terrestrialSegIds.has(seg.id)) {
+          if (isSubseaHighlight) {
+            color = countryHighlight!.systemColors.get(seg.system_id)!; weight = 3.5; opacity = 0.95
+          } else if (isTerrestrialHighlight) {
             color = '#ffd166'; weight = 2.5; opacity = 0.9
           } else if (segmentColor[seg.id]) {
             color = segmentColor[seg.id]; weight = segmentWeight[seg.id] ?? 2; opacity = 0.55
