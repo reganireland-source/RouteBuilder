@@ -634,6 +634,7 @@ function AdvancedConstraintsModal({
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
+        fontFamily: 'system-ui, sans-serif',
       }}>
         {/* Header */}
         <div style={{
@@ -737,11 +738,11 @@ function AdvancedConstraintsModal({
                 onClick={onClearAll}
                 disabled={totalCount === 0}
                 style={{
-                  width: '100%', padding: '6px', borderRadius: 4,
-                  border: `1px solid ${totalCount > 0 ? t.border : 'transparent'}`,
-                  background: 'transparent',
-                  color: totalCount > 0 ? t.textMuted : t.textFaintest,
-                  fontSize: 11, fontWeight: 600,
+                  width: '100%', padding: '7px', borderRadius: 4,
+                  border: `1px solid ${totalCount > 0 ? t.red + '55' : 'transparent'}`,
+                  background: totalCount > 0 ? t.red + '10' : 'transparent',
+                  color: totalCount > 0 ? t.red : t.textFaintest,
+                  fontSize: 11, fontWeight: 700,
                   cursor: totalCount > 0 ? 'pointer' : 'default',
                   letterSpacing: '0.04em', textTransform: 'uppercase',
                 }}
@@ -766,6 +767,35 @@ function AdvancedConstraintsModal({
               {renderPanel()}
             </div>
           </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+          padding: '10px 18px',
+          borderTop: `1px solid ${t.border}`,
+          background: t.bgDeep,
+          flexShrink: 0,
+          gap: 10,
+        }}>
+          {totalCount > 0 && (
+            <span style={{ fontSize: 11, color: t.textFaint, marginRight: 'auto' }}>
+              <span style={{ color: t.blue, fontWeight: 600 }}>{totalCount}</span> constraint{totalCount !== 1 ? 's' : ''} active
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '7px 24px', borderRadius: 6,
+              border: `1px solid ${t.blue}`,
+              background: t.blue,
+              color: '#0f172a',
+              fontSize: 13, fontWeight: 700,
+              cursor: 'pointer',
+              letterSpacing: '0.02em',
+            }}
+          >Apply</button>
         </div>
       </div>
     </>,
