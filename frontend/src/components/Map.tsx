@@ -1,5 +1,6 @@
-import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip } from 'react-leaflet'
-import type { CableNode, CableSegment, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
+import { useEffect } from 'react'
+import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet'
+import type { CableNode, CableSegment, CountryHighlight, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
 import { useTheme } from '../theme'
 
 const OWNERSHIP_LABEL: Record<string, string> = {
@@ -24,6 +25,26 @@ interface Props {
   showSegmentLabels?: boolean
   showAllOutages?: boolean
   outages?: SegmentOutage[]
+  countryHighlight?: CountryHighlight | null
+}
+
+function MapFlyTo({ highlight }: { highlight: CountryHighlight | null | undefined }) {
+  const map = useMap()
+  useEffect(() => {
+    if (!highlight) return
+    const [[minLat, minLng], [maxLat, maxLng]] = highlight.boundsLL
+    const latSpan = maxLat - minLat
+    const lngSpan = maxLng - minLng
+    if (latSpan < 0.5 && lngSpan < 0.5) {
+      map.flyTo([highlight.centroid[0], highlight.centroid[1]], 8, { duration: 1.2 })
+    } else {
+      map.fitBounds([[minLat, minLng], [maxLat, maxLng]], {
+        padding: [80, 80], maxZoom: 7, animate: true,
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlight?.countryCode, map])
+  return null
 }
 
 
@@ -67,7 +88,7 @@ function geoLines(
   return [[[lat1, nLng1], [lat2, nLng1 + d]]]
 }
 
-export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showAllOutages = false, outages = [] }: Props) {
+export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showAllOutages = false, outages = [], countryHighlight }: Props) {
   const t = useTheme()
   const diversityColors: Record<number, string> = { 1: t.blue, 2: t.green }
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
@@ -92,6 +113,19 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
   const systemColorMap: Record<string, string> = Object.fromEntries(
     selectedSystems.map(s => [s.systemId, s.color])
   )
+
+  // Country viewer: node IDs for all endpoints of highlighted segments (includes BUs)
+  const countryActive = !!countryHighlight
+  const countryEndpointIds = new Set<string>()
+  if (countryHighlight) {
+    for (const seg of segments) {
+      if (countryHighlight.systemColors.has(seg.system_id) ||
+          countryHighlight.terrestrialSegIds.has(seg.id)) {
+        countryEndpointIds.add(seg.start_node_id)
+        countryEndpointIds.add(seg.end_node_id)
+      }
+    }
+  }
 
   // Segment highlight: pinned first, active search on top
   const segmentColor: Record<string, string> = {}
@@ -145,6 +179,8 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         url={t.mapTileUrl}
         attribution='&copy; <a href="https://carto.com/">CARTO</a>'
       />
+
+      <MapFlyTo highlight={countryHighlight} />
 
       {segments.flatMap(seg => {
         const start = nodesById[seg.start_node_id]
@@ -201,12 +237,22 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         const isActiveSegment = !!segmentColor[seg.id] || !!(systemViewerActive && systemColorMap[seg.system_id])
         if (hideNonActive && !isActiveSegment) return []
 
-        // System viewer colouring takes priority when active
         let color: string
         let weight: number
         let opacity: number
 
-        if (systemViewerActive && systemColorMap[seg.system_id]) {
+        if (countryActive) {
+          const sysColor = countryHighlight!.systemColors.get(seg.system_id)
+          if (sysColor) {
+            color = sysColor; weight = 3.5; opacity = 0.95
+          } else if (countryHighlight!.terrestrialSegIds.has(seg.id)) {
+            color = '#ffd166'; weight = 2.5; opacity = 0.9
+          } else if (segmentColor[seg.id]) {
+            color = segmentColor[seg.id]; weight = segmentWeight[seg.id] ?? 2; opacity = 0.55
+          } else {
+            color = t.mapInactiveSegment; weight = 1; opacity = 0.04
+          }
+        } else if (systemViewerActive && systemColorMap[seg.system_id]) {
           color  = systemColorMap[seg.system_id]
           weight = 3
           opacity = 0.9
@@ -250,6 +296,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         const sysColor      = systemNodeColor[node.id]
         const isSystemNode  = !!sysColor
         const isDimmed      = systemViewerActive && !isSystemNode && !isRouteNode
+        const isCountryNode = countryActive && (countryHighlight!.nodeIds.has(node.id) || countryEndpointIds.has(node.id))
 
         // Outage map mode: only show nodes on downed segments
         if (showAllOutages) {
@@ -258,21 +305,33 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         const isBU          = node.type === 'branching_unit'
         const isNearest     = nearestNodeIds?.includes(node.id) ?? false
 
-        const color     = isNearest ? '#f9a825' : isRouteNode ? t.pink : isSystemNode ? sysColor : isBU ? '#e5a045' : t.borderSubtle
-        const fillColor = isNearest ? '#ffd54f' : isRouteNode ? t.pink : isSystemNode ? sysColor : isBU ? '#e5a045' : t.border
-        const radius    = isNearest ? 7 : isRouteNode || isSystemNode ? 6 : isBU ? 3 : 4
-        const weight    = isNearest ? 2.5 : isRouteNode || isSystemNode ? 2 : 1
+        let color: string, fillColor: string, radius: number, weight: number
+        let fillOpacity: number, nodeOpacity: number
+
+        if (countryActive) {
+          if (isCountryNode) {
+            color = '#ffffff'; fillColor = '#ffd166'; radius = 8; weight = 2.5
+            fillOpacity = 1; nodeOpacity = 1
+          } else {
+            color = t.borderSubtle; fillColor = t.border
+            radius = isBU ? 2 : 3; weight = 1
+            fillOpacity = 0.06; nodeOpacity = 0.06
+          }
+        } else {
+          color     = isNearest ? '#f9a825' : isRouteNode ? t.pink : isSystemNode ? sysColor : isBU ? '#e5a045' : t.borderSubtle
+          fillColor = isNearest ? '#ffd54f' : isRouteNode ? t.pink : isSystemNode ? sysColor : isBU ? '#e5a045' : t.border
+          radius    = isNearest ? 7 : isRouteNode || isSystemNode ? 6 : isBU ? 3 : 4
+          weight    = isNearest ? 2.5 : isRouteNode || isSystemNode ? 2 : 1
+          fillOpacity = isDimmed ? 0.15 : isBU ? 0.7 : 1
+          nodeOpacity = isDimmed ? 0.15 : isBU ? 0.7 : 1
+        }
 
         return (
           <CircleMarker
             key={node.id}
             center={[node.lat, normalizeLng(node.lng)]}
             radius={radius}
-            pathOptions={{
-              color, fillColor, fillOpacity: isDimmed ? 0.15 : isBU ? 0.7 : 1,
-              weight,
-              opacity: isDimmed ? 0.15 : isBU ? 0.7 : 1,
-            }}
+            pathOptions={{ color, fillColor, fillOpacity, weight, opacity: nodeOpacity }}
             eventHandlers={{ click: (e) => { e.originalEvent.stopPropagation(); onNodeClick?.(node, e.originalEvent.clientX, e.originalEvent.clientY) } }}
           >
             <Tooltip>

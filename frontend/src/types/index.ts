@@ -2,7 +2,7 @@ export type NodeType = 'landing_station' | 'terrestrial_pop' | 'branching_unit'
 export type SegmentType = 'wet' | 'terrestrial'
 export type Ownership = 'owned' | 'iru' | 'consortium' | 'integrated_lit_lease' | 'offnet_resell'
 export type DiversityType = 'none' | 'terrestrial_origin' | 'terrestrial_destination' | 'terrestrial_both' | 'wet' | 'full' | 'full_nodes'
-export type AppMode = 'routebuilder' | 'systemviewer' | 'nodefinder' | 'citypair'
+export type AppMode = 'routebuilder' | 'systemviewer' | 'nodefinder' | 'citypair' | 'countryviewer'
 
 export interface AppConfig {
   on_net_ownership: string[]
@@ -168,6 +168,17 @@ export type NlpSortMode =
   | 'capacity'                         // available capacity
   | 'ownership'                        // on-net ownership
   | 'outages'                          // push outage routes down
+
+export interface CountryHighlight {
+  countryCode: string
+  countryName: string
+  systemIds: Set<string>
+  systemColors: Map<string, string>
+  terrestrialSegIds: Set<string>
+  nodeIds: Set<string>
+  centroid: [number, number]
+  boundsLL: [[number, number], [number, number]]
+}
 
 export interface NlpParseResponse {
   start_node_id: string | null

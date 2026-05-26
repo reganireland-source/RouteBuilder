@@ -5,6 +5,7 @@ import { SearchForm } from './components/SearchForm'
 import { RouteList } from './components/RouteList'
 import type { SortKey } from './components/RouteList'
 import { SystemViewer } from './components/SystemViewer'
+import { CountryViewer } from './components/CountryViewer'
 import { RefDataModal } from './components/RefDataModal'
 import { NodeInfoPanel } from './components/NodeInfoPanel'
 import { NodeFinder } from './components/NodeFinder'
@@ -16,7 +17,7 @@ import { UserGuide } from './components/UserGuide'
 import { generateStraightLineDiagram } from './utils/generateDiagram'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, type Theme, type ThemeMode } from './theme'
-import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, InterconnectRule, NlpSortMode, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem } from './types'
+import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem } from './types'
 
 const NLP_ENABLED = import.meta.env.VITE_ENABLE_NLP !== 'false'
 const NlpChat = NLP_ENABLED
@@ -74,6 +75,8 @@ export default function App() {
   const [showAllOutages, setShowAllOutages]         = useState(false)
   const [nlpSortKey, setNlpSortKey]                 = useState<SortKey | undefined>(undefined)
   const [nlpPushOutages, setNlpPushOutages]         = useState<boolean | undefined>(undefined)
+  const [countryHighlight, setCountryHighlight]     = useState<CountryHighlight | null>(null)
+  const [panelsOpen, setPanelsOpen]                 = useState(true)
   const pinCounter = useRef(0)
 
   const NLP_SORT_MAP: Record<NlpSortMode, SortKey | null> = {
@@ -106,6 +109,7 @@ export default function App() {
 
   function switchMode(next: AppMode) {
     if (next === 'systemviewer') { setResponse(null); setSelectedRouteIds([]); setError(null) }
+    if (next !== 'countryviewer') setCountryHighlight(null)
     setMode(next)
   }
 
@@ -277,7 +281,7 @@ export default function App() {
 
   return (
     <ThemeContext.Provider value={theme}>
-      <div style={{ display: 'flex', height: '100vh', background: theme.bgBase, color: theme.text, fontFamily: 'system-ui, sans-serif' }}>
+      <div style={{ display: 'flex', height: '100vh', background: theme.bgBase, color: theme.text, fontFamily: 'system-ui, sans-serif', overflow: 'hidden' }}>
 
         {/* Top-right control bar */}
         <div style={{
@@ -347,6 +351,13 @@ export default function App() {
           </button>
         </div>
 
+        {/* Collapsible panels wrapper */}
+        <div style={{
+          display: 'flex', overflow: 'hidden', flexShrink: 0,
+          width: panelsOpen ? 700 : 0,
+          transition: 'width 0.3s ease',
+        }}>
+
         {/* Left panel */}
         <div style={{
           width: 280, flexShrink: 0, display: 'flex', flexDirection: 'column',
@@ -365,11 +376,12 @@ export default function App() {
           </div>
 
           <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
-            <button style={tabStyle(mode === 'routebuilder')} onClick={() => switchMode('routebuilder')}>PoP Routes</button>
-            <button style={tabStyle(mode === 'citypair')}     onClick={() => switchMode('citypair')}>City Pairs</button>
-            <button style={tabStyle(mode === 'systemviewer')} onClick={() => switchMode('systemviewer')}>Cable System</button>
-            <button style={tabStyle(mode === 'nodefinder')}   onClick={() => switchMode('nodefinder')}>Node Search</button>
-            <button style={tabStyle(false)}                   onClick={() => setGuideOpen(true)}>Guide</button>
+            <button style={tabStyle(mode === 'routebuilder')}   onClick={() => switchMode('routebuilder')}>PoP Routes</button>
+            <button style={tabStyle(mode === 'citypair')}       onClick={() => switchMode('citypair')}>City Pairs</button>
+            <button style={tabStyle(mode === 'systemviewer')}   onClick={() => switchMode('systemviewer')}>Cables</button>
+            <button style={tabStyle(mode === 'countryviewer')}  onClick={() => switchMode('countryviewer')}>Country</button>
+            <button style={tabStyle(mode === 'nodefinder')}     onClick={() => switchMode('nodefinder')}>Nodes</button>
+            <button style={tabStyle(false)}                     onClick={() => setGuideOpen(true)}>Guide</button>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
@@ -395,6 +407,12 @@ export default function App() {
             )}
             {mode === 'systemviewer' && (
               <SystemViewer systems={systems} selected={selectedSystems} onToggle={handleToggleSystem} />
+            )}
+            {mode === 'countryviewer' && (
+              <CountryViewer
+                nodes={nodes} segments={segments} systems={systems}
+                onSelect={setCountryHighlight}
+              />
             )}
             {mode === 'nodefinder' && (
               <NodeFinder
@@ -460,8 +478,29 @@ export default function App() {
           </div>
         </div>
 
+        {/* End collapsible panels wrapper */}
+        </div>
+
         {/* Map */}
         <div style={{ flex: 1, position: 'relative' }}>
+          {/* Drawer toggle */}
+          <button
+            onClick={() => setPanelsOpen(v => !v)}
+            title={panelsOpen ? 'Hide panels' : 'Show panels'}
+            style={{
+              position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
+              zIndex: 500, background: theme.bgPanel,
+              border: `1px solid ${theme.border}`, borderLeft: 'none',
+              borderRadius: '0 6px 6px 0',
+              color: theme.textFaint, cursor: 'pointer',
+              padding: '10px 5px', fontSize: 13, fontWeight: 700, lineHeight: 1,
+              display: 'flex', alignItems: 'center',
+              boxShadow: '2px 0 6px rgba(0,0,0,0.2)',
+            }}
+          >
+            {panelsOpen ? '‹' : '›'}
+          </button>
+
           {nodes.length > 0 ? (
             <Map
               nodes={nodes} segments={segments} selectedRoutes={selectedRoutes}
@@ -473,6 +512,7 @@ export default function App() {
               hideNonActive={hideNonActive}
               showSegmentLabels={showSegmentLabels}
               showAllOutages={showAllOutages}
+              countryHighlight={countryHighlight}
             />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.textFaint }}>
