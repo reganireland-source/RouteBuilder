@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CableNode, CableSegment, CableSystem, PortSpeed } from '../types'
 import { useTheme } from '../theme'
 
@@ -128,12 +128,36 @@ interface Props {
 
 export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onClose }: Props) {
   const t = useTheme()
-  const [pos, setPos] = useState({
-    x: Math.min(initialX + 15, window.innerWidth - 395),
-    y: Math.max(initialY - 80, 10),
-  })
+  const panelRef = useRef<HTMLDivElement>(null)
+  const [visible, setVisible] = useState(false)
+  const [pos, setPos] = useState({ x: initialX + 15, y: initialY - 80 })
   const dragging = useRef(false)
   const dragOffset = useRef({ x: 0, y: 0 })
+
+  // After first render, measure the panel and clamp it fully within the viewport.
+  // Panel stays hidden (visibility: hidden) until this runs to avoid a visible jump.
+  useLayoutEffect(() => {
+    const el = panelRef.current
+    if (!el) return
+    const W   = el.offsetWidth
+    const H   = el.offsetHeight
+    const PAD = 12
+    const vw  = window.innerWidth
+    const vh  = window.innerHeight
+
+    // Prefer right of cursor; flip left if it would overflow the right edge
+    let x = initialX + 15
+    if (x + W + PAD > vw) x = initialX - W - 15
+    x = Math.max(PAD, Math.min(x, vw - W - PAD))
+
+    // Prefer slightly above cursor; push up if it overflows the bottom
+    let y = initialY - 80
+    y = Math.max(PAD, Math.min(y, vh - H - PAD))
+
+    setPos({ x, y })
+    setVisible(true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     function onMouseMove(e: MouseEvent) {
@@ -177,11 +201,12 @@ export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onC
   ]
 
   return (
-    <div style={{
+    <div ref={panelRef} style={{
       position: 'fixed', left: pos.x, top: pos.y, width: 380, zIndex: 1500,
       background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 8,
       boxShadow: '0 8px 32px rgba(0,0,0,0.5)', overflow: 'hidden',
       fontFamily: 'system-ui, sans-serif',
+      visibility: visible ? 'visible' : 'hidden',
     }}>
       {/* Title bar / drag handle */}
       <div
