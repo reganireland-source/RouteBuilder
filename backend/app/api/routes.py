@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from ..models import RouteRequest, RouteResponse
-from ..data_loader import load_nodes, load_segments, load_rules, load_capacity
+from ..data_loader import load_nodes, load_segments, load_rules, load_capacity, load_outages
 from ..graph import build_graph
 from ..pathfinder import find_routes
 
@@ -13,10 +13,12 @@ def search_routes(request: RouteRequest):
     segments = load_segments()
     rules = load_rules()
     capacities = load_capacity()
+    outages = load_outages()
 
     G = build_graph(nodes, segments)
     segments_by_id = {s.id: s for s in segments}
     capacities_by_id = {c.segment_id: c for c in capacities}
+    outage_segment_ids = {o.segment_id for o in outages}
 
     return find_routes(
         G=G,
@@ -35,4 +37,5 @@ def search_routes(request: RouteRequest):
         max_terrestrial_hops=request.max_terrestrial_hops,
         capacities_by_id=capacities_by_id,
         optimise_for=request.optimise_for,
+        outage_segment_ids=outage_segment_ids,
     )

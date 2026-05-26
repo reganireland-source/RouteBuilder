@@ -57,7 +57,7 @@ const NET_ORDER = { on_net: 0, mixed: 1, off_net: 2 }
 const OPTIMISE_LABELS: Record<string, string> = {
   hops: 'Hops', distance: 'Distance', length: 'Distance',
   latency: 'Latency', margin: 'Margin', cost: 'Margin',
-  capacity: 'Capacity', ownership: 'Ownership',
+  capacity: 'Capacity', ownership: 'Ownership', outages: 'No Outages',
 }
 
 const SORT_OPTIONS: { key: SortKey; icon: string; label: string; dir: 'asc' | 'desc' }[] = [

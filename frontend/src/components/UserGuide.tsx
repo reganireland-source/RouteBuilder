@@ -605,6 +605,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
                 ['$', 'Margin',    'Fill 30 with best commercial margin',   '↑ higher is better'],
                 ['◈', 'Capacity',  'Fill 30 with highest bottleneck Tbps',  '↑ more is better'],
                 ['◉', 'Ownership', 'Fill 30 with most on-net routes',       '↑ more on-net is better'],
+                ['🚢', 'No Outages', 'Exclude any route with active outage', '✓ all segments healthy'],
               ].map(([icon, label, desc, dir]) => (
                 <div key={label} style={{
                   display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',

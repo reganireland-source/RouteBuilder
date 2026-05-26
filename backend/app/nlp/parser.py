@@ -34,7 +34,7 @@ HOW THE SEARCH PIPELINE WORKS — this determines which field to use:
   STEP 3 — POOL SELECTION via optimise_for (which 30 routes enter the memory pool):
   When set, ALL 30 pool slots are filled with the best routes for that single dimension.
   Use for strong user intent: "optimise for", "prioritise", "I need the best X routes".
-  Valid values: "hops" | "distance" | "latency" | "margin" | "capacity" | "ownership"
+  Valid values: "hops" | "distance" | "latency" | "margin" | "capacity" | "ownership" | "outages"
 
   STEP 4 — DISPLAY SORT via sort_mode (which 5 of the 30 are shown, and in what order):
   A lightweight display preference — no routes are removed, only the top-5 display order changes.
@@ -44,7 +44,8 @@ HOW THE SEARCH PIPELINE WORKS — this determines which field to use:
 CHOOSING optimise_for vs sort_mode:
 - "optimise for latency" / "focus on capacity" / "I need the highest-margin routes" → optimise_for
 - "sort by latency" / "show me ranked by distance" / "order by margin" → sort_mode
-- "avoid outages" / "healthy routes first" → sort_mode: "outages" (outages is NOT valid for optimise_for)
+- "avoid outages" / "healthy routes first" / "no outages" → optimise_for: "outages" (filters pool to outage-free routes)
+- "push outages down" / "show outage routes last" → sort_mode: "outages" (keeps outage routes but shows them last)
 - "most reliable" / "highest availability" → sort_mode: "availability" (availability is NOT valid for optimise_for)
 - When ambiguous, use optimise_for for strong commercial intent, sort_mode for a mild display preference
 - You may set BOTH if the user wants a specific pool AND a different display order
@@ -118,7 +119,7 @@ _VALID_SORT = {
 }
 _VALID_OPTIMISE_FOR = {
     "hops", "distance", "length", "latency",
-    "margin", "cost", "capacity", "ownership",
+    "margin", "cost", "capacity", "ownership", "outages",
 }
 
 

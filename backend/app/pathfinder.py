@@ -139,15 +139,18 @@ def _select_candidates(
     segments_by_id: dict[str, CableSegment],
     capacities_by_id: dict[str, SegmentCapacity],
     optimise_for: str | None,
+    outage_segment_ids: "set[str] | None" = None,
 ) -> list[list[str]]:
     """Pick k routes using multi-dimension pooling or a single-dimension sort."""
-    if len(candidates) <= k:
+    if len(candidates) <= k and optimise_for != "outages":
         return candidates
 
     # Precompute metrics once: (hops, length_km, latency, cost, ownership_avg, cap_min)
     metrics: list[tuple[float, ...]] = []
+    all_seg_ids: list[list[str]] = []
     for path in candidates:
         seg_ids = path_to_segment_ids(working_G, path)
+        all_seg_ids.append(seg_ids)
         segs = [segments_by_id[sid] for sid in seg_ids if sid in segments_by_id]
         n = len(segs) or 1
         cap_vals = [capacities_by_id[sid].available_capacity_t for sid in seg_ids if sid in capacities_by_id]
@@ -159,6 +162,16 @@ def _select_candidates(
             sum(_OWNERSHIP_SCORE.get(str(s.ownership), 0) for s in segs) / n,
             min(cap_vals) if cap_vals else 0.0,
         ))
+
+    # Outage filter: keep only routes with no active outage on any segment
+    if optimise_for == "outages" and outage_segment_ids:
+        clean = [i for i, sids in enumerate(all_seg_ids) if not any(sid in outage_segment_ids for sid in sids)]
+        work = clean if clean else list(range(len(candidates)))
+        cost_order = sorted(work, key=lambda i: metrics[i][3])
+        return [candidates[i] for i in cost_order[:k]]
+
+    if len(candidates) <= k:
+        return candidates
 
     # Single-dimension override
     if optimise_for in _OPTIMISE_SORT:
@@ -217,6 +230,7 @@ def find_routes(
     max_terrestrial_hops: int | None = None,
     capacities_by_id: dict[str, SegmentCapacity] | None = None,
     optimise_for: str | None = None,
+    outage_segment_ids: "set[str] | None" = None,
 ) -> RouteResponse:
     # Build working graph with avoided nodes/segments/systems removed
     working_G = G.copy()
@@ -307,7 +321,7 @@ def find_routes(
 
     total_found = len(candidates)
     candidates = _select_candidates(
-        candidates, k, working_G, segments_by_id, capacities_by_id or {}, optimise_for
+        candidates, k, working_G, segments_by_id, capacities_by_id or {}, optimise_for, outage_segment_ids
     )
 
     if not candidates:

@@ -127,6 +127,12 @@ const OPTIMISE_OPTIONS: OptimiseOption[] = [
     better: 'More on-net → owned infrastructure, full commercial control, higher margins, no third-party dependency',
     worse: 'More off-net → reliance on third parties, lower margins, less pricing control, resale exposure',
   },
+  {
+    value: 'outages', label: 'No Outages', icon: '🚢',
+    explain: 'Filters the pool to only include routes where no segment has a current active outage. If no outage-free routes exist, falls back to cost-ordered routes so results are never empty.',
+    better: 'All segments healthy → no disruption risk, full operational capacity available on every hop',
+    worse: 'If outages are widespread, the qualifying pool may be smaller than 30 routes',
+  },
 ]
 
 function FilteredMulti({ items, selected, onToggle, placeholder, listHeight = 130 }: {
