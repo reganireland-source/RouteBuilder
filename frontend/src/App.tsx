@@ -490,7 +490,9 @@ export default function App() {
             <span style={{ fontSize: 11, fontWeight: 700, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Routes</span>
             {hasResults && (
               <span style={{ fontSize: 11, color: theme.textFaint }}>
-                <span style={{ color: theme.text, fontWeight: 600 }}>{response!.total_found}</span> found
+                <span style={{ color: theme.text, fontWeight: 600 }}>
+                  {response!.total_found || (response!.primary_routes.length + response!.diverse_routes.length)}
+                </span> found
                 {searchDuration !== null && <span> · {searchDuration < 1 ? `${(searchDuration * 1000).toFixed(0)}ms` : `${searchDuration.toFixed(2)}s`}</span>}
               </span>
             )}

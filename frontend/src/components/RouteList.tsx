@@ -187,13 +187,13 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
       {hasResults && (
         <>
           {/* Search result summary */}
-          {totalFound != null && totalFound > 0 && (
+          {summaryStored > 0 && (
             <div style={{
               fontSize: 11, color: t.textFaint,
               padding: '2px 0 8px',
               lineHeight: 1.6,
             }}>
-              <span style={{ color: t.text, fontWeight: 600 }}>{totalFound}</span>
+              <span style={{ color: t.text, fontWeight: 600 }}>{totalFound || summaryStored}</span>
               {' routes found · '}
               <span style={{ color: t.text, fontWeight: 600 }}>{summaryStored}</span>
               {' stored · '}
