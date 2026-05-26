@@ -169,11 +169,14 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
     diverse:  applySort(diverseRoutes).slice(0, MAX_SHOWN),
   }
 
-  const summaryStored   = primaryRoutes.length
-  const summaryShown    = sorted.primary.length
+  const summaryStored    = primaryRoutes.length
+  const summaryShown     = sorted.primary.length
+  const summaryFilterLabel = optimiseFor
+    ? (OPTIMISE_LABELS[optimiseFor] ?? optimiseFor)
+    : 'Default Weighting'
   const summarySortLabel = sortKey !== null
     ? (SORT_OPTIONS.find(o => o.key === sortKey)?.label ?? sortKey)
-    : (optimiseFor ? (OPTIMISE_LABELS[optimiseFor] ?? optimiseFor) : 'Default Weighting')
+    : 'Default'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -210,14 +213,13 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
               lineHeight: 1.6,
             }}>
               <span style={{ color: t.text, fontWeight: 600 }}>{totalFound || summaryStored}</span>
-              {' routes found · '}
+              {' routes · '}
               <span style={{ color: t.text, fontWeight: 600 }}>{summaryStored}</span>
-              {' stored · '}
-              {summaryShown >= summaryStored
-                ? <>all <span style={{ color: t.text, fontWeight: 600 }}>{summaryShown}</span> shown</>
-                : <>top <span style={{ color: t.text, fontWeight: 600 }}>{summaryShown}</span> shown</>
-              }
-              {' · sorted by '}
+              {' filtered by '}
+              <span style={{ color: t.blue, fontWeight: 600 }}>{summaryFilterLabel}</span>
+              {' · '}
+              <span style={{ color: t.text, fontWeight: 600 }}>{summaryShown}</span>
+              {' shown · sorted by '}
               <span style={{ color: t.blue, fontWeight: 600 }}>{summarySortLabel}</span>
             </div>
           )}
