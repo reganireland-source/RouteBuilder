@@ -6,7 +6,7 @@ const ALL_SPEEDS: PortSpeed[] = ['1G', '10G', '100G', '400G']
 
 // Column layout constants — keep header and product rows in sync
 const DOT_SIZE  = 13   // px — dot diameter
-const DOT_GAP   = 14   // px — gap between dots
+const COL_W     = 32   // px — column width for header + dot cells
 const LABEL_W   = 50   // px — product label column width
 
 // Maximum speeds each product type is capable of (defines N/A vs red)
@@ -78,10 +78,10 @@ function SpeedHeader() {
   return (
     <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
       <div style={{ width: LABEL_W, flexShrink: 0 }} />
-      <div style={{ display: 'flex', gap: DOT_GAP }}>
+      <div style={{ display: 'flex' }}>
         {ALL_SPEEDS.map(s => (
           <span key={s} style={{
-            width: DOT_SIZE, textAlign: 'center', flexShrink: 0,
+            width: COL_W, textAlign: 'center', flexShrink: 0,
             fontSize: 10, fontWeight: 700, color: '#6b7280', letterSpacing: '0.02em',
           }}>{s}</span>
         ))}
@@ -96,11 +96,15 @@ function ProductMatrixRow({ label, productKey, available }: { label: string; pro
   return (
     <div style={{ display: 'flex', alignItems: 'center' }}>
       <span style={{ width: LABEL_W, flexShrink: 0, fontSize: 11, fontWeight: 600, color: '#9ca3af' }}>{label}</span>
-      <div style={{ display: 'flex', gap: DOT_GAP }}>
+      <div style={{ display: 'flex' }}>
         {ALL_SPEEDS.map(speed => {
           const applicable = maxSpeeds.has(speed)
           const state: DotState = !applicable ? 'na' : availSet.has(speed) ? 'green' : 'red'
-          return <Dot key={speed} state={state} />
+          return (
+            <div key={speed} style={{ width: COL_W, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <Dot state={state} />
+            </div>
+          )
         })}
       </div>
     </div>
