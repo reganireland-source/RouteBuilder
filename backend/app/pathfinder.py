@@ -129,7 +129,7 @@ def find_routes(
     diversity: DiversityType,
     segments_by_id: dict[str, CableSegment],
     rules: list[InterconnectRule],
-    k: int = 5,
+    k: int = 10,
     max_wet_hops: int | None = None,
     max_terrestrial_hops: int | None = None,
 ) -> RouteResponse:
@@ -219,10 +219,11 @@ def find_routes(
             filtered.append(p)
         candidates = filtered
 
+    total_found = len(candidates)
     candidates = candidates[:k]
 
     if not candidates:
-        return RouteResponse(routes=[], primary_routes=[], diverse_routes=[])
+        return RouteResponse(routes=[], primary_routes=[], diverse_routes=[], total_found=0)
 
     primary_path = candidates[0]
     primary_route = _build_route(working_G, primary_path, segments_by_id, "route-1", 1)
@@ -302,4 +303,5 @@ def find_routes(
         routes=all_routes,
         primary_routes=primary_routes,
         diverse_routes=diverse_routes,
+        total_found=total_found,
     )

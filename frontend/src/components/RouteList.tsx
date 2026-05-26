@@ -26,9 +26,12 @@ function classifyRoute(route: Route, onNetOwnership: Set<string>): { type: NetCl
   return { type: 'mixed', onNetPct: pct }
 }
 
+const MAX_SHOWN = 5
+
 interface Props {
   primaryRoutes: Route[]
   diverseRoutes: Route[]
+  totalFound?: number
   selectedRouteIds: string[]
   onSelectRoute: (id: string) => void
   nodes: CableNode[]
@@ -108,7 +111,7 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
   })
 }
 
-export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown }: Props) {
+export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown }: Props) {
   const t = useTheme()
   const onNetSet = new Set(onNetOwnership)
   const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
@@ -147,8 +150,8 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
   }
 
   const sorted = {
-    primary: applySort(primaryRoutes),
-    diverse:  applySort(diverseRoutes),
+    primary: applySort(primaryRoutes).slice(0, MAX_SHOWN),
+    diverse:  applySort(diverseRoutes).slice(0, MAX_SHOWN),
   }
 
   return (
@@ -178,6 +181,33 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
       {/* Sort bar — only shown when there are search results */}
       {hasResults && (
         <>
+          {/* Search result summary */}
+          {totalFound != null && (() => {
+            const stored = primaryRoutes.length
+            const shown  = sorted.primary.length
+            const sortLabel = SORT_OPTIONS.find(o => o.key === sortKey)?.label ?? sortKey
+            const allShown  = shown >= stored
+            return (
+              <div style={{
+                fontSize: 11, color: t.textFaint, padding: '4px 2px 6px',
+                display: 'flex', flexWrap: 'wrap', gap: '0 6px',
+                lineHeight: 1.5,
+              }}>
+                <span><span style={{ color: t.textMuted, fontWeight: 600 }}>{totalFound}</span> found</span>
+                <span style={{ color: t.textFaintest }}>·</span>
+                <span><span style={{ color: t.textMuted, fontWeight: 600 }}>{stored}</span> stored</span>
+                <span style={{ color: t.textFaintest }}>·</span>
+                <span>
+                  {allShown
+                    ? <><span style={{ color: t.textMuted, fontWeight: 600 }}>All {shown}</span> shown</>
+                    : <>Top <span style={{ color: t.textMuted, fontWeight: 600 }}>{shown}</span> shown</>
+                  }
+                </span>
+                <span style={{ color: t.textFaintest }}>·</span>
+                <span>Sorted by <span style={{ color: t.blue, fontWeight: 600 }}>{sortLabel}</span></span>
+              </div>
+            )
+          })()}
           <div className="sort-bar" style={{ display: 'flex', gap: 4, marginBottom: 4, overflowX: 'auto' }}>
             {SORT_OPTIONS.map(opt => {
               const active = sortKey === opt.key

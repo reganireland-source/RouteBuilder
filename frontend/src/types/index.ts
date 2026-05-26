@@ -102,6 +102,7 @@ export interface RouteResponse {
   routes: Route[]
   primary_routes: Route[]
   diverse_routes: Route[]
+  total_found: number
 }
 
 export interface SegmentCapacity {

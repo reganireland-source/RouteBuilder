@@ -517,6 +517,7 @@ export default function App() {
             <RouteList
               primaryRoutes={response?.primary_routes ?? []}
               diverseRoutes={response?.diverse_routes ?? []}
+              totalFound={response?.total_found}
               selectedRouteIds={selectedRouteIds}
               onSelectRoute={toggleRoute}
               nodes={nodes} systems={systems} capacity={capacity} outages={outages}

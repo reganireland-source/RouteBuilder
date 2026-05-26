@@ -162,6 +162,7 @@ class RouteResponse(BaseModel):
     routes: list[Route]
     primary_routes: list[Route]
     diverse_routes: list[Route]
+    total_found: int = 0
 
 
 # ── Partial-update models (PATCH/PUT) ─────────────────────────────────────────
