@@ -49,6 +49,10 @@ export function CityPairPanel({ nodes, segments, systems, onNetOwnership, onPlan
 
   const [origin, setOrigin]   = useState('')
   const [dest, setDest]       = useState('')
+  const [originQuery, setOriginQuery] = useState('')
+  const [destQuery, setDestQuery]     = useState('')
+  const [originOpen, setOriginOpen]   = useState(false)
+  const [destOpen, setDestOpen]       = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState<string | null>(null)
   const [results, setResults] = useState<CityPairRoute[] | null>(null)
@@ -77,16 +81,6 @@ export function CityPairPanel({ nodes, segments, systems, onNetOwnership, onPlan
     )
   }, [nodes])
 
-  // Group cities by country for <optgroup>
-  const grouped = useMemo(() => {
-    const g = new Map<string, typeof cities>()
-    for (const c of cities) {
-      if (!g.has(c.country)) g.set(c.country, [])
-      g.get(c.country)!.push(c)
-    }
-    return g
-  }, [cities])
-
   const systemsById = useMemo(() =>
     Object.fromEntries(systems.map(s => [s.id, s])), [systems])
 
@@ -96,6 +90,25 @@ export function CityPairPanel({ nodes, segments, systems, onNetOwnership, onPlan
     for (const s of systems) { m[s.id] = SYS_COLORS[i % SYS_COLORS.length]; i++ }
     return m
   }, [systems])
+
+  function selectOrigin(name: string) { setOrigin(name); setOriginQuery(name); setOriginOpen(false) }
+  function selectDest(name: string)   { setDest(name);   setDestQuery(name);   setDestOpen(false) }
+
+  const originFiltered = useMemo(() => {
+    const q = originQuery.toLowerCase()
+    return (q ? cities.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      (COUNTRY_NAMES[c.country] ?? c.country).toLowerCase().includes(q)
+    ) : cities).slice(0, 16)
+  }, [cities, originQuery])
+
+  const destFiltered = useMemo(() => {
+    const q = destQuery.toLowerCase()
+    return (q ? cities.filter(c =>
+      c.name.toLowerCase().includes(q) ||
+      (COUNTRY_NAMES[c.country] ?? c.country).toLowerCase().includes(q)
+    ) : cities).slice(0, 16)
+  }, [cities, destQuery])
 
   async function handleSearch() {
     if (!origin || !dest || origin === dest) return
@@ -119,11 +132,24 @@ export function CityPairPanel({ nodes, segments, systems, onNetOwnership, onPlan
     onPlanRoute(route.cls_nodes[0], route.cls_nodes[route.cls_nodes.length - 1])
   }
 
-  const selectStyle: React.CSSProperties = {
-    width: '100%', padding: '7px 10px', borderRadius: 6,
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '7px 10px', borderRadius: 6, boxSizing: 'border-box',
     border: `1px solid ${t.border}`, background: t.bgInput,
-    color: t.text, fontSize: 13, outline: 'none', cursor: 'pointer',
+    color: t.text, fontSize: 13, outline: 'none',
   }
+
+  const dropdownStyle: React.CSSProperties = {
+    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 300,
+    background: t.bgDeep, border: `1px solid ${t.border}`, borderTop: 'none',
+    borderRadius: '0 0 6px 6px', maxHeight: 220, overflowY: 'auto',
+  }
+
+  const dropItemStyle = (disabled: boolean): React.CSSProperties => ({
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    padding: '7px 10px', cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.35 : 1,
+    borderBottom: `1px solid ${t.border}`,
+  })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -136,16 +162,27 @@ export function CityPairPanel({ nodes, segments, systems, onNetOwnership, onPlan
         <label style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>
           Origin City
         </label>
-        <select value={origin} onChange={e => setOrigin(e.target.value)} style={selectStyle}>
-          <option value="">— Select city —</option>
-          {Array.from(grouped.entries()).map(([country, cs]) => (
-            <optgroup key={country} label={COUNTRY_NAMES[country] ?? country}>
-              {cs.map(c => (
-                <option key={c.name} value={c.name}>{c.name}</option>
+        <div style={{ position: 'relative' }}>
+          <input
+            style={{ ...inputStyle, borderColor: origin ? t.blue : t.border }}
+            placeholder="Type to search cities…"
+            value={originQuery}
+            onChange={e => { setOriginQuery(e.target.value); setOrigin(''); setOriginOpen(true) }}
+            onFocus={() => setOriginOpen(true)}
+            onBlur={() => setTimeout(() => setOriginOpen(false), 150)}
+          />
+          {originOpen && originFiltered.length > 0 && (
+            <div style={dropdownStyle}>
+              {originFiltered.map(c => (
+                <div key={c.name} style={dropItemStyle(false)}
+                  onMouseDown={() => selectOrigin(c.name)}>
+                  <span style={{ fontSize: 13, color: t.text }}>{c.name}</span>
+                  <span style={{ fontSize: 11, color: t.textFaint }}>{COUNTRY_NAMES[c.country] ?? c.country}</span>
+                </div>
               ))}
-            </optgroup>
-          ))}
-        </select>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Destination */}
@@ -153,16 +190,27 @@ export function CityPairPanel({ nodes, segments, systems, onNetOwnership, onPlan
         <label style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 4 }}>
           Destination City
         </label>
-        <select value={dest} onChange={e => setDest(e.target.value)} style={selectStyle}>
-          <option value="">— Select city —</option>
-          {Array.from(grouped.entries()).map(([country, cs]) => (
-            <optgroup key={country} label={COUNTRY_NAMES[country] ?? country}>
-              {cs.map(c => (
-                <option key={c.name} value={c.name} disabled={c.name === origin}>{c.name}</option>
+        <div style={{ position: 'relative' }}>
+          <input
+            style={{ ...inputStyle, borderColor: dest ? t.blue : t.border }}
+            placeholder="Type to search cities…"
+            value={destQuery}
+            onChange={e => { setDestQuery(e.target.value); setDest(''); setDestOpen(true) }}
+            onFocus={() => setDestOpen(true)}
+            onBlur={() => setTimeout(() => setDestOpen(false), 150)}
+          />
+          {destOpen && destFiltered.length > 0 && (
+            <div style={dropdownStyle}>
+              {destFiltered.map(c => (
+                <div key={c.name} style={dropItemStyle(c.name === origin)}
+                  onMouseDown={() => c.name !== origin && selectDest(c.name)}>
+                  <span style={{ fontSize: 13, color: t.text }}>{c.name}</span>
+                  <span style={{ fontSize: 11, color: t.textFaint }}>{COUNTRY_NAMES[c.country] ?? c.country}</span>
+                </div>
               ))}
-            </optgroup>
-          ))}
-        </select>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Search button */}
