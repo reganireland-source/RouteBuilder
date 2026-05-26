@@ -648,7 +648,7 @@ function AdvancedConstraintsModal({
                     padding: '8px 18px', borderRadius: 8,
                     border: `1px solid ${sel ? t.blue : t.border}`,
                     background: sel ? t.blue + '22' : 'transparent',
-                    color: sel ? t.blue : t.textDim,
+                    color: sel ? t.blue : t.textMuted,
                     cursor: 'pointer',
                     fontWeight: sel ? 700 : 400,
                     fontSize: 13,
