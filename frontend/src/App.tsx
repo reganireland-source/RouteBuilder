@@ -487,11 +487,11 @@ export default function App() {
             padding: '10px 16px', borderBottom: `1px solid ${theme.border}`,
             display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
           }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: theme.textFaint, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Routes</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Routes</span>
             {hasResults && (
-              <span style={{ fontSize: 11, color: theme.textFaintest }}>
-                {response!.primary_routes.length + response!.diverse_routes.length} found
-                {searchDuration !== null && <span style={{ color: theme.textFaintest, opacity: 0.7 }}> · {searchDuration < 1 ? `${(searchDuration * 1000).toFixed(0)}ms` : `${searchDuration.toFixed(2)}s`}</span>}
+              <span style={{ fontSize: 11, color: theme.textFaint }}>
+                <span style={{ color: theme.text, fontWeight: 600 }}>{response!.total_found}</span> found
+                {searchDuration !== null && <span> · {searchDuration < 1 ? `${(searchDuration * 1000).toFixed(0)}ms` : `${searchDuration.toFixed(2)}s`}</span>}
               </span>
             )}
             {hasPins    && <span style={{ fontSize: 11, color: theme.textFaintest }}>· {pinnedRoutes.length} pinned</span>}

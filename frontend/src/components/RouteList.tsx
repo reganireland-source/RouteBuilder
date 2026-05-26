@@ -141,6 +141,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
   }
 
   function applySort(routes: Route[]): Route[] {
+
     const base = sortRoutes(routes, sortKey, capacityById, onNetSet, systemsById)
     if (!pushOutagesDown) return base
     return [
@@ -153,6 +154,10 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
     primary: applySort(primaryRoutes).slice(0, MAX_SHOWN),
     diverse:  applySort(diverseRoutes).slice(0, MAX_SHOWN),
   }
+
+  const summaryStored   = primaryRoutes.length
+  const summaryShown    = sorted.primary.length
+  const summarySortLabel = SORT_OPTIONS.find(o => o.key === sortKey)?.label ?? sortKey
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -182,32 +187,24 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
       {hasResults && (
         <>
           {/* Search result summary */}
-          {totalFound != null && (() => {
-            const stored = primaryRoutes.length
-            const shown  = sorted.primary.length
-            const sortLabel = SORT_OPTIONS.find(o => o.key === sortKey)?.label ?? sortKey
-            const allShown  = shown >= stored
-            return (
-              <div style={{
-                fontSize: 11, color: t.textFaint, padding: '4px 2px 6px',
-                display: 'flex', flexWrap: 'wrap', gap: '0 6px',
-                lineHeight: 1.5,
-              }}>
-                <span><span style={{ color: t.textMuted, fontWeight: 600 }}>{totalFound}</span> found</span>
-                <span style={{ color: t.textFaintest }}>·</span>
-                <span><span style={{ color: t.textMuted, fontWeight: 600 }}>{stored}</span> stored</span>
-                <span style={{ color: t.textFaintest }}>·</span>
-                <span>
-                  {allShown
-                    ? <><span style={{ color: t.textMuted, fontWeight: 600 }}>All {shown}</span> shown</>
-                    : <>Top <span style={{ color: t.textMuted, fontWeight: 600 }}>{shown}</span> shown</>
-                  }
-                </span>
-                <span style={{ color: t.textFaintest }}>·</span>
-                <span>Sorted by <span style={{ color: t.blue, fontWeight: 600 }}>{sortLabel}</span></span>
-              </div>
-            )
-          })()}
+          {totalFound != null && totalFound > 0 && (
+            <div style={{
+              fontSize: 11, color: t.textFaint,
+              padding: '2px 0 8px',
+              lineHeight: 1.6,
+            }}>
+              <span style={{ color: t.text, fontWeight: 600 }}>{totalFound}</span>
+              {' routes found · '}
+              <span style={{ color: t.text, fontWeight: 600 }}>{summaryStored}</span>
+              {' stored · '}
+              {summaryShown >= summaryStored
+                ? <>all <span style={{ color: t.text, fontWeight: 600 }}>{summaryShown}</span> shown</>
+                : <>top <span style={{ color: t.text, fontWeight: 600 }}>{summaryShown}</span> shown</>
+              }
+              {' · sorted by '}
+              <span style={{ color: t.blue, fontWeight: 600 }}>{summarySortLabel}</span>
+            </div>
+          )}
           <div className="sort-bar" style={{ display: 'flex', gap: 4, marginBottom: 4, overflowX: 'auto' }}>
             {SORT_OPTIONS.map(opt => {
               const active = sortKey === opt.key
