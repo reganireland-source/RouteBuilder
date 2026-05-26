@@ -173,7 +173,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
           if (!isDown) return []
           const segFaults = outagesBySegId[seg.id] ?? []
           const outageTooltip = (
-            <Tooltip sticky>
+            <Tooltip sticky className="outage-tooltip">
               <strong>{seg.name}</strong>
               <br />{start.name} → {end.name} · {seg.length_km.toLocaleString()} km
               {segFaults.map(f => (
