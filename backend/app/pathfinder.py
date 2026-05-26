@@ -168,8 +168,9 @@ def find_routes(
 
     all_waypoints = seg_waypoints + list(must_include_nodes)
 
-    # Find primary candidates — use larger pool when must_include_systems filtering needed
-    raw_k = k * 10 if must_include_systems else k * 3
+    # Search a large candidate pool so total_found is meaningful.
+    # System-include filtering is aggressive, so use an even larger pool there.
+    raw_k = 1000 if must_include_systems else 500
     if all_waypoints:
         candidates = _apply_waypoints(working_G, start, end, all_waypoints, rules, set(), k)
     else:
