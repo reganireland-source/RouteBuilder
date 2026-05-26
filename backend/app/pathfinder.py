@@ -212,7 +212,7 @@ def find_routes(
     diversity: DiversityType,
     segments_by_id: dict[str, CableSegment],
     rules: list[InterconnectRule],
-    k: int = 20,
+    k: int = 30,
     max_wet_hops: int | None = None,
     max_terrestrial_hops: int | None = None,
     capacities_by_id: dict[str, SegmentCapacity] | None = None,

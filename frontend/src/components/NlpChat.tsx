@@ -44,9 +44,9 @@ const CONFIDENCE_COLOR: Record<string, string> = {
 
 const EXAMPLES = [
   'Singapore to Hong Kong with wet diversity',
-  'Sydney to Tokyo avoiding AAG',
-  'Perth to Singapore via SIN3, sort by latency',
-  'SIN3 to TKO1 on EAC, full diversity',
+  'Sydney to Tokyo avoiding AAG, optimise for margin',
+  'Perth to Singapore via SIN3, max 1 wet hop',
+  'SIN3 to TKO1 on EAC, full diversity, sort by latency',
 ]
 
 export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort, onPrefill }: Props) {
@@ -87,6 +87,9 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort, on
           must_include_systems:   res.must_include_systems,
           must_avoid_systems:     res.must_avoid_systems,
           diversity:              res.diversity,
+          max_wet_hops:           res.max_wet_hops ?? undefined,
+          max_terrestrial_hops:   res.max_terrestrial_hops ?? undefined,
+          optimise_for:           res.optimise_for ?? undefined,
         }
         onPrefill?.({...req})
         onSearch(req)
@@ -208,7 +211,7 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort, on
                 </p>
               </div>
 
-              {/* Confidence + sort badge row */}
+              {/* Confidence + badge row */}
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
                 <span style={{
                   fontSize: 10, padding: '1px 7px', borderRadius: 10,
@@ -217,6 +220,14 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort, on
                 }}>
                   {result.confidence} confidence
                 </span>
+                {result.optimise_for && (
+                  <span style={{
+                    fontSize: 10, padding: '1px 7px', borderRadius: 10,
+                    background: t.blue + '22', color: t.blue, fontWeight: 600,
+                  }}>
+                    optimise: {result.optimise_for}
+                  </span>
+                )}
                 {result.sort_mode && (
                   <span style={{
                     fontSize: 10, padding: '1px 7px', borderRadius: 10,
@@ -262,6 +273,15 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort, on
                 {result.must_avoid_systems.length > 0 && (
                   <div><span style={{ color: t.textFaint }}>Avoid systems: </span>{result.must_avoid_systems.join(', ')}</div>
                 )}
+                {result.max_wet_hops != null && (
+                  <div><span style={{ color: t.textFaint }}>Max wet hops: </span>🌊 {result.max_wet_hops}</div>
+                )}
+                {result.max_terrestrial_hops != null && (
+                  <div><span style={{ color: t.textFaint }}>Max land hops: </span>⛰️ {result.max_terrestrial_hops}</div>
+                )}
+                {result.optimise_for && (
+                  <div><span style={{ color: t.textFaint }}>Optimise for: </span>{result.optimise_for}</div>
+                )}
               </div>
 
               {/* Ambiguities */}
@@ -288,6 +308,9 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort, on
                       must_include_systems:   result.must_include_systems,
                       must_avoid_systems:     result.must_avoid_systems,
                       diversity:              result.diversity,
+                      max_wet_hops:           result.max_wet_hops ?? undefined,
+                      max_terrestrial_hops:   result.max_terrestrial_hops ?? undefined,
+                      optimise_for:           result.optimise_for ?? undefined,
                     }
                     onPrefill?.({...req})
                     onSearch(req)

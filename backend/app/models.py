@@ -235,6 +235,9 @@ class NlpParseResponse(BaseModel):
     must_include_systems: list[str] = []
     must_avoid_systems: list[str] = []
     diversity: str = "none"
+    max_wet_hops: Optional[int] = None
+    max_terrestrial_hops: Optional[int] = None
+    optimise_for: Optional[str] = None
     sort_mode: Optional[str] = None
     explanation: str = ""
     confidence: str = "low"

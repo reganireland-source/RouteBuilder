@@ -212,6 +212,9 @@ export interface NlpParseResponse {
   must_include_systems: string[]
   must_avoid_systems: string[]
   diversity: DiversityType
+  max_wet_hops?: number | null
+  max_terrestrial_hops?: number | null
+  optimise_for?: string | null
   sort_mode: NlpSortMode | null
   explanation: string
   confidence: 'high' | 'medium' | 'low'

@@ -81,7 +81,7 @@ const CONSTRAINT_DEFS = [
   {
     id: 'optimise_for',
     label: 'Optimise For',
-    description: 'Controls which 20 routes are kept in the search pool. Auto (default) draws from multiple dimensions — picking the best routes for hops, distance, latency, margin, capacity, and on-net ownership. Setting a specific dimension fills all 20 slots with the best routes for that single metric.',
+    description: 'Controls which 30 routes are kept in the search pool. Auto (default) draws from multiple dimensions — picking the best routes for hops, distance, latency, margin, capacity, and on-net ownership. Setting a specific dimension fills all 30 slots with the best routes for that single metric.',
   },
 ]
 
@@ -93,37 +93,37 @@ const OPTIMISE_OPTIONS: OptimiseOption[] = [
   { value: '', label: 'Auto', icon: '✦' },
   {
     value: 'hops', label: 'Hops', icon: '○',
-    explain: 'Fills the pool with the 20 routes that cross the fewest cable segments end-to-end. Each segment — submarine or terrestrial — counts as one hop regardless of its length.',
+    explain: 'Fills the pool with the 30 routes that cross the fewest cable segments end-to-end. Each segment — submarine or terrestrial — counts as one hop regardless of its length.',
     better: 'Fewer hops → simpler, more direct path with fewer points of failure and less exposure to faults',
     worse: 'More hops → greater complexity, more physical infrastructure in the path, higher cumulative failure risk',
   },
   {
     value: 'distance', label: 'Distance', icon: '↔',
-    explain: 'Fills the pool with the 20 shortest routes by total cable kilometres. Shorter routes are usually faster and less expensive to operate.',
+    explain: 'Fills the pool with the 30 shortest routes by total cable kilometres. Shorter routes are usually faster and less expensive to operate.',
     better: 'Fewer km → more direct path, lower propagation delay, often lower cost',
     worse: 'More km → longer geographic detour, higher latency, more cable to maintain',
   },
   {
     value: 'latency', label: 'Latency', icon: '⚡',
-    explain: 'Fills the pool with the 20 routes that have the lowest end-to-end round-trip propagation delay — the time it takes for a signal to travel the full route and back.',
+    explain: 'Fills the pool with the 30 routes that have the lowest end-to-end round-trip propagation delay — the time it takes for a signal to travel the full route and back.',
     better: 'Lower ms → faster signal, better for trading, real-time applications and latency-sensitive enterprise customers',
     worse: 'Higher ms → more delay, impacts interactive applications and time-critical workloads',
   },
   {
     value: 'margin', label: 'Margin', icon: '$',
-    explain: 'Fills the pool with the 20 routes that carry the best commercial margin. Margin is calculated from the ownership type of each cable system, weighted by segment length. Owned and IRU capacity score highest.',
+    explain: 'Fills the pool with the 30 routes that carry the best commercial margin. Margin is calculated from the ownership type of each cable system, weighted by segment length. Owned and IRU capacity score highest.',
     better: 'Higher margin → more owned/IRU/consortium segments, stronger commercial return on every circuit sold',
     worse: 'Lower margin → more resell or off-net segments, lower return, more dependency on third-party pricing',
   },
   {
     value: 'capacity', label: 'Capacity', icon: '◈',
-    explain: 'Fills the pool with the 20 routes that have the most available bandwidth at the bottleneck — the segment with the least free capacity on the path. More available capacity means more inventory to sell.',
+    explain: 'Fills the pool with the 30 routes that have the most available bandwidth at the bottleneck — the segment with the least free capacity on the path. More available capacity means more inventory to sell.',
     better: 'Higher available Tbps → more room to commit circuits, lower congestion risk, greater commercial headroom',
     worse: 'Lower available Tbps → congested or nearly full segments, limited ability to place new services',
   },
   {
     value: 'ownership', label: 'Ownership', icon: '◉',
-    explain: 'Fills the pool with the 20 routes where the highest proportion of segments are on-net — owned, IRU or consortium. Routes with resell or off-net segments score lower even if they are shorter or cheaper.',
+    explain: 'Fills the pool with the 30 routes where the highest proportion of segments are on-net — owned, IRU or consortium. Routes with resell or off-net segments score lower even if they are shorter or cheaper.',
     better: 'More on-net → owned infrastructure, full commercial control, higher margins, no third-party dependency',
     worse: 'More off-net → reliance on third parties, lower margins, less pricing control, resale exposure',
   },

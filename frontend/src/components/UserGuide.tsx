@@ -543,7 +543,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             {arrow}
             {pipeBox('2', '#f59e0b', '⚖️', 'Apply Constraints', 'Hard rules remove every path that breaks any active constraint', 'varies')}
             {arrow}
-            {pipeBox('3', '#8b5cf6', '🎯', 'Select Pool', 'Best 20 chosen across 6 dimensions — or all 20 by one Optimise For metric', '20 kept')}
+            {pipeBox('3', '#8b5cf6', '🎯', 'Select Pool', 'Best 30 chosen across 6 dimensions — or all 30 by one Optimise For metric', '30 kept')}
             {arrow}
             {pipeBox('4', '#10b981', '📊', 'Sort & Display', 'Pool is sorted by your chosen metric and the top 5 shown', '5 shown')}
           </div>
@@ -595,16 +595,16 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           <div style={{ ...card() as React.CSSProperties, padding: '22px 20px' }}>
             <div style={sectionLabel as React.CSSProperties}>Optimise For — Step 3 (Override)</div>
             <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.65, margin: '0 0 14px' }}>
-              Setting an Optimise For dimension replaces the multi-dimension pool entirely. All 20 slots are filled with the best routes for that single metric. Use when you have a clear commercial priority.
+              Setting an Optimise For dimension replaces the multi-dimension pool entirely. All 30 slots are filled with the best routes for that single metric. Use when you have a clear commercial priority.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {[
-                ['○', 'Hops',      'Fill 20 with fewest-hop routes',       '↓ fewer is better'],
-                ['↔', 'Distance',  'Fill 20 with shortest routes',          '↓ fewer km is better'],
-                ['⚡', 'Latency',  'Fill 20 with lowest latency',           '↓ fewer ms is better'],
-                ['$', 'Margin',    'Fill 20 with best commercial margin',   '↑ higher is better'],
-                ['◈', 'Capacity',  'Fill 20 with highest bottleneck Tbps',  '↑ more is better'],
-                ['◉', 'Ownership', 'Fill 20 with most on-net routes',       '↑ more on-net is better'],
+                ['○', 'Hops',      'Fill 30 with fewest-hop routes',       '↓ fewer is better'],
+                ['↔', 'Distance',  'Fill 30 with shortest routes',          '↓ fewer km is better'],
+                ['⚡', 'Latency',  'Fill 30 with lowest latency',           '↓ fewer ms is better'],
+                ['$', 'Margin',    'Fill 30 with best commercial margin',   '↑ higher is better'],
+                ['◈', 'Capacity',  'Fill 30 with highest bottleneck Tbps',  '↑ more is better'],
+                ['◉', 'Ownership', 'Fill 30 with most on-net routes',       '↑ more on-net is better'],
               ].map(([icon, label, desc, dir]) => (
                 <div key={label} style={{
                   display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
@@ -624,7 +624,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         <div style={{ ...card() as React.CSSProperties, padding: '22px 20px', marginBottom: 24 }}>
           <div style={sectionLabel as React.CSSProperties}>Display Sort — Step 4</div>
           <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.65, margin: '0 0 16px' }}>
-            Sort buttons reorder the top 5 shown from your 20-route pool. Clicking an active button toggles it off, returning to pool order.
+            Sort buttons reorder the top 5 shown from your 30-route pool. Clicking an active button toggles it off, returning to pool order.
             Sorting never removes routes — it only changes <em>which</em> 5 are displayed. You can combine Optimise For (pool composition) with a different sort (display order).
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
@@ -649,7 +649,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           {[
             { num: '500', label: 'routes found',        color: '#3b82f6' },
             { num: '·',   label: '',                    color: t.textFaint },
-            { num: '20',  label: 'filtered by pool',    color: '#8b5cf6' },
+            { num: '30',  label: 'filtered by pool',    color: '#8b5cf6' },
             { num: '·',   label: '',                    color: t.textFaint },
             { num: '5',   label: 'shown · sorted by',  color: '#10b981' },
           ].map((s, i) => (
