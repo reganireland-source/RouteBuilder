@@ -230,22 +230,30 @@ export function NodeFinder({ nodes, onPinChange, onSetOrigin, onSetDest }: Props
                   {Math.round(r.distanceKm).toLocaleString()} km straight line · <code style={{ fontSize: 11, color: t.textMuted }}>{n.id}</code>
                 </div>
 
-                {/* Capability badges */}
+                {/* Product coverage traffic lights */}
                 {n.capabilities && (() => {
                   const cap = n.capabilities
-                  const badges: string[] = []
-                  if (cap.backbone?.ipt || cap.backbone?.epl || cap.backbone?.evpl) badges.push('Backbone')
-                  if (cap.underlay?.gid || cap.underlay?.ipvpn) badges.push('Underlay')
-                  if (cap.colocation) badges.push(`Colo Cat ${cap.colocation.category}`)
-                  if (!badges.length) return null
+                  const bb = cap.backbone
+                  const ul = cap.underlay
+                  const indicators: { label: string; active: boolean; sub?: string }[] = [
+                    { label: 'Backbone', active: !!(bb?.ipt?.length || bb?.epl?.length || bb?.evpl?.length) },
+                    { label: 'Underlay', active: !!(ul?.gid?.length || ul?.ipvpn?.length) },
+                    { label: 'Colo',     active: !!cap.colocation, sub: cap.colocation ? `Cat ${cap.colocation.category}` : undefined },
+                  ]
                   return (
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', paddingLeft: 41 }}>
-                      {badges.map(b => (
-                        <span key={b} style={{
-                          fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
-                          background: 'rgba(59,130,246,0.15)', color: t.blue,
-                          letterSpacing: '0.04em',
-                        }}>{b}</span>
+                    <div style={{ display: 'flex', gap: 10, paddingLeft: 41, alignItems: 'center' }}>
+                      {indicators.map(({ label, active, sub }) => (
+                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <div style={{
+                            width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                            background: active ? '#16a34a' : '#3f0f0f',
+                            border: `1px solid ${active ? '#22c55e' : '#7f1d1d'}`,
+                            boxShadow: active ? '0 0 5px rgba(34,197,94,0.6)' : '0 0 3px rgba(239,68,68,0.2)',
+                          }} />
+                          <span style={{ fontSize: 9, fontWeight: 600, color: active ? '#6b7280' : '#374151' }}>
+                            {sub ?? label}
+                          </span>
+                        </div>
                       ))}
                     </div>
                   )

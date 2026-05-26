@@ -2,11 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import type { CableNode, CableSegment, CableSystem, PortSpeed } from '../types'
 import { useTheme } from '../theme'
 
-const SPEED_COLORS: Record<PortSpeed, { bg: string; text: string }> = {
-  '1G':   { bg: 'rgba(120,120,140,0.25)', text: '#9ca3af' },
-  '10G':  { bg: 'rgba(59,130,246,0.2)',   text: '#60a5fa' },
-  '100G': { bg: 'rgba(34,197,94,0.2)',    text: '#4ade80' },
-  '400G': { bg: 'rgba(168,85,247,0.2)',   text: '#c084fc' },
+const ALL_SPEEDS: PortSpeed[] = ['1G', '10G', '100G', '400G']
+
+// Maximum speeds each product type is capable of (defines N/A vs red)
+const PRODUCT_MAX: Record<string, Set<PortSpeed>> = {
+  ipt:   new Set(['1G', '10G', '100G', '400G']),
+  epl:   new Set(['1G', '10G', '100G', '400G']),
+  evpl:  new Set(['1G', '10G']),
+  gid:   new Set(['1G', '10G', '100G', '400G']),
+  ipvpn: new Set(['1G', '10G']),
 }
 
 const COLO_LABELS: Record<number, string> = {
@@ -17,26 +21,51 @@ const COLO_LABELS: Record<number, string> = {
   5: 'Non-Productized Partner Resell',
 }
 
-function SpeedChips({ speeds }: { speeds: PortSpeed[] }) {
+type DotState = 'green' | 'red' | 'na'
+
+function Dot({ state }: { state: DotState }) {
+  if (state === 'na') {
+    return (
+      <div style={{ width: 11, height: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 5, height: 1.5, borderRadius: 1, background: 'rgba(255,255,255,0.08)' }} />
+      </div>
+    )
+  }
+  const green = state === 'green'
   return (
-    <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-      {speeds.map(s => (
-        <span key={s} style={{
-          fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 3,
-          background: SPEED_COLORS[s].bg, color: SPEED_COLORS[s].text,
-          letterSpacing: '0.04em',
-        }}>{s}</span>
-      ))}
-    </div>
+    <div style={{
+      width: 11, height: 11, borderRadius: '50%', flexShrink: 0,
+      background: green ? '#16a34a' : '#3f0f0f',
+      border: `1px solid ${green ? '#22c55e' : '#7f1d1d'}`,
+      boxShadow: green ? '0 0 6px rgba(34,197,94,0.6)' : '0 0 4px rgba(239,68,68,0.25)',
+    }} />
   )
 }
 
-function ProductRow({ label, speeds }: { label: string; speeds?: PortSpeed[] }) {
-  if (!speeds?.length) return null
+function CategoryIndicator({ active }: { active: boolean }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
-      <span style={{ width: 52, flexShrink: 0, fontSize: 10, fontWeight: 700, color: '#9ca3af' }}>{label}</span>
-      <SpeedChips speeds={speeds} />
+    <div style={{
+      width: 7, height: 7, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+      background: active ? '#16a34a' : '#3f0f0f',
+      border: `1px solid ${active ? '#22c55e' : '#7f1d1d'}`,
+      boxShadow: active ? '0 0 5px rgba(34,197,94,0.7)' : '0 0 3px rgba(239,68,68,0.2)',
+    }} />
+  )
+}
+
+function ProductMatrixRow({ label, productKey, available }: { label: string; productKey: string; available?: PortSpeed[] }) {
+  const maxSpeeds = PRODUCT_MAX[productKey]
+  const availSet = new Set(available ?? [])
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+      <span style={{ width: 52, flexShrink: 0, fontSize: 10, fontWeight: 600, color: '#6b7280' }}>{label}</span>
+      <div style={{ display: 'flex', gap: 10 }}>
+        {ALL_SPEEDS.map(speed => {
+          const applicable = maxSpeeds.has(speed)
+          const state: DotState = !applicable ? 'na' : availSet.has(speed) ? 'green' : 'red'
+          return <Dot key={speed} state={state} />
+        })}
+      </div>
     </div>
   )
 }
@@ -178,51 +207,79 @@ export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onC
           )}
         </div>
 
-        {/* Services / Capabilities */}
+        {/* Product Coverage — traffic light matrix */}
         {node.capabilities && (() => {
           const cap = node.capabilities
-          const hasBackbone = cap.backbone && (cap.backbone.ipt || cap.backbone.epl || cap.backbone.evpl)
-          const hasUnderlay = cap.underlay && (cap.underlay.gid || cap.underlay.ipvpn)
-          const hasColo = cap.colocation
-          if (!hasBackbone && !hasUnderlay && !hasColo) return null
+          const bb = cap.backbone
+          const ul = cap.underlay
+          const co = cap.colocation
+          const backboneActive = !!(bb?.ipt?.length || bb?.epl?.length || bb?.evpl?.length)
+          const underlayActive = !!(ul?.gid?.length || ul?.ipvpn?.length)
+          const coloActive     = !!co
           return (
             <div style={{ padding: '10px 12px', borderBottom: `1px solid ${t.border}` }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-                Services
+              <div style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+                Product Coverage
               </div>
 
-              {hasBackbone && (
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.blue, marginBottom: 4 }}>Backbone</div>
-                  <ProductRow label="IPT"  speeds={cap.backbone?.ipt  as PortSpeed[]} />
-                  <ProductRow label="EPL"  speeds={cap.backbone?.epl  as PortSpeed[]} />
-                  <ProductRow label="EVPL" speeds={cap.backbone?.evpl as PortSpeed[]} />
+              {/* Speed column headers */}
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6, paddingLeft: 29 }}>
+                <div style={{ width: 52, flexShrink: 0 }} />
+                <div style={{ display: 'flex', gap: 10 }}>
+                  {ALL_SPEEDS.map(s => (
+                    <span key={s} style={{ width: 11, fontSize: 7.5, fontWeight: 700, color: '#4b5563', textAlign: 'center', letterSpacing: '0.02em' }}>{s}</span>
+                  ))}
                 </div>
-              )}
+              </div>
 
-              {hasUnderlay && (
-                <div style={{ marginBottom: 8 }}>
-                  <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.blue, marginBottom: 4 }}>Underlay</div>
-                  <ProductRow label="GID"    speeds={cap.underlay?.gid   as PortSpeed[]} />
-                  <ProductRow label="IP VPN" speeds={cap.underlay?.ipvpn as PortSpeed[]} />
+              {/* BACKBONE */}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <CategoryIndicator active={backboneActive} />
+                  <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: backboneActive ? '#22c55e' : '#4b5563' }}>Backbone</span>
                 </div>
-              )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 13 }}>
+                  <ProductMatrixRow label="IPT"  productKey="ipt"  available={bb?.ipt  as PortSpeed[]} />
+                  <ProductMatrixRow label="EPL"  productKey="epl"  available={bb?.epl  as PortSpeed[]} />
+                  <ProductMatrixRow label="EVPL" productKey="evpl" available={bb?.evpl as PortSpeed[]} />
+                </div>
+              </div>
 
-              {hasColo && (
-                <div>
-                  <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.blue, marginBottom: 4 }}>Colocation</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '3px 0' }}>
-                    <span style={{
-                      fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 3,
-                      background: 'rgba(251,191,36,0.15)', color: '#fbbf24',
-                      letterSpacing: '0.04em', flexShrink: 0,
-                    }}>Cat {cap.colocation!.category}</span>
-                    <span style={{ fontSize: 11, color: t.textMuted }}>
-                      {COLO_LABELS[cap.colocation!.category]}
-                    </span>
-                  </div>
+              {/* UNDERLAY */}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <CategoryIndicator active={underlayActive} />
+                  <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: underlayActive ? '#22c55e' : '#4b5563' }}>Underlay</span>
                 </div>
-              )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 13 }}>
+                  <ProductMatrixRow label="GID"    productKey="gid"   available={ul?.gid   as PortSpeed[]} />
+                  <ProductMatrixRow label="IP VPN" productKey="ipvpn" available={ul?.ipvpn as PortSpeed[]} />
+                </div>
+              </div>
+
+              {/* COLOCATION */}
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <CategoryIndicator active={coloActive} />
+                  <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: coloActive ? '#22c55e' : '#4b5563' }}>Colocation</span>
+                </div>
+                <div style={{ paddingLeft: 13 }}>
+                  {coloActive ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <span style={{
+                        fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 3, flexShrink: 0,
+                        background: 'rgba(34,197,94,0.1)', color: '#22c55e',
+                        border: '1px solid rgba(34,197,94,0.25)', letterSpacing: '0.04em',
+                      }}>Cat {co!.category}</span>
+                      <span style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.3 }}>
+                        {COLO_LABELS[co!.category]}
+                      </span>
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: 10, color: '#4b5563', fontStyle: 'italic' }}>Not configured</span>
+                  )}
+                </div>
+              </div>
             </div>
           )
         })()}
