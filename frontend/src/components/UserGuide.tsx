@@ -5,7 +5,7 @@ import type { CableNode, CableSegment, CableSystem } from '../types'
 
 
 const STEPS = [
-  { title: 'Open PoP Routes', desc: 'Select the PoP Routes tab. TSABuddy appears at the top — use it for natural language, or configure the search manually below.' },
+  { title: 'Open PoP Routes', desc: 'Select the ↔ Pop Routes tab. TSABuddy appears at the top — use it for natural language, or configure the search manually below.' },
   { title: 'Select Origin & Destination', desc: 'Type a city or node name in the search boxes. The live combobox filters as you type — select the specific landing station or PoP you need.' },
   { title: 'Set Diversity', desc: 'Choose Wet, Full, Terrestrial or Full-Node diversity if required. Leave as None for a single best-path search.' },
   { title: 'Add Constraints (optional)', desc: 'Expand Advanced Constraints to force via or avoid on specific nodes, segments or cable systems using multi-select dropdowns with live search.' },
@@ -40,18 +40,20 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       desc: `Find optimal paths between any two nodes on our ${nodeCount}-node subsea network. Configure wet, full or terrestrial diversity, enforce via/avoid constraints on specific nodes, segments or cable systems, and see all viable paths ranked instantly.` },
     { icon: '🤖', title: 'TSABuddy — AI Route Assistant',
       desc: 'Type your request in plain English: "Singapore to Hong Kong on EAC with wet diversity, sort by latency." TSABuddy interprets the request, fills all search parameters and triggers the search automatically. Powered by Claude AI.' },
-    { icon: '🌏', title: 'City Pairs',
-      desc: 'Explore city-to-city connectivity across our subsea network. See all viable system itineraries, intermediate cable landing stations, and key metrics — without needing to know individual node IDs.' },
+    { icon: '🏙', title: 'City Pairs',
+      desc: 'Explore city-to-city connectivity across our subsea network. Type to search cities by name or country — the live combobox filters as you type. See all viable system itineraries and key metrics without needing to know individual node IDs.' },
+    { icon: '🌍', title: 'Country Viewer',
+      desc: `Select any country from the searchable list to instantly highlight every subsea cable system landing there and all backhaul routes connecting those stations. Each system is rendered in a distinct vivid colour; backhaul appears in teal. The map auto-centres on the country. Use the Subsea Only and Backhaul Only toggles to reduce clutter.` },
     { icon: '💰', title: 'Margin Scoring',
       desc: 'Every route is automatically scored for commercial margin (1–10) based on cable system ownership, weighted by segment distance. Sort routes by margin to surface the most commercially attractive options first.' },
     { icon: '📡', title: 'Capacity Dashboard',
       desc: `A full-network capacity view across all ${segmentCount} segments, showing total and available capacity in terabits with utilisation colour-coding. Instantly identify where capacity is constrained.` },
     { icon: '🔀', title: 'On-Net / Off-Net Classification',
       desc: 'Routes are automatically classified as On-Net, Off-Net or Mixed based on network ownership. The on-net percentage is shown for blended routes, shaping the commercial narrative.' },
-    { icon: '🛰', title: 'Cable System Viewer',
+    { icon: '🌊', title: 'Cable System Viewer',
       desc: `Toggle any of the ${systemCount} cable systems on the live map to explore coverage, topology and branching unit structure — ideal for network briefings and customer conversations.` },
     { icon: '🔍', title: 'Node Search',
-      desc: `Look up any of the ${nodeCount} nodes in the network. View connections, cable systems and geographic position, then jump directly into a route search from any node.` },
+      desc: `Enter a customer address or lat/lng coordinates to find the nearest landing stations and PoPs. Results show owner logo, trading name, node type and straight-line distance — with one-click Set Origin / Set Dest to jump straight into a route search.` },
     { icon: '📌', title: 'Pinned Routes & SLD Export',
       desc: 'Pin up to 5 routes for comparison, then export a professional branded straight-line diagram PDF — a cover page plus per-route diagrams with proportional segment layout — ready for customer delivery.' },
     { icon: '🗄', title: 'Ref Data Management',
@@ -570,6 +572,86 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           <div style={{ marginTop: 12, fontSize: 10, color: 'rgba(147,197,253,0.7)', lineHeight: 1.5 }}>
             High and medium confidence results trigger an automatic search. Low confidence shows a "Search anyway" option with full parameter preview.
           </div>
+        </div>
+      </div>
+
+      {/* ── Country Viewer ── */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel}>Using Country Viewer</div>
+        <div style={{ ...card(), background: '#071a1a', border: `1px solid #0e7490` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 22 }}>🌍</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Country Viewer — Network at a Glance</div>
+              <div style={{ fontSize: 11, color: 'rgba(160,220,230,0.8)', marginTop: 2 }}>
+                Instantly see every cable system and backhaul route serving any country.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[
+              { step: '1', color: '#0e7490', title: 'Select a country', desc: 'Open the 🌍 Country Viewer tab and type in the search box. The list filters instantly by country name. Click any entry to activate.' },
+              { step: '2', color: '#0e7490', title: 'Read the map', desc: 'Each subsea cable system landing in that country is highlighted in a distinct vivid colour. Terrestrial backhaul connecting those stations appears in deep teal. All other segments dim out.' },
+              { step: '3', color: '#0e7490', title: 'Filter clutter', desc: 'Use the Subsea Only toggle (top-right) to hide backhaul and see only wet systems. Use Backhaul Only to focus on terrestrial routes. The toggles are mutually exclusive.' },
+              { step: '4', color: '#0e7490', title: 'Read system + node counts', desc: 'The panel shows how many cable systems land in the country and how many PoPs / landing stations are present — useful for briefings.' },
+            ].map(({ step, color, title, desc }) => (
+              <div key={step} style={{
+                display: 'flex', gap: 12, alignItems: 'flex-start',
+                background: 'rgba(255,255,255,0.03)', borderRadius: 7, padding: '10px 12px',
+              }}>
+                <div style={{
+                  width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                  background: color + '33', border: `2px solid ${color}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, fontWeight: 800, color,
+                }}>{step}</div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#cce8ec', marginBottom: 3 }}>{title}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(160,215,225,0.75)', lineHeight: 1.6 }}>{desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 12, fontSize: 10, color: 'rgba(100,190,210,0.7)', lineHeight: 1.5 }}>
+            Seg Labels are automatically enabled when Country Viewer is activated so you can read segment IDs directly on the highlighted routes.
+          </div>
+        </div>
+      </div>
+
+      {/* ── UI Navigation ── */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel}>Navigating the Interface</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+          {[
+            {
+              icon: '‹›',
+              title: 'Panel Drawer Toggle',
+              desc: 'The arrow button on the left edge of the map collapses the entire left + middle panel (960 px) to give you a full-screen map view. Click again to restore. Great for map presentations and screenshares.',
+            },
+            {
+              icon: '🌊 / 🏗',
+              title: 'Subsea Only & Backhaul Only',
+              desc: 'Two filter toggles in the top-right control bar. Active only when Country Viewer is running. Subsea Only hides terrestrial routes; Backhaul Only hides subsea. Activating one clears the other.',
+            },
+            {
+              icon: '🏷',
+              title: 'Seg Labels Toggle',
+              desc: 'Shows segment IDs directly on the map for active and highlighted routes. Automatically enabled when you switch to Country Viewer. Can be toggled manually via the top-right controls.',
+            },
+            {
+              icon: '↔ 🏙 🌊 🌍 🔍 📖',
+              title: 'Mode Tabs',
+              desc: 'The six vertical tabs on the left panel: Pop Routes, City Pairs, Subsea Systems, Country Viewer, Node Search, and Guide. Each tab clears unrelated highlights so the map stays uncluttered.',
+            },
+          ].map(f => (
+            <div key={f.title} style={card({ display: 'flex', flexDirection: 'column', gap: 8 })}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 18, lineHeight: 1, letterSpacing: '-0.02em' }}>{f.icon}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: t.text, lineHeight: 1.3 }}>{f.title}</span>
+              </div>
+              <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6, margin: 0 }}>{f.desc}</p>
+            </div>
+          ))}
         </div>
       </div>
 
