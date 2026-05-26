@@ -252,7 +252,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
           if (isSubseaHighlight) {
             color = countryHighlight!.systemColors.get(seg.system_id)!; weight = 3.5; opacity = 0.95
           } else if (isTerrestrialHighlight) {
-            color = '#ffd166'; weight = 2.5; opacity = 0.9
+            color = '#f97316'; weight = 2.5; opacity = 0.95
           } else if (segmentColor[seg.id]) {
             color = segmentColor[seg.id]; weight = segmentWeight[seg.id] ?? 2; opacity = 0.55
           } else {
