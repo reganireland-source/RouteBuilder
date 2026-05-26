@@ -23,11 +23,13 @@ DIVERSITY TYPES:
 - full_nodes             : fully diverse (no shared segments or nodes)
 
 SORT MODES (optional UI hint — return null if not mentioned):
-- cost       : sort by total cost (cheapest first)
-- length     : sort by fewest hops
-- latency    : sort by lowest latency
-- reliability: sort by highest reliability
-- outages    : push routes with active outages to the bottom
+- hops        : fewest hops / shortest path by hop count (also: "length", "fewest hops")
+- latency     : lowest round-trip delay / fastest RTD (also: "RTD", "fastest")
+- availability: highest end-to-end availability / most reliable (also: "reliability", "uptime")
+- margin      : highest route margin / best commercial value (also: "cost", "cheapest", "best margin")
+- capacity    : most available capacity on the bottleneck segment (also: "most capacity", "bandwidth")
+- ownership   : most on-net segments first / fewest off-net hops (also: "on-net", "own")
+- outages     : push routes with active outages to the bottom (also: "avoid outages", "healthy routes first")
 
 Return ONLY a JSON object — no prose, no markdown fences — with these exact fields:
 {{
@@ -87,7 +89,15 @@ def _system_catalog(segments) -> str:
 
 
 _VALID_DIVERSITY = {d.value for d in DiversityType}
-_VALID_SORT = {"cost", "length", "latency", "reliability", "outages"}
+_VALID_SORT = {
+    "hops", "length",                    # hop count (length is legacy alias)
+    "latency",                           # round-trip delay
+    "availability", "reliability",       # end-to-end availability (reliability is legacy alias)
+    "margin", "cost",                    # route margin (cost is legacy alias)
+    "capacity",                          # available capacity
+    "ownership",                         # on-net ownership
+    "outages",                           # push outage routes down
+}
 
 
 def parse_route_request(provider, nodes, segments, text: str) -> NlpParseResponse:

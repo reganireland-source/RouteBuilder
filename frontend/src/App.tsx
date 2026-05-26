@@ -77,11 +77,16 @@ export default function App() {
   const pinCounter = useRef(0)
 
   const NLP_SORT_MAP: Record<NlpSortMode, SortKey | null> = {
-    cost:        'margin',
-    length:      'hops',
-    latency:     'latency',
-    reliability: 'availability',
-    outages:     null,
+    hops:         'hops',
+    length:       'hops',         // legacy alias
+    latency:      'latency',
+    availability: 'availability',
+    reliability:  'availability', // legacy alias
+    margin:       'margin',
+    cost:         'margin',       // legacy alias
+    capacity:     'capacity',
+    ownership:    'ownership',
+    outages:      null,           // handled separately via pushOutagesDown
   }
   function handleApplySort(mode: NlpSortMode) {
     if (mode === 'outages') {

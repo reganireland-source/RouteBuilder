@@ -159,7 +159,14 @@ export interface CityPairResponse {
   routes: CityPairRoute[]
 }
 
-export type NlpSortMode = 'cost' | 'length' | 'latency' | 'reliability' | 'outages'
+export type NlpSortMode =
+  | 'hops' | 'length'                  // hop count
+  | 'latency'                          // round-trip delay
+  | 'availability' | 'reliability'     // end-to-end availability
+  | 'margin' | 'cost'                  // route margin
+  | 'capacity'                         // available capacity
+  | 'ownership'                        // on-net ownership
+  | 'outages'                          // push outage routes down
 
 export interface NlpParseResponse {
   start_node_id: string | null
