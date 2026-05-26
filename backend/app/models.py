@@ -32,6 +32,27 @@ class DiversityType(str, Enum):
     full_nodes = "full_nodes"
 
 
+class BackboneCapabilities(BaseModel):
+    ipt:  Optional[list[str]] = None
+    epl:  Optional[list[str]] = None
+    evpl: Optional[list[str]] = None
+
+
+class UnderlayCapabilities(BaseModel):
+    gid:   Optional[list[str]] = None
+    ipvpn: Optional[list[str]] = None
+
+
+class ColocationCapabilities(BaseModel):
+    category: int  # 1–5
+
+
+class NodeCapabilities(BaseModel):
+    backbone:   Optional[BackboneCapabilities]   = None
+    underlay:   Optional[UnderlayCapabilities]   = None
+    colocation: Optional[ColocationCapabilities] = None
+
+
 class Node(BaseModel):
     id: str
     name: str
@@ -42,6 +63,7 @@ class Node(BaseModel):
     owner: str = "Telstra"
     trading_name: Optional[str] = None
     description: Optional[str] = None
+    capabilities: Optional[NodeCapabilities] = None
 
 
 class CableSystem(BaseModel):
@@ -151,6 +173,7 @@ class NodeUpdate(BaseModel):
     owner: Optional[str] = None
     trading_name: Optional[str] = None
     description: Optional[str] = None
+    capabilities: Optional[NodeCapabilities] = None
 
 class CableSegmentUpdate(BaseModel):
     name: Optional[str] = None

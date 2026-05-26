@@ -230,6 +230,27 @@ export function NodeFinder({ nodes, onPinChange, onSetOrigin, onSetDest }: Props
                   {Math.round(r.distanceKm).toLocaleString()} km straight line · <code style={{ fontSize: 11, color: t.textMuted }}>{n.id}</code>
                 </div>
 
+                {/* Capability badges */}
+                {n.capabilities && (() => {
+                  const cap = n.capabilities
+                  const badges: string[] = []
+                  if (cap.backbone?.ipt || cap.backbone?.epl || cap.backbone?.evpl) badges.push('Backbone')
+                  if (cap.underlay?.gid || cap.underlay?.ipvpn) badges.push('Underlay')
+                  if (cap.colocation) badges.push(`Colo Cat ${cap.colocation.category}`)
+                  if (!badges.length) return null
+                  return (
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', paddingLeft: 41 }}>
+                      {badges.map(b => (
+                        <span key={b} style={{
+                          fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
+                          background: 'rgba(59,130,246,0.15)', color: t.blue,
+                          letterSpacing: '0.04em',
+                        }}>{b}</span>
+                      ))}
+                    </div>
+                  )
+                })()}
+
                 {/* Action buttons */}
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button onClick={() => onSetOrigin(n.id)} style={{

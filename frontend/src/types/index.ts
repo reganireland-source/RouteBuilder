@@ -8,6 +8,23 @@ export interface AppConfig {
   on_net_ownership: string[]
 }
 
+export type PortSpeed = '1G' | '10G' | '100G' | '400G'
+
+export interface NodeCapabilities {
+  backbone?: {
+    ipt?:  PortSpeed[]
+    epl?:  PortSpeed[]
+    evpl?: PortSpeed[]
+  }
+  underlay?: {
+    gid?:   PortSpeed[]
+    ipvpn?: PortSpeed[]
+  }
+  colocation?: {
+    category: 1 | 2 | 3 | 4 | 5
+  }
+}
+
 export interface CableNode {
   id: string
   name: string
@@ -18,6 +35,7 @@ export interface CableNode {
   owner?: string
   trading_name?: string
   description?: string
+  capabilities?: NodeCapabilities
 }
 
 export interface CableSystem {

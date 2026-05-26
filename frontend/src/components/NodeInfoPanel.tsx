@@ -1,6 +1,45 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CableNode, CableSegment, CableSystem } from '../types'
+import type { CableNode, CableSegment, CableSystem, PortSpeed } from '../types'
 import { useTheme } from '../theme'
+
+const SPEED_COLORS: Record<PortSpeed, { bg: string; text: string }> = {
+  '1G':   { bg: 'rgba(120,120,140,0.25)', text: '#9ca3af' },
+  '10G':  { bg: 'rgba(59,130,246,0.2)',   text: '#60a5fa' },
+  '100G': { bg: 'rgba(34,197,94,0.2)',    text: '#4ade80' },
+  '400G': { bg: 'rgba(168,85,247,0.2)',   text: '#c084fc' },
+}
+
+const COLO_LABELS: Record<number, string> = {
+  1: 'Productized Partners Resell',
+  2: 'Productized Telstra Facilities',
+  3: 'Leased Partner Facilities',
+  4: 'Non-Productized Telstra Facilities / CLS',
+  5: 'Non-Productized Partner Resell',
+}
+
+function SpeedChips({ speeds }: { speeds: PortSpeed[] }) {
+  return (
+    <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+      {speeds.map(s => (
+        <span key={s} style={{
+          fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 3,
+          background: SPEED_COLORS[s].bg, color: SPEED_COLORS[s].text,
+          letterSpacing: '0.04em',
+        }}>{s}</span>
+      ))}
+    </div>
+  )
+}
+
+function ProductRow({ label, speeds }: { label: string; speeds?: PortSpeed[] }) {
+  if (!speeds?.length) return null
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0' }}>
+      <span style={{ width: 52, flexShrink: 0, fontSize: 10, fontWeight: 700, color: '#9ca3af' }}>{label}</span>
+      <SpeedChips speeds={speeds} />
+    </div>
+  )
+}
 
 const OWNER_LOGOS: Record<string, string> = {
   'Telstra':        '/logos/telstra.svg',
@@ -138,6 +177,55 @@ export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onC
             ))
           )}
         </div>
+
+        {/* Services / Capabilities */}
+        {node.capabilities && (() => {
+          const cap = node.capabilities
+          const hasBackbone = cap.backbone && (cap.backbone.ipt || cap.backbone.epl || cap.backbone.evpl)
+          const hasUnderlay = cap.underlay && (cap.underlay.gid || cap.underlay.ipvpn)
+          const hasColo = cap.colocation
+          if (!hasBackbone && !hasUnderlay && !hasColo) return null
+          return (
+            <div style={{ padding: '10px 12px', borderBottom: `1px solid ${t.border}` }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                Services
+              </div>
+
+              {hasBackbone && (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.blue, marginBottom: 4 }}>Backbone</div>
+                  <ProductRow label="IPT"  speeds={cap.backbone?.ipt  as PortSpeed[]} />
+                  <ProductRow label="EPL"  speeds={cap.backbone?.epl  as PortSpeed[]} />
+                  <ProductRow label="EVPL" speeds={cap.backbone?.evpl as PortSpeed[]} />
+                </div>
+              )}
+
+              {hasUnderlay && (
+                <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.blue, marginBottom: 4 }}>Underlay</div>
+                  <ProductRow label="GID"    speeds={cap.underlay?.gid   as PortSpeed[]} />
+                  <ProductRow label="IP VPN" speeds={cap.underlay?.ipvpn as PortSpeed[]} />
+                </div>
+              )}
+
+              {hasColo && (
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.blue, marginBottom: 4 }}>Colocation</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '3px 0' }}>
+                    <span style={{
+                      fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 3,
+                      background: 'rgba(251,191,36,0.15)', color: '#fbbf24',
+                      letterSpacing: '0.04em', flexShrink: 0,
+                    }}>Cat {cap.colocation!.category}</span>
+                    <span style={{ fontSize: 11, color: t.textMuted }}>
+                      {COLO_LABELS[cap.colocation!.category]}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Map tile */}
         <iframe
