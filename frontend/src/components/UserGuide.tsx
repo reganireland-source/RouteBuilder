@@ -29,7 +29,7 @@ interface Props {
 
 export function UserGuide({ nodes, segments, systems }: Props) {
   const t = useTheme()
-  const [page, setPage] = useState<1 | 2>(1)
+  const [page, setPage] = useState<1 | 2 | 3>(1)
 
   const nodeCount    = nodes.length
   const segmentCount = segments.length
@@ -86,7 +86,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       {([
         [1, '📖 Product Overview'],
         [2, '🏗 Architecture'],
-      ] as [1|2, string][]).map(([p, label]) => (
+        [3, '🔍 Search Algorithm'],
+      ] as [1|2|3, string][]).map(([p, label]) => (
         <button
           key={p}
           onClick={() => setPage(p)}
@@ -431,6 +432,237 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         {/* ── Footer ── */}
         <div style={{ textAlign: 'center', padding: '20px 0 0', borderTop: `1px solid ${t.border}` }}>
           <div style={{ fontSize: 11, color: t.textFaint }}>International Telco · RouteBuilder · Architecture Overview</div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Page 3: Search Algorithm ──────────────────────────────────────────────
+  if (page === 3) {
+    const pipeBox = (
+      num: string, color: string, icon: string,
+      title: string, desc: string, countLabel: string,
+    ) => (
+      <div style={{
+        flex: 1, minWidth: 0,
+        background: color + '14', border: `2px solid ${color}`,
+        borderRadius: 12, padding: '16px 12px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        textAlign: 'center', gap: 6,
+      }}>
+        <div style={{
+          width: 26, height: 26, borderRadius: '50%', background: color, color: '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 11, fontWeight: 800, flexShrink: 0,
+        }}>{num}</div>
+        <div style={{ fontSize: 20 }}>{icon}</div>
+        <div style={{ fontSize: 12, fontWeight: 800, color: t.text }}>{title}</div>
+        <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5, flex: 1 }}>{desc}</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color, marginTop: 4 }}>{countLabel}</div>
+      </div>
+    )
+
+    const arrow = (
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', color: t.textFaint, fontSize: 20 }}>›</div>
+    )
+
+    const constraintRow = (
+      icon: string, name: string, badge: string, badgeColor: string, desc: string,
+    ) => (
+      <div style={{
+        ...card() as React.CSSProperties,
+        display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px',
+      }}>
+        <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1.4 }}>{icon}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{name}</span>
+            <span style={{
+              fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4,
+              background: badgeColor + '22', color: badgeColor,
+              border: `1px solid ${badgeColor}55`, letterSpacing: '0.06em',
+            }}>{badge}</span>
+          </div>
+          <div style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.5 }}>{desc}</div>
+        </div>
+      </div>
+    )
+
+    const dimChip = (icon: string, label: string, sub: string) => (
+      <div style={{
+        background: t.bgCard, border: `1px solid ${t.border}`,
+        borderRadius: 8, padding: '10px 12px',
+        display: 'flex', alignItems: 'flex-start', gap: 8,
+      }}>
+        <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: t.text }}>{label}</div>
+          <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.4 }}>{sub}</div>
+        </div>
+      </div>
+    )
+
+    const sortChip = (icon: string, key: string, dir: string, desc: string) => (
+      <div style={{
+        background: t.bgCard, border: `1px solid ${t.border}`,
+        borderRadius: 8, padding: '10px 12px', textAlign: 'center',
+      }}>
+        <div style={{ fontSize: 16, marginBottom: 4 }}>{icon}</div>
+        <div style={{ fontSize: 11, fontWeight: 800, color: t.text, marginBottom: 2 }}>{key}</div>
+        <div style={{ fontSize: 9, color: t.blue, fontWeight: 700, marginBottom: 5 }}>{dir}</div>
+        <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.4 }}>{desc}</div>
+      </div>
+    )
+
+    return (
+      <div style={{
+        maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
+        fontFamily: 'system-ui, sans-serif', color: t.text,
+      }}>
+        {pageTabs}
+
+        {/* Hero */}
+        <div style={{
+          background: 'linear-gradient(135deg, #0f1e3c 0%, #1a3a6e 60%, #1d4ed8 100%)',
+          borderRadius: 16, padding: '32px 36px', marginBottom: 28, color: '#fff',
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#93c5fd', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>ALGORITHM REFERENCE</div>
+          <h1 style={{ margin: '0 0 12px', fontSize: 26, fontWeight: 900, lineHeight: 1.2 }}>How Routes Are Found & Ranked</h1>
+          <p style={{ margin: 0, fontSize: 13, color: 'rgba(200,220,255,0.85)', lineHeight: 1.7, maxWidth: 580 }}>
+            A four-stage pipeline turns your origin and destination into a ranked shortlist.
+            Constraints are hard gates — applied before any route enters the pool.
+            Pool filtering and display sorting are two separate, independent steps you control.
+          </p>
+        </div>
+
+        {/* Pipeline */}
+        <div style={{ ...card() as React.CSSProperties, marginBottom: 24, padding: '22px 20px' }}>
+          <div style={sectionLabel as React.CSSProperties}>The Four-Stage Pipeline</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 16 }}>
+            {pipeBox('1', '#3b82f6', '🔍', 'Graph Search', 'NetworkX walks the cable network finding all valid shortest paths', 'up to 500')}
+            {arrow}
+            {pipeBox('2', '#f59e0b', '⚖️', 'Apply Constraints', 'Hard rules remove every path that breaks any active constraint', 'varies')}
+            {arrow}
+            {pipeBox('3', '#8b5cf6', '🎯', 'Select Pool', 'Best 20 chosen across 6 dimensions — or all 20 by one Optimise For metric', '20 kept')}
+            {arrow}
+            {pipeBox('4', '#10b981', '📊', 'Sort & Display', 'Pool is sorted by your chosen metric and the top 5 shown', '5 shown')}
+          </div>
+          <div style={{
+            padding: '12px 16px', borderRadius: 8,
+            background: t.bgCard, border: `1px solid ${t.borderSubtle}`,
+            fontSize: 11, color: t.textMuted, lineHeight: 1.65,
+          }}>
+            💡 <strong style={{ color: t.text }}>Key distinction:</strong> Constraints (Step 2) are permanent exclusions — a route that breaks one will never appear, even if it is shorter or cheaper. Pool selection (Step 3) and display sort (Step 4) are preferences — they control <em>which</em> valid routes you see, not which routes exist.
+          </div>
+        </div>
+
+        {/* Constraints */}
+        <div style={{ ...card() as React.CSSProperties, marginBottom: 24, padding: '22px 20px' }}>
+          <div style={sectionLabel as React.CSSProperties}>Constraints — Step 2: Hard Rules</div>
+          <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.65, margin: '0 0 16px' }}>
+            Set in <strong style={{ color: t.text }}>Advanced Constraints</strong>. Every active constraint is applied before routes enter the pool.
+            A path that breaks any single constraint is removed entirely — it will not appear even if it is the shortest or best-margin route available.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {constraintRow('📍', 'Must Include Nodes', 'VIA', t.green, 'Route must pass through every selected node. Use for mandatory transit PoPs or landing stations.')}
+            {constraintRow('🚫', 'Must Avoid Nodes', 'SKIP', t.red, 'Route may not transit any selected node. Use to exclude restricted or unavailable facilities.')}
+            {constraintRow('🔗', 'Must Include Segments', 'VIA', t.green, 'Route must traverse every selected cable segment — e.g. to lock in a preferred submarine section.')}
+            {constraintRow('✂️', 'Must Avoid Segments', 'SKIP', t.red, 'Route may not use any selected segment — e.g. segments under maintenance or at outage risk.')}
+            {constraintRow('📡', 'Must Include Systems', 'VIA', t.green, 'Route must carry at least one segment from every selected cable system.')}
+            {constraintRow('🛑', 'Must Avoid Systems', 'SKIP', t.red, 'Route may not use any segment from the selected systems — full system exclusion.')}
+            {constraintRow('🌊', 'Max Wet Hops', 'LIMIT', t.orange, 'Maximum submarine cable segments. Each subsea segment = 1 wet hop. Blank = no limit.')}
+            {constraintRow('⛰️', 'Max Terrestrial Hops', 'LIMIT', t.orange, 'Maximum land cable segments. Each terrestrial segment = 1 land hop. Blank = no limit.')}
+          </div>
+        </div>
+
+        {/* Pool selection + Optimise For */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+          <div style={{ ...card() as React.CSSProperties, padding: '22px 20px' }}>
+            <div style={sectionLabel as React.CSSProperties}>Default Weighting — Step 3 (Auto)</div>
+            <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.65, margin: '0 0 16px' }}>
+              When no Optimise For is set, the pool is built by taking the top 3–4 routes from each of 6 dimensions, deduplicating, and filling remaining slots with the lowest-cost routes. This ensures the pool always contains strong candidates across every metric.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {dimChip('○', 'Hops', 'fewest segments')}
+              {dimChip('↔', 'Distance', 'shortest km')}
+              {dimChip('⚡', 'Latency', 'lowest delay')}
+              {dimChip('$', 'Margin', 'best cost weight')}
+              {dimChip('◉', 'Ownership', 'most on-net')}
+              {dimChip('◈', 'Capacity', 'highest bottleneck')}
+            </div>
+          </div>
+
+          <div style={{ ...card() as React.CSSProperties, padding: '22px 20px' }}>
+            <div style={sectionLabel as React.CSSProperties}>Optimise For — Step 3 (Override)</div>
+            <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.65, margin: '0 0 14px' }}>
+              Setting an Optimise For dimension replaces the multi-dimension pool entirely. All 20 slots are filled with the best routes for that single metric. Use when you have a clear commercial priority.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {[
+                ['○', 'Hops',      'Fill 20 with fewest-hop routes',       '↓ fewer is better'],
+                ['↔', 'Distance',  'Fill 20 with shortest routes',          '↓ fewer km is better'],
+                ['⚡', 'Latency',  'Fill 20 with lowest latency',           '↓ fewer ms is better'],
+                ['$', 'Margin',    'Fill 20 with best commercial margin',   '↑ higher is better'],
+                ['◈', 'Capacity',  'Fill 20 with highest bottleneck Tbps',  '↑ more is better'],
+                ['◉', 'Ownership', 'Fill 20 with most on-net routes',       '↑ more on-net is better'],
+              ].map(([icon, label, desc, dir]) => (
+                <div key={label} style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                  borderRadius: 8, background: t.bgCard, border: `1px solid ${t.border}`,
+                }}>
+                  <span style={{ fontSize: 13, width: 16, textAlign: 'center', flexShrink: 0 }}>{icon}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: t.text, minWidth: 72 }}>{label}</span>
+                  <span style={{ fontSize: 10, color: t.textMuted, flex: 1 }}>{desc}</span>
+                  <span style={{ fontSize: 9, color: t.blue, fontWeight: 700, flexShrink: 0 }}>{dir}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Sort reference */}
+        <div style={{ ...card() as React.CSSProperties, padding: '22px 20px', marginBottom: 24 }}>
+          <div style={sectionLabel as React.CSSProperties}>Display Sort — Step 4</div>
+          <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.65, margin: '0 0 16px' }}>
+            Sort buttons reorder the top 5 shown from your 20-route pool. Clicking an active button toggles it off, returning to pool order.
+            Sorting never removes routes — it only changes <em>which</em> 5 are displayed. You can combine Optimise For (pool composition) with a different sort (display order).
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+            {sortChip('⬡', 'HOPS',     '↑ fewest first',  'Fewest cable segment hops')}
+            {sortChip('↔', 'DIST',     '↑ shortest first', 'Shortest total km')}
+            {sortChip('⚡', 'RTD',      '↑ lowest first',  'Lowest round-trip delay')}
+            {sortChip('🛡', 'AVAIL',   '↓ highest first', 'Best end-to-end availability')}
+            {sortChip('$',  'MARGIN',  '↓ highest first', 'Best weighted margin score')}
+            {sortChip('◈', 'CAPACITY', '↓ highest first', 'Highest bottleneck capacity')}
+            {sortChip('◉', 'OWN',      '↑ most on-net',   'Highest on-net segment ratio')}
+            {sortChip('🚢', 'UP',      '↓ outages last',  'Push routes under repair to bottom')}
+          </div>
+        </div>
+
+        {/* Summary strip */}
+        <div style={{
+          padding: '16px 20px', borderRadius: 12,
+          background: 'linear-gradient(135deg, #1a2744 0%, #1e3a5f 100%)',
+          border: `1px solid ${t.blue}44`, marginBottom: 24,
+          display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+        }}>
+          {[
+            { num: '500', label: 'routes found',        color: '#3b82f6' },
+            { num: '·',   label: '',                    color: t.textFaint },
+            { num: '20',  label: 'filtered by pool',    color: '#8b5cf6' },
+            { num: '·',   label: '',                    color: t.textFaint },
+            { num: '5',   label: 'shown · sorted by',  color: '#10b981' },
+          ].map((s, i) => (
+            <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: s.num === '·' ? 18 : 22, fontWeight: 800, color: s.color }}>{s.num}</span>
+              {s.label && <span style={{ fontSize: 11, color: 'rgba(200,220,255,0.7)' }}>{s.label}</span>}
+            </span>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div style={{ textAlign: 'center', padding: '20px 0 0', borderTop: `1px solid ${t.border}` }}>
+          <div style={{ fontSize: 11, color: t.textFaint }}>International Telco · RouteBuilder · Search Algorithm Reference</div>
         </div>
       </div>
     )
