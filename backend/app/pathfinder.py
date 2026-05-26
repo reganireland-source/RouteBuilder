@@ -130,7 +130,7 @@ def find_routes(
     diversity: DiversityType,
     segments_by_id: dict[str, CableSegment],
     rules: list[InterconnectRule],
-    k: int = 10,
+    k: int = 20,
     max_wet_hops: int | None = None,
     max_terrestrial_hops: int | None = None,
 ) -> RouteResponse:
