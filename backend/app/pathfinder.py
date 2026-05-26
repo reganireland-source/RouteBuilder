@@ -4,8 +4,23 @@ import itertools
 import networkx as nx
 from .models import (
     CableSegment, InterconnectRule, DiversityType,
-    Route, RouteSegmentDetail, RouteResponse
+    Route, RouteSegmentDetail, RouteResponse, SegmentCapacity
 )
+
+_OWNERSHIP_SCORE: dict[str, int] = {
+    "owned": 3, "iru": 3, "consortium": 2,
+    "integrated_lit_lease": 1, "offnet_resell": 0,
+}
+
+_OPTIMISE_SORT: dict[str, tuple[int, bool]] = {
+    # (metrics-tuple index, reverse=True means descending)
+    "hops":      (0, False),
+    "distance":  (1, False), "length":   (1, False),
+    "latency":   (2, False),
+    "margin":    (3, False), "cost":     (3, False),
+    "ownership": (4, True),
+    "capacity":  (5, True),
+}
 from .graph import validate_interconnect_rules, path_to_segment_ids
 
 
@@ -117,6 +132,73 @@ def _apply_waypoints(
     return combined
 
 
+def _select_candidates(
+    candidates: list[list[str]],
+    k: int,
+    working_G: nx.Graph,
+    segments_by_id: dict[str, CableSegment],
+    capacities_by_id: dict[str, SegmentCapacity],
+    optimise_for: str | None,
+) -> list[list[str]]:
+    """Pick k routes using multi-dimension pooling or a single-dimension sort."""
+    if len(candidates) <= k:
+        return candidates
+
+    # Precompute metrics once: (hops, length_km, latency, cost, ownership_avg, cap_min)
+    metrics: list[tuple[float, ...]] = []
+    for path in candidates:
+        seg_ids = path_to_segment_ids(working_G, path)
+        segs = [segments_by_id[sid] for sid in seg_ids if sid in segments_by_id]
+        n = len(segs) or 1
+        cap_vals = [capacities_by_id[sid].available_capacity_t for sid in seg_ids if sid in capacities_by_id]
+        metrics.append((
+            float(len(segs)),
+            sum(s.length_km for s in segs),
+            sum(s.latency or 0.0 for s in segs),
+            sum(s.cost_weight for s in segs),
+            sum(_OWNERSHIP_SCORE.get(str(s.ownership), 0) for s in segs) / n,
+            min(cap_vals) if cap_vals else 0.0,
+        ))
+
+    # Single-dimension override
+    if optimise_for in _OPTIMISE_SORT:
+        col, rev = _OPTIMISE_SORT[optimise_for]
+        order = sorted(range(len(candidates)), key=lambda i: metrics[i][col], reverse=rev)
+        return [candidates[i] for i in order[:k]]
+
+    # Multi-dimension pooling: build one ranked list per dimension
+    dims: list[list[int]] = [
+        sorted(range(len(candidates)), key=lambda i: metrics[i][0]),        # hops asc
+        sorted(range(len(candidates)), key=lambda i: metrics[i][1]),        # length asc
+        sorted(range(len(candidates)), key=lambda i: metrics[i][2]),        # latency asc
+        sorted(range(len(candidates)), key=lambda i: metrics[i][3]),        # cost/margin asc
+        sorted(range(len(candidates)), key=lambda i: -metrics[i][4]),       # ownership desc
+    ]
+    if any(m[5] > 0 for m in metrics):
+        dims.append(sorted(range(len(candidates)), key=lambda i: -metrics[i][5]))  # capacity desc
+
+    per_dim = max(3, math.ceil(k / len(dims)) + 1)
+    seen: set[int] = set()
+    pool: list[int] = []
+    for ranked in dims:
+        for idx in ranked[:per_dim]:
+            if idx not in seen:
+                seen.add(idx)
+                pool.append(idx)
+                if len(pool) >= k:
+                    return [candidates[i] for i in pool]
+
+    # Fill any remaining slots with cost-ordered candidates
+    for idx in dims[3]:
+        if idx not in seen:
+            seen.add(idx)
+            pool.append(idx)
+            if len(pool) >= k:
+                break
+
+    return [candidates[i] for i in pool[:k]]
+
+
 def find_routes(
     G: nx.Graph,
     start: str,
@@ -133,6 +215,8 @@ def find_routes(
     k: int = 20,
     max_wet_hops: int | None = None,
     max_terrestrial_hops: int | None = None,
+    capacities_by_id: dict[str, SegmentCapacity] | None = None,
+    optimise_for: str | None = None,
 ) -> RouteResponse:
     # Build working graph with avoided nodes/segments/systems removed
     working_G = G.copy()
@@ -222,7 +306,9 @@ def find_routes(
         candidates = filtered
 
     total_found = len(candidates)
-    candidates = candidates[:k]
+    candidates = _select_candidates(
+        candidates, k, working_G, segments_by_id, capacities_by_id or {}, optimise_for
+    )
 
     if not candidates:
         return RouteResponse(routes=[], primary_routes=[], diverse_routes=[], total_found=0)

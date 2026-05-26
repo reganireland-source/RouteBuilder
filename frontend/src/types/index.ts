@@ -96,6 +96,7 @@ export interface RouteRequest {
   diversity: DiversityType
   max_wet_hops?: number
   max_terrestrial_hops?: number
+  optimise_for?: string
 }
 
 export interface RouteResponse {

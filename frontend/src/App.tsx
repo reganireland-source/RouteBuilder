@@ -62,6 +62,7 @@ export default function App() {
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
   const [lastSearchDiversity, setLastSearchDiversity] = useState<import('./types').DiversityType>('none')
+  const [lastOptimiseFor, setLastOptimiseFor] = useState<string | undefined>(undefined)
   const [selectedNode, setSelectedNode] = useState<{ node: CableNode; x: number; y: number } | null>(null)
   const [searchPin, setSearchPin]       = useState<{ lat: number; lng: number; label: string } | null>(null)
   const [nearestNodeIds, setNearestNodeIds] = useState<string[]>([])
@@ -126,6 +127,7 @@ export default function App() {
     setSelectedRouteIds([])
     setSearchDuration(null)
     setLastSearchDiversity(req.diversity)
+    setLastOptimiseFor(req.optimise_for)
     const t0 = performance.now()
     try {
       const res = await api.searchRoutes(req)
@@ -184,8 +186,8 @@ export default function App() {
     setSearchPin(pin); setNearestNodeIds(ids)
   }
 
-  function clearSearch() { setResponse(null); setSelectedRouteIds([]); setError(null); setLastSearchDiversity('none'); setSearchDuration(null) }
-  function clearAll()    { setResponse(null); setSelectedRouteIds([]); setPinnedRoutes([]); setError(null); setLastSearchDiversity('none'); setSearchDuration(null) }
+  function clearSearch() { setResponse(null); setSelectedRouteIds([]); setError(null); setLastSearchDiversity('none'); setSearchDuration(null); setLastOptimiseFor(undefined) }
+  function clearAll()    { setResponse(null); setSelectedRouteIds([]); setPinnedRoutes([]); setError(null); setLastSearchDiversity('none'); setSearchDuration(null); setLastOptimiseFor(undefined) }
 
   async function handleDataChange() {
     const [n, s, c, sys, r, cfg, o] = await Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules(), api.getConfig(), api.getOutages()])
@@ -529,6 +531,7 @@ export default function App() {
               onNetOwnership={config.on_net_ownership}
               externalSortKey={nlpSortKey}
               externalPushOutagesDown={nlpPushOutages}
+              optimiseFor={lastOptimiseFor}
             />
           </div>
         </div>

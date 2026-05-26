@@ -132,6 +132,7 @@ class RouteRequest(BaseModel):
     diversity: DiversityType = DiversityType.none
     max_wet_hops: Optional[int] = None
     max_terrestrial_hops: Optional[int] = None
+    optimise_for: Optional[str] = None
 
 
 class RouteSegmentDetail(BaseModel):

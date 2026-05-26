@@ -46,11 +46,19 @@ interface Props {
   // Optional external sort control (e.g. driven by TSABuddy)
   externalSortKey?: SortKey
   externalPushOutagesDown?: boolean
+  // Pool strategy label from last search (drives summary when no sort button active)
+  optimiseFor?: string
 }
 
 export type SortKey = 'hops' | 'distance' | 'latency' | 'availability' | 'margin' | 'capacity' | 'ownership'
 
 const NET_ORDER = { on_net: 0, mixed: 1, off_net: 2 }
+
+const OPTIMISE_LABELS: Record<string, string> = {
+  hops: 'Hops', distance: 'Distance', length: 'Distance',
+  latency: 'Latency', margin: 'Margin', cost: 'Margin',
+  capacity: 'Capacity', ownership: 'Ownership',
+}
 
 const SORT_OPTIONS: { key: SortKey; icon: string; label: string; dir: 'asc' | 'desc' }[] = [
   { key: 'hops',         icon: '⬡',  label: 'Hops',      dir: 'asc'  },
@@ -111,11 +119,11 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
   })
 }
 
-export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown }: Props) {
+export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown, optimiseFor }: Props) {
   const t = useTheme()
   const onNetSet = new Set(onNetOwnership)
   const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
-  const [internalSortKey, setInternalSortKey] = useState<SortKey>('hops')
+  const [internalSortKey, setInternalSortKey] = useState<SortKey | null>(null)
   const [internalPushOutagesDown, setInternalPushOutagesDown] = useState(false)
 
   // Sync from external when provided (e.g. TSABuddy sets the sort)
@@ -141,7 +149,13 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
   }
 
   function applySort(routes: Route[]): Route[] {
-
+    if (sortKey === null) {
+      if (!pushOutagesDown) return routes
+      return [
+        ...routes.filter(r => !routeHasOutage(r, outagesById)),
+        ...routes.filter(r =>  routeHasOutage(r, outagesById)),
+      ]
+    }
     const base = sortRoutes(routes, sortKey, capacityById, onNetSet, systemsById)
     if (!pushOutagesDown) return base
     return [
@@ -157,7 +171,9 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
 
   const summaryStored   = primaryRoutes.length
   const summaryShown    = sorted.primary.length
-  const summarySortLabel = SORT_OPTIONS.find(o => o.key === sortKey)?.label ?? sortKey
+  const summarySortLabel = sortKey !== null
+    ? (SORT_OPTIONS.find(o => o.key === sortKey)?.label ?? sortKey)
+    : (optimiseFor ? (OPTIMISE_LABELS[optimiseFor] ?? optimiseFor) : 'Default Weighting')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -211,7 +227,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
               return (
                 <button
                   key={opt.key}
-                  onClick={() => setSortKey(opt.key)}
+                  onClick={() => setSortKey(prev => prev === opt.key ? null : opt.key)}
                   title={`Sort by ${opt.label} (${opt.dir === 'asc' ? 'lowest first' : 'highest first'})`}
                   style={{
                     flex: '1 0 44px', display: 'flex', flexDirection: 'column', alignItems: 'center',

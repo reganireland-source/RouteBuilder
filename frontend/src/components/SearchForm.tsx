@@ -78,6 +78,21 @@ const CONSTRAINT_DEFS = [
     label: 'Max Hops',
     description: 'Limits how many cable segments the route may traverse. Each segment counts as one hop — so a route through 4 nodes has 3 hops. Wet hops cross ocean; terrestrial hops cross land. Leave a field blank to apply no limit for that type.',
   },
+  {
+    id: 'optimise_for',
+    label: 'Optimise For',
+    description: 'Controls which 20 routes are kept in the search pool. Auto (default) draws from multiple dimensions — picking the best routes for hops, distance, latency, margin, capacity, and on-net ownership. Setting a specific dimension fills all 20 slots with the best routes for that single metric.',
+  },
+]
+
+const OPTIMISE_OPTIONS: { value: string; label: string; icon: string }[] = [
+  { value: '',          label: 'Auto',      icon: '✦' },
+  { value: 'hops',      label: 'Hops',      icon: '○' },
+  { value: 'distance',  label: 'Distance',  icon: '↔' },
+  { value: 'latency',   label: 'Latency',   icon: '⚡' },
+  { value: 'margin',    label: 'Margin',    icon: '$' },
+  { value: 'capacity',  label: 'Capacity',  icon: '◈' },
+  { value: 'ownership', label: 'Ownership', icon: '◉' },
 ]
 
 function FilteredMulti({ items, selected, onToggle, placeholder, listHeight = 130 }: {
@@ -503,6 +518,7 @@ function AdvancedConstraintsModal({
   mustAvoidSystems, setMustAvoidSystems,
   maxWetHops, setMaxWetHops,
   maxTerrestrialHops, setMaxTerrestrialHops,
+  optimiseFor, setOptimiseFor,
   activeTab, setActiveTab,
   onClearAll,
 }: {
@@ -529,6 +545,8 @@ function AdvancedConstraintsModal({
   setMaxWetHops: (v: number | '') => void
   maxTerrestrialHops: number | ''
   setMaxTerrestrialHops: (v: number | '') => void
+  optimiseFor: string
+  setOptimiseFor: (v: string) => void
   activeTab: string
   setActiveTab: (v: string) => void
   onClearAll: () => void
@@ -546,7 +564,8 @@ function AdvancedConstraintsModal({
     mustIncludeNodes.length + mustAvoidNodes.length +
     mustAvoidSegs.length + mustIncludeSegs.length +
     mustIncludeSystems.length + mustAvoidSystems.length +
-    (maxWetHops !== '' ? 1 : 0) + (maxTerrestrialHops !== '' ? 1 : 0)
+    (maxWetHops !== '' ? 1 : 0) + (maxTerrestrialHops !== '' ? 1 : 0) +
+    (optimiseFor !== '' ? 1 : 0)
 
   function getChips(id: string): { chips: string[]; hasValue: boolean } {
     switch (id) {
@@ -568,6 +587,11 @@ function AdvancedConstraintsModal({
         if (maxTerrestrialHops !== '') chips.push(`⛰️ Land: ${maxTerrestrialHops}`)
         return { chips, hasValue: chips.length > 0 }
       }
+      case 'optimise_for': {
+        if (!optimiseFor) return { chips: [], hasValue: false }
+        const opt = OPTIMISE_OPTIONS.find(o => o.value === optimiseFor)
+        return { chips: [opt?.label ?? optimiseFor], hasValue: true }
+      }
       default: return { chips: [], hasValue: false }
     }
   }
@@ -581,6 +605,7 @@ function AdvancedConstraintsModal({
       case 'must_include_systems': setMustIncludeSystems([]); break
       case 'must_avoid_systems': setMustAvoidSystems([]); break
       case 'max_hops': setMaxWetHops(''); setMaxTerrestrialHops(''); break
+      case 'optimise_for': setOptimiseFor(''); break
     }
   }
 
@@ -607,6 +632,34 @@ function AdvancedConstraintsModal({
             <HopStepper label="Max Wet Hops" icon="🌊" value={maxWetHops} onChange={setMaxWetHops} />
             <div style={{ height: 1, background: t.border }} />
             <HopStepper label="Max Terrestrial Hops" icon="⛰️" value={maxTerrestrialHops} onChange={setMaxTerrestrialHops} />
+          </div>
+        )
+      case 'optimise_for':
+        return (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            {OPTIMISE_OPTIONS.map(opt => {
+              const sel = optimiseFor === opt.value
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setOptimiseFor(opt.value)}
+                  style={{
+                    padding: '8px 18px', borderRadius: 8,
+                    border: `1px solid ${sel ? t.blue : t.border}`,
+                    background: sel ? t.blue + '22' : 'transparent',
+                    color: sel ? t.blue : t.textDim,
+                    cursor: 'pointer',
+                    fontWeight: sel ? 700 : 400,
+                    fontSize: 13,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    fontFamily: 'system-ui, sans-serif',
+                  }}
+                >
+                  <span>{opt.icon}</span>{opt.label}
+                </button>
+              )
+            })}
           </div>
         )
       default: return null
@@ -816,6 +869,7 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
   const [mustAvoidSystems, setMustAvoidSystems] = useState<string[]>([])
   const [maxWetHops, setMaxWetHops] = useState<number | ''>('')
   const [maxTerrestrialHops, setMaxTerrestrialHops] = useState<number | ''>('')
+  const [optimiseFor, setOptimiseFor] = useState<string>('')
   const [modalOpen, setModalOpen] = useState(false)
   const [activeConstraintTab, setActiveConstraintTab] = useState('must_include_nodes')
 
@@ -833,6 +887,7 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
     if (prefill.must_avoid_systems)    setMustAvoidSystems(prefill.must_avoid_systems)
     if (prefill.max_wet_hops != null)         setMaxWetHops(prefill.max_wet_hops)
     if (prefill.max_terrestrial_hops != null) setMaxTerrestrialHops(prefill.max_terrestrial_hops)
+    if (prefill.optimise_for != null)         setOptimiseFor(prefill.optimise_for)
     const hasAdvanced = (
       (prefill.must_include_nodes?.length    ?? 0) > 0 ||
       (prefill.must_avoid_nodes?.length      ?? 0) > 0 ||
@@ -841,7 +896,8 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
       (prefill.must_include_systems?.length  ?? 0) > 0 ||
       (prefill.must_avoid_systems?.length    ?? 0) > 0 ||
       prefill.max_wet_hops != null ||
-      prefill.max_terrestrial_hops != null
+      prefill.max_terrestrial_hops != null ||
+      prefill.optimise_for != null
     )
     if (hasAdvanced) setModalOpen(true)
   }, [prefill])
@@ -871,6 +927,7 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
       diversity,
       max_wet_hops: maxWetHops === '' ? undefined : maxWetHops as number,
       max_terrestrial_hops: maxTerrestrialHops === '' ? undefined : maxTerrestrialHops as number,
+      optimise_for: optimiseFor || undefined,
     })
   }
 
@@ -883,6 +940,7 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
     setMustAvoidSystems([])
     setMaxWetHops('')
     setMaxTerrestrialHops('')
+    setOptimiseFor('')
     setActiveConstraintTab('must_include_nodes')
   }
 
@@ -902,7 +960,8 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
     mustIncludeNodes.length + mustAvoidNodes.length +
     mustAvoidSegs.length + mustIncludeSegs.length +
     mustIncludeSystems.length + mustAvoidSystems.length +
-    (maxWetHops !== '' ? 1 : 0) + (maxTerrestrialHops !== '' ? 1 : 0)
+    (maxWetHops !== '' ? 1 : 0) + (maxTerrestrialHops !== '' ? 1 : 0) +
+    (optimiseFor !== '' ? 1 : 0)
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -978,6 +1037,8 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
         setMaxWetHops={setMaxWetHops}
         maxTerrestrialHops={maxTerrestrialHops}
         setMaxTerrestrialHops={setMaxTerrestrialHops}
+        optimiseFor={optimiseFor}
+        setOptimiseFor={setOptimiseFor}
         activeTab={activeConstraintTab}
         setActiveTab={setActiveConstraintTab}
         onClearAll={clearAllConstraints}
