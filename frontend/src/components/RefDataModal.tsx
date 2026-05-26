@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, InterconnectRule, SegmentCapacity, SegmentOutage } from '../types'
 import { useTheme } from '../theme'
 import { api } from '../api/client'
+import { ProductCoveragePanel } from './ProductCoveragePanel'
 
 const OWNERSHIP_LABEL: Record<string, string> = {
   owned:                'Owned',
@@ -14,7 +15,7 @@ const OWNERSHIP_LABEL: Record<string, string> = {
 const DEFAULT_ONNET = ['owned', 'consortium', 'iru']
 
 type DataTab = 'nodes' | 'segments' | 'systems' | 'capacity' | 'outages' | 'rules'
-type Tab = DataTab | 'checks' | 'config'
+type Tab = DataTab | 'checks' | 'config' | 'coverage'
 
 interface CheckResult {
   name: string
@@ -1158,7 +1159,15 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           }}>
             ⚙ Config
           </button>
-          {tab !== 'checks' && tab !== 'config' && (
+          <button onClick={() => switchTab('coverage')} style={{
+            padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
+            fontSize: 12, fontWeight: tab === 'coverage' ? 700 : 400,
+            color: tab === 'coverage' ? t.green : t.textFaint,
+            borderBottom: tab === 'coverage' ? `2px solid ${t.green}` : '2px solid transparent',
+          }}>
+            🟢 Product Coverage
+          </button>
+          {tab !== 'checks' && tab !== 'config' && tab !== 'coverage' && (
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
               <input
                 placeholder={`Filter ${tab}…`}
@@ -1186,6 +1195,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           {tab === 'rules'    && <RulesTab />}
           {tab === 'checks'   && <ChecksTab />}
           {tab === 'config'   && <ConfigTab />}
+          {tab === 'coverage' && <ProductCoveragePanel nodes={nodes} onDataChange={onDataChange} />}
         </div>
 
       </div>
