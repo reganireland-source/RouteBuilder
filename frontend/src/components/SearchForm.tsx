@@ -959,7 +959,7 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
       prefill.max_terrestrial_hops != null ||
       prefill.optimise_for != null
     )
-    if (hasAdvanced) setModalOpen(true)
+    void hasAdvanced
   }, [prefill])
 
   // Sync origin/dest set from map node clicks
