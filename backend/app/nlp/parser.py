@@ -23,12 +23,13 @@ DIVERSITY TYPES:
 - full_nodes             : fully diverse (no shared segments or nodes)
 
 SORT MODES (optional UI hint — return null if not mentioned):
-- hops        : fewest hops / shortest path by hop count (also: "length", "fewest hops")
-- latency     : lowest round-trip delay / fastest RTD (also: "RTD", "fastest")
-- availability: highest end-to-end availability / most reliable (also: "reliability", "uptime")
+- hops        : fewest hops / fewest intermediate nodes (also: "fewest hops", "least hops")
+- distance    : shortest total distance in km (also: "length", "shortest", "least km", "closest")
+- latency     : lowest round-trip delay / fastest RTD (also: "RTD", "fastest", "lowest latency")
+- availability: highest end-to-end availability / most reliable (also: "reliability", "uptime", "most available")
 - margin      : highest route margin / best commercial value (also: "cost", "cheapest", "best margin")
 - capacity    : most available capacity on the bottleneck segment (also: "most capacity", "bandwidth")
-- ownership   : most on-net segments first / fewest off-net hops (also: "on-net", "own")
+- ownership   : most on-net segments first / fewest off-net hops (also: "on-net", "own", "owned")
 - outages     : push routes with active outages to the bottom (also: "avoid outages", "healthy routes first")
 
 Return ONLY a JSON object — no prose, no markdown fences — with these exact fields:
@@ -90,7 +91,8 @@ def _system_catalog(segments) -> str:
 
 _VALID_DIVERSITY = {d.value for d in DiversityType}
 _VALID_SORT = {
-    "hops", "length",                    # hop count (length is legacy alias)
+    "hops",                              # hop count
+    "distance", "length",                # total km (length is alias)
     "latency",                           # round-trip delay
     "availability", "reliability",       # end-to-end availability (reliability is legacy alias)
     "margin", "cost",                    # route margin (cost is legacy alias)

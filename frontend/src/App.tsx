@@ -78,7 +78,8 @@ export default function App() {
 
   const NLP_SORT_MAP: Record<NlpSortMode, SortKey | null> = {
     hops:         'hops',
-    length:       'hops',         // legacy alias
+    distance:     'distance',
+    length:       'distance',     // alias: "length" = total km, not hops
     latency:      'latency',
     availability: 'availability',
     reliability:  'availability', // legacy alias

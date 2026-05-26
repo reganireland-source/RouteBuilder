@@ -45,12 +45,13 @@ interface Props {
   externalPushOutagesDown?: boolean
 }
 
-export type SortKey = 'hops' | 'latency' | 'availability' | 'margin' | 'capacity' | 'ownership'
+export type SortKey = 'hops' | 'distance' | 'latency' | 'availability' | 'margin' | 'capacity' | 'ownership'
 
 const NET_ORDER = { on_net: 0, mixed: 1, off_net: 2 }
 
 const SORT_OPTIONS: { key: SortKey; icon: string; label: string; dir: 'asc' | 'desc' }[] = [
   { key: 'hops',         icon: '⬡',  label: 'Hops',      dir: 'asc'  },
+  { key: 'distance',     icon: '↔',  label: 'Dist',      dir: 'asc'  },
   { key: 'latency',      icon: '⚡', label: 'RTD',       dir: 'asc'  },
   { key: 'availability', icon: '🛡', label: 'Avail',     dir: 'desc' },
   { key: 'margin',       icon: '$',  label: 'Margin',    dir: 'desc' },
@@ -93,6 +94,7 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
   return [...routes].sort((a, b) => {
     switch (key) {
       case 'hops':         return (a.nodes.length - 1) - (b.nodes.length - 1)
+      case 'distance':     return a.total_length_km - b.total_length_km
       case 'latency':      return a.total_latency - b.total_latency
       case 'availability': return b.end_to_end_reliability - a.end_to_end_reliability
       case 'margin':       return (computeRouteMargin(b, systemsById) ?? 0) - (computeRouteMargin(a, systemsById) ?? 0)

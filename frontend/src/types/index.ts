@@ -160,7 +160,8 @@ export interface CityPairResponse {
 }
 
 export type NlpSortMode =
-  | 'hops' | 'length'                  // hop count
+  | 'hops'                             // hop count
+  | 'distance' | 'length'             // total km (length is alias)
   | 'latency'                          // round-trip delay
   | 'availability' | 'reliability'     // end-to-end availability
   | 'margin' | 'cost'                  // route margin
