@@ -4,6 +4,7 @@ import { SearchForm } from './SearchForm'
 import { RouteList } from './RouteList'
 import type { SortKey } from './RouteList'
 import { SystemViewer } from './SystemViewer'
+import { CountryViewer } from './CountryViewer'
 import { NodeFinder } from './NodeFinder'
 import { CityPairPanel } from './CityPairPanel'
 import { NodeInfoPanel } from './NodeInfoPanel'
@@ -14,7 +15,7 @@ import { generateStraightLineDiagram } from '../utils/generateDiagram'
 import { useTheme } from '../theme'
 import type { ThemeMode } from '../theme'
 import type {
-  AppConfig, AppMode, CableNode, CableSegment, CableSystem, InterconnectRule,
+  AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule,
   NlpSortMode, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage,
   SelectedSystem, DiversityType,
 } from '../types'
@@ -99,6 +100,9 @@ export interface MobileLayoutProps {
   onToggleHideNonActive:         () => void
   onToggleShowSegmentLabels:     () => void
   onToggleShowAllOutages:        () => void
+  onToggleSubseaOnly:            () => void
+  onToggleBackhaulOnly:          () => void
+  onCountrySelect:               (h: CountryHighlight | null) => void
   onApplySort?:                  (mode: NlpSortMode) => void
   nlpSortKey?:                   SortKey
   nlpPushOutages?:               boolean
@@ -114,10 +118,16 @@ export function MobileLayout({
   onSearch, onToggleRoute, onPin, onUnpin, onToggleSystem,
   onSetOrigin, onSetDest, onSetPair, onNodeClick, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
-  switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowAllOutages,
+  switchMode, clearSearch, clearAll, cycleTheme,
+  onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowAllOutages,
+  onToggleSubseaOnly, onToggleBackhaulOnly, onCountrySelect,
   onApplySort, nlpSortKey, nlpPushOutages, onOpenGuide,
   hideNonActive = false, showSegmentLabels = false, showAllOutages = false,
-}: MobileLayoutProps & { hideNonActive?: boolean; showSegmentLabels?: boolean; showAllOutages?: boolean }) {
+  subseaOnly = false, backhaulOnly = false, countryHighlight = null,
+}: MobileLayoutProps & {
+  hideNonActive?: boolean; showSegmentLabels?: boolean; showAllOutages?: boolean
+  subseaOnly?: boolean; backhaulOnly?: boolean; countryHighlight?: CountryHighlight | null
+}) {
   const t = useTheme()
 
   const [sheetHeight, setSheetHeight] = useState(() => snapPx('mid'))
@@ -222,6 +232,9 @@ export function MobileLayout({
             hideNonActive={hideNonActive}
             showSegmentLabels={showSegmentLabels}
             showAllOutages={showAllOutages}
+            subseaOnly={subseaOnly}
+            backhaulOnly={backhaulOnly}
+            countryHighlight={countryHighlight}
             outages={outages}
           />
         ) : (
@@ -312,6 +325,20 @@ export function MobileLayout({
                   active: hideNonActive,
                   color: t.blue,
                   onClick: () => { onToggleHideNonActive(); setDrawerOpen(false) },
+                },
+                {
+                  label: 'Subsea Only',
+                  icon: '🌊',
+                  active: subseaOnly,
+                  color: t.blue,
+                  onClick: () => { onToggleSubseaOnly(); setDrawerOpen(false) },
+                },
+                {
+                  label: 'Backhaul Only',
+                  icon: '🗺',
+                  active: backhaulOnly,
+                  color: t.blue,
+                  onClick: () => { onToggleBackhaulOnly(); setDrawerOpen(false) },
                 },
               ].map(item => (
                 <button
@@ -419,11 +446,12 @@ export function MobileLayout({
 
         {/* Mode tabs */}
         <div style={{ flexShrink: 0, display: 'flex', borderBottom: `1px solid ${t.border}` }}>
-          <button style={tabBtn(mode === 'routebuilder')} onClick={() => tapTab('routebuilder')}>Routes</button>
-          <button style={tabBtn(mode === 'citypair')}     onClick={() => tapTab('citypair')}>City Pairs</button>
-          <button style={tabBtn(mode === 'systemviewer')} onClick={() => tapTab('systemviewer')}>Cables</button>
-          <button style={tabBtn(mode === 'nodefinder')}   onClick={() => tapTab('nodefinder')}>Nodes</button>
-          <button style={tabBtn(false)}                   onClick={onOpenGuide}>Guide</button>
+          <button style={tabBtn(mode === 'routebuilder')}   onClick={() => tapTab('routebuilder')}>Routes</button>
+          <button style={tabBtn(mode === 'citypair')}       onClick={() => tapTab('citypair')}>Pairs</button>
+          <button style={tabBtn(mode === 'systemviewer')}   onClick={() => tapTab('systemviewer')}>Cables</button>
+          <button style={tabBtn(mode === 'countryviewer')}  onClick={() => tapTab('countryviewer')}>Country</button>
+          <button style={tabBtn(mode === 'nodefinder')}     onClick={() => tapTab('nodefinder')}>Nodes</button>
+          <button style={tabBtn(false)}                     onClick={onOpenGuide}>Guide</button>
         </div>
 
         {/* Scrollable content — clipped to sheet height automatically */}
@@ -531,6 +559,18 @@ export function MobileLayout({
             </div>
           )}
 
+          {/* ── Country Viewer mode ───────────────────────────────────── */}
+          {mode === 'countryviewer' && (
+            <div style={{ padding: '14px 16px 32px' }}>
+              <CountryViewer
+                nodes={nodes}
+                segments={segments}
+                systems={systems}
+                onSelect={onCountrySelect}
+              />
+            </div>
+          )}
+
         </div>
         <HealthBar dataLoaded={nodes.length > 0} />
       </div>
@@ -541,8 +581,8 @@ export function MobileLayout({
           node={selectedNode.node}
           segments={segments}
           systems={systems}
-          initialX={Math.min(selectedNode.x, window.innerWidth - 310)}
-          initialY={Math.max(selectedNode.y - 80, 60)}
+          initialX={selectedNode.x}
+          initialY={selectedNode.y}
           onClose={onCloseNode}
         />
       )}

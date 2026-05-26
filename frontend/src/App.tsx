@@ -240,6 +240,12 @@ export default function App() {
           onToggleShowSegmentLabels={() => setShowSegmentLabels(v => !v)}
           showAllOutages={showAllOutages}
           onToggleShowAllOutages={() => setShowAllOutages(v => !v)}
+          subseaOnly={subseaOnly}
+          onToggleSubseaOnly={() => { setSubseaOnly(v => !v); if (!subseaOnly) setBackhaulOnly(false) }}
+          backhaulOnly={backhaulOnly}
+          onToggleBackhaulOnly={() => { setBackhaulOnly(v => !v); if (!backhaulOnly) setSubseaOnly(false) }}
+          countryHighlight={countryHighlight}
+          onCountrySelect={setCountryHighlight}
           onApplySort={handleApplySort}
           nlpSortKey={nlpSortKey}
           nlpPushOutages={nlpPushOutages}
