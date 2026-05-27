@@ -140,7 +140,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
   function toggleBreakdown(primaryId: string) {
     setOpenBreakdowns(prev => {
       const next = new Set(prev)
-      if (next.has(primaryId)) next.delete(primaryId) else next.add(primaryId)
+      if (next.has(primaryId)) { next.delete(primaryId) } else { next.add(primaryId) }
       return next
     })
   }
