@@ -423,6 +423,14 @@ function PairCard({
   const primarySegIds = new Set(pair.primary.segments.map(s => s.segment_id))
   const sharedIds = new Set(pair.diverse.segments.filter(s => primarySegIds.has(s.segment_id)).map(s => s.segment_id))
 
+  // Shared intermediate nodes (exclude endpoints — they're always the same for both routes)
+  const routeStart = pair.primary.nodes[0]
+  const routeEnd = pair.primary.nodes[pair.primary.nodes.length - 1]
+  const primaryNodeSet = new Set(pair.primary.nodes)
+  const sharedNodeIds = new Set(
+    pair.diverse.nodes.filter(n => primaryNodeSet.has(n) && n !== routeStart && n !== routeEnd)
+  )
+
   return (
     <div style={{ marginBottom: 6 }}>
       {/* Pair label + breakdown toggle */}
@@ -440,7 +448,7 @@ function PairCard({
             letterSpacing: '0.04em',
           }}
         >
-          ≡ Segments {segmentsOpen ? '▴' : '▾'}
+          ≡ Path Comparison {segmentsOpen ? '▴' : '▾'}
         </button>
       </div>
 
@@ -492,11 +500,11 @@ function PairCard({
         >
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: t.blue, marginBottom: 6, letterSpacing: '0.04em' }}>🔵 Worker</div>
-            <PairBreakdown route={pair.primary} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.blue} />
+            <PairBreakdown route={pair.primary} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.blue} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
           </div>
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: t.green, marginBottom: 6, letterSpacing: '0.04em' }}>🟢 Protect</div>
-            <PairBreakdown route={pair.diverse} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.green} />
+            <PairBreakdown route={pair.diverse} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.green} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
           </div>
         </div>
       )}
@@ -794,45 +802,119 @@ function NetBadge({ route, onNetSet }: { route: Route; onNetSet: Set<string> }) 
   )
 }
 
-function PairBreakdown({ route, outagesById, sharedIds, accentColor }: {
+function PairBreakdown({ route, outagesById, sharedIds, accentColor, nodesById, sharedNodeIds }: {
   route: Route
   outagesById: Record<string, SegmentOutage>
   sharedIds: Set<string>
   accentColor: string
+  nodesById: Record<string, { name: string; type?: string }>
+  sharedNodeIds: Set<string>
 }) {
   const t = useTheme()
+  // route.nodes has n+1 entries; route.segments has n entries.
+  // Layout: node[0] → segment[0] → node[1] → segment[1] → … → node[n]
+  // All node dots are centered at x=6 from the left (12px dot flush, or 8px BU dot + 2px margin).
+  // The track line (2px wide) sits at marginLeft:5 to bisect that 6px centre.
   return (
-    <div>
-      {route.segments.map(seg => {
-        const isShared = sharedIds.has(seg.segment_id)
-        const outage = outagesById[seg.segment_id]
-        const isWet = seg.type === 'wet'
+    <div style={{ paddingBottom: 4 }}>
+      {route.nodes.map((nodeId, i) => {
+        const seg = route.segments[i]           // undefined after last node
+        const node = nodesById[nodeId]
+        const isBU = node?.type === 'branching_unit'
+        const isSharedNode = sharedNodeIds.has(nodeId)
+        const nodeColor = isSharedNode ? t.orange : accentColor
+        const dotSize = isBU ? 8 : 12
+        const dotMarginLeft = isBU ? 2 : 0     // keeps both variants centred at x=6
+
+        // Segment details (computed only when seg exists)
+        const isSharedSeg = seg ? sharedIds.has(seg.segment_id) : false
+        const segOutage = seg ? outagesById[seg.segment_id] : undefined
+        const isWet = seg?.type === 'wet'
+        const trackColor = isSharedSeg ? t.orange + '99' : t.border
+
         return (
-          <div key={seg.segment_id} style={{
-            marginBottom: 4, padding: '5px 7px', borderRadius: 4,
-            border: `1px solid ${isShared ? t.orange : t.border}`,
-            background: isShared ? t.orange + '14' : t.bgCard,
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: isWet ? accentColor : t.green }}>
-                {seg.system_id}
-              </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                {isShared && (
-                  <span style={{ fontSize: 8, fontWeight: 700, color: t.orange, background: t.orange + '22', padding: '1px 4px', borderRadius: 3, letterSpacing: '0.04em' }}>
-                    SHARED
-                  </span>
-                )}
-                {outage && <span style={{ fontSize: 11 }} title="Active outage">⚠️</span>}
-                <span style={{ fontSize: 9, color: t.textFaint, textTransform: 'uppercase' as const }}>{seg.type}</span>
+          <div key={`${nodeId}-${i}`}>
+            {/* ── Metro stop ─────────────────────────────────────── */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {/* Circle dot */}
+              <div style={{
+                width: dotSize, height: dotSize, borderRadius: '50%',
+                background: isSharedNode ? nodeColor : t.bgDeep,
+                border: `2px solid ${nodeColor}`,
+                flexShrink: 0,
+                marginLeft: dotMarginLeft,
+              }} />
+              {/* Label */}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                  {isBU ? (
+                    <span style={{ fontSize: 8, color: t.textFaint, fontFamily: 'monospace' }}>
+                      ◈ {nodeId}
+                    </span>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: nodeColor, lineHeight: 1.3 }}>
+                        {node?.name ?? nodeId}
+                      </span>
+                      {node?.name && node.name !== nodeId && (
+                        <span style={{ fontSize: 8, color: t.textFaintest, fontFamily: 'monospace' }}>
+                          {nodeId}
+                        </span>
+                      )}
+                    </>
+                  )}
+                  {isSharedNode && (
+                    <span style={{
+                      fontSize: 7, fontWeight: 700, color: t.orange,
+                      background: t.orange + '22', padding: '1px 4px',
+                      borderRadius: 3, letterSpacing: '0.04em',
+                    }}>
+                      SHARED
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-            <div style={{ fontSize: 9, color: t.textMuted, fontFamily: 'monospace', marginBottom: 1 }}>
-              {seg.segment_id}
-            </div>
-            <div style={{ fontSize: 9, color: t.textFaint }}>
-              {seg.length_km.toLocaleString()} km · {seg.latency ?? '—'} ms
-            </div>
+
+            {/* ── Track + segment card (only between nodes) ──────── */}
+            {seg && (
+              <div style={{ display: 'flex', alignItems: 'stretch', margin: '2px 0' }}>
+                {/* Vertical track line — centred under the dot above */}
+                <div style={{
+                  width: 2, flexShrink: 0,
+                  background: trackColor,
+                  marginLeft: 5, borderRadius: 1,
+                }} />
+                {/* Segment card */}
+                <div style={{
+                  flex: 1, marginLeft: 10, marginTop: 3, marginBottom: 3,
+                  padding: '5px 7px', borderRadius: 4,
+                  border: `1px solid ${isSharedSeg ? t.orange : t.border}`,
+                  background: isSharedSeg ? t.orange + '14' : t.bgCard,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: isWet ? accentColor : t.green }}>
+                      {seg.system_id}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {isSharedSeg && (
+                        <span style={{ fontSize: 8, fontWeight: 700, color: t.orange, background: t.orange + '22', padding: '1px 4px', borderRadius: 3, letterSpacing: '0.04em' }}>
+                          SHARED
+                        </span>
+                      )}
+                      {segOutage && <span style={{ fontSize: 11 }} title="Active outage">⚠️</span>}
+                      <span style={{ fontSize: 9, color: t.textFaint, textTransform: 'uppercase' as const }}>{seg.type}</span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 9, color: t.textMuted, fontFamily: 'monospace', marginBottom: 1 }}>
+                    {seg.segment_id}
+                  </div>
+                  <div style={{ fontSize: 9, color: t.textFaint }}>
+                    {seg.length_km.toLocaleString()} km · {seg.latency ?? '—'} ms
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )
       })}
