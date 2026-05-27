@@ -763,7 +763,6 @@ function NetBadge({ route, onNetSet }: { route: Route; onNetSet: Set<string> }) 
 function PairBreakdown({ route, outagesById, sharedIds, accentColor }: {
   route: Route
   outagesById: Record<string, SegmentOutage>
-  onNetSet: Set<string>
   sharedIds: Set<string>
   accentColor: string
 }) {
