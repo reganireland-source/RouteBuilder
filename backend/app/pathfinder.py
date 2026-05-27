@@ -225,14 +225,14 @@ def _make_diverse_graph(
     # Walk from each end to find the leading terrestrial run
     origin_terr: set[str] = set()
     for sid, seg in segs:
-        if str(seg.type) == "terrestrial":
+        if seg.type == "terrestrial":
             origin_terr.add(sid)
         else:
             break
 
     dest_terr: set[str] = set()
     for sid, seg in reversed(segs):
-        if str(seg.type) == "terrestrial":
+        if seg.type == "terrestrial":
             dest_terr.add(sid)
         else:
             break
@@ -242,7 +242,7 @@ def _make_diverse_graph(
     for sid, seg in segs:
         remove = (
             diversity in (DiversityType.full, DiversityType.full_nodes)
-            or (str(seg.type) == "wet" and diversity == DiversityType.wet)
+            or (seg.type == "wet" and diversity == DiversityType.wet)
             or (diversity == DiversityType.terrestrial_origin and sid in origin_terr)
             or (diversity == DiversityType.terrestrial_destination and sid in dest_terr)
             or (diversity == DiversityType.terrestrial_both and sid in (origin_terr | dest_terr))

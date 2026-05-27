@@ -135,6 +135,16 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
   const setSortKey = setInternalSortKey
   const setPushOutagesDown = setInternalPushOutagesDown
 
+  // Track which pair breakdown panels are open (keyed by primary route id)
+  const [openBreakdowns, setOpenBreakdowns] = useState<Set<string>>(new Set())
+  function toggleBreakdown(primaryId: string) {
+    setOpenBreakdowns(prev => {
+      const next = new Set(prev)
+      if (next.has(primaryId)) next.delete(primaryId) else next.add(primaryId)
+      return next
+    })
+  }
+
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
   const outagesById = Object.fromEntries(outages.map(o => [o.segment_id, o]))
@@ -293,11 +303,29 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
 
           {pairs ? (
             <>
-              {(sortedPairs ?? []).slice(0, MAX_SHOWN).map((pair, idx) => (
+              {(sortedPairs ?? []).slice(0, MAX_SHOWN).map((pair, idx) => {
+                const breakdownOpen = openBreakdowns.has(pair.primary.id)
+                const primarySegIds = new Set(pair.primary.segments.map(s => s.segment_id))
+                const sharedIds = new Set(pair.diverse.segments.filter(s => primarySegIds.has(s.segment_id)).map(s => s.segment_id))
+                return (
                 <div key={pair.primary.id} style={{ marginBottom: 6 }}>
-                  {/* Pair label */}
-                  <div style={{ fontSize: 9, color: t.textFaint, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, padding: '0 2px 3px' }}>
-                    Pair {idx + 1}
+                  {/* Pair label + breakdown toggle */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px 3px' }}>
+                    <div style={{ fontSize: 9, color: t.textFaint, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>
+                      Pair {idx + 1}
+                    </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); toggleBreakdown(pair.primary.id) }}
+                      style={{
+                        fontSize: 9, padding: '2px 7px', borderRadius: 4, cursor: 'pointer',
+                        border: `1px solid ${breakdownOpen ? t.blue : t.border}`,
+                        background: breakdownOpen ? t.blue + '18' : 'transparent',
+                        color: breakdownOpen ? t.blue : t.textFaint, fontWeight: 600,
+                        letterSpacing: '0.04em',
+                      }}
+                    >
+                      ≡ Segments {breakdownOpen ? '▴' : '▾'}
+                    </button>
                   </div>
                   {/* Primary */}
                   <RouteCard
@@ -336,8 +364,23 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                     onNetSet={onNetSet}
                     systemsById={systemsById}
                   />
+
+                  {/* Side-by-side segment breakdown */}
+                  {breakdownOpen && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6, padding: '10px 10px 6px', borderRadius: 6, background: t.bgDeep, border: `1px solid ${t.border}` }} onClick={e => e.stopPropagation()}>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: t.blue, marginBottom: 6, letterSpacing: '0.04em' }}>🔵 Primary</div>
+                        <PairBreakdown route={pair.primary} capacityById={capacityById} outagesById={outagesById} onNetSet={onNetSet} sharedIds={sharedIds} accentColor={t.blue} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: t.green, marginBottom: 6, letterSpacing: '0.04em' }}>🟢 Diverse Backup</div>
+                        <PairBreakdown route={pair.diverse} capacityById={capacityById} outagesById={outagesById} onNetSet={onNetSet} sharedIds={sharedIds} accentColor={t.green} />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))}
+                )
+              })}
               {(sortedPairs?.length ?? 0) === 0 && diversityRequested && (
                 <div style={{
                   marginTop: 6, padding: '10px 14px', borderRadius: 6,
@@ -714,6 +757,54 @@ function NetBadge({ route, onNetSet }: { route: Route; onNetSet: Set<string> }) 
     }}>
       {label}
     </span>
+  )
+}
+
+function PairBreakdown({ route, capacityById, outagesById, onNetSet, sharedIds, accentColor }: {
+  route: Route
+  capacityById: Record<string, SegmentCapacity>
+  outagesById: Record<string, SegmentOutage>
+  onNetSet: Set<string>
+  sharedIds: Set<string>
+  accentColor: string
+}) {
+  const t = useTheme()
+  return (
+    <div>
+      {route.segments.map(seg => {
+        const isShared = sharedIds.has(seg.segment_id)
+        const outage = outagesById[seg.segment_id]
+        const isWet = seg.type === 'wet'
+        return (
+          <div key={seg.segment_id} style={{
+            marginBottom: 4, padding: '5px 7px', borderRadius: 4,
+            border: `1px solid ${isShared ? t.orange : t.border}`,
+            background: isShared ? t.orange + '14' : t.bgCard,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: isWet ? accentColor : t.green }}>
+                {seg.system_id}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                {isShared && (
+                  <span style={{ fontSize: 8, fontWeight: 700, color: t.orange, background: t.orange + '22', padding: '1px 4px', borderRadius: 3, letterSpacing: '0.04em' }}>
+                    SHARED
+                  </span>
+                )}
+                {outage && <span style={{ fontSize: 11 }} title="Active outage">⚠️</span>}
+                <span style={{ fontSize: 9, color: t.textFaint, textTransform: 'uppercase' as const }}>{seg.type}</span>
+              </div>
+            </div>
+            <div style={{ fontSize: 9, color: t.textMuted, fontFamily: 'monospace', marginBottom: 1 }}>
+              {seg.segment_id}
+            </div>
+            <div style={{ fontSize: 9, color: t.textFaint }}>
+              {seg.length_km.toLocaleString()} km · {seg.latency ?? '—'} ms
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
