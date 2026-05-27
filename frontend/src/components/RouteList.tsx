@@ -169,6 +169,15 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
     ? primaryRoutes.map((p, i) => ({ primary: p, diverse: diverseRoutes[i] }))
     : null
 
+  // When clicking either route in a pair, select/deselect both together.
+  // Uses functional updater chaining so both toggles apply to the same state snapshot.
+  function selectPair(clickedId: string, partnerId: string) {
+    const selectingOn = !selectedRouteIds.includes(clickedId)
+    onSelectRoute(clickedId)
+    const partnerOn = selectedRouteIds.includes(partnerId)
+    if (partnerOn !== selectingOn) onSelectRoute(partnerId)
+  }
+
   function applyPairSort(ps: typeof pairs): typeof pairs {
     if (!ps) return ps
     const sortedPrimaries = applySort(ps.map(p => p.primary))
@@ -294,7 +303,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                   <RouteCard
                     route={pair.primary}
                     selected={selectedRouteIds.includes(pair.primary.id)}
-                    onSelect={onSelectRoute}
+                    onSelect={() => selectPair(pair.primary.id, pair.diverse.id)}
                     nodesById={nodesById}
                     capacityById={capacityById}
                     outagesById={outagesById}
@@ -316,7 +325,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                   <RouteCard
                     route={pair.diverse}
                     selected={selectedRouteIds.includes(pair.diverse.id)}
-                    onSelect={onSelectRoute}
+                    onSelect={() => selectPair(pair.diverse.id, pair.primary.id)}
                     nodesById={nodesById}
                     capacityById={capacityById}
                     outagesById={outagesById}
