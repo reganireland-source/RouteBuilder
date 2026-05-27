@@ -370,11 +370,11 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6, padding: '10px 10px 6px', borderRadius: 6, background: t.bgDeep, border: `1px solid ${t.border}` }} onClick={e => e.stopPropagation()}>
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 700, color: t.blue, marginBottom: 6, letterSpacing: '0.04em' }}>🔵 Primary</div>
-                        <PairBreakdown route={pair.primary} capacityById={capacityById} outagesById={outagesById} onNetSet={onNetSet} sharedIds={sharedIds} accentColor={t.blue} />
+                        <PairBreakdown route={pair.primary} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.blue} />
                       </div>
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 700, color: t.green, marginBottom: 6, letterSpacing: '0.04em' }}>🟢 Diverse Backup</div>
-                        <PairBreakdown route={pair.diverse} capacityById={capacityById} outagesById={outagesById} onNetSet={onNetSet} sharedIds={sharedIds} accentColor={t.green} />
+                        <PairBreakdown route={pair.diverse} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.green} />
                       </div>
                     </div>
                   )}
@@ -760,9 +760,8 @@ function NetBadge({ route, onNetSet }: { route: Route; onNetSet: Set<string> }) 
   )
 }
 
-function PairBreakdown({ route, capacityById, outagesById, onNetSet, sharedIds, accentColor }: {
+function PairBreakdown({ route, outagesById, sharedIds, accentColor }: {
   route: Route
-  capacityById: Record<string, SegmentCapacity>
   outagesById: Record<string, SegmentOutage>
   onNetSet: Set<string>
   sharedIds: Set<string>
