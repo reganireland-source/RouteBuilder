@@ -44,44 +44,52 @@ function toggleMulti(id: string, list: string[], setter: (v: string[]) => void) 
 
 const CONSTRAINT_DEFS = [
   {
-    id: 'must_include_nodes',
-    label: 'Must Include Nodes',
-    description: 'The route must pass through every node selected here. Use this to ensure traffic visits a specific landing station or PoP on the way between origin and destination.',
+    id: 'optimise_for',
+    label: 'Optimise For',
+    icon: '🎯',
+    description: 'Controls which 30 routes are kept in the search pool. Auto (default) draws from multiple dimensions — picking the best routes for hops, distance, latency, margin, capacity, and on-net ownership. Setting a specific dimension fills all 30 slots with the best routes for that single metric.',
   },
   {
-    id: 'must_avoid_nodes',
-    label: 'Must Avoid Nodes',
-    description: 'The route will not pass through any selected node. Use this to exclude a facility that is unavailable, restricted, or otherwise not suitable for the route.',
-  },
-  {
-    id: 'must_include_segments',
-    label: 'Must Include Segments',
-    description: 'The route must traverse every segment selected here. Use this to lock in a specific cable section — for example, a preferred submarine segment that must carry the traffic.',
-  },
-  {
-    id: 'must_avoid_segments',
-    label: 'Must Avoid Segments',
-    description: 'The route will not traverse any selected segment. Use this to exclude a cable section that is under maintenance, congested, or otherwise at risk.',
+    id: 'max_hops',
+    label: 'Max Hops',
+    icon: '⬡',
+    description: 'Limits how many cable segments the route may traverse. Each segment counts as one hop — so a route through 4 nodes has 3 hops. Wet hops cross ocean; terrestrial hops cross land. Leave a field blank to apply no limit for that type.',
   },
   {
     id: 'must_include_systems',
     label: 'Must Include Systems',
+    icon: '📡',
     description: 'At least one segment from every selected cable system must appear on the route. Use this to ensure the path rides a particular submarine cable system.',
   },
   {
     id: 'must_avoid_systems',
     label: 'Must Avoid Systems',
+    icon: '🛑',
     description: 'No segments from any selected system will be used. Use this to route entirely clear of a cable system — for example, one affected by an outage or excluded by commercial policy.',
   },
   {
-    id: 'max_hops',
-    label: 'Max Hops',
-    description: 'Limits how many cable segments the route may traverse. Each segment counts as one hop — so a route through 4 nodes has 3 hops. Wet hops cross ocean; terrestrial hops cross land. Leave a field blank to apply no limit for that type.',
+    id: 'must_include_segments',
+    label: 'Must Include Segments',
+    icon: '🔗',
+    description: 'The route must traverse every segment selected here. Use this to lock in a specific cable section — for example, a preferred submarine segment that must carry the traffic.',
   },
   {
-    id: 'optimise_for',
-    label: 'Optimise For',
-    description: 'Controls which 30 routes are kept in the search pool. Auto (default) draws from multiple dimensions — picking the best routes for hops, distance, latency, margin, capacity, and on-net ownership. Setting a specific dimension fills all 30 slots with the best routes for that single metric.',
+    id: 'must_avoid_segments',
+    label: 'Must Avoid Segments',
+    icon: '✂️',
+    description: 'The route will not traverse any selected segment. Use this to exclude a cable section that is under maintenance, congested, or otherwise at risk.',
+  },
+  {
+    id: 'must_include_nodes',
+    label: 'Must Include Nodes',
+    icon: '📍',
+    description: 'The route must pass through every node selected here. Use this to ensure traffic visits a specific landing station or PoP on the way between origin and destination.',
+  },
+  {
+    id: 'must_avoid_nodes',
+    label: 'Must Avoid Nodes',
+    icon: '🚫',
+    description: 'The route will not pass through any selected node. Use this to exclude a facility that is unavailable, restricted, or otherwise not suitable for the route.',
   },
 ]
 
@@ -808,6 +816,9 @@ function AdvancedConstraintsModal({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       {hasValue && (
                         <div style={{ width: 6, height: 6, borderRadius: '50%', background: t.blue, flexShrink: 0 }} />
+                      )}
+                      {'icon' in def && (
+                        <span style={{ fontSize: 13, lineHeight: 1, flexShrink: 0 }}>{(def as { icon: string }).icon}</span>
                       )}
                       <span style={{
                         flex: 1, fontSize: 12, fontWeight: 600,
