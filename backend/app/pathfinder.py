@@ -417,11 +417,11 @@ def find_routes(
     # Build Route objects — pair index is the diversity_group so the frontend can
     # match primary_routes[i] with diverse_routes[i] by diversity_group.
     primary_routes = [
-        _build_route(working_G, p, segments_by_id, f"route-{i}", i)
+        _build_route(working_G, p, segments_by_id, f"worker-{i}", i)
         for i, p in enumerate(paired_primaries, start=1)
     ]
     diverse_routes = [
-        _build_route(working_G, d, segments_by_id, f"diverse-{i}", i)
+        _build_route(working_G, d, segments_by_id, f"protected-{i}", i)
         for i, d in enumerate(paired_diverse, start=1)
     ]
 

@@ -92,7 +92,6 @@ function geoLines(
 
 export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showAllOutages = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false }: Props) {
   const t = useTheme()
-  const diversityColors: Record<number, string> = { 1: t.blue, 2: t.green }
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
 
@@ -142,7 +141,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
     }
   }
   for (const r of selectedRoutes) {
-    const color = diversityColors[r.diversity_group] ?? t.blue
+    const color = r.id.startsWith('protected-') ? t.green : t.blue
     for (const s of r.segments) {
       segmentColor[s.segment_id] = color
       segmentWeight[s.segment_id] = 3

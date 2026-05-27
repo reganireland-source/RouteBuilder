@@ -135,16 +135,6 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
   const setSortKey = setInternalSortKey
   const setPushOutagesDown = setInternalPushOutagesDown
 
-  // Track which pair breakdown panels are open (keyed by primary route id)
-  const [openBreakdowns, setOpenBreakdowns] = useState<Set<string>>(new Set())
-  function toggleBreakdown(primaryId: string) {
-    setOpenBreakdowns(prev => {
-      const next = new Set(prev)
-      if (next.has(primaryId)) { next.delete(primaryId) } else { next.add(primaryId) }
-      return next
-    })
-  }
-
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
   const outagesById = Object.fromEntries(outages.map(o => [o.segment_id, o]))
@@ -303,84 +293,23 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
 
           {pairs ? (
             <>
-              {(sortedPairs ?? []).slice(0, MAX_SHOWN).map((pair, idx) => {
-                const breakdownOpen = openBreakdowns.has(pair.primary.id)
-                const primarySegIds = new Set(pair.primary.segments.map(s => s.segment_id))
-                const sharedIds = new Set(pair.diverse.segments.filter(s => primarySegIds.has(s.segment_id)).map(s => s.segment_id))
-                return (
-                <div key={pair.primary.id} style={{ marginBottom: 6 }}>
-                  {/* Pair label + breakdown toggle */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px 3px' }}>
-                    <div style={{ fontSize: 9, color: t.textFaint, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>
-                      Pair {idx + 1}
-                    </div>
-                    <button
-                      onClick={e => { e.stopPropagation(); toggleBreakdown(pair.primary.id) }}
-                      style={{
-                        fontSize: 9, padding: '2px 7px', borderRadius: 4, cursor: 'pointer',
-                        border: `1px solid ${breakdownOpen ? t.blue : t.border}`,
-                        background: breakdownOpen ? t.blue + '18' : 'transparent',
-                        color: breakdownOpen ? t.blue : t.textFaint, fontWeight: 600,
-                        letterSpacing: '0.04em',
-                      }}
-                    >
-                      ≡ Segments {breakdownOpen ? '▴' : '▾'}
-                    </button>
-                  </div>
-                  {/* Primary */}
-                  <RouteCard
-                    route={pair.primary}
-                    selected={selectedRouteIds.includes(pair.primary.id)}
-                    onSelect={() => selectPair(pair.primary.id, pair.diverse.id)}
-                    nodesById={nodesById}
-                    capacityById={capacityById}
-                    outagesById={outagesById}
-                    color={t.blue}
-                    isPinned={pinnedKeys.has(routeKey(pair.primary))}
-                    canPin={canPin}
-                    onPin={onPin}
-                    onNetSet={onNetSet}
-                    systemsById={systemsById}
-                  />
-                  {/* Diverse connector */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 6px 2px 14px' }}>
-                    <div style={{ width: 1, height: 14, background: t.green + '66', flexShrink: 0 }} />
-                    <span style={{ fontSize: 9, color: t.green, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' as const }}>
-                      ↳ diverse backup
-                    </span>
-                  </div>
-                  {/* Diverse */}
-                  <RouteCard
-                    route={pair.diverse}
-                    selected={selectedRouteIds.includes(pair.diverse.id)}
-                    onSelect={() => selectPair(pair.diverse.id, pair.primary.id)}
-                    nodesById={nodesById}
-                    capacityById={capacityById}
-                    outagesById={outagesById}
-                    color={t.green}
-                    isPinned={pinnedKeys.has(routeKey(pair.diverse))}
-                    canPin={canPin}
-                    onPin={onPin}
-                    onNetSet={onNetSet}
-                    systemsById={systemsById}
-                  />
-
-                  {/* Side-by-side segment breakdown */}
-                  {breakdownOpen && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6, padding: '10px 10px 6px', borderRadius: 6, background: t.bgDeep, border: `1px solid ${t.border}` }} onClick={e => e.stopPropagation()}>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: t.blue, marginBottom: 6, letterSpacing: '0.04em' }}>🔵 Primary</div>
-                        <PairBreakdown route={pair.primary} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.blue} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: t.green, marginBottom: 6, letterSpacing: '0.04em' }}>🟢 Diverse Backup</div>
-                        <PairBreakdown route={pair.diverse} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.green} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-                )
-              })}
+              {(sortedPairs ?? []).slice(0, MAX_SHOWN).map((pair, idx) => (
+                <PairCard
+                  key={pair.primary.id}
+                  pair={pair}
+                  idx={idx}
+                  selected={(id) => selectedRouteIds.includes(id)}
+                  onSelectPair={selectPair}
+                  nodesById={nodesById}
+                  capacityById={capacityById}
+                  outagesById={outagesById}
+                  onNetSet={onNetSet}
+                  systemsById={systemsById}
+                  pinnedKeys={pinnedKeys}
+                  canPin={canPin}
+                  onPin={onPin}
+                />
+              ))}
               {(sortedPairs?.length ?? 0) === 0 && diversityRequested && (
                 <div style={{
                   marginTop: 6, padding: '10px 14px', borderRadius: 6,
@@ -404,7 +333,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
             <>
               {sorted.primary.length > 0 && (
                 <div>
-                  <div style={sectionLabelStyle(t)}>Primary Routes</div>
+                  <div style={sectionLabelStyle(t)}>Worker Routes</div>
                   {sorted.primary.map(r => (
                     <RouteCard
                       key={r.id} route={r}
@@ -425,7 +354,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
               )}
               {sorted.diverse.length > 0 && (
                 <div>
-                  <div style={sectionLabelStyle(t)}>Diverse Routes</div>
+                  <div style={sectionLabelStyle(t)}>Protect Routes</div>
                   {sorted.diverse.map(r => (
                     <RouteCard
                       key={r.id} route={r}
@@ -465,6 +394,111 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
             </>
           )}
         </>
+      )}
+    </div>
+  )
+}
+
+function PairCard({
+  pair, idx, selected, onSelectPair,
+  nodesById, capacityById, outagesById, onNetSet, systemsById,
+  pinnedKeys, canPin, onPin,
+}: {
+  pair: { primary: Route; diverse: Route }
+  idx: number
+  selected: (id: string) => boolean
+  onSelectPair: (clickedId: string, partnerId: string) => void
+  nodesById: Record<string, { name: string; type?: string }>
+  capacityById: Record<string, SegmentCapacity>
+  outagesById: Record<string, SegmentOutage>
+  onNetSet: Set<string>
+  systemsById: Record<string, CableSystem>
+  pinnedKeys: Set<string>
+  canPin: boolean
+  onPin: (route: Route) => void
+}) {
+  const t = useTheme()
+  const [segmentsOpen, setSegmentsOpen] = useState(false)
+
+  const primarySegIds = new Set(pair.primary.segments.map(s => s.segment_id))
+  const sharedIds = new Set(pair.diverse.segments.filter(s => primarySegIds.has(s.segment_id)).map(s => s.segment_id))
+
+  return (
+    <div style={{ marginBottom: 6 }}>
+      {/* Pair label + breakdown toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px 3px' }}>
+        <div style={{ fontSize: 9, color: t.textFaint, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>
+          Pair {idx + 1}
+        </div>
+        <button
+          onClick={e => { e.stopPropagation(); setSegmentsOpen(o => !o) }}
+          style={{
+            fontSize: 9, padding: '2px 7px', borderRadius: 4, cursor: 'pointer',
+            border: `1px solid ${segmentsOpen ? t.blue : t.border}`,
+            background: segmentsOpen ? t.blue + '18' : 'transparent',
+            color: segmentsOpen ? t.blue : t.textFaint, fontWeight: 600,
+            letterSpacing: '0.04em',
+          }}
+        >
+          ≡ Segments {segmentsOpen ? '▴' : '▾'}
+        </button>
+      </div>
+
+      {/* Worker */}
+      <RouteCard
+        route={pair.primary}
+        selected={selected(pair.primary.id)}
+        onSelect={() => onSelectPair(pair.primary.id, pair.diverse.id)}
+        nodesById={nodesById}
+        capacityById={capacityById}
+        outagesById={outagesById}
+        color={t.blue}
+        isPinned={pinnedKeys.has(routeKey(pair.primary))}
+        canPin={canPin}
+        onPin={onPin}
+        onNetSet={onNetSet}
+        systemsById={systemsById}
+      />
+
+      {/* Protect connector */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 6px 2px 14px' }}>
+        <div style={{ width: 1, height: 14, background: t.green + '66', flexShrink: 0 }} />
+        <span style={{ fontSize: 9, color: t.green, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' as const }}>
+          ↳ protect
+        </span>
+      </div>
+
+      {/* Protect */}
+      <RouteCard
+        route={pair.diverse}
+        selected={selected(pair.diverse.id)}
+        onSelect={() => onSelectPair(pair.diverse.id, pair.primary.id)}
+        nodesById={nodesById}
+        capacityById={capacityById}
+        outagesById={outagesById}
+        color={t.green}
+        isPinned={pinnedKeys.has(routeKey(pair.diverse))}
+        canPin={canPin}
+        onPin={onPin}
+        onNetSet={onNetSet}
+        systemsById={systemsById}
+      />
+
+      {/* Side-by-side segment breakdown */}
+      {segmentsOpen && (
+        <div
+          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6, padding: '10px 10px 6px', borderRadius: 6, background: t.bgDeep, border: `1px solid ${t.border}` }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: t.blue, marginBottom: 6, letterSpacing: '0.04em' }}>🔵 Worker</div>
+            <PairBreakdown route={pair.primary} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.blue} />
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: t.green, marginBottom: 6, letterSpacing: '0.04em' }}>🟢 Protect</div>
+            <PairBreakdown route={pair.diverse} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.green} />
+          </div>
+        </div>
       )}
     </div>
   )
