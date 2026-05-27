@@ -164,13 +164,29 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
     ]
   }
 
-  const sorted = {
-    primary: applySort(primaryRoutes).slice(0, MAX_SHOWN),
-    diverse:  applySort(diverseRoutes).slice(0, MAX_SHOWN),
+  // Build pairs when both arrays are same non-zero length (parallel arrays from backend)
+  const pairs = (diverseRoutes.length > 0 && diverseRoutes.length === primaryRoutes.length)
+    ? primaryRoutes.map((p, i) => ({ primary: p, diverse: diverseRoutes[i] }))
+    : null
+
+  function applyPairSort(ps: typeof pairs): typeof pairs {
+    if (!ps) return ps
+    const sortedPrimaries = applySort(ps.map(p => p.primary))
+    const byId = Object.fromEntries(ps.map(p => [p.primary.id, p]))
+    return sortedPrimaries.map(r => byId[r.id]).filter((p): p is NonNullable<typeof ps>[0] => Boolean(p))
   }
 
-  const summaryStored    = primaryRoutes.length
-  const summaryShown     = sorted.primary.length
+  const sortedPairs = applyPairSort(pairs)
+
+  const sorted = {
+    primary: pairs ? [] : applySort(primaryRoutes).slice(0, MAX_SHOWN),
+    diverse:  pairs ? [] : applySort(diverseRoutes).slice(0, MAX_SHOWN),
+  }
+
+  const summaryStored = pairs ? pairs.length : primaryRoutes.length
+  const summaryShown  = pairs
+    ? (sortedPairs?.slice(0, MAX_SHOWN).length ?? 0)
+    : sorted.primary.length
   const summaryFilterLabel = optimiseFor
     ? (OPTIMISE_LABELS[optimiseFor] ?? optimiseFor)
     : 'Default Weighting'
@@ -215,9 +231,9 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
               <span style={{ color: t.text, fontWeight: 600 }}>{totalFound || summaryStored}</span>
               {' routes · '}
               <span style={{ color: t.text, fontWeight: 600 }}>{summaryStored}</span>
-              {' filtered by '}
-              <span style={{ color: t.blue, fontWeight: 600 }}>{summaryFilterLabel}</span>
-              {' · '}
+              {pairs ? ' pairs · ' : ' filtered by '}
+              {!pairs && <span style={{ color: t.blue, fontWeight: 600 }}>{summaryFilterLabel}</span>}
+              {!pairs && ' · '}
               <span style={{ color: t.text, fontWeight: 600 }}>{summaryShown}</span>
               {' shown · sorted by '}
               <span style={{ color: t.blue, fontWeight: 600 }}>{summarySortLabel}</span>
@@ -266,65 +282,135 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
             </button>
           </div>
 
-          {sorted.primary.length > 0 && (
-            <div>
-              <div style={sectionLabelStyle(t)}>Primary Routes</div>
-              {sorted.primary.map(r => (
-                <RouteCard
-                  key={r.id} route={r}
-                  selected={selectedRouteIds.includes(r.id)}
-                  onSelect={onSelectRoute}
-                  nodesById={nodesById}
-                  capacityById={capacityById}
-                  outagesById={outagesById}
-                  color={t.blue}
-                  isPinned={pinnedKeys.has(routeKey(r))}
-                  canPin={canPin}
-                  onPin={onPin}
-                  onNetSet={onNetSet}
-                  systemsById={systemsById}
-                />
-              ))}
-            </div>
-          )}
-          {sorted.diverse.length > 0 && (
-            <div>
-              <div style={sectionLabelStyle(t)}>Diverse Routes</div>
-              {sorted.diverse.map(r => (
-                <RouteCard
-                  key={r.id} route={r}
-                  selected={selectedRouteIds.includes(r.id)}
-                  onSelect={onSelectRoute}
-                  nodesById={nodesById}
-                  capacityById={capacityById}
-                  outagesById={outagesById}
-                  color={t.green}
-                  isPinned={pinnedKeys.has(routeKey(r))}
-                  canPin={canPin}
-                  onPin={onPin}
-                  onNetSet={onNetSet}
-                  systemsById={systemsById}
-                />
-              ))}
-            </div>
-          )}
-          {sorted.diverse.length === 0 && diversityRequested && (
-            <div style={{
-              marginTop: 6, padding: '10px 14px', borderRadius: 6,
-              border: `1px solid ${t.orange}`,
-              background: t.bgCard,
-              display: 'flex', alignItems: 'center', gap: 10,
-            }}>
-              <span style={{ fontSize: 16, lineHeight: 1 }}>⚠</span>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: t.orange, marginBottom: 2 }}>
-                  Diversity Requirement not able to be Met
+          {pairs ? (
+            <>
+              {(sortedPairs ?? []).slice(0, MAX_SHOWN).map((pair, idx) => (
+                <div key={pair.primary.id} style={{ marginBottom: 6 }}>
+                  {/* Pair label */}
+                  <div style={{ fontSize: 9, color: t.textFaint, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const, padding: '0 2px 3px' }}>
+                    Pair {idx + 1}
+                  </div>
+                  {/* Primary */}
+                  <RouteCard
+                    route={pair.primary}
+                    selected={selectedRouteIds.includes(pair.primary.id)}
+                    onSelect={onSelectRoute}
+                    nodesById={nodesById}
+                    capacityById={capacityById}
+                    outagesById={outagesById}
+                    color={t.blue}
+                    isPinned={pinnedKeys.has(routeKey(pair.primary))}
+                    canPin={canPin}
+                    onPin={onPin}
+                    onNetSet={onNetSet}
+                    systemsById={systemsById}
+                  />
+                  {/* Diverse connector */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 6px 2px 14px' }}>
+                    <div style={{ width: 1, height: 14, background: t.green + '66', flexShrink: 0 }} />
+                    <span style={{ fontSize: 9, color: t.green, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' as const }}>
+                      ↳ diverse backup
+                    </span>
+                  </div>
+                  {/* Diverse */}
+                  <RouteCard
+                    route={pair.diverse}
+                    selected={selectedRouteIds.includes(pair.diverse.id)}
+                    onSelect={onSelectRoute}
+                    nodesById={nodesById}
+                    capacityById={capacityById}
+                    outagesById={outagesById}
+                    color={t.green}
+                    isPinned={pinnedKeys.has(routeKey(pair.diverse))}
+                    canPin={canPin}
+                    onPin={onPin}
+                    onNetSet={onNetSet}
+                    systemsById={systemsById}
+                  />
                 </div>
-                <div style={{ fontSize: 11, color: t.textMuted }}>
-                  No segment-disjoint diverse path exists between these endpoints.
+              ))}
+              {(sortedPairs?.length ?? 0) === 0 && diversityRequested && (
+                <div style={{
+                  marginTop: 6, padding: '10px 14px', borderRadius: 6,
+                  border: `1px solid ${t.orange}`,
+                  background: t.bgCard,
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>⚠</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: t.orange, marginBottom: 2 }}>
+                      Diversity Requirement not able to be Met
+                    </div>
+                    <div style={{ fontSize: 11, color: t.textMuted }}>
+                      No segment-disjoint diverse path exists between these endpoints.
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              )}
+            </>
+          ) : (
+            <>
+              {sorted.primary.length > 0 && (
+                <div>
+                  <div style={sectionLabelStyle(t)}>Primary Routes</div>
+                  {sorted.primary.map(r => (
+                    <RouteCard
+                      key={r.id} route={r}
+                      selected={selectedRouteIds.includes(r.id)}
+                      onSelect={onSelectRoute}
+                      nodesById={nodesById}
+                      capacityById={capacityById}
+                      outagesById={outagesById}
+                      color={t.blue}
+                      isPinned={pinnedKeys.has(routeKey(r))}
+                      canPin={canPin}
+                      onPin={onPin}
+                      onNetSet={onNetSet}
+                      systemsById={systemsById}
+                    />
+                  ))}
+                </div>
+              )}
+              {sorted.diverse.length > 0 && (
+                <div>
+                  <div style={sectionLabelStyle(t)}>Diverse Routes</div>
+                  {sorted.diverse.map(r => (
+                    <RouteCard
+                      key={r.id} route={r}
+                      selected={selectedRouteIds.includes(r.id)}
+                      onSelect={onSelectRoute}
+                      nodesById={nodesById}
+                      capacityById={capacityById}
+                      outagesById={outagesById}
+                      color={t.green}
+                      isPinned={pinnedKeys.has(routeKey(r))}
+                      canPin={canPin}
+                      onPin={onPin}
+                      onNetSet={onNetSet}
+                      systemsById={systemsById}
+                    />
+                  ))}
+                </div>
+              )}
+              {sorted.diverse.length === 0 && diversityRequested && (
+                <div style={{
+                  marginTop: 6, padding: '10px 14px', borderRadius: 6,
+                  border: `1px solid ${t.orange}`,
+                  background: t.bgCard,
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>⚠</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: t.orange, marginBottom: 2 }}>
+                      Diversity Requirement not able to be Met
+                    </div>
+                    <div style={{ fontSize: 11, color: t.textMuted }}>
+                      No segment-disjoint diverse path exists between these endpoints.
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </>
       )}

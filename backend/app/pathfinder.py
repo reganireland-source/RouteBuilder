@@ -212,6 +212,52 @@ def _select_candidates(
     return [candidates[i] for i in pool[:k]]
 
 
+def _make_diverse_graph(
+    working_G: nx.Graph,
+    primary_path: list[str],
+    segments_by_id: "dict[str, CableSegment]",
+    diversity: DiversityType,
+) -> nx.Graph:
+    """Return a copy of working_G with the primary path's relevant edges/nodes removed."""
+    seg_ids = path_to_segment_ids(working_G, primary_path)
+    segs = [(sid, segments_by_id[sid]) for sid in seg_ids if sid in segments_by_id]
+
+    # Walk from each end to find the leading terrestrial run
+    origin_terr: set[str] = set()
+    for sid, seg in segs:
+        if str(seg.type) == "terrestrial":
+            origin_terr.add(sid)
+        else:
+            break
+
+    dest_terr: set[str] = set()
+    for sid, seg in reversed(segs):
+        if str(seg.type) == "terrestrial":
+            dest_terr.add(sid)
+        else:
+            break
+
+    diverse_G = working_G.copy()
+
+    for sid, seg in segs:
+        remove = (
+            diversity in (DiversityType.full, DiversityType.full_nodes)
+            or (str(seg.type) == "wet" and diversity == DiversityType.wet)
+            or (diversity == DiversityType.terrestrial_origin and sid in origin_terr)
+            or (diversity == DiversityType.terrestrial_destination and sid in dest_terr)
+            or (diversity == DiversityType.terrestrial_both and sid in (origin_terr | dest_terr))
+        )
+        if remove and diverse_G.has_edge(seg.start_node_id, seg.end_node_id):
+            diverse_G.remove_edge(seg.start_node_id, seg.end_node_id)
+
+    if diversity == DiversityType.full_nodes:
+        for node_id in primary_path[1:-1]:
+            if diverse_G.has_node(node_id):
+                diverse_G.remove_node(node_id)
+
+    return diverse_G
+
+
 def find_routes(
     G: nx.Graph,
     start: str,
@@ -327,82 +373,60 @@ def find_routes(
     if not candidates:
         return RouteResponse(routes=[], primary_routes=[], diverse_routes=[], total_found=0)
 
-    primary_path = candidates[0]
-    primary_route = _build_route(working_G, primary_path, segments_by_id, "route-1", 1)
-    primary_routes = [primary_route]
+    # ── No diversity ──────────────────────────────────────────────────────────
+    if diversity == DiversityType.none:
+        primary_routes = [
+            _build_route(working_G, path, segments_by_id, f"route-{i}", 1)
+            for i, path in enumerate(candidates, start=1)
+        ]
+        return RouteResponse(
+            routes=primary_routes,
+            primary_routes=primary_routes,
+            diverse_routes=[],
+            total_found=total_found,
+        )
 
-    # Build additional ranked primaries (up to k total)
-    for i, path in enumerate(candidates[1:], start=2):
-        primary_routes.append(_build_route(working_G, path, segments_by_id, f"route-{i}", 1))
+    # ── Diversity pairs ───────────────────────────────────────────────────────
+    # For every primary candidate, find its best diverse counterpart.
+    # Only candidates that yield a valid diverse path form a "pair".
+    paired_primaries: list[list[str]] = []
+    paired_diverse: list[list[str]] = []
 
-    diverse_routes: list[Route] = []
-
-    if diversity != DiversityType.none:
-        # Identify origin-end and destination-end terrestrial segments
-        def end_terrestrial_ids(from_origin: bool) -> set[str]:
-            segs = primary_route.segments if from_origin else list(reversed(primary_route.segments))
-            result = set()
-            for s in segs:
-                if s.type == "terrestrial":
-                    result.add(s.segment_id)
-                else:
-                    break
-            return result
-
-        origin_terr = end_terrestrial_ids(from_origin=True)
-        dest_terr = end_terrestrial_ids(from_origin=False)
-
-        edges_to_remove: list[tuple[str, str]] = []
-
-        for seg in primary_route.segments:
-            seg_id = seg.segment_id
-            full_seg = segments_by_id.get(seg_id)
-            if not full_seg:
-                continue
-            include = (
-                diversity in (DiversityType.full, DiversityType.full_nodes)
-                or (diversity == DiversityType.wet and seg.type == "wet")
-                or (diversity == DiversityType.terrestrial_origin and seg_id in origin_terr)
-                or (diversity == DiversityType.terrestrial_destination and seg_id in dest_terr)
-                or (diversity == DiversityType.terrestrial_both and seg_id in (origin_terr | dest_terr))
-            )
-            if include:
-                edges_to_remove.append((full_seg.start_node_id, full_seg.end_node_id))
-
-        diverse_G = working_G.copy()
-        for u, v in edges_to_remove:
-            if diverse_G.has_edge(u, v):
-                diverse_G.remove_edge(u, v)
-
-        # For full_nodes: also remove all intermediate nodes from the primary path.
-        # This prevents the diverse route from transiting any shared node (CLS, BU,
-        # terrestrial PoP, etc.) — only the two endpoints are permitted to be common.
-        if diversity == DiversityType.full_nodes:
-            for node_id in primary_path[1:-1]:
-                if diverse_G.has_node(node_id):
-                    diverse_G.remove_node(node_id)
+    for primary_path in candidates:
+        diverse_G = _make_diverse_graph(working_G, primary_path, segments_by_id, diversity)
 
         if must_include_nodes:
-            diverse_candidates = _apply_waypoints(
-                diverse_G, start, end, must_include_nodes, rules, set(), k
+            d_cands = _apply_waypoints(
+                diverse_G, start, end, must_include_nodes, rules, set(), k=5
             )
         else:
             try:
-                raw = itertools.islice(nx.shortest_simple_paths(diverse_G, start, end, weight="length_km"), k * 3)
-                diverse_candidates = [
-                    p for p in raw if validate_interconnect_rules(diverse_G, p, rules)
-                ][:k]
+                raw = itertools.islice(
+                    nx.shortest_simple_paths(diverse_G, start, end, weight="length_km"), 100
+                )
+                d_cands = [p for p in raw if validate_interconnect_rules(diverse_G, p, rules)][:5]
             except nx.NetworkXNoPath:
-                diverse_candidates = []
+                d_cands = []
 
-        for i, path in enumerate(diverse_candidates, start=1):
-            diverse_routes.append(
-                _build_route(diverse_G, path, segments_by_id, f"diverse-{i}", 2)
-            )
+        if d_cands:
+            # Pick best diverse candidate by cost rather than just shortest
+            best_d = min(d_cands, key=lambda p: _path_cost(working_G, p))
+            paired_primaries.append(primary_path)
+            paired_diverse.append(best_d)
 
-    all_routes = primary_routes + diverse_routes
+    # Build Route objects — pair index is the diversity_group so the frontend can
+    # match primary_routes[i] with diverse_routes[i] by diversity_group.
+    primary_routes = [
+        _build_route(working_G, p, segments_by_id, f"route-{i}", i)
+        for i, p in enumerate(paired_primaries, start=1)
+    ]
+    diverse_routes = [
+        _build_route(working_G, d, segments_by_id, f"diverse-{i}", i)
+        for i, d in enumerate(paired_diverse, start=1)
+    ]
+
     return RouteResponse(
-        routes=all_routes,
+        routes=primary_routes + diverse_routes,
         primary_routes=primary_routes,
         diverse_routes=diverse_routes,
         total_found=total_found,
