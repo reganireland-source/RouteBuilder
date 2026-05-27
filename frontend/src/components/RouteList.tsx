@@ -853,12 +853,12 @@ function PairBreakdown({ route, outagesById, sharedIds, accentColor, nodesById, 
                     </span>
                   ) : (
                     <>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: nodeColor, lineHeight: 1.3 }}>
-                        {node?.name ?? nodeId}
+                      <span style={{ fontSize: 11, fontWeight: 700, color: nodeColor, fontFamily: 'monospace', letterSpacing: '0.03em' }}>
+                        {nodeId}
                       </span>
                       {node?.name && node.name !== nodeId && (
-                        <span style={{ fontSize: 8, color: t.textFaintest, fontFamily: 'monospace' }}>
-                          {nodeId}
+                        <span style={{ fontSize: 9, color: t.textMuted }}>
+                          {node.name}
                         </span>
                       )}
                     </>
