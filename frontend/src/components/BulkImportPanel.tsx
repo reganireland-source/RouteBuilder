@@ -56,8 +56,8 @@ const TABLE_META: Record<BulkTable, { label: string; icon: string; pk: string; c
   },
   segments: {
     label: 'Segments', icon: '🔗', pk: 'id',
-    cols: ['id', 'name', 'system_id', 'start_node_id', 'end_node_id', 'type', 'length_km', 'latency', 'reliability', 'cost_weight', 'ownership', 'waypoints_json'],
-    notes: 'type: wet | terrestrial  ·  ownership: owned | iru | consortium | integrated_lit_lease | offnet_resell  ·  reliability: 0–1  ·  waypoints_json: JSON array [[lat,lng],...] or blank',
+    cols: ['id', 'name', 'system_id', 'start_node_id', 'end_node_id', 'type', 'length_km', 'latency', 'reliability', 'cost_weight', 'ownership'],
+    notes: 'type: wet | terrestrial  ·  ownership: owned | iru | consortium | integrated_lit_lease | offnet_resell  ·  reliability: 0–1  ·  latency: ms, optional  ·  Note: waypoints (cable routing) are preserved as-is and not exposed in bulk CSV',
   },
   systems: {
     label: 'Systems', icon: '🌊', pk: 'id',
@@ -115,12 +115,13 @@ export function BulkImportPanel({ counts, onDataChange }: Props) {
   const [showFormat,  setShowFormat]  = useState(false)
   const [confirmText, setConfirmText] = useState('')
   const [errMsg,      setErrMsg]      = useState<string | null>(null)
+  const [lastChanges, setLastChanges] = useState<Change[] | null>(null)
 
   const meta = TABLE_META[table]
 
   function resetForTable(t: BulkTable) {
     setTable(t); setFile(null); setValidation(null); setResult(null)
-    setErrMsg(null); setConfirmText('')
+    setErrMsg(null); setConfirmText(''); setLastChanges(null)
   }
 
   function acceptFile(f: File | null) {
@@ -152,6 +153,7 @@ export function BulkImportPanel({ counts, onDataChange }: Props) {
     try {
       const res = await api.bulkImport<ImportResult>(table, file, mode)
       setResult(res)
+      setLastChanges(validation?.changes ?? null)
       setValidation(null); setFile(null); setConfirmText('')
       onDataChange()
     } catch (e: unknown) {
@@ -159,6 +161,22 @@ export function BulkImportPanel({ counts, onDataChange }: Props) {
     } finally {
       setImporting(false)
     }
+  }
+
+  function downloadAuditLog(changes: Change[]) {
+    const rows = changes.map(c => {
+      const fieldChanges = c.changed_fields && c.prev_data && c.data
+        ? c.changed_fields.map(f => `${f}: "${c.prev_data![f] ?? ''}" → "${c.data![f] ?? ''}"`).join(' | ')
+        : ''
+      return `${c.status},${c.id},"${fieldChanges}"`
+    })
+    const csv = ['status,id,changes', ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `${table}_import_log_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(a.href)
   }
 
   function handleDownload() {
@@ -419,15 +437,29 @@ export function BulkImportPanel({ counts, onDataChange }: Props) {
               </div>
             ))}
           </div>
-          <button
-            onClick={() => setResult(null)}
-            style={{
-              marginTop: 12, padding: '6px 14px', borderRadius: 6, cursor: 'pointer',
-              background: 'none', border: `1px solid ${t.border}`, color: t.textMuted, fontSize: 11,
-            }}
-          >
-            Import another file
-          </button>
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            {lastChanges && lastChanges.length > 0 && (
+              <button
+                onClick={() => downloadAuditLog(lastChanges)}
+                style={{
+                  padding: '6px 14px', borderRadius: 6, cursor: 'pointer',
+                  background: TEAL + '20', border: `1px solid ${TEAL}55`,
+                  color: TEAL, fontSize: 11, fontWeight: 700,
+                }}
+              >
+                ⬇ Download change log
+              </button>
+            )}
+            <button
+              onClick={() => { setResult(null); setLastChanges(null) }}
+              style={{
+                padding: '6px 14px', borderRadius: 6, cursor: 'pointer',
+                background: 'none', border: `1px solid ${t.border}`, color: t.textMuted, fontSize: 11,
+              }}
+            >
+              Import another file
+            </button>
+          </div>
         </div>
       )}
 

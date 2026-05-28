@@ -39,7 +39,7 @@ NODE_COLS = [
 ]
 SEGMENT_COLS = [
     "id", "name", "system_id", "start_node_id", "end_node_id", "type",
-    "length_km", "latency", "reliability", "cost_weight", "ownership", "waypoints_json",
+    "length_km", "latency", "reliability", "cost_weight", "ownership",
 ]
 SYSTEM_COLS   = ["id", "name", "description", "margin"]
 CAPACITY_COLS = ["segment_id", "total_capacity_t", "available_capacity_t"]
@@ -152,7 +152,6 @@ async def export_segments():
             "latency": s.latency if s.latency is not None else "",
             "reliability": s.reliability, "cost_weight": s.cost_weight,
             "ownership": _enum_val(s.ownership),
-            "waypoints_json": json.dumps(s.waypoints) if s.waypoints else "",
         })
     return _csv_stream(rows, SEGMENT_COLS, "segments.csv")
 
@@ -328,13 +327,6 @@ async def validate_segments(file: UploadFile = File(...), mode: BulkMode = Query
             except ValueError:
                 errors.append(_err(i, rid, num_fld, raw, f"'{num_fld}' must be a number"))
 
-        wp_raw = (row.get("waypoints_json") or "").strip()
-        if wp_raw:
-            try:
-                json.loads(wp_raw)
-            except json.JSONDecodeError:
-                errors.append(_err(i, rid, "waypoints_json", wp_raw[:40] + "...", "Must be valid JSON array, e.g. [[lat,lng],...]"))
-
         try:
             lat_raw = (row.get("latency") or "").strip()
             new = {
@@ -345,7 +337,7 @@ async def validate_segments(file: UploadFile = File(...), mode: BulkMode = Query
                 "latency": float(lat_raw) if lat_raw else None,
                 "reliability": float(row.get("reliability", 0) or 0),
                 "cost_weight": float(row.get("cost_weight", 0) or 0),
-                "ownership": own, "waypoints_json": wp_raw or None,
+                "ownership": own,
             }
         except Exception:
             continue
@@ -358,7 +350,6 @@ async def validate_segments(file: UploadFile = File(...), mode: BulkMode = Query
                 "type": _enum_val(ex.type), "length_km": ex.length_km, "latency": ex.latency,
                 "reliability": ex.reliability, "cost_weight": ex.cost_weight,
                 "ownership": _enum_val(ex.ownership),
-                "waypoints_json": json.dumps(ex.waypoints) if ex.waypoints else None,
             }
             cf = _changed_fields(new, old)
             if cf:
@@ -658,7 +649,6 @@ async def import_segments(file: UploadFile = File(...), mode: BulkMode = Query("
 
         try:
             lat_raw = (row.get("latency") or "").strip()
-            wp_raw  = (row.get("waypoints_json") or "").strip()
             seg = CableSegment(
                 id=rid, name=row.get("name", "").strip(),
                 system_id=row.get("system_id", "").strip(),
@@ -670,7 +660,7 @@ async def import_segments(file: UploadFile = File(...), mode: BulkMode = Query("
                 reliability=float(row.get("reliability", 1) or 1),
                 cost_weight=float(row.get("cost_weight", 1) or 1),
                 ownership=row.get("ownership", "offnet_resell").strip(),
-                waypoints=json.loads(wp_raw) if wp_raw else None,
+                waypoints=existing[rid].waypoints if rid in existing else None,
             )
         except Exception:
             continue
