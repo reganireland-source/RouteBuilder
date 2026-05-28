@@ -6,12 +6,12 @@ import type { CableNode, CableSegment, CableSystem } from '../types'
 
 const STEPS = [
   { title: 'Open PoP Routes', desc: 'Select the ↔ Pop Routes tab. TSABuddy appears at the top — use it for natural language, or configure the search manually below.' },
-  { title: 'Select Origin & Destination', desc: 'Type a city or node name in the search boxes. The live combobox filters as you type — select the specific landing station or PoP you need.' },
-  { title: 'Set Diversity', desc: 'Choose Wet, Full, Terrestrial or Full-Node diversity if required. Leave as None for a single best-path search.' },
-  { title: 'Add Constraints (optional)', desc: 'Expand Advanced Constraints to force via or avoid on specific nodes, segments or cable systems using multi-select dropdowns with live search.' },
+  { title: 'Select Origin & Destination', desc: 'Type a city or node name in the search boxes. The live combobox filters as you type — select the specific landing station or PoP you need. Use the ⇅ swap button between the two fields to flip origin and destination instantly.' },
+  { title: 'Set Diversity', desc: 'Choose a diversity type if required. Wet isolates submarine segments only. Full means no shared segments end-to-end. Full-Node adds node isolation on top. Terrestrial variants isolate backhaul at the origin end, destination end, or both. Leave as None for a single best-path search.' },
+  { title: 'Add Constraints (optional)', desc: 'Expand Advanced Constraints to force via or avoid on specific nodes, segments, cable systems or entire countries. Country constraints are a hard geopolitical filter — no landing node in an avoided country will appear on any result.' },
   { title: 'Search', desc: 'Press Find Routes. The animated button indicates the search is running. Results appear in seconds.' },
-  { title: 'Review & Sort', desc: 'Route cards show the path, margin badge, on-net classification and capacity. Sort by RTD, Availability, Margin ($), Capacity or On-Net. Toggle "UP" to push outage-affected routes down.' },
-  { title: 'Pin & Export', desc: 'Pin up to 5 routes using 📍, then export a straight-line diagram PDF from the map controls for customer delivery.' },
+  { title: 'Review & Sort', desc: 'Route cards show the path, margin badge, on-net classification and capacity. Sort by RTD, Availability, Margin, Capacity or On-Net. Toggle "UP" to push outage-affected routes down. Use the − / + stepper to show 1–10 routes (default 5).' },
+  { title: 'Flip, Pin & Export', desc: 'In a diversity pair, click ⇅ to swap Worker and Protect roles — the route data (path, stats, map colour) trades places completely. Pin up to 5 routes using 📍, then export a straight-line diagram PDF.' },
 ]
 
 const ROADMAP = [
@@ -39,7 +39,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     { icon: '🗺', title: 'PoP Route Builder',
       desc: `Find optimal paths between any two nodes on our ${nodeCount}-node subsea network. Configure wet, full or terrestrial diversity, enforce via/avoid constraints on specific nodes, segments or cable systems, and see all viable paths ranked instantly.` },
     { icon: '🤖', title: 'TSABuddy — AI Route Assistant',
-      desc: 'Type your request in plain English: "Singapore to Hong Kong on EAC with wet diversity, sort by latency." TSABuddy interprets the request, fills all search parameters and triggers the search automatically. Powered by Claude AI.' },
+      desc: 'Type your request in plain English: "Singapore to Tokyo with full diversity, avoiding China, sort by latency." TSABuddy extracts origin, destination, diversity type, system/country/node constraints, and sort preference — then triggers the search automatically. Powered by Claude AI.' },
     { icon: '🏙', title: 'City Pairs',
       desc: 'Explore city-to-city connectivity across our subsea network. Type to search cities by name or country — the live combobox filters as you type. See all viable system itineraries and key metrics without needing to know individual node IDs.' },
     { icon: '🌍', title: 'Country Viewer',
@@ -50,6 +50,10 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       desc: `A full-network capacity view across all ${segmentCount} segments, showing total and available capacity in terabits with utilisation colour-coding. Instantly identify where capacity is constrained.` },
     { icon: '🔀', title: 'On-Net / Off-Net Classification',
       desc: 'Routes are automatically classified as On-Net, Off-Net or Mixed based on network ownership. The on-net percentage is shown for blended routes, shaping the commercial narrative.' },
+    { icon: '🌍', title: 'Country Constraints',
+      desc: 'Avoid or require specific countries in Advanced Constraints. "Must Avoid" removes every node in the selected countries from the graph — no landing station there will appear on any result. "Must Include" requires at least one transit node per selected country. Fully understood by TSABuddy via natural language.' },
+    { icon: '🔵🟢', title: 'Diversity Pairs & Worker / Protect Flip',
+      desc: 'Diversity searches return matched Worker (blue) / Protect (green) pairs. Click ⇅ on any pair to swap roles — the full route data trades places so Worker 1 carries the protect path and vice versa. Use this to define which circuit actually takes live traffic vs failover.' },
     { icon: '🌊', title: 'Cable System Viewer',
       desc: `Toggle any of the ${systemCount} cable systems on the live map to explore coverage, topology and branching unit structure — ideal for network briefings and customer conversations.` },
     { icon: '🔍', title: 'Node Search',
@@ -545,7 +549,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             {arrow}
             {pipeBox('3', '#8b5cf6', '🎯', 'Select Pool', 'Best 30 chosen across 6 dimensions — or all 30 by one Optimise For metric', '30 kept')}
             {arrow}
-            {pipeBox('4', '#10b981', '📊', 'Sort & Display', 'Pool is sorted by your chosen metric and the top 5 shown', '5 shown')}
+            {pipeBox('4', '#10b981', '📊', 'Sort & Display', 'Pool sorted by chosen metric; use − / + stepper to show 1–10 results (default 5)', '1–10 shown')}
           </div>
           <div style={{
             padding: '12px 16px', borderRadius: 8,
@@ -570,6 +574,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             {constraintRow('✂️', 'Must Avoid Segments', 'SKIP', t.red, 'Route may not use any selected segment — e.g. segments under maintenance or at outage risk.')}
             {constraintRow('📡', 'Must Include Systems', 'VIA', t.green, 'Route must carry at least one segment from every selected cable system.')}
             {constraintRow('🛑', 'Must Avoid Systems', 'SKIP', t.red, 'Route may not use any segment from the selected systems — full system exclusion.')}
+            {constraintRow('🌍', 'Must Include Countries', 'VIA', t.green, 'Route must transit at least one non-BU landing node in each selected country. Use for geographic landing requirements — e.g. "must land in Japan".')}
+            {constraintRow('🌐', 'Must Avoid Countries', 'SKIP', t.red, 'Route may not pass through any landing node in selected countries. A hard geopolitical, licensing or security exclusion. If an endpoint is in an avoided country, the search returns no results.')}
             {constraintRow('🌊', 'Max Wet Hops', 'LIMIT', t.orange, 'Maximum submarine cable segments. Each subsea segment = 1 wet hop. Blank = no limit.')}
             {constraintRow('⛰️', 'Max Terrestrial Hops', 'LIMIT', t.orange, 'Maximum land cable segments. Each terrestrial segment = 1 land hop. Blank = no limit.')}
           </div>
@@ -621,6 +627,40 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           </div>
         </div>
 
+        {/* Diversity reference */}
+        <div style={{ ...card() as React.CSSProperties, padding: '22px 20px', marginBottom: 24 }}>
+          <div style={sectionLabel as React.CSSProperties}>Diversity Types</div>
+          <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.65, margin: '0 0 14px' }}>
+            When a diversity type is selected the backend finds matched Worker / Protect pairs. Each pair is guaranteed to share no segments (or nodes) at the level you chose.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
+            {[
+              { type: 'None',                  badge: 'NONE',     color: t.textFaint, desc: 'Single-path search. No diversity constraint applied.' },
+              { type: 'Wet',                   badge: 'WET',      color: t.blue,      desc: 'No shared submarine segments. Terrestrial sections may overlap.' },
+              { type: 'Full',                  badge: 'FULL',     color: t.blue,      desc: 'No shared segments of any type — submarine or terrestrial.' },
+              { type: 'Full + Node Isolation', badge: 'FULL+',    color: '#8b5cf6',   desc: 'No shared segments AND no shared intermediate nodes.' },
+              { type: 'Terrestrial — Origin',  badge: 'TERR-O',   color: t.orange,    desc: 'Different terrestrial segments at the origin end.' },
+              { type: 'Terrestrial — Dest.',   badge: 'TERR-D',   color: t.orange,    desc: 'Different terrestrial segments at the destination end.' },
+              { type: 'Terrestrial — Both',    badge: 'TERR-OD',  color: t.orange,    desc: 'Different terrestrial segments at both origin and destination.' },
+            ].map(({ type, badge, color, desc }) => (
+              <div key={type} style={{
+                background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 8,
+                padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 4,
+                    background: color + '22', color, border: `1px solid ${color}44`,
+                    letterSpacing: '0.06em',
+                  }}>{badge}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: t.text }}>{type}</span>
+                </div>
+                <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Sort reference */}
         <div style={{ ...card() as React.CSSProperties, padding: '22px 20px', marginBottom: 24 }}>
           <div style={sectionLabel as React.CSSProperties}>Display Sort — Step 4</div>
@@ -648,11 +688,11 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
         }}>
           {[
-            { num: '500', label: 'routes found',        color: '#3b82f6' },
-            { num: '·',   label: '',                    color: t.textFaint },
-            { num: '30',  label: 'filtered by pool',    color: '#8b5cf6' },
-            { num: '·',   label: '',                    color: t.textFaint },
-            { num: '5',   label: 'shown · sorted by',  color: '#10b981' },
+            { num: '500',  label: 'routes found',         color: '#3b82f6' },
+            { num: '·',    label: '',                     color: t.textFaint },
+            { num: '30',   label: 'filtered by pool',     color: '#8b5cf6' },
+            { num: '·',    label: '',                     color: t.textFaint },
+            { num: '1–10', label: 'shown · sorted by',   color: '#10b981' },
           ].map((s, i) => (
             <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: s.num === '·' ? 18 : 22, fontWeight: 800, color: s.color }}>{s.num}</span>
@@ -788,22 +828,88 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {[
-              'Singapore to Hong Kong with wet diversity',
-              'Sydney to Tokyo avoiding AAG, sort by latency',
-              'Perth to Singapore via SIN3 on Indigo, full diversity',
-              'SIN3 to TKO1 on EAC, sort by margin',
-            ].map(ex => (
-              <div key={ex} style={{
-                fontSize: 11, color: '#93c5fd', fontStyle: 'italic',
+              { text: 'Singapore to Hong Kong with wet diversity', tag: 'Diversity' },
+              { text: 'Sydney to Tokyo avoiding AAG, sort by latency', tag: 'Avoid system' },
+              { text: 'Perth to Singapore via SIN3 on Indigo, full diversity', tag: 'Via node + system' },
+              { text: 'Singapore to Tokyo avoiding China and Taiwan', tag: 'Country constraints' },
+              { text: 'London to Singapore must land in India, full diversity', tag: 'Must include country' },
+              { text: 'SIN3 to TKO1 on EAC, optimise for margin', tag: 'Pool selection' },
+            ].map(({ text, tag }) => (
+              <div key={text} style={{
+                display: 'flex', alignItems: 'flex-start', gap: 10,
                 background: 'rgba(255,255,255,0.05)', borderRadius: 6,
                 padding: '7px 12px', borderLeft: '3px solid #3b82f6',
               }}>
-                "{ex}"
+                <div style={{ fontSize: 11, color: '#93c5fd', fontStyle: 'italic', flex: 1 }}>"{text}"</div>
+                <div style={{
+                  fontSize: 9, fontWeight: 700, color: '#60a5fa', flexShrink: 0,
+                  background: 'rgba(59,130,246,0.15)', borderRadius: 4, padding: '2px 6px',
+                  letterSpacing: '0.04em', whiteSpace: 'nowrap',
+                }}>{tag}</div>
               </div>
             ))}
           </div>
           <div style={{ marginTop: 12, fontSize: 10, color: 'rgba(147,197,253,0.7)', lineHeight: 1.5 }}>
-            High and medium confidence results trigger an automatic search. Low confidence shows a "Search anyway" option with full parameter preview.
+            High and medium confidence results trigger an automatic search. Low confidence shows a "Search anyway" option with full parameter preview. Country constraints are expressed as ISO codes (e.g. CN, TW) — never as individual node IDs.
+          </div>
+        </div>
+      </div>
+
+      {/* ── Diversity Types ── */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel}>Diversity Types</div>
+        <div style={{ ...card() }}>
+          <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.7, margin: '0 0 14px' }}>
+            Diversity ensures two routes share no common point of failure. Choose the level that matches your resilience requirement.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
+            {[
+              { type: 'None',                   color: t.textFaint, desc: 'Single best-path search. No diversity requirement — returns a ranked list of standalone routes.' },
+              { type: 'Wet',                    color: t.blue,      desc: 'Routes must share no submarine cable segments. Terrestrial (backhaul) sections may be shared.' },
+              { type: 'Full',                   color: t.blue,      desc: 'Routes share no segments of any type — submarine or terrestrial. The strongest practical standard for most circuits.' },
+              { type: 'Full + Node Isolation',  color: '#8b5cf6',   desc: 'As Full, plus no intermediate transit nodes may be shared. The highest level of physical separation.' },
+              { type: 'Terrestrial — Origin',   color: t.orange,    desc: 'Routes must use different terrestrial (backhaul) segments at the origin end. Submarine sections may overlap.' },
+              { type: 'Terrestrial — Dest.',    color: t.orange,    desc: 'Routes must use different terrestrial segments at the destination end. Submarine sections may overlap.' },
+              { type: 'Terrestrial — Both',     color: t.orange,    desc: 'Routes must use different terrestrial segments at both the origin and destination ends simultaneously.' },
+            ].map(({ type, color, desc }) => (
+              <div key={type} style={{ background: t.bgBase, borderRadius: 6, padding: '10px 12px', border: `1px solid ${t.border}` }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{type}</div>
+                <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Worker / Protect Pairs ── */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel}>Diversity Pairs — Worker & Protect</div>
+        <div style={{ ...card(), background: '#0d1a2e', border: `1px solid ${t.blue}44` }}>
+          <div style={{ display: 'flex', gap: 16, marginBottom: 14, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#93c5fd', marginBottom: 6 }}>🔵 Worker (blue)</div>
+              <div style={{ fontSize: 11, color: 'rgba(160,190,255,0.8)', lineHeight: 1.6 }}>
+                The primary circuit — carries live traffic under normal conditions. Shown in blue on the map and in the route card.
+              </div>
+            </div>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#86efac', marginBottom: 6 }}>🟢 Protect (green)</div>
+              <div style={{ fontSize: 11, color: 'rgba(160,240,190,0.8)', lineHeight: 1.6 }}>
+                The failover circuit — stands by to take traffic if the worker fails. Shown in green. Guaranteed to share no segments (or nodes) with the worker, per your diversity setting.
+              </div>
+            </div>
+          </div>
+          <div style={{
+            background: 'rgba(255,255,255,0.04)', borderRadius: 8, padding: '12px 14px',
+            border: '1px solid rgba(255,255,255,0.08)',
+          }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#f9e2af', marginBottom: 6 }}>⇅ Pair Flip</div>
+            <div style={{ fontSize: 11, color: 'rgba(200,210,230,0.8)', lineHeight: 1.65 }}>
+              Click ⇅ on any diversity pair to swap Worker and Protect roles. This is a full data swap — the map redraws each route under its new colour, the route stats update to reflect the new assignment, and the sort order recalculates using the new worker's metrics. Use this when you want a specific physical path to carry live traffic rather than act as failover — an important technical distinction for circuit provisioning.
+            </div>
+          </div>
+          <div style={{ marginTop: 10, fontSize: 10, color: 'rgba(147,197,253,0.6)', lineHeight: 1.5 }}>
+            The ⇅ button appears at the top of each pair card. An orange highlight indicates the pair is currently flipped. Flip state clears automatically when you run a new search.
           </div>
         </div>
       </div>
