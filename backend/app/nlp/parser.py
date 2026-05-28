@@ -88,9 +88,16 @@ RULES:
 - Only use must_include_segments / must_avoid_segments when a specific segment ID is mentioned.
 - "max N wet hops" / "no more than N submarine segments" / "single wet hop" → max_wet_hops: N
 - "max N terrestrial hops" / "limit land segments to N" → max_terrestrial_hops: N
-- "avoid country X" / "do not transit X" / "must not pass through X" → must_avoid_countries: ["XX"] (ISO code)
-- "must land in X" / "route via X country" / "must include X" (country) → must_include_countries: ["XX"]
+- COUNTRY CONSTRAINTS (IMPORTANT — take priority over node-level avoidance):
+  When the user mentions avoiding or requiring a COUNTRY (not a specific node), ALWAYS use
+  must_avoid_countries / must_include_countries with the ISO code. NEVER enumerate individual
+  node IDs from that country in must_avoid_nodes — that is fragile and incomplete.
+  Examples: "avoiding taiwan" → must_avoid_countries: ["TW"]  (NOT must_avoid_nodes: ["TPE1","TPE2",...])
+            "avoid china" → must_avoid_countries: ["CN"]
+            "must land in japan" → must_include_countries: ["JP"]
+            "route via philippines" → must_include_countries: ["PH"]
 - Country codes: SG=Singapore, HK=Hong Kong, VN=Vietnam, PH=Philippines, JP=Japan, KR=South Korea, TW=Taiwan, MY=Malaysia, ID=Indonesia, IN=India, AU=Australia, US=United States, GB=United Kingdom, AE=UAE, DE=Germany, DJ=Djibouti, GU=Guam, NZ=New Zealand, CN=China, FR=France, EG=Egypt, SA=Saudi Arabia
+- Only use must_avoid_nodes / must_include_nodes when the user names a SPECIFIC node, facility, or PoP by name or ID.
 - Never return IDs that are not in the provided lists above.
 - Set confidence=high when both endpoints are unambiguous, medium when one is guessed, low otherwise.
 - In your explanation, briefly state what constraints are hard filters vs pool/sort preferences.
