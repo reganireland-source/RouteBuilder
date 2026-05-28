@@ -48,6 +48,9 @@ interface Props {
   externalPushOutagesDown?: boolean
   // Pool strategy label from last search (drives summary when no sort button active)
   optimiseFor?: string
+  // Pair flip state (lifted to App so map reflects the swap)
+  flippedPairIds?: Set<string>
+  onFlipPair?: (pairId: string) => void
 }
 
 export type SortKey = 'hops' | 'distance' | 'latency' | 'availability' | 'margin' | 'capacity' | 'ownership'
@@ -119,7 +122,7 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
   })
 }
 
-export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown, optimiseFor }: Props) {
+export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown, optimiseFor, flippedPairIds, onFlipPair }: Props) {
   const t = useTheme()
   const onNetSet = new Set(onNetOwnership)
   const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
@@ -180,9 +183,14 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
 
   function applyPairSort(ps: typeof pairs): typeof pairs {
     if (!ps) return ps
-    const sortedPrimaries = applySort(ps.map(p => p.primary))
-    const byId = Object.fromEntries(ps.map(p => [p.primary.id, p]))
-    return sortedPrimaries.map(r => byId[r.id]).filter((p): p is NonNullable<typeof ps>[0] => Boolean(p))
+    // Sort by effective worker stats — when flipped, the diverse route is the worker
+    const withEffective = ps.map(p => ({
+      pair: p,
+      effectiveWorker: flippedPairIds?.has(p.primary.id) ? p.diverse : p.primary,
+    }))
+    const sortedWorkers = applySort(withEffective.map(x => x.effectiveWorker))
+    const workerIdToEntry = new Map(withEffective.map(x => [x.effectiveWorker.id, x.pair]))
+    return sortedWorkers.map(r => workerIdToEntry.get(r.id)).filter((p): p is NonNullable<typeof ps>[0] => Boolean(p))
   }
 
   const sortedPairs = applyPairSort(pairs)
@@ -308,6 +316,8 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                   pinnedKeys={pinnedKeys}
                   canPin={canPin}
                   onPin={onPin}
+                  flipped={flippedPairIds?.has(pair.primary.id) ?? false}
+                  onFlip={() => onFlipPair?.(pair.primary.id)}
                 />
               ))}
               {(sortedPairs?.length ?? 0) === 0 && diversityRequested && (
@@ -403,6 +413,7 @@ function PairCard({
   pair, idx, selected, onSelectPair,
   nodesById, capacityById, outagesById, onNetSet, systemsById,
   pinnedKeys, canPin, onPin,
+  flipped, onFlip,
 }: {
   pair: { primary: Route; diverse: Route }
   idx: number
@@ -416,14 +427,15 @@ function PairCard({
   pinnedKeys: Set<string>
   canPin: boolean
   onPin: (route: Route) => void
+  flipped: boolean
+  onFlip: () => void
 }) {
   const t = useTheme()
   const [segmentsOpen, setSegmentsOpen] = useState(false)
-  const [flipped, setFlipped] = useState(false)
 
-  // Flipping swaps which route is displayed as worker vs protect within this pair
-  const worker  = flipped ? pair.diverse  : pair.primary
-  const protect = flipped ? pair.primary  : pair.diverse
+  // When flipped, swap path data while keeping original role-based IDs so the map colors stay correct
+  const worker  = flipped ? { ...pair.diverse, id: pair.primary.id } : pair.primary
+  const protect = flipped ? { ...pair.primary, id: pair.diverse.id } : pair.diverse
 
   const workerSegIds = new Set(worker.segments.map(s => s.segment_id))
   const sharedIds = new Set(protect.segments.filter(s => workerSegIds.has(s.segment_id)).map(s => s.segment_id))
@@ -445,7 +457,7 @@ function PairCard({
             Pair {idx + 1}
           </div>
           <button
-            onClick={e => { e.stopPropagation(); setFlipped(f => !f) }}
+            onClick={e => { e.stopPropagation(); onFlip() }}
             title="Flip worker/protect roles within this pair"
             style={{
               fontSize: 11, padding: '1px 5px', borderRadius: 4, cursor: 'pointer',

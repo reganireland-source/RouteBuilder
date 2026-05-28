@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Map } from './components/Map'
 import { SearchForm } from './components/SearchForm'
@@ -81,6 +81,7 @@ export default function App() {
   const [nlpPushOutages, setNlpPushOutages]         = useState<boolean | undefined>(undefined)
   const [countryHighlight, setCountryHighlight]     = useState<CountryHighlight | null>(null)
   const [panelsOpen, setPanelsOpen]                 = useState(true)
+  const [flippedPairIds, setFlippedPairIds]         = useState<Set<string>>(new Set())
   const pinCounter = useRef(0)
 
   const NLP_SORT_MAP: Record<NlpSortMode, SortKey | null> = {
@@ -125,6 +126,7 @@ export default function App() {
     setError(null)
     setResponse(null)
     setSelectedRouteIds([])
+    setFlippedPairIds(new Set())
     setSearchDuration(null)
     setLastSearchDiversity(req.diversity)
     setLastOptimiseFor(req.optimise_for)
@@ -194,9 +196,42 @@ export default function App() {
     setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r); setConfig(cfg); setOutages(o)
   }
 
-  const selectedRoutes: Route[] = response
-    ? [...response.primary_routes, ...response.diverse_routes].filter(r => selectedRouteIds.includes(r.id))
-    : []
+  // Build effective route lookup — swaps path data for flipped pairs while keeping original IDs
+  const effectiveRouteById = useMemo<Record<string, Route>>(() => {
+    if (!response) return {}
+    const { primary_routes, diverse_routes } = response
+    const isPaired = diverse_routes.length > 0 && diverse_routes.length === primary_routes.length
+    const out: Record<string, Route> = {}
+    if (isPaired) {
+      primary_routes.forEach((primary, i) => {
+        const diverse = diverse_routes[i]
+        if (flippedPairIds.has(primary.id) && diverse) {
+          out[primary.id] = { ...diverse, id: primary.id }
+          out[diverse.id]  = { ...primary, id: diverse.id  }
+        } else {
+          out[primary.id] = primary
+          if (diverse) out[diverse.id] = diverse
+        }
+      })
+    } else {
+      primary_routes.forEach(r => { out[r.id] = r })
+      diverse_routes.forEach(r => { out[r.id] = r })
+    }
+    return out
+  }, [response, flippedPairIds])
+
+  const selectedRoutes: Route[] = selectedRouteIds
+    .map(id => effectiveRouteById[id])
+    .filter((r): r is Route => r !== undefined)
+
+  function handleFlipPair(pairId: string) {
+    setFlippedPairIds(prev => {
+      const next = new Set(prev)
+      if (next.has(pairId)) next.delete(pairId)
+      else next.add(pairId)
+      return next
+    })
+  }
 
   const hasPins    = pinnedRoutes.length > 0
   const hasResults = response !== null
@@ -532,6 +567,8 @@ export default function App() {
               externalSortKey={nlpSortKey}
               externalPushOutagesDown={nlpPushOutages}
               optimiseFor={lastOptimiseFor}
+              flippedPairIds={flippedPairIds}
+              onFlipPair={handleFlipPair}
             />
           </div>
         </div>
