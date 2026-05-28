@@ -2,6 +2,7 @@
 import csv
 import io
 import json
+import re
 from typing import Any, Literal
 
 from fastapi import APIRouter, File, Query, UploadFile
@@ -54,6 +55,60 @@ VALID_OWNERSHIPS = {"owned", "iru", "consortium", "integrated_lit_lease", "offne
 VALID_BB_SPEEDS  = {"1G", "10G", "100G", "400G"}
 VALID_UL_SPEEDS  = {"1G", "10G"}
 
+# ── ID validation ──────────────────────────────────────────────────────────────
+
+_ID_SAFE_RE = re.compile(r'^[A-Za-z0-9_\-]+$')
+
+_ID_MAX_LEN: dict[str, int] = {
+    "node": 15, "segment": 30, "system": 15, "capacity": 30, "coverage": 15,
+}
+
+# Non-blocking pattern hints (warn only)
+_NODE_HINT_RE    = re.compile(r'^[A-Z][A-Z0-9]{2,14}$')
+_SEGMENT_HINT_RE = re.compile(r'^[A-Z0-9][A-Z0-9_\-]{3,29}$')   # must contain a hyphen
+_SYSTEM_HINT_RE  = re.compile(r'^[A-Z][A-Z0-9_]{1,14}$')
+
+
+def _validate_id(
+    raw: str, entity: str, row_num: int,
+) -> tuple[str, list[dict], list[dict]]:
+    """Return (normalized_id, blocking_errors, non_blocking_warnings)."""
+    errors: list[dict] = []
+    warnings: list[dict] = []
+    rid = raw.strip()
+
+    # ── 1. Block unsafe characters ────────────────────────────────────────────
+    if not _ID_SAFE_RE.match(rid):
+        bad = sorted({c for c in rid if not re.match(r'[A-Za-z0-9_\-]', c)})
+        errors.append(_err(row_num, rid, "id", rid,
+            f"Contains invalid characters {bad!r}. Only letters, digits, hyphens (-) and underscores (_) are allowed"))
+        return rid.upper(), errors, warnings
+
+    # ── 2. Auto-uppercase ─────────────────────────────────────────────────────
+    normalized = rid.upper()
+    if rid != normalized:
+        warnings.append({"row_num": row_num, "id": normalized, "field": "id",
+            "message": f"Auto-uppercased: '{rid}' → '{normalized}'"})
+
+    # ── 3. Max length ─────────────────────────────────────────────────────────
+    max_len = _ID_MAX_LEN.get(entity, 30)
+    if len(normalized) > max_len:
+        errors.append(_err(row_num, normalized, "id", normalized,
+            f"ID is {len(normalized)} characters; maximum for {entity} is {max_len}"))
+
+    # ── 4. Pattern hint (warn only) ───────────────────────────────────────────
+    if entity == "node" and not _NODE_HINT_RE.match(normalized):
+        warnings.append({"row_num": row_num, "id": normalized, "field": "id",
+            "message": f"Unusual node ID '{normalized}'. Typical format: 3-4 uppercase letters + 1-2 digits (e.g. SIN3, HKG1, BOM2)"})
+    elif entity == "segment" and "-" not in normalized:
+        warnings.append({"row_num": row_num, "id": normalized, "field": "id",
+            "message": f"Unusual segment ID '{normalized}' — no hyphen found. Typical format: SYSTEM-NODEA-NODEB (e.g. EAC-SIN-HKG)"})
+    elif entity == "system" and not _SYSTEM_HINT_RE.match(normalized):
+        warnings.append({"row_num": row_num, "id": normalized, "field": "id",
+            "message": f"Unusual system ID '{normalized}'. Typical format: short uppercase code (e.g. EAC, AAG, INDIGO_C)"})
+
+    return normalized, errors, warnings
+
 
 # ── Shared helpers ─────────────────────────────────────────────────────────────
 
@@ -77,13 +132,14 @@ def _err(row_num: int, id_: str, field: str, value: str, message: str) -> dict:
     return {"row_num": row_num, "id": id_, "field": field, "value": str(value)[:80], "message": message}
 
 
-def _result(table: str, mode: str, errors: list, changes: list,
+def _result(table: str, mode: str, errors: list, warnings: list, changes: list,
             total: int, added: int, modified: int, unchanged: int,
             deleted: int, kept: int) -> dict:
     return {
         "table": table,
         "mode": mode,
         "validation_errors": errors,
+        "warnings": warnings,
         "summary": {
             "total_in_file": total,
             "added": added,
@@ -206,17 +262,24 @@ async def validate_nodes(file: UploadFile = File(...), mode: BulkMode = Query("u
     rows = await _read_csv(file)
     existing = {n.id: n for n in load_nodes()}
 
-    errors, changes = [], []
+    errors, warnings, changes = [], [], []
     seen: set[str] = set()
     added = modified = unchanged = 0
 
     for i, row in enumerate(rows, 1):
-        rid = row.get("id", "").strip()
-        if not rid:
+        raw_id = row.get("id", "").strip()
+        if not raw_id:
             errors.append(_err(i, "", "id", "", "id is required"))
             continue
+
+        rid, id_errs, id_warns = _validate_id(raw_id, "node", i)
+        errors.extend(id_errs)
+        warnings.extend(id_warns)
+        if id_errs:
+            continue
+
         if rid in seen:
-            errors.append(_err(i, rid, "id", rid, f"Duplicate id '{rid}' in file"))
+            errors.append(_err(i, rid, "id", rid, f"Duplicate id '{rid}' in file (after normalisation)"))
             continue
         seen.add(rid)
 
@@ -273,7 +336,7 @@ async def validate_nodes(file: UploadFile = File(...), mode: BulkMode = Query("u
                 "id": ex.id, "name": ex.name, "type": _enum_val(ex.type), "country": ex.country,
             }})
 
-    return _result("nodes", mode, errors, changes, len(rows), added, modified, unchanged, deleted, kept)
+    return _result("nodes", mode, errors, warnings, changes, len(rows), added, modified, unchanged, deleted, kept)
 
 
 @router.post("/validate/segments")
@@ -283,17 +346,24 @@ async def validate_segments(file: UploadFile = File(...), mode: BulkMode = Query
     node_ids = {n.id for n in load_nodes()}
     sys_ids  = {s.id for s in load_systems()}
 
-    errors, changes = [], []
+    errors, warnings, changes = [], [], []
     seen: set[str] = set()
     added = modified = unchanged = 0
 
     for i, row in enumerate(rows, 1):
-        rid = row.get("id", "").strip()
-        if not rid:
+        raw_id = row.get("id", "").strip()
+        if not raw_id:
             errors.append(_err(i, "", "id", "", "id is required"))
             continue
+
+        rid, id_errs, id_warns = _validate_id(raw_id, "segment", i)
+        errors.extend(id_errs)
+        warnings.extend(id_warns)
+        if id_errs:
+            continue
+
         if rid in seen:
-            errors.append(_err(i, rid, "id", rid, f"Duplicate id '{rid}' in file"))
+            errors.append(_err(i, rid, "id", rid, f"Duplicate id '{rid}' in file (after normalisation)"))
             continue
         seen.add(rid)
 
@@ -369,7 +439,7 @@ async def validate_segments(file: UploadFile = File(...), mode: BulkMode = Query
             ex = existing[did]
             changes.append({"status": "deleted", "id": did, "prev_data": {"id": ex.id, "name": ex.name}})
 
-    return _result("segments", mode, errors, changes, len(rows), added, modified, unchanged, deleted, kept)
+    return _result("segments", mode, errors, warnings, changes, len(rows), added, modified, unchanged, deleted, kept)
 
 
 @router.post("/validate/systems")
@@ -377,17 +447,24 @@ async def validate_systems(file: UploadFile = File(...), mode: BulkMode = Query(
     rows = await _read_csv(file)
     existing = {s.id: s for s in load_systems()}
 
-    errors, changes = [], []
+    errors, warnings, changes = [], [], []
     seen: set[str] = set()
     added = modified = unchanged = 0
 
     for i, row in enumerate(rows, 1):
-        rid = row.get("id", "").strip()
-        if not rid:
+        raw_id = row.get("id", "").strip()
+        if not raw_id:
             errors.append(_err(i, "", "id", "", "id is required"))
             continue
+
+        rid, id_errs, id_warns = _validate_id(raw_id, "system", i)
+        errors.extend(id_errs)
+        warnings.extend(id_warns)
+        if id_errs:
+            continue
+
         if rid in seen:
-            errors.append(_err(i, rid, "id", rid, f"Duplicate id '{rid}' in file"))
+            errors.append(_err(i, rid, "id", rid, f"Duplicate id '{rid}' in file (after normalisation)"))
             continue
         seen.add(rid)
 
@@ -430,7 +507,7 @@ async def validate_systems(file: UploadFile = File(...), mode: BulkMode = Query(
             ex = existing[did]
             changes.append({"status": "deleted", "id": did, "prev_data": {"id": ex.id, "name": ex.name}})
 
-    return _result("systems", mode, errors, changes, len(rows), added, modified, unchanged, deleted, kept)
+    return _result("systems", mode, errors, warnings, changes, len(rows), added, modified, unchanged, deleted, kept)
 
 
 @router.post("/validate/capacity")
@@ -439,17 +516,24 @@ async def validate_capacity(file: UploadFile = File(...), mode: BulkMode = Query
     existing = {c.segment_id: c for c in load_capacity()}
     seg_ids  = {s.id for s in load_segments()}
 
-    errors, changes = [], []
+    errors, warnings, changes = [], [], []
     seen: set[str] = set()
     added = modified = unchanged = 0
 
     for i, row in enumerate(rows, 1):
-        rid = row.get("segment_id", "").strip()
-        if not rid:
+        raw_id = row.get("segment_id", "").strip()
+        if not raw_id:
             errors.append(_err(i, "", "segment_id", "", "segment_id is required"))
             continue
+
+        rid, id_errs, id_warns = _validate_id(raw_id, "capacity", i)
+        errors.extend(id_errs)
+        warnings.extend(id_warns)
+        if id_errs:
+            continue
+
         if rid in seen:
-            errors.append(_err(i, rid, "segment_id", rid, f"Duplicate segment_id '{rid}'"))
+            errors.append(_err(i, rid, "segment_id", rid, f"Duplicate segment_id '{rid}' in file (after normalisation)"))
             continue
         seen.add(rid)
 
@@ -498,7 +582,7 @@ async def validate_capacity(file: UploadFile = File(...), mode: BulkMode = Query
             ex = existing[did]
             changes.append({"status": "deleted", "id": did, "prev_data": {"segment_id": ex.segment_id}})
 
-    return _result("capacity", mode, errors, changes, len(rows), added, modified, unchanged, deleted, kept)
+    return _result("capacity", mode, errors, warnings, changes, len(rows), added, modified, unchanged, deleted, kept)
 
 
 @router.post("/validate/coverage")
@@ -506,17 +590,24 @@ async def validate_coverage(file: UploadFile = File(...), mode: BulkMode = Query
     rows = await _read_csv(file)
     existing = {n.id: n for n in load_nodes()}
 
-    errors, changes = [], []
+    errors, warnings, changes = [], [], []
     seen: set[str] = set()
     modified = unchanged = 0
 
     for i, row in enumerate(rows, 1):
-        rid = row.get("node_id", "").strip()
-        if not rid:
+        raw_id = row.get("node_id", "").strip()
+        if not raw_id:
             errors.append(_err(i, "", "node_id", "", "node_id is required"))
             continue
+
+        rid, id_errs, id_warns = _validate_id(raw_id, "coverage", i)
+        errors.extend(id_errs)
+        warnings.extend(id_warns)
+        if id_errs:
+            continue
+
         if rid in seen:
-            errors.append(_err(i, rid, "node_id", rid, f"Duplicate node_id '{rid}'"))
+            errors.append(_err(i, rid, "node_id", rid, f"Duplicate node_id '{rid}' in file (after normalisation)"))
             continue
         seen.add(rid)
 
@@ -581,7 +672,7 @@ async def validate_coverage(file: UploadFile = File(...), mode: BulkMode = Query
         else:
             unchanged += 1
 
-    return _result("coverage", mode, errors, changes, len(rows), 0, modified, unchanged, 0, 0)
+    return _result("coverage", mode, errors, warnings, changes, len(rows), 0, modified, unchanged, 0, 0)
 
 
 # ── Import ─────────────────────────────────────────────────────────────────────
@@ -595,7 +686,7 @@ async def import_nodes(file: UploadFile = File(...), mode: BulkMode = Query("ups
     file_ids: set[str] = set()
 
     for row in rows:
-        rid = row.get("id", "").strip()
+        rid = row.get("id", "").strip().upper()
         if not rid:
             continue
         file_ids.add(rid)
@@ -638,7 +729,7 @@ async def import_segments(file: UploadFile = File(...), mode: BulkMode = Query("
     file_ids: set[str] = set()
 
     for row in rows:
-        rid = row.get("id", "").strip()
+        rid = row.get("id", "").strip().upper()
         if not rid:
             continue
         file_ids.add(rid)
@@ -685,7 +776,7 @@ async def import_systems(file: UploadFile = File(...), mode: BulkMode = Query("u
     file_ids: set[str] = set()
 
     for row in rows:
-        rid = row.get("id", "").strip()
+        rid = row.get("id", "").strip().upper()
         if not rid:
             continue
         file_ids.add(rid)
@@ -724,7 +815,7 @@ async def import_capacity(file: UploadFile = File(...), mode: BulkMode = Query("
     file_ids: set[str] = set()
 
     for row in rows:
-        rid = row.get("segment_id", "").strip()
+        rid = row.get("segment_id", "").strip().upper()
         if not rid:
             continue
         file_ids.add(rid)
@@ -761,7 +852,7 @@ async def import_coverage(file: UploadFile = File(...), mode: BulkMode = Query("
     applied = {"added": 0, "modified": 0, "unchanged": 0, "deleted": 0, "skipped": 0}
 
     for row in rows:
-        rid = row.get("node_id", "").strip()
+        rid = row.get("node_id", "").strip().upper()
         if not rid or rid not in by_id:
             continue
 

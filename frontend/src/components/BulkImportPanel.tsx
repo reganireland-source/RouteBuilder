@@ -27,6 +27,7 @@ interface ValidateResponse {
   table: string
   mode: string
   validation_errors: ValidationError[]
+  warnings: ValidationError[]
   summary: {
     total_in_file: number
     added: number
@@ -487,6 +488,30 @@ export function BulkImportPanel({ counts, onDataChange }: Props) {
                     <code style={{ color: '#fca5a5', fontFamily: 'monospace', fontSize: 10 }}>{e.id || '—'}</code>
                     <code style={{ color: '#f87171', fontFamily: 'monospace', fontSize: 10 }}>.{e.field}</code>
                     <span style={{ color: '#fecaca' }}>{e.message}{e.value ? ` (got: "${e.value}")` : ''}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Warnings */}
+          {validation.warnings && validation.warnings.length > 0 && (
+            <div style={{
+              ...card({ marginBottom: 16, borderColor: '#f59e0b55', background: '#f59e0b08' }),
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#fbbf24', marginBottom: 8 }}>
+                ⚠ {validation.warnings.length} notice{validation.warnings.length !== 1 ? 's' : ''} — import will still proceed
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 160, overflowY: 'auto' }}>
+                {validation.warnings.map((w, i) => (
+                  <div key={i} style={{
+                    display: 'grid', gridTemplateColumns: '40px 80px 1fr',
+                    gap: 8, padding: '4px 8px', borderRadius: 4,
+                    background: '#f59e0b10', fontSize: 11, alignItems: 'baseline',
+                  }}>
+                    <span style={{ color: t.textFaint, fontFamily: 'monospace' }}>r{w.row_num}</span>
+                    <code style={{ color: '#fde68a', fontFamily: 'monospace', fontSize: 10 }}>{w.id || '—'}</code>
+                    <span style={{ color: '#fef3c7' }}>{w.message}</span>
                   </div>
                 ))}
               </div>
