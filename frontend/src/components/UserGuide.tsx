@@ -41,10 +41,12 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     style.textContent = `
       @media print {
         body > *:not(#rb-guide-print-portal) { display: none !important; }
+        body { overflow: visible !important; }
         #rb-guide-print-portal {
           display: block !important;
-          position: fixed !important;
-          top: 0 !important; left: 0 !important; right: 0 !important;
+          position: static !important;
+          left: auto !important;
+          top: auto !important;
           width: 100% !important;
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
