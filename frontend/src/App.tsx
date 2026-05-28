@@ -18,13 +18,15 @@ import { generateStraightLineDiagram } from './utils/generateDiagram'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, type Theme, type ThemeMode } from './theme'
 import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem } from './types'
+import { ProjectsModal } from './components/ProjectsModal'
 
 const NLP_ENABLED = import.meta.env.VITE_ENABLE_NLP !== 'false'
 const NlpChat = NLP_ENABLED
   ? lazy(() => import('./components/NlpChat'))
   : null
 
-const PIN_COLORS    = ['#f9e2af', '#94e2d5', '#cba6f7', '#f2cdcd', '#eba0ac']
+const PIN_COLORS    = ['#f9e2af', '#94e2d5', '#cba6f7', '#f2cdcd', '#eba0ac', '#89dceb', '#a6e3a1', '#fab387', '#cdd6f4', '#b4befe']
+const MAX_PINS = 10
 const SYSTEM_COLORS = ['#89b4fa', '#a6e3a1', '#f9e2af', '#94e2d5', '#cba6f7']
 
 function routeKey(r: Route) { return r.nodes.join('|') }
@@ -46,8 +48,10 @@ export default function App() {
   const theme = themeMode === 'dark' ? darkTheme : themeMode === 'dusk' ? duskTheme : lightTheme
   function cycleTheme() { setThemeMode(m => m === 'dark' ? 'dusk' : m === 'dusk' ? 'light' : 'dark') }
 
-  const [refDataOpen, setRefDataOpen] = useState(false)
-  const [guideOpen,   setGuideOpen]   = useState(false)
+  const [refDataOpen,     setRefDataOpen]     = useState(false)
+  const [guideOpen,       setGuideOpen]       = useState(false)
+  const [projectsOpen,    setProjectsOpen]    = useState(false)
+  const [addToProjectRoute, setAddToProjectRoute] = useState<{ route: Route; protectRoute?: Route; searchLabel: string } | null>(null)
   const [mode, setMode]               = useState<AppMode>('routebuilder')
   const [nodes, setNodes]             = useState<CableNode[]>([])
   const [segments, setSegments]       = useState<CableSegment[]>([])
@@ -154,7 +158,7 @@ export default function App() {
       setPinnedRoutes(prev => prev.filter(p => routeKey(p.route) !== key))
       return
     }
-    if (pinnedRoutes.length >= 5) return
+    if (pinnedRoutes.length >= MAX_PINS) return
     const usedColors = pinnedRoutes.map(p => p.color)
     const color = PIN_COLORS.find(c => !usedColors.includes(c)) ?? PIN_COLORS[0]
     const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
@@ -396,8 +400,9 @@ export default function App() {
 
                     {/* Actions */}
                     {[
-                      { label: 'Capacity', icon: '📊', onClick: () => { setCapDashOpen(true);  setCtrlMenuOpen(false) } },
-                      { label: 'Ref Data', icon: '⚙',  onClick: () => { setRefDataOpen(true);  setCtrlMenuOpen(false) } },
+                      { label: 'Capacity',  icon: '📊', onClick: () => { setCapDashOpen(true);   setCtrlMenuOpen(false) } },
+                      { label: 'Projects',  icon: '📁', onClick: () => { setProjectsOpen(true);  setCtrlMenuOpen(false) } },
+                      { label: 'Ref Data',  icon: '⚙',  onClick: () => { setRefDataOpen(true);   setCtrlMenuOpen(false) } },
                     ].map(item => (
                       <button
                         key={item.label}
@@ -569,6 +574,12 @@ export default function App() {
               optimiseFor={lastOptimiseFor}
               flippedPairIds={flippedPairIds}
               onFlipPair={handleFlipPair}
+              onAddToProject={(route, protectRoute) => {
+                const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+                const label = `${nodesById[route.nodes[0]]?.name ?? route.nodes[0]} → ${nodesById[route.nodes[route.nodes.length - 1]]?.name ?? route.nodes[route.nodes.length - 1]}`
+                setAddToProjectRoute({ route, protectRoute, searchLabel: label })
+                setProjectsOpen(true)
+              }}
             />
           </div>
         </div>
@@ -641,6 +652,27 @@ export default function App() {
           capacity={capacity} outages={outages} rules={rules} config={config}
           onDataChange={handleDataChange}
           onClose={() => setRefDataOpen(false)}
+        />
+      )}
+
+      {projectsOpen && (
+        <ProjectsModal
+          nodes={nodes}
+          pendingCircuit={addToProjectRoute ?? undefined}
+          onClose={() => { setProjectsOpen(false); setAddToProjectRoute(null) }}
+          onRestorePins={(circuits) => {
+            const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+            const usedColors = new Set<string>()
+            const newPins = circuits.slice(0, MAX_PINS).map((c, i) => {
+              const route = c.route_snapshot as unknown as Route
+              const color = PIN_COLORS.find(col => !usedColors.has(col)) ?? PIN_COLORS[i % PIN_COLORS.length]
+              usedColors.add(color)
+              pinCounter.current += 1
+              const label = c.search_label || `${nodesById[route.nodes[0]]?.name ?? route.nodes[0]} → ${nodesById[route.nodes[route.nodes.length - 1]]?.name ?? route.nodes[route.nodes.length - 1]}`
+              return { pinId: `pin-${pinCounter.current}`, route, color, searchLabel: label }
+            })
+            setPinnedRoutes(newPins)
+          }}
         />
       )}
 

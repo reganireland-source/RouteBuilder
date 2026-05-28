@@ -29,6 +29,7 @@ function classifyRoute(route: Route, onNetOwnership: Set<string>): { type: NetCl
 const DEFAULT_SHOWN = 5
 const MIN_SHOWN = 1
 const MAX_SHOWN = 10
+const MAX_PINS = 10
 
 interface Props {
   primaryRoutes: Route[]
@@ -53,6 +54,8 @@ interface Props {
   // Pair flip state (lifted to App so map reflects the swap)
   flippedPairIds?: Set<string>
   onFlipPair?: (pairId: string) => void
+  // Add to project
+  onAddToProject?: (route: Route, protectRoute?: Route) => void
 }
 
 export type SortKey = 'hops' | 'distance' | 'latency' | 'availability' | 'margin' | 'capacity' | 'ownership'
@@ -124,7 +127,7 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
   })
 }
 
-export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown, optimiseFor, flippedPairIds, onFlipPair }: Props) {
+export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown, optimiseFor, flippedPairIds, onFlipPair, onAddToProject }: Props) {
   const t = useTheme()
   const onNetSet = new Set(onNetOwnership)
   const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
@@ -145,7 +148,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
   const outagesById = Object.fromEntries(outages.map(o => [o.segment_id, o]))
   const pinnedKeys = new Set(pinnedRoutes.map(p => routeKey(p.route)))
-  const canPin = pinnedRoutes.length < 5
+  const canPin = pinnedRoutes.length < MAX_PINS
 
   const hasResults = primaryRoutes.length > 0 || diverseRoutes.length > 0
   const hasPins = pinnedRoutes.length > 0
@@ -348,6 +351,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                   onPin={onPin}
                   flipped={flippedPairIds?.has(pair.primary.id) ?? false}
                   onFlip={() => onFlipPair?.(pair.primary.id)}
+                  onAddToProject={onAddToProject ? (w, p) => onAddToProject(w, p) : undefined}
                 />
               ))}
               {(sortedPairs?.length ?? 0) === 0 && diversityRequested && (
@@ -388,6 +392,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                       onPin={onPin}
                       onNetSet={onNetSet}
                       systemsById={systemsById}
+                      onAddToProject={onAddToProject ? (route) => onAddToProject(route) : undefined}
                     />
                   ))}
                 </div>
@@ -409,6 +414,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                       onPin={onPin}
                       onNetSet={onNetSet}
                       systemsById={systemsById}
+                      onAddToProject={onAddToProject ? (route) => onAddToProject(route) : undefined}
                     />
                   ))}
                 </div>
@@ -443,7 +449,7 @@ function PairCard({
   pair, idx, selected, onSelectPair,
   nodesById, capacityById, outagesById, onNetSet, systemsById,
   pinnedKeys, canPin, onPin,
-  flipped, onFlip,
+  flipped, onFlip, onAddToProject,
 }: {
   pair: { primary: Route; diverse: Route }
   idx: number
@@ -459,6 +465,7 @@ function PairCard({
   onPin: (route: Route) => void
   flipped: boolean
   onFlip: () => void
+  onAddToProject?: (worker: Route, protect: Route) => void
 }) {
   const t = useTheme()
   const [segmentsOpen, setSegmentsOpen] = useState(false)
@@ -497,6 +504,18 @@ function PairCard({
               lineHeight: 1,
             }}
           >⇅</button>
+          {onAddToProject && (
+            <button
+              onClick={e => { e.stopPropagation(); onAddToProject(worker, protect) }}
+              title="Add pair to project (worker + protect)"
+              style={{
+                fontSize: 10, padding: '1px 6px', borderRadius: 4, cursor: 'pointer',
+                border: `1px solid ${t.border}`,
+                background: 'transparent',
+                color: t.textFaint, fontWeight: 600, lineHeight: 1,
+              }}
+            >📁 Add Pair</button>
+          )}
         </div>
         <button
           onClick={e => { e.stopPropagation(); setSegmentsOpen(o => !o) }}
@@ -698,7 +717,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   )
 }
 
-function RouteCard({ route, selected, onSelect, nodesById, capacityById, outagesById, color, isPinned, canPin, onPin, onNetSet, systemsById }: {
+function RouteCard({ route, selected, onSelect, nodesById, capacityById, outagesById, color, isPinned, canPin, onPin, onNetSet, systemsById, onAddToProject }: {
   route: Route
   selected: boolean
   onSelect: (id: string) => void
@@ -711,6 +730,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
   onPin: (route: Route) => void
   onNetSet: Set<string>
   systemsById: Record<string, CableSystem>
+  onAddToProject?: (route: Route) => void
 }) {
   const t = useTheme()
   const isMobile = useIsMobile()
@@ -756,11 +776,22 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
           <MarginBadge margin={routeMargin} />
           {hasOutage && <OutageBadge repairDate={repairDateLabel} />}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: t.textFaint }}>{route.nodes.length - 1} hops</span>
+          {onAddToProject && (
+            <button
+              onClick={e => { e.stopPropagation(); onAddToProject(route) }}
+              title="Add to project"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 12, lineHeight: 1, padding: '1px 3px', borderRadius: 3,
+                color: t.textFaint, transition: 'color 0.15s',
+              }}
+            >📁</button>
+          )}
           <button
             onClick={e => { e.stopPropagation(); onPin(route) }}
-            title={isPinned ? 'Unpin route' : pinDisabled ? 'Max 5 routes pinned' : 'Pin route'}
+            title={isPinned ? 'Unpin route' : pinDisabled ? 'Max 10 routes pinned' : 'Pin route'}
             style={{
               background: 'none', border: 'none', cursor: pinDisabled ? 'not-allowed' : 'pointer',
               fontSize: 13, lineHeight: 1, padding: '1px 3px', borderRadius: 3,

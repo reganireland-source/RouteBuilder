@@ -30,7 +30,7 @@ interface Props {
 
 export function UserGuide({ nodes, segments, systems }: Props) {
   const t = useTheme()
-  const [page, setPage] = useState<1 | 2 | 3 | 4>(1)
+  const [page, setPage] = useState<1 | 2 | 3 | 4 | 5>(1)
   const [printAll, setPrintAll] = useState(false)
   const printRef = useRef<HTMLDivElement>(null)
 
@@ -256,7 +256,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         [2, '🏗 Architecture'],
         [3, '🔍 Search Algorithm'],
         [4, '🗄 Data Model'],
-      ] as [1|2|3|4, string][]).map(([p, label]) => (
+        [5, '📁 Solution Projects'],
+      ] as [1|2|3|4|5, string][]).map(([p, label]) => (
         <button
           key={p}
           onClick={() => setPage(p)}
@@ -897,6 +898,235 @@ export function UserGuide({ nodes, segments, systems }: Props) {
   )
   if (page === 4 && !printAll) return dataModel
 
+  // ── Page 5: Customer Solution Projects ────────────────────────────────────
+  const projectsGuide = (
+    <div style={{
+      maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
+      fontFamily: 'system-ui, sans-serif', color: t.text,
+    }}>
+      {!printAll && pageTabs}
+
+      {/* Hero */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0c1a35 0%, #0e3052 60%, #0a4a6e 100%)',
+        borderRadius: 16, padding: '40px 36px', marginBottom: 28, color: '#fff',
+        position: 'relative', overflow: 'hidden',
+      }}>
+        <div style={{ position: 'absolute', right: -50, top: -50, width: 240, height: 240, borderRadius: '50%', background: 'rgba(14,165,233,0.06)' }} />
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(125,211,252,0.8)', letterSpacing: '0.12em', textTransform: 'uppercase' as const, marginBottom: 8 }}>
+          CUSTOMER SOLUTION PROJECTS
+        </div>
+        <h1 style={{ margin: '0 0 12px', fontSize: 28, fontWeight: 900, lineHeight: 1.1 }}>
+          From Route Design to<br />Customer-Ready Delivery
+        </h1>
+        <p style={{ margin: '0 0 20px', fontSize: 13, color: 'rgba(186,230,255,0.85)', lineHeight: 1.7, maxWidth: 580 }}>
+          Customer Solution Projects turn one or more route designs into a complete, enriched solution package — ready for a technical handoff, formal quotation, or straight-line diagram delivery to the customer.
+        </p>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' as const }}>
+          {[
+            { icon: '📁', label: 'Project Management' },
+            { icon: '📡', label: 'Circuit Enrichment' },
+            { icon: '📄', label: 'Customer SLD Export' },
+            { icon: '🔒', label: 'Confidential by Default' },
+          ].map(({ icon, label }) => (
+            <div key={label} style={{ background: 'rgba(255,255,255,0.07)', borderRadius: 8, padding: '7px 14px', border: '1px solid rgba(255,255,255,0.1)', fontSize: 11, color: 'rgba(210,240,255,0.9)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>{icon}</span>{label}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Two-tier concept */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={sectionLabel as React.CSSProperties}>Two Levels of SLD Output</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          {[
+            {
+              icon: '⚡',
+              title: 'Fast SLD',
+              sub: 'Built from route data only',
+              color: t.blue,
+              bullets: [
+                'Generated instantly from any pinned route',
+                'Shows cable systems, nodes, segment lengths and latency',
+                'Proportional segment layout on the diagram',
+                'One page per circuit — cover page with route summary',
+                'No project required — available from the pin bar',
+              ],
+              tag: 'Always Available',
+            },
+            {
+              icon: '🎯',
+              title: 'Customer SLD',
+              sub: 'Enriched, branded, customer-ready',
+              color: '#0ea5e9',
+              bullets: [
+                'Requires a Customer Solution Project',
+                'Adds A-End and Z-End site information and access details',
+                'Shows cross-connect and local loop arrangements',
+                'Includes service type, bandwidth, protection and L1 settings',
+                'Configurable display settings per project and per circuit',
+                'Diverse circuits show worker + protect on a single page',
+              ],
+              tag: 'Requires Project',
+            },
+          ].map(({ icon, title, sub, color, bullets, tag }) => (
+            <div key={title} style={{ background: t.bgCard, border: `2px solid ${color}`, borderRadius: 12, padding: '20px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 22 }}>{icon}</span>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: t.text }}>{title}</div>
+                    <div style={{ fontSize: 10, color: t.textMuted }}>{sub}</div>
+                  </div>
+                </div>
+                <span style={{ fontSize: 9, fontWeight: 700, padding: '3px 8px', borderRadius: 10, background: color + '22', color, border: `1px solid ${color}55` }}>{tag}</span>
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 16, listStyle: 'none', display: 'flex', flexDirection: 'column' as const, gap: 5 }}>
+                {bullets.map((b, i) => (
+                  <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 7, fontSize: 11, color: t.textMuted, lineHeight: 1.5 }}>
+                    <span style={{ color, flexShrink: 0, marginTop: 1 }}>›</span>{b}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Workflow */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={sectionLabel as React.CSSProperties}>Project Workflow</div>
+        <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 0, position: 'relative' as const }}>
+          <div style={{ position: 'absolute' as const, left: 13, top: 28, bottom: 28, width: 2, background: `linear-gradient(to bottom, ${t.blue}, #0ea5e9, #10b981)`, borderRadius: 1 }} />
+          {[
+            { num: '1', color: t.blue,    icon: '🔍', title: 'Search & Identify Routes',
+              desc: 'Use PoP Route Builder or City Pairs to find the best worker and protect routes. Apply diversity, constraints and sorting as needed. Pin routes for comparison.' },
+            { num: '2', color: '#0ea5e9', icon: '📁', title: 'Add to Project',
+              desc: 'Click the 📁 button on any route card (or "📁 Add Pair" on a diversity pair) to open the Projects panel. Select an existing project or create a new one. The route is saved as a circuit with a snapshot of the path.' },
+            { num: '3', color: '#0ea5e9', icon: '✏️', title: 'Enrich the Circuit',
+              desc: 'Open the circuit editor to add A-End and Z-End details: site name, address, access type (X-Connect or Local Loop), supplier, who arranges it, interface type, bandwidth and protection scheme.' },
+            { num: '4', color: '#0ea5e9', icon: '⚙️', title: 'Configure Project Info',
+              desc: 'Add customer name, opportunity ID, account manager, solution architect and date prepared. Set the visibility to confidential (default) or public. Configure which parameters appear on the SLD.' },
+            { num: '5', color: '#10b981', icon: '📄', title: 'Export Customer SLD',
+              desc: 'Generate a branded, customer-ready SLD PDF directly from the project. Diverse circuits (worker + protect pairs) appear together on a single page, converging at the shared A-End and Z-End handoff points.' },
+          ].map(({ num, color, icon, title, desc }, i) => (
+            <div key={num} style={{ display: 'flex', gap: 16, paddingBottom: i < 4 ? 20 : 0, paddingLeft: 4 }}>
+              <div style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, background: color, border: `2px solid ${color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff', zIndex: 1 }}>{num}</div>
+              <div style={{ ...card() as React.CSSProperties, flex: 1, padding: '12px 14px', marginBottom: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                  <span style={{ fontSize: 15 }}>{icon}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{title}</span>
+                </div>
+                <div style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6 }}>{desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Project data model */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={sectionLabel as React.CSSProperties}>What a Project Contains</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: t.text, marginBottom: 10 }}>Project Fields</div>
+            {[
+              ['Customer Name',       'The end customer for the solution'],
+              ['Opportunity ID',      'CRM/Salesforce opportunity reference'],
+              ['Opportunity Name',    'Brief description of the deal'],
+              ['Account Manager',     'The relationship owner for this customer'],
+              ['Solution Architect',  'Technical owner composing the solution'],
+              ['Date Prepared',       'Solution package date for the cover page'],
+              ['Visibility',         'Confidential (default) or Public'],
+            ].map(([field, desc]) => (
+              <div key={field as string} style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 8, padding: '6px 0', borderTop: `1px solid ${t.border}`, alignItems: 'baseline' }}>
+                <code style={{ fontSize: 10, fontWeight: 700, color: t.blue, fontFamily: 'monospace' }}>{field}</code>
+                <span style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{desc}</span>
+              </div>
+            ))}
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: t.text, marginBottom: 10 }}>Per-Circuit Fields</div>
+            {[
+              ['Service Type',   'EPL, EVPL, IPT, IPVPN, Wavelength…'],
+              ['Bandwidth',      'Contracted bandwidth (e.g. 100G)'],
+              ['Protection',     'Unprotected (1+0), Protected (1+1)…'],
+              ['Frame Size',     'End-to-end MTU (e.g. 9200 bytes)'],
+              ['L1 Settings',    'MACSec, LLF, OTN framing, etc.'],
+              ['A-End / Z-End',  'Site, access type, supplier, interface'],
+              ['Route Snapshot', 'Path captured at time of adding to project'],
+            ].map(([field, desc]) => (
+              <div key={field as string} style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 8, padding: '6px 0', borderTop: `1px solid ${t.border}`, alignItems: 'baseline' }}>
+                <code style={{ fontSize: 10, fontWeight: 700, color: '#0ea5e9', fontFamily: 'monospace' }}>{field}</code>
+                <span style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Endpoint enrichment */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={sectionLabel as React.CSSProperties}>A-End / Z-End Technical Enrichment</div>
+        <div style={{ ...card() as React.CSSProperties, padding: '20px 20px' }}>
+          <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.7, margin: '0 0 16px' }}>
+            Each circuit endpoint captures the customer handoff details required to order and provision the physical access. These fields drive the A-End / Z-End information blocks on the Customer SLD.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+            {[
+              { icon: '🔌', label: 'X-Connect',   desc: 'Cross-connect within a colocation facility. Records supplier and who arranges it (Customer or Telstra).' },
+              { icon: '🏠', label: 'Local Loop',   desc: 'Last-mile access circuit to the customer premises. Records supplier and who is responsible for ordering.' },
+              { icon: '⚡', label: 'Direct',       desc: 'Customer directly connected — no access component required.' },
+              { icon: '🖥', label: 'Interface',    desc: 'Physical port type (e.g. 100GBase-LR4, SMF LC). Selected from the configurable interface reference table.' },
+              { icon: '📍', label: 'Site Address', desc: 'Full customer premises address — appears on the SLD and used for local loop ordering.' },
+              { icon: '🛡', label: 'Protection',   desc: 'End-point protection scheme — Unprotected (1+0), Protected (1+1), or Dual.' },
+            ].map(({ icon, label, desc }) => (
+              <div key={label} style={{ background: t.bgBase, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.border}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                  <span style={{ fontSize: 14 }}>{icon}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: t.text }}>{label}</span>
+                </div>
+                <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* SLD config */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={sectionLabel as React.CSSProperties}>SLD Display Configuration</div>
+        <div style={{ ...card() as React.CSSProperties, padding: '18px 20px' }}>
+          <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.7, margin: '0 0 14px' }}>
+            Each project has configurable SLD display settings. Defaults apply to all circuits; individual circuits can override these settings independently.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            {[
+              ['Round-Trip Delay',    'End-to-end RTD on diagram header'],
+              ['Total Latency',       'One-way latency in summary bar'],
+              ['Segment Latency',     'Per-segment latency labels'],
+              ['Distance',           'Segment and total distances'],
+              ['Ownership',          'Ownership badges on segments'],
+              ['Availability',       'Segment and end-to-end availability'],
+            ].map(([label, desc]) => (
+              <div key={label as string} style={{ background: t.bgBase, borderRadius: 6, padding: '8px 10px', border: `1px solid ${t.border}` }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: t.green, marginBottom: 3 }}>{label}</div>
+                <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.4 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ textAlign: 'center', padding: '20px 0 0', borderTop: `1px solid ${t.border}` }}>
+        <div style={{ fontSize: 11, color: t.textFaint }}>International Telco · RouteBuilder · Customer Solution Projects</div>
+      </div>
+    </div>
+  )
+  if (page === 5 && !printAll) return projectsGuide
+
   // ── Page 1: Product Overview ───────────────────────────────────────────────
   const overview = (
     <div style={{
@@ -1276,7 +1506,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{overview}</div>
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{arch}</div>
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{algo}</div>
-        <div>{dataModel}</div>
+        <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{dataModel}</div>
+        <div>{projectsGuide}</div>
       </div>
     )
     return createPortal(printContent, document.body)

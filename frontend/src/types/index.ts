@@ -204,6 +204,83 @@ export interface CountryHighlight {
   boundsLL: [[number, number], [number, number]]
 }
 
+// ── Interface Types ───────────────────────────────────────────────────────────
+
+export interface InterfaceType {
+  id: string
+  name: string
+  description?: string
+}
+
+// ── Customer Solution Projects ────────────────────────────────────────────────
+
+export interface SldConfig {
+  show_latency: boolean
+  show_segment_latency: boolean
+  show_distance: boolean
+  show_ownership: boolean
+  show_reliability: boolean
+  show_rtd: boolean
+}
+
+export const DEFAULT_SLD_CONFIG: SldConfig = {
+  show_latency: true,
+  show_segment_latency: true,
+  show_distance: true,
+  show_ownership: true,
+  show_reliability: false,
+  show_rtd: true,
+}
+
+export interface EndpointConfig {
+  customer_site_name?: string
+  customer_site_address?: string
+  access_type?: string
+  cc_supplier?: string
+  cc_arranged_by?: string
+  ll_supplier?: string
+  ll_arranged_by?: string
+  interface_id?: string
+  bandwidth?: string
+  protection?: string
+}
+
+export interface ProjectCircuit {
+  circuit_id: string
+  label?: string
+  order: number
+  route_snapshot: Route
+  search_label: string
+  pin_color: string
+  // optional second route for diverse/protected circuits
+  protect_route_snapshot?: Route
+  protect_search_label?: string
+  service_type?: string
+  bandwidth?: string
+  protection?: string
+  frame_size?: string
+  l1_settings?: string
+  a_end: EndpointConfig
+  z_end: EndpointConfig
+  sld_config_override?: Partial<SldConfig>
+}
+
+export interface Project {
+  id: string
+  name: string
+  customer_name?: string
+  account_manager?: string
+  solution_architect?: string
+  opportunity_id?: string
+  opportunity_name?: string
+  date_prepared?: string
+  visibility: 'public' | 'confidential'
+  sld_config: SldConfig
+  circuits: ProjectCircuit[]
+  created_at?: string
+  updated_at?: string
+}
+
 export interface NlpParseResponse {
   start_node_id: string | null
   end_node_id: string | null

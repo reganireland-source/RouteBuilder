@@ -221,6 +221,88 @@ class SegmentOutageUpdate(BaseModel):
     description: Optional[str] = None
 
 
+# ── Interface Types (reference table) ────────────────────────────────────────
+
+class InterfaceType(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+
+
+class InterfaceTypeUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+# ── Customer Solution Projects ────────────────────────────────────────────────
+
+class SldConfig(BaseModel):
+    show_latency: bool = True
+    show_segment_latency: bool = True
+    show_distance: bool = True
+    show_ownership: bool = True
+    show_reliability: bool = False
+    show_rtd: bool = True
+
+
+class EndpointConfig(BaseModel):
+    customer_site_name: Optional[str] = None
+    customer_site_address: Optional[str] = None
+    access_type: Optional[str] = None          # "X-Connect" | "Local Loop" | "Direct"
+    cc_supplier: Optional[str] = None
+    cc_arranged_by: Optional[str] = None       # "Customer" | "Telstra"
+    ll_supplier: Optional[str] = None
+    ll_arranged_by: Optional[str] = None       # "Customer" | "Service Provider"
+    interface_id: Optional[str] = None         # FK → InterfaceType
+    bandwidth: Optional[str] = None
+    protection: Optional[str] = None
+
+
+class ProjectCircuit(BaseModel):
+    circuit_id: str
+    label: Optional[str] = None
+    order: int = 0
+    route_snapshot: dict
+    search_label: str = ""
+    pin_color: str = "#94e2d5"
+    service_type: Optional[str] = None
+    bandwidth: Optional[str] = None
+    protection: Optional[str] = None
+    frame_size: Optional[str] = None
+    l1_settings: Optional[str] = None
+    a_end: EndpointConfig = EndpointConfig()
+    z_end: EndpointConfig = EndpointConfig()
+    sld_config_override: Optional[dict] = None
+
+
+class Project(BaseModel):
+    id: str
+    name: str
+    customer_name: Optional[str] = None
+    account_manager: Optional[str] = None
+    solution_architect: Optional[str] = None
+    opportunity_id: Optional[str] = None
+    opportunity_name: Optional[str] = None
+    date_prepared: Optional[str] = None
+    visibility: str = "confidential"
+    sld_config: SldConfig = SldConfig()
+    circuits: list[ProjectCircuit] = []
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    customer_name: Optional[str] = None
+    account_manager: Optional[str] = None
+    solution_architect: Optional[str] = None
+    opportunity_id: Optional[str] = None
+    opportunity_name: Optional[str] = None
+    date_prepared: Optional[str] = None
+    visibility: Optional[str] = None
+    sld_config: Optional[SldConfig] = None
+
+
 # ── NLP route parsing ─────────────────────────────────────────────────────────
 
 class NlpParseRequest(BaseModel):

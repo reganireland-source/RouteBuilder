@@ -19,14 +19,28 @@ _TABLES = [
 ]
 
 _CREATE_SQL = """
-CREATE TABLE IF NOT EXISTS nodes    (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
-CREATE TABLE IF NOT EXISTS systems  (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
-CREATE TABLE IF NOT EXISTS segments (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
-CREATE TABLE IF NOT EXISTS capacity (segment_id  TEXT PRIMARY KEY, data JSONB NOT NULL);
-CREATE TABLE IF NOT EXISTS outages  (fault_id    TEXT PRIMARY KEY, data JSONB NOT NULL);
-CREATE TABLE IF NOT EXISTS rules    (node_id     TEXT PRIMARY KEY, data JSONB NOT NULL);
-CREATE TABLE IF NOT EXISTS config   (key         TEXT PRIMARY KEY, value JSONB NOT NULL);
+CREATE TABLE IF NOT EXISTS nodes       (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
+CREATE TABLE IF NOT EXISTS systems     (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
+CREATE TABLE IF NOT EXISTS segments    (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
+CREATE TABLE IF NOT EXISTS capacity    (segment_id  TEXT PRIMARY KEY, data JSONB NOT NULL);
+CREATE TABLE IF NOT EXISTS outages     (fault_id    TEXT PRIMARY KEY, data JSONB NOT NULL);
+CREATE TABLE IF NOT EXISTS rules       (node_id     TEXT PRIMARY KEY, data JSONB NOT NULL);
+CREATE TABLE IF NOT EXISTS config      (key         TEXT PRIMARY KEY, value JSONB NOT NULL);
+CREATE TABLE IF NOT EXISTS interfaces  (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
+CREATE TABLE IF NOT EXISTS projects    (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
 """
+
+_DEFAULT_INTERFACES = [
+    {"id": "100GBASE-LR4-SMF-LC",  "name": "100GBase-LR4, SMF LC",           "description": "100G LAN, 1310nm, single-mode fibre, LC connector"},
+    {"id": "100GBASE-ER4-SMF-LC",  "name": "100GBase-ER4, SMF LC",           "description": "100G LAN, 40km reach, single-mode fibre, LC connector"},
+    {"id": "10GBASE-LR-SMF-LC",    "name": "10GBase-LR, SMF LC",             "description": "10G LAN, 1310nm, single-mode fibre, LC connector"},
+    {"id": "10GBASE-ZR-SMF-LC",    "name": "10GBase-ZR, SMF LC",             "description": "10G LAN, 80km reach, single-mode fibre, LC connector"},
+    {"id": "400GBASE-LR4-SMF-LC",  "name": "400GBase-LR4, SMF LC",           "description": "400G LAN, 10km reach, single-mode fibre, LC connector"},
+    {"id": "400GBASE-DR4-SMF-MPO", "name": "400GBase-DR4, SMF MPO",          "description": "400G LAN, 500m reach, single-mode fibre, MPO connector"},
+    {"id": "OTU4-SMF-LC",          "name": "OTU4 (100G), SMF LC",            "description": "OTN 100G wavelength, single-mode fibre, LC connector"},
+    {"id": "STM64-SMF-LC",         "name": "STM-64 (10G SDH), SMF LC",       "description": "SDH 10G, single-mode fibre, LC connector"},
+    {"id": "GE-SMF-LC",            "name": "1GBase-LX, SMF LC",              "description": "1G LAN, 1310nm, single-mode fibre, LC connector"},
+]
 
 
 def get_conn() -> psycopg2.extensions.connection:
@@ -73,6 +87,15 @@ def _seed_if_empty(conn) -> None:
             cur.execute(
                 "INSERT INTO config (key, value) VALUES (%s, %s) ON CONFLICT DO NOTHING",
                 ("main", json.dumps(cfg)),
+            )
+
+        # Seed default interface types
+        cur.execute("SELECT COUNT(*) AS n FROM interfaces")
+        if cur.fetchone()["n"] == 0:
+            psycopg2.extras.execute_values(
+                cur,
+                "INSERT INTO interfaces (id, data) VALUES %s ON CONFLICT DO NOTHING",
+                [(iface["id"], json.dumps(iface)) for iface in _DEFAULT_INTERFACES],
             )
 
     conn.commit()
