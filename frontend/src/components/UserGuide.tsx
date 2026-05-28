@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useTheme } from '../theme'
-import { generateUserGuidePDF } from '../utils/generateUserGuide'
+
 import type { CableNode, CableSegment, CableSystem } from '../types'
 
 
@@ -30,6 +31,37 @@ interface Props {
 export function UserGuide({ nodes, segments, systems }: Props) {
   const t = useTheme()
   const [page, setPage] = useState<1 | 2 | 3 | 4>(1)
+  const [printAll, setPrintAll] = useState(false)
+  const printRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!printAll) return
+    // Inject global print CSS that hides everything except the guide print container
+    const style = document.createElement('style')
+    style.id = 'rb-print-style'
+    style.textContent = `
+      @media print {
+        body > * { display: none !important; }
+        #rb-guide-print-portal { display: block !important; }
+        #rb-guide-print-portal * { visibility: visible; }
+        @page { margin: 12mm 10mm; size: A4; }
+      }
+    `
+    document.head.appendChild(style)
+    const afterPrint = () => {
+      setPrintAll(false)
+      document.getElementById('rb-print-style')?.remove()
+    }
+    window.addEventListener('afterprint', afterPrint)
+    const timer = setTimeout(() => window.print(), 200)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('afterprint', afterPrint)
+      document.getElementById('rb-print-style')?.remove()
+    }
+  }, [printAll])
+
+  const handlePrint = () => setPrintAll(true)
 
   const nodeCount    = nodes.length
   const segmentCount = segments.length
@@ -81,6 +113,131 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     color: t.blue, marginBottom: 14,
   }
 
+  // ── Shared page helpers (used across normal + print-all rendering) ──────────
+  const tier = (
+    bg: string, border: string, icon: string,
+    title: string, sub: string, badges: string[],
+    detail: string,
+  ) => (
+    <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: 12, padding: '20px 22px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 12 }}>
+        <span style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>{icon}</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', marginBottom: 3 }}>{title}</div>
+          <div style={{ fontSize: 11, color: 'rgba(200,220,255,0.75)', lineHeight: 1.5 }}>{sub}</div>
+        </div>
+      </div>
+      <p style={{ fontSize: 11, color: 'rgba(185,210,255,0.85)', lineHeight: 1.7, margin: '0 0 14px' }}>{detail}</p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {badges.map(b => (
+          <span key={b} style={{ fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: 'rgba(255,255,255,0.08)', color: 'rgba(210,230,255,0.9)', border: '1px solid rgba(255,255,255,0.12)', letterSpacing: '0.04em' }}>{b}</span>
+        ))}
+      </div>
+    </div>
+  )
+
+  const flow = (num: string, color: string, title: string, steps: string[]) => (
+    <div style={{ ...card() as React.CSSProperties, borderLeft: `4px solid ${color}`, paddingLeft: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: color + '22', border: `2px solid ${color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color }}>{num}</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{title}</div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+        {steps.map((s, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+              <div style={{ width: 20, height: 20, borderRadius: '50%', background: i === 0 ? color : t.bgDeep, border: `1px solid ${i === 0 ? color : t.border}`, fontSize: 9, fontWeight: 700, color: i === 0 ? '#fff' : t.textFaint, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</div>
+              {i < steps.length - 1 && <div style={{ width: 1, height: 14, background: t.border, margin: '2px 0' }} />}
+            </div>
+            <div style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.5, paddingBottom: i < steps.length - 1 ? 4 : 0 }}>{s}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
+  const pipeBox = (num: string, color: string, icon: string, title: string, desc: string, countLabel: string) => (
+    <div style={{ flex: 1, minWidth: 0, background: color + '14', border: `2px solid ${color}`, borderRadius: 12, padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 6 }}>
+      <div style={{ width: 26, height: 26, borderRadius: '50%', background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{num}</div>
+      <div style={{ fontSize: 20 }}>{icon}</div>
+      <div style={{ fontSize: 12, fontWeight: 800, color: t.text }}>{title}</div>
+      <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5, flex: 1 }}>{desc}</div>
+      <div style={{ fontSize: 16, fontWeight: 800, color, marginTop: 4 }}>{countLabel}</div>
+    </div>
+  )
+
+  const algoArrow = <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', color: t.textFaint, fontSize: 20 }}>›</div>
+
+  const constraintRowAlgo = (icon: string, name: string, badge: string, badgeColor: string, desc: string) => (
+    <div style={{ ...card() as React.CSSProperties, display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px' }}>
+      <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1.4 }}>{icon}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{name}</span>
+          <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: badgeColor + '22', color: badgeColor, border: `1px solid ${badgeColor}55`, letterSpacing: '0.06em' }}>{badge}</span>
+        </div>
+        <div style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.5 }}>{desc}</div>
+      </div>
+    </div>
+  )
+
+  const dimChip = (icon: string, label: string, sub: string) => (
+    <div style={{ background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 8, padding: '10px 12px', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+      <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: t.text }}>{label}</div>
+        <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.4 }}>{sub}</div>
+      </div>
+    </div>
+  )
+
+  const sortChip = (icon: string, key: string, dir: string, desc: string) => (
+    <div style={{ background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
+      <div style={{ fontSize: 16, marginBottom: 4 }}>{icon}</div>
+      <div style={{ fontSize: 11, fontWeight: 800, color: t.text, marginBottom: 2 }}>{key}</div>
+      <div style={{ fontSize: 9, color: t.blue, fontWeight: 700, marginBottom: 5 }}>{dir}</div>
+      <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.4 }}>{desc}</div>
+    </div>
+  )
+
+  const entityCard = (
+    icon: string, name: string, color: string,
+    fields: { field: string; type: string; desc: string }[],
+  ) => (
+    <div style={{ ...card() as React.CSSProperties, borderLeft: `4px solid ${color}`, paddingLeft: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        <span style={{ fontSize: 20 }}>{icon}</span>
+        <span style={{ fontSize: 13, fontWeight: 800, color: t.text }}>{name}</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+        {fields.map(({ field, type, desc }, i) => (
+          <div key={field} style={{ display: 'grid', gridTemplateColumns: '110px 80px 1fr', gap: 8, padding: '6px 0', borderTop: i > 0 ? `1px solid ${t.border}` : 'none', alignItems: 'baseline' }}>
+            <code style={{ fontSize: 10, fontWeight: 700, color, fontFamily: 'monospace' }}>{field}</code>
+            <span style={{ fontSize: 9, color: t.textFaint, fontFamily: 'monospace' }}>{type}</span>
+            <span style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{desc}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+
+  const todayTomorrowRow = (field: string, color: string, today: string, tomorrow: string) => (
+    <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 1fr', gap: 12, padding: '10px 12px', borderRadius: 6, background: t.bgCard, border: `1px solid ${t.border}`, alignItems: 'start' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ width: 3, height: '100%', minHeight: 24, background: color, borderRadius: 2, flexShrink: 0 }} />
+        <span style={{ fontSize: 11, fontWeight: 700, color: t.text }}>{field}</span>
+      </div>
+      <div>
+        <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', color: t.orange, marginBottom: 3 }}>TODAY</div>
+        <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{today}</div>
+      </div>
+      <div>
+        <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', color: t.green, marginBottom: 3 }}>TOMORROW</div>
+        <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{tomorrow}</div>
+      </div>
+    </div>
+  )
+
   // ── Page switcher tabs ─────────────────────────────────────────────────────
   const pageTabs = (
     <div style={{
@@ -111,74 +268,116 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     </div>
   )
 
-  // ── Architecture page ──────────────────────────────────────────────────────
-  if (page === 2) {
-    const tier = (
-      bg: string, border: string, icon: string,
-      title: string, sub: string, badges: string[],
-      detail: string,
-    ) => (
-      <div style={{
-        background: bg, border: `1px solid ${border}`,
-        borderRadius: 12, padding: '20px 22px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 12 }}>
-          <span style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>{icon}</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', marginBottom: 3 }}>{title}</div>
-            <div style={{ fontSize: 11, color: 'rgba(200,220,255,0.75)', lineHeight: 1.5 }}>{sub}</div>
+  // ── Print-all: renders all pages stacked for window.print() ────────────────
+  if (printAll) {
+    const pageStyle: React.CSSProperties = {
+      maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
+      fontFamily: 'system-ui, sans-serif', color: t.text,
+      pageBreakAfter: 'always' as const,
+    }
+    const printContent = (
+      <div ref={printRef} id="rb-guide-print-portal" style={{ background: t.bgBase, minHeight: '100vh', display: 'none' }}>
+        <style>{`
+          @media print {
+            body > *:not(#rb-print-portal) { display: none !important; }
+            #rb-print-portal, #rb-print-portal * { visibility: visible; }
+            #rb-guide-print-all { position: fixed; top: 0; left: 0; right: 0; background: #0a0f1e; }
+            @page { margin: 0; size: A4; }
+          }
+        `}</style>
+        {/* ── Page 1 content (inline) ── */}
+        <div style={pageStyle}>
+          <div style={{ background: `linear-gradient(135deg, #0f1e3c 0%, #1a3a6e 60%, #1d4ed8 100%)`, borderRadius: 12, padding: '44px 40px 40px', marginBottom: 28, position: 'relative', overflow: 'hidden' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(147,197,253,0.8)', marginBottom: 10 }}>International Telco</div>
+            <div style={{ fontSize: 36, fontWeight: 800, color: '#fff', lineHeight: 1.1, marginBottom: 8 }}>Route<span style={{ color: '#60a5fa' }}>Builder</span></div>
+            <p style={{ fontSize: 13, color: 'rgba(160,190,240,0.85)', maxWidth: 560, lineHeight: 1.7, margin: 0 }}>The fastest way to design, price and sell a subsea route. Replaces spreadsheets and tribal knowledge with a fast, visual, commercially-aware platform.</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 28 }}>
+            {[[String(nodeCount), 'Nodes', `Landing stations, PoPs & BUs`], [String(segmentCount), 'Segments', `Wet & backhaul`], [String(systemCount), 'Cable Systems', `Owned, consortium, IRU & partner`]].map(([num, label, sub]) => (
+              <div key={label} style={{ ...card(), textAlign: 'center', padding: '18px 12px' }}>
+                <div style={{ fontSize: 28, fontWeight: 800, color: t.blue, lineHeight: 1 }}>{num}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: t.text, marginTop: 4 }}>{label}</div>
+                <div style={{ fontSize: 10, color: t.textFaint, marginTop: 3 }}>{sub}</div>
+              </div>
+            ))}
+          </div>
+          <div style={sectionLabel}>Key Features</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10, marginBottom: 28 }}>
+            {FEATURES.map(f => (
+              <div key={f.title} style={card({ display: 'flex', flexDirection: 'column', gap: 8 })}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 22, lineHeight: 1 }}>{f.icon}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{f.title}</span>
+                </div>
+                <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6, margin: 0 }}>{f.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
-        <p style={{ fontSize: 11, color: 'rgba(185,210,255,0.85)', lineHeight: 1.7, margin: '0 0 14px' }}>{detail}</p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {badges.map(b => (
-            <span key={b} style={{
-              fontSize: 10, fontWeight: 700, padding: '3px 9px', borderRadius: 20,
-              background: 'rgba(255,255,255,0.08)', color: 'rgba(210,230,255,0.9)',
-              border: '1px solid rgba(255,255,255,0.12)', letterSpacing: '0.04em',
-            }}>{b}</span>
-          ))}
-        </div>
-      </div>
-    )
 
-    const flow = (num: string, color: string, title: string, steps: string[]) => (
-      <div style={{ ...card() as React.CSSProperties, borderLeft: `4px solid ${color}`, paddingLeft: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
-            background: color + '22', border: `2px solid ${color}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 12, fontWeight: 800, color,
-          }}>{num}</div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{title}</div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-          {steps.map((s, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                <div style={{
-                  width: 20, height: 20, borderRadius: '50%',
-                  background: i === 0 ? color : t.bgDeep,
-                  border: `1px solid ${i === 0 ? color : t.border}`,
-                  fontSize: 9, fontWeight: 700,
-                  color: i === 0 ? '#fff' : t.textFaint,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>{i + 1}</div>
-                {i < steps.length - 1 && (
-                  <div style={{ width: 1, height: 14, background: t.border, margin: '2px 0' }} />
-                )}
-              </div>
-              <div style={{
-                fontSize: 11, color: t.textMuted, lineHeight: 1.5,
-                paddingBottom: i < steps.length - 1 ? 4 : 0,
-              }}>{s}</div>
+        {/* ── Page 2 content (inline) ── */}
+        <div style={pageStyle}>
+          <div style={{ background: 'linear-gradient(135deg, #070d1f 0%, #0f1e3c 50%, #1a1040 100%)', borderRadius: 12, padding: '44px 40px 40px', marginBottom: 28 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(147,197,253,0.7)', marginBottom: 10 }}>Technical Architecture</div>
+            <div style={{ fontSize: 34, fontWeight: 800, color: '#fff', lineHeight: 1.1, marginBottom: 10 }}>How Route<span style={{ color: '#818cf8' }}>Builder</span> Works</div>
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <div style={sectionLabel}>The Four Layers</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {tier('linear-gradient(135deg, rgba(37,99,235,0.18) 0%, rgba(29,78,216,0.08) 100%)', 'rgba(59,130,246,0.3)', '🌐', 'Frontend — What You See', 'React · Vercel', ['React 18', 'Vite', 'TypeScript', 'Leaflet Maps'], 'The entire interface runs as a React application inside your browser, delivered via Vercel\'s global edge network.')}
+              {tier('linear-gradient(135deg, rgba(99,102,241,0.18) 0%, rgba(79,70,229,0.08) 100%)', 'rgba(99,102,241,0.3)', '⚙️', 'Backend — Intelligence Engine', 'FastAPI · Python · NetworkX · Railway', ['FastAPI', 'Python', 'NetworkX', 'Graph Algorithms'], 'Models the cable network as a weighted graph. Runs traversal algorithms, applies diversity and constraints, scores every route for RTD, availability, margin and capacity.')}
+              {tier('linear-gradient(135deg, rgba(22,163,74,0.18) 0%, rgba(21,128,61,0.08) 100%)', 'rgba(34,197,94,0.3)', '🗄', 'Database — Persistent Memory', 'PostgreSQL · Railway', ['PostgreSQL', 'Railway', 'Persistent'], `All ${nodeCount} nodes, ${segmentCount} segments, ${systemCount} cable systems, capacity and outage records live here.`)}
+              {tier('linear-gradient(135deg, rgba(234,88,12,0.18) 0%, rgba(194,65,12,0.08) 100%)', 'rgba(251,146,60,0.3)', '🤖', 'AI Layer — TSABuddy', 'Claude (Anthropic) · Azure OpenAI', ['Claude AI', 'Azure OpenAI', 'Structured Extraction'], 'NLP requests routed to Claude or Azure OpenAI — extracts origin, destination, diversity, constraints and sort preference from plain English.')}
             </div>
-          ))}
+          </div>
+        </div>
+
+        {/* ── Page 3 content (inline) ── */}
+        <div style={pageStyle}>
+          <div style={{ background: 'linear-gradient(135deg, #0f1e3c 0%, #1a3a6e 60%, #1d4ed8 100%)', borderRadius: 16, padding: '32px 36px', marginBottom: 28, color: '#fff' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#93c5fd', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>ALGORITHM REFERENCE</div>
+            <h1 style={{ margin: '0 0 12px', fontSize: 26, fontWeight: 900 }}>How Routes Are Found & Ranked</h1>
+            <p style={{ margin: 0, fontSize: 13, color: 'rgba(200,220,255,0.85)', lineHeight: 1.7, maxWidth: 580 }}>A four-stage pipeline: Graph Search → Apply Constraints → Select Pool (30) → Sort & Display (1–10 shown).</p>
+          </div>
+          <div style={{ ...card() as React.CSSProperties, marginBottom: 24, padding: '22px 20px' }}>
+            <div style={sectionLabel as React.CSSProperties}>The Four-Stage Pipeline</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+              {pipeBox('1', '#3b82f6', '🔍', 'Graph Search', 'NetworkX finds all valid shortest paths', 'up to 500')}
+              {algoArrow}
+              {pipeBox('2', '#f59e0b', '⚖️', 'Constraints', 'Hard rules remove invalid paths', 'varies')}
+              {algoArrow}
+              {pipeBox('3', '#8b5cf6', '🎯', 'Select Pool', 'Best 30 chosen across 6 dimensions', '30 kept')}
+              {algoArrow}
+              {pipeBox('4', '#10b981', '📊', 'Sort & Display', 'Sorted by chosen metric; 1–10 shown', '1–10 shown')}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Page 4 content (inline) ── */}
+        <div style={pageStyle}>
+          <div style={{ background: 'linear-gradient(135deg, #0f1e3c 0%, #0d2640 60%, #0c3a3a 100%)', borderRadius: 16, padding: '32px 36px', marginBottom: 28, color: '#fff' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#6ee7b7', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>DATA MODEL</div>
+            <h1 style={{ margin: '0 0 12px', fontSize: 26, fontWeight: 900 }}>The Network in Data</h1>
+            <p style={{ margin: 0, fontSize: 13, color: 'rgba(180,230,220,0.85)', lineHeight: 1.7, maxWidth: 580 }}>{nodeCount} nodes · {segmentCount} segments · {systemCount} cable systems — the structured graph that powers every route calculation.</p>
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <div style={sectionLabel}>Core Entities & Today vs Tomorrow</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {entityCard('📍', 'Node', t.blue, [{ field: 'id', type: 'string', desc: 'Unique ID (e.g. SIN3). Used in route paths and node constraints.' }, { field: 'country', type: 'ISO-2', desc: 'Country code for must_avoid / must_include country constraints.' }, { field: 'type', type: 'enum', desc: 'landing_station | terrestrial_pop | branching_unit.' }])}
+              {entityCard('🔗', 'Segment', '#8b5cf6', [{ field: 'system_id', type: 'string', desc: 'Parent cable system — links to system constraints and margin scoring.' }, { field: 'latency', type: 'float ms', desc: 'One-way delay summed across path for end-to-end RTD.' }, { field: 'ownership', type: 'enum', desc: 'owned | iru | consortium | integrated_lit_lease | offnet_resell.' }])}
+              {todayTomorrowRow('Network Capacity', t.green, 'Static table from planning spreadsheets.', 'Veritas inventory feed — live capacity per segment.')}
+              {todayTomorrowRow('Segment Outages', t.red, 'Manually entered in Ref Data by network ops.', 'Telstra Service Management (TSM / ServiceNow) — auto-pushed on fault creation.')}
+              {todayTomorrowRow('Latency / RTD', t.blue, 'Engineering RTD tests (distance estimate is temporary).', 'NMS — measured round-trip delay per segment in real time.')}
+            </div>
+          </div>
         </div>
       </div>
     )
+    return createPortal(printContent, document.body)
+  }
 
+  // ── Architecture page ──────────────────────────────────────────────────────
+  if (page === 2) {
     return (
       <div style={{
         maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
@@ -444,81 +643,6 @@ export function UserGuide({ nodes, segments, systems }: Props) {
 
   // ── Page 3: Search Algorithm ──────────────────────────────────────────────
   if (page === 3) {
-    const pipeBox = (
-      num: string, color: string, icon: string,
-      title: string, desc: string, countLabel: string,
-    ) => (
-      <div style={{
-        flex: 1, minWidth: 0,
-        background: color + '14', border: `2px solid ${color}`,
-        borderRadius: 12, padding: '16px 12px',
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        textAlign: 'center', gap: 6,
-      }}>
-        <div style={{
-          width: 26, height: 26, borderRadius: '50%', background: color, color: '#fff',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 11, fontWeight: 800, flexShrink: 0,
-        }}>{num}</div>
-        <div style={{ fontSize: 20 }}>{icon}</div>
-        <div style={{ fontSize: 12, fontWeight: 800, color: t.text }}>{title}</div>
-        <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5, flex: 1 }}>{desc}</div>
-        <div style={{ fontSize: 16, fontWeight: 800, color, marginTop: 4 }}>{countLabel}</div>
-      </div>
-    )
-
-    const arrow = (
-      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', color: t.textFaint, fontSize: 20 }}>›</div>
-    )
-
-    const constraintRow = (
-      icon: string, name: string, badge: string, badgeColor: string, desc: string,
-    ) => (
-      <div style={{
-        ...card() as React.CSSProperties,
-        display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px',
-      }}>
-        <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1.4 }}>{icon}</span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{name}</span>
-            <span style={{
-              fontSize: 9, fontWeight: 800, padding: '2px 6px', borderRadius: 4,
-              background: badgeColor + '22', color: badgeColor,
-              border: `1px solid ${badgeColor}55`, letterSpacing: '0.06em',
-            }}>{badge}</span>
-          </div>
-          <div style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.5 }}>{desc}</div>
-        </div>
-      </div>
-    )
-
-    const dimChip = (icon: string, label: string, sub: string) => (
-      <div style={{
-        background: t.bgCard, border: `1px solid ${t.border}`,
-        borderRadius: 8, padding: '10px 12px',
-        display: 'flex', alignItems: 'flex-start', gap: 8,
-      }}>
-        <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>{icon}</span>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: t.text }}>{label}</div>
-          <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.4 }}>{sub}</div>
-        </div>
-      </div>
-    )
-
-    const sortChip = (icon: string, key: string, dir: string, desc: string) => (
-      <div style={{
-        background: t.bgCard, border: `1px solid ${t.border}`,
-        borderRadius: 8, padding: '10px 12px', textAlign: 'center',
-      }}>
-        <div style={{ fontSize: 16, marginBottom: 4 }}>{icon}</div>
-        <div style={{ fontSize: 11, fontWeight: 800, color: t.text, marginBottom: 2 }}>{key}</div>
-        <div style={{ fontSize: 9, color: t.blue, fontWeight: 700, marginBottom: 5 }}>{dir}</div>
-        <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.4 }}>{desc}</div>
-      </div>
-    )
-
     return (
       <div style={{
         maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
@@ -545,11 +669,11 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           <div style={sectionLabel as React.CSSProperties}>The Four-Stage Pipeline</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 16 }}>
             {pipeBox('1', '#3b82f6', '🔍', 'Graph Search', 'NetworkX walks the cable network finding all valid shortest paths', 'up to 500')}
-            {arrow}
+            {algoArrow}
             {pipeBox('2', '#f59e0b', '⚖️', 'Apply Constraints', 'Hard rules remove every path that breaks any active constraint', 'varies')}
-            {arrow}
+            {algoArrow}
             {pipeBox('3', '#8b5cf6', '🎯', 'Select Pool', 'Best 30 chosen across 6 dimensions — or all 30 by one Optimise For metric', '30 kept')}
-            {arrow}
+            {algoArrow}
             {pipeBox('4', '#10b981', '📊', 'Sort & Display', 'Pool sorted by chosen metric; use − / + stepper to show 1–10 results (default 5)', '1–10 shown')}
           </div>
           <div style={{
@@ -569,16 +693,16 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             A path that breaks any single constraint is removed entirely — it will not appear even if it is the shortest or best-margin route available.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {constraintRow('📍', 'Must Include Nodes', 'VIA', t.green, 'Route must pass through every selected node. Use for mandatory transit PoPs or landing stations.')}
-            {constraintRow('🚫', 'Must Avoid Nodes', 'SKIP', t.red, 'Route may not transit any selected node. Use to exclude restricted or unavailable facilities.')}
-            {constraintRow('🔗', 'Must Include Segments', 'VIA', t.green, 'Route must traverse every selected cable segment — e.g. to lock in a preferred submarine section.')}
-            {constraintRow('✂️', 'Must Avoid Segments', 'SKIP', t.red, 'Route may not use any selected segment — e.g. segments under maintenance or at outage risk.')}
-            {constraintRow('📡', 'Must Include Systems', 'VIA', t.green, 'Route must carry at least one segment from every selected cable system.')}
-            {constraintRow('🛑', 'Must Avoid Systems', 'SKIP', t.red, 'Route may not use any segment from the selected systems — full system exclusion.')}
-            {constraintRow('🌍', 'Must Include Countries', 'VIA', t.green, 'Route must transit at least one non-BU landing node in each selected country. Use for geographic landing requirements — e.g. "must land in Japan".')}
-            {constraintRow('🌐', 'Must Avoid Countries', 'SKIP', t.red, 'Route may not pass through any landing node in selected countries. A hard geopolitical, licensing or security exclusion. If an endpoint is in an avoided country, the search returns no results.')}
-            {constraintRow('🌊', 'Max Wet Hops', 'LIMIT', t.orange, 'Maximum submarine cable segments. Each subsea segment = 1 wet hop. Blank = no limit.')}
-            {constraintRow('⛰️', 'Max Terrestrial Hops', 'LIMIT', t.orange, 'Maximum land cable segments. Each terrestrial segment = 1 land hop. Blank = no limit.')}
+            {constraintRowAlgo('📍', 'Must Include Nodes', 'VIA', t.green, 'Route must pass through every selected node. Use for mandatory transit PoPs or landing stations.')}
+            {constraintRowAlgo('🚫', 'Must Avoid Nodes', 'SKIP', t.red, 'Route may not transit any selected node. Use to exclude restricted or unavailable facilities.')}
+            {constraintRowAlgo('🔗', 'Must Include Segments', 'VIA', t.green, 'Route must traverse every selected cable segment — e.g. to lock in a preferred submarine section.')}
+            {constraintRowAlgo('✂️', 'Must Avoid Segments', 'SKIP', t.red, 'Route may not use any selected segment — e.g. segments under maintenance or at outage risk.')}
+            {constraintRowAlgo('📡', 'Must Include Systems', 'VIA', t.green, 'Route must carry at least one segment from every selected cable system.')}
+            {constraintRowAlgo('🛑', 'Must Avoid Systems', 'SKIP', t.red, 'Route may not use any segment from the selected systems — full system exclusion.')}
+            {constraintRowAlgo('🌍', 'Must Include Countries', 'VIA', t.green, 'Route must transit at least one non-BU landing node in each selected country. Use for geographic landing requirements — e.g. "must land in Japan".')}
+            {constraintRowAlgo('🌐', 'Must Avoid Countries', 'SKIP', t.red, 'Route may not pass through any landing node in selected countries. A hard geopolitical, licensing or security exclusion. If an endpoint is in an avoided country, the search returns no results.')}
+            {constraintRowAlgo('🌊', 'Max Wet Hops', 'LIMIT', t.orange, 'Maximum submarine cable segments. Each subsea segment = 1 wet hop. Blank = no limit.')}
+            {constraintRowAlgo('⛰️', 'Max Terrestrial Hops', 'LIMIT', t.orange, 'Maximum land cable segments. Each terrestrial segment = 1 land hop. Blank = no limit.')}
           </div>
         </div>
 
@@ -712,57 +836,6 @@ export function UserGuide({ nodes, segments, systems }: Props) {
 
   // ── Page 4: Data Model ────────────────────────────────────────────────────
   if (page === 4) {
-    const entityCard = (
-      icon: string, name: string, color: string,
-      fields: { field: string; type: string; desc: string }[],
-    ) => (
-      <div style={{ ...card() as React.CSSProperties, borderLeft: `4px solid ${color}`, paddingLeft: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-          <span style={{ fontSize: 20 }}>{icon}</span>
-          <span style={{ fontSize: 13, fontWeight: 800, color: t.text }}>{name}</span>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-          {fields.map(({ field, type, desc }, i) => (
-            <div key={field} style={{
-              display: 'grid', gridTemplateColumns: '110px 80px 1fr',
-              gap: 8, padding: '6px 0',
-              borderTop: i > 0 ? `1px solid ${t.border}` : 'none',
-              alignItems: 'baseline',
-            }}>
-              <code style={{ fontSize: 10, fontWeight: 700, color, fontFamily: 'monospace' }}>{field}</code>
-              <span style={{ fontSize: 9, color: t.textFaint, fontFamily: 'monospace' }}>{type}</span>
-              <span style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{desc}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-
-    const todayTomorrowRow = (
-      field: string, color: string,
-      today: string, tomorrow: string,
-    ) => (
-      <div style={{
-        display: 'grid', gridTemplateColumns: '140px 1fr 1fr',
-        gap: 12, padding: '10px 12px',
-        borderRadius: 6, background: t.bgCard, border: `1px solid ${t.border}`,
-        alignItems: 'start',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div style={{ width: 3, height: '100%', minHeight: 24, background: color, borderRadius: 2, flexShrink: 0 }} />
-          <span style={{ fontSize: 11, fontWeight: 700, color: t.text }}>{field}</span>
-        </div>
-        <div>
-          <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', color: t.orange, marginBottom: 3 }}>TODAY</div>
-          <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{today}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', color: t.green, marginBottom: 3 }}>TOMORROW</div>
-          <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{tomorrow}</div>
-        </div>
-      </div>
-    )
-
     return (
       <div style={{
         maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
@@ -960,7 +1033,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             validate diversity, and deliver a customer-ready straight-line diagram — all from one interface.
           </p>
           <button
-            onClick={() => generateUserGuidePDF(nodeCount, segmentCount, systemCount)}
+            onClick={handlePrint}
             style={{
               marginTop: 24, padding: '10px 22px', borderRadius: 8,
               background: '#2563eb', border: '1px solid rgba(255,255,255,0.2)',
@@ -1278,7 +1351,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       <div style={{ textAlign: 'center', padding: '20px 0 0', borderTop: `1px solid ${t.border}` }}>
         <div style={{ fontSize: 11, color: t.textFaint, marginBottom: 8 }}>International Telco · RouteBuilder</div>
         <button
-          onClick={() => generateUserGuidePDF(nodeCount, segmentCount, systemCount)}
+          onClick={handlePrint}
           style={{
             padding: '9px 20px', borderRadius: 7,
             background: t.blue, border: 'none',
