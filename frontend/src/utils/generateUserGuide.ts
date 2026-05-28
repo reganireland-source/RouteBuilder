@@ -858,10 +858,10 @@ function drawDataModel2(doc: jsPDF, pageNum: number) {
   y += 7
 
   const dataRows: [string, string, string, [number,number,number]][] = [
-    ['Network Capacity',  'Static table — manually updated from planning sheets',   'Inventory systems feed — live total & available capacity per segment', GREEN],
-    ['Segment Outages',   'Manually entered in Ref Data panel by network ops team', 'TSM (Trouble & Service Mgmt) — fault records pushed automatically on creation & update', ORANGE],
-    ['Latency / RTD',     'Fixed values derived from segment length (speed-of-light estimate)', 'NMS (Network Mgmt System) — measured round-trip delay per segment in real time', BLUE],
-    ['Node / Segment IDs','Maintained in PostgreSQL by engineering; updated per system landing', 'Unchanged — source of truth remains the internal network inventory database', PURPLE],
+    ['Network Capacity',  'Static table — manually updated from network planning spreadsheets', 'Veritas inventory feed — live total & available capacity per segment, auto-updated as circuits are provisioned', GREEN],
+    ['Segment Outages',   'Manually entered in Ref Data panel by network ops team', 'Telstra Service Management / TSM (ServiceNow) — fault records pushed automatically on creation & status change', ORANGE],
+    ['Latency / RTD',     'Static values from engineering RTD tests — distance-based propagation estimate is a temporary placeholder', 'NMS (Network Mgmt System) — measured round-trip delay per segment in real time', BLUE],
+    ['Node & Segment IDs','Sourced from the Global PoP List with supplementary engineering data — maintained in PostgreSQL', 'Network inventory auto-sync — new nodes and segments commissioned directly into RouteBuilder on provisioning', PURPLE],
     ['Margin Scores',     'Manual commercial weighting set by the commercial team',  'Pricing engine integration — margin auto-derived from live IRU/lease cost data', RED],
   ]
 

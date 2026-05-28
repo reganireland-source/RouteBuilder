@@ -877,15 +877,15 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             </div>
             {todayTomorrowRow('Network Capacity', t.green,
               'Static table maintained manually — updated from network planning spreadsheets when capacity changes.',
-              'Inventory systems feed — total and available capacity per segment updated automatically as circuits are provisioned and released.')}
+              'Veritas inventory feed — total and available capacity per segment updated automatically as circuits are provisioned and released.')}
             {todayTomorrowRow('Segment Outages', t.red,
               'Manually entered in Ref Data by network ops team when a fault is raised or repaired.',
-              'TSM (Trouble & Service Management) — fault records pushed to RouteBuilder automatically on creation and status change.')}
+              'Telstra Service Management (TSM, powered by ServiceNow) — fault records pushed to RouteBuilder automatically on creation and status change.')}
             {todayTomorrowRow('Latency / RTD', t.blue,
-              'Fixed values derived from segment length using speed-of-light propagation estimates.',
+              'Static values from completed engineering RTD tests — the current distance-based propagation estimate is a temporary placeholder.',
               'NMS (Network Management System) — measured round-trip delay per segment in real time, reflecting actual fibre path and amplifier latency.')}
             {todayTomorrowRow('Node & Segment IDs', '#8b5cf6',
-              'Maintained in PostgreSQL by engineering team — updated when new systems land or topology changes.',
+              'Sourced primarily from the Global PoP List with supplementary engineering data — maintained in PostgreSQL and updated when topology changes.',
               'Network inventory database remains the source of truth; future integration auto-syncs new nodes and segments on commissioning.')}
             {todayTomorrowRow('Margin Scores', t.orange,
               'Manual commercial weights set by the commercial team — reviewed periodically.',
