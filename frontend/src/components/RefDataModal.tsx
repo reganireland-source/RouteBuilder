@@ -3,6 +3,7 @@ import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, A
 import { useTheme } from '../theme'
 import { api } from '../api/client'
 import { ProductCoveragePanel } from './ProductCoveragePanel'
+import { BulkImportPanel } from './BulkImportPanel'
 
 const OWNERSHIP_LABEL: Record<string, string> = {
   owned:                'Owned',
@@ -15,7 +16,7 @@ const OWNERSHIP_LABEL: Record<string, string> = {
 const DEFAULT_ONNET = ['owned', 'consortium', 'iru']
 
 type DataTab = 'nodes' | 'segments' | 'systems' | 'capacity' | 'outages' | 'rules'
-type Tab = DataTab | 'checks' | 'config' | 'coverage'
+type Tab = DataTab | 'checks' | 'config' | 'coverage' | 'bulk'
 
 interface CheckResult {
   name: string
@@ -1167,7 +1168,15 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           }}>
             🟢 Product Coverage
           </button>
-          {tab !== 'checks' && tab !== 'config' && tab !== 'coverage' && (
+          <button onClick={() => switchTab('bulk')} style={{
+            padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
+            fontSize: 12, fontWeight: tab === 'bulk' ? 700 : 400,
+            color: tab === 'bulk' ? '#0ea5e9' : t.textFaint,
+            borderBottom: tab === 'bulk' ? '2px solid #0ea5e9' : '2px solid transparent',
+          }}>
+            🔄 Bulk Import
+          </button>
+          {tab !== 'checks' && tab !== 'config' && tab !== 'coverage' && tab !== 'bulk' && (
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
               <input
                 placeholder={`Filter ${tab}…`}
@@ -1196,6 +1205,18 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           {tab === 'checks'   && <ChecksTab />}
           {tab === 'config'   && <ConfigTab />}
           {tab === 'coverage' && <ProductCoveragePanel nodes={nodes} onDataChange={onDataChange} />}
+          {tab === 'bulk' && (
+            <BulkImportPanel
+              counts={{
+                nodes:    nodes.length,
+                segments: segments.length,
+                systems:  systems.filter(s => s.id !== 'TERRESTRIAL').length,
+                capacity: capacity.length,
+                coverage: nodes.filter(n => n.capabilities).length,
+              }}
+              onDataChange={onDataChange}
+            />
+          )}
         </div>
 
       </div>

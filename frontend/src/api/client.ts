@@ -42,6 +42,18 @@ async function del(path: string): Promise<void> {
   if (!res.ok) throw new Error(`DELETE ${path} failed: ${res.status}`)
 }
 
+async function uploadFile<T>(path: string, file: File): Promise<T> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', body: form })
+  if (!res.ok) {
+    let detail = ''
+    try { detail = (await res.json()).detail ?? '' } catch { /* ignore */ }
+    throw new Error(`${res.status}${detail ? `: ${detail}` : ''}`)
+  }
+  return res.json()
+}
+
 export const api = {
   // Reads
   getNodes:     () => get<CableNode[]>('/api/nodes'),
@@ -92,6 +104,13 @@ export const api = {
 
   // NLP
   parseNlp: (text: string) => post<NlpParseResponse>('/api/nlp/parse', { text }),
+
+  // Bulk import / export
+  bulkExportUrl: (table: string) => `${BASE_URL}/api/bulk/export/${table}`,
+  bulkValidate: <T>(table: string, file: File, mode: string) =>
+    uploadFile<T>(`/api/bulk/validate/${table}?mode=${mode}`, file),
+  bulkImport: <T>(table: string, file: File, mode: string) =>
+    uploadFile<T>(`/api/bulk/import/${table}?mode=${mode}`, file),
 
   // Rules
   getRules:     ()                                                  => get<InterconnectRule[]>('/api/rules'),

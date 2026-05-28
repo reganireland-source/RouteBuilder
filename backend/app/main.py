@@ -2,7 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI  # noqa: F401
 from fastapi.middleware.cors import CORSMiddleware
-from .api import nodes, segments, systems, routes, capacity, rules, health, config, city_pairs, outages
+from .api import nodes, segments, systems, routes, capacity, rules, health, config, city_pairs, outages, bulk
 from .db import init_db
 
 
@@ -31,6 +31,7 @@ app.include_router(health.router, prefix="/api")
 app.include_router(config.router, prefix="/api")
 app.include_router(city_pairs.router, prefix="/api")
 app.include_router(outages.router, prefix="/api")
+app.include_router(bulk.router, prefix="/api")
 
 # NLP route parsing — only registered when NLP_ENABLED=true
 if os.getenv("NLP_ENABLED", "").lower() == "true":
