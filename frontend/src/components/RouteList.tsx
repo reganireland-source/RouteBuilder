@@ -26,7 +26,9 @@ function classifyRoute(route: Route, onNetOwnership: Set<string>): { type: NetCl
   return { type: 'mixed', onNetPct: pct }
 }
 
-const MAX_SHOWN = 5
+const DEFAULT_SHOWN = 5
+const MIN_SHOWN = 1
+const MAX_SHOWN = 10
 
 interface Props {
   primaryRoutes: Route[]
@@ -128,6 +130,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
   const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
   const [internalSortKey, setInternalSortKey] = useState<SortKey | null>(null)
   const [internalPushOutagesDown, setInternalPushOutagesDown] = useState(false)
+  const [shown, setShown] = useState(DEFAULT_SHOWN)
 
   // Sync from external when provided (e.g. TSABuddy sets the sort)
   useEffect(() => { if (externalSortKey !== undefined) setInternalSortKey(externalSortKey) }, [externalSortKey])
@@ -196,13 +199,13 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
   const sortedPairs = applyPairSort(pairs)
 
   const sorted = {
-    primary: pairs ? [] : applySort(primaryRoutes).slice(0, MAX_SHOWN),
-    diverse:  pairs ? [] : applySort(diverseRoutes).slice(0, MAX_SHOWN),
+    primary: pairs ? [] : applySort(primaryRoutes).slice(0, shown),
+    diverse:  pairs ? [] : applySort(diverseRoutes).slice(0, shown),
   }
 
   const summaryStored = pairs ? pairs.length : primaryRoutes.length
   const summaryShown  = pairs
-    ? (sortedPairs?.slice(0, MAX_SHOWN).length ?? 0)
+    ? (sortedPairs?.slice(0, shown).length ?? 0)
     : sorted.primary.length
   const summaryFilterLabel = optimiseFor
     ? (OPTIMISE_LABELS[optimiseFor] ?? optimiseFor)
@@ -238,22 +241,49 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
       {/* Sort bar — only shown when there are search results */}
       {hasResults && (
         <>
-          {/* Search result summary */}
+          {/* Search result summary + show-N stepper */}
           {summaryStored > 0 && (
-            <div style={{
-              fontSize: 11, color: t.textFaint,
-              padding: '2px 0 8px',
-              lineHeight: 1.6,
-            }}>
-              <span style={{ color: t.text, fontWeight: 600 }}>{totalFound || summaryStored}</span>
-              {' routes · '}
-              <span style={{ color: t.text, fontWeight: 600 }}>{summaryStored}</span>
-              {pairs ? ' pairs · ' : ' filtered by '}
-              {!pairs && <span style={{ color: t.blue, fontWeight: 600 }}>{summaryFilterLabel}</span>}
-              {!pairs && ' · '}
-              <span style={{ color: t.text, fontWeight: 600 }}>{summaryShown}</span>
-              {' shown · sorted by '}
-              <span style={{ color: t.blue, fontWeight: 600 }}>{summarySortLabel}</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0 8px' }}>
+              <div style={{ fontSize: 11, color: t.textFaint, lineHeight: 1.6 }}>
+                <span style={{ color: t.text, fontWeight: 600 }}>{totalFound || summaryStored}</span>
+                {' routes · '}
+                <span style={{ color: t.text, fontWeight: 600 }}>{summaryStored}</span>
+                {pairs ? ' pairs · ' : ' filtered by '}
+                {!pairs && <span style={{ color: t.blue, fontWeight: 600 }}>{summaryFilterLabel}</span>}
+                {!pairs && ' · '}
+                <span style={{ color: t.text, fontWeight: 600 }}>{summaryShown}</span>
+                {' shown · sorted by '}
+                <span style={{ color: t.blue, fontWeight: 600 }}>{summarySortLabel}</span>
+              </div>
+              {/* Routes-to-show stepper */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, marginLeft: 10 }}>
+                <span style={{ fontSize: 10, color: t.textFaint, letterSpacing: '0.04em' }}>Show</span>
+                <button
+                  onClick={() => setShown(v => Math.max(MIN_SHOWN, v - 1))}
+                  disabled={shown <= MIN_SHOWN}
+                  title="Show fewer routes"
+                  style={{
+                    width: 20, height: 20, borderRadius: 4, border: `1px solid ${t.border}`,
+                    background: 'transparent', color: shown <= MIN_SHOWN ? t.textFaintest : t.textMuted,
+                    cursor: shown <= MIN_SHOWN ? 'default' : 'pointer',
+                    fontSize: 14, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: 0,
+                  }}
+                >−</button>
+                <span style={{ fontSize: 12, fontWeight: 700, color: t.text, minWidth: 14, textAlign: 'center' }}>{shown}</span>
+                <button
+                  onClick={() => setShown(v => Math.min(MAX_SHOWN, v + 1))}
+                  disabled={shown >= MAX_SHOWN}
+                  title="Show more routes"
+                  style={{
+                    width: 20, height: 20, borderRadius: 4, border: `1px solid ${t.border}`,
+                    background: 'transparent', color: shown >= MAX_SHOWN ? t.textFaintest : t.textMuted,
+                    cursor: shown >= MAX_SHOWN ? 'default' : 'pointer',
+                    fontSize: 14, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: 0,
+                  }}
+                >+</button>
+              </div>
             </div>
           )}
           <div className="sort-bar" style={{ display: 'flex', gap: 4, marginBottom: 4, overflowX: 'auto' }}>
@@ -301,7 +331,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
 
           {pairs ? (
             <>
-              {(sortedPairs ?? []).slice(0, MAX_SHOWN).map((pair, idx) => (
+              {(sortedPairs ?? []).slice(0, shown).map((pair, idx) => (
                 <PairCard
                   key={pair.primary.id}
                   pair={pair}
