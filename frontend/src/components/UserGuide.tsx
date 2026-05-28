@@ -36,14 +36,19 @@ export function UserGuide({ nodes, segments, systems }: Props) {
 
   useEffect(() => {
     if (!printAll) return
-    // Inject global print CSS that hides everything except the guide print container
     const style = document.createElement('style')
     style.id = 'rb-print-style'
     style.textContent = `
       @media print {
-        body > * { display: none !important; }
-        #rb-guide-print-portal { display: block !important; }
-        #rb-guide-print-portal * { visibility: visible; }
+        body > *:not(#rb-guide-print-portal) { display: none !important; }
+        #rb-guide-print-portal {
+          display: block !important;
+          position: fixed !important;
+          top: 0 !important; left: 0 !important; right: 0 !important;
+          width: 100% !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
         @page { margin: 12mm 10mm; size: A4; }
       }
     `
@@ -53,7 +58,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       document.getElementById('rb-print-style')?.remove()
     }
     window.addEventListener('afterprint', afterPrint)
-    const timer = setTimeout(() => window.print(), 200)
+    const timer = setTimeout(() => window.print(), 300)
     return () => {
       clearTimeout(timer)
       window.removeEventListener('afterprint', afterPrint)
@@ -276,15 +281,11 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       pageBreakAfter: 'always' as const,
     }
     const printContent = (
-      <div ref={printRef} id="rb-guide-print-portal" style={{ background: t.bgBase, minHeight: '100vh', display: 'none' }}>
-        <style>{`
-          @media print {
-            body > *:not(#rb-print-portal) { display: none !important; }
-            #rb-print-portal, #rb-print-portal * { visibility: visible; }
-            #rb-guide-print-all { position: fixed; top: 0; left: 0; right: 0; background: #0a0f1e; }
-            @page { margin: 0; size: A4; }
-          }
-        `}</style>
+      <div ref={printRef} id="rb-guide-print-portal" style={{
+        background: t.bgBase,
+        position: 'fixed', top: 0, left: '-200vw', width: '100vw',
+        WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
+      } as React.CSSProperties}>
         {/* ── Page 1 content (inline) ── */}
         <div style={pageStyle}>
           <div style={{ background: `linear-gradient(135deg, #0f1e3c 0%, #1a3a6e 60%, #1d4ed8 100%)`, borderRadius: 12, padding: '44px 40px 40px', marginBottom: 28, position: 'relative', overflow: 'hidden' }}>
