@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from ..models import CableSystem, CableSystemUpdate
 from ..data_loader import load_systems, save_systems
+from ..id_utils import normalize_id
 
 router = APIRouter(prefix="/systems", tags=["systems"])
 
@@ -12,6 +13,7 @@ def get_systems():
 
 @router.post("", response_model=CableSystem, status_code=201)
 def create_system(system: CableSystem):
+    system = system.model_copy(update={"id": normalize_id(system.id, "system")})
     systems = load_systems()
     if any(s.id == system.id for s in systems):
         raise HTTPException(status_code=409, detail=f"System '{system.id}' already exists")

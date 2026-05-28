@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from ..models import CableSegment, CableSegmentUpdate
 from ..data_loader import load_segments, save_segments
+from ..id_utils import normalize_id
 
 router = APIRouter(prefix="/segments", tags=["segments"])
 
@@ -12,6 +13,7 @@ def get_segments():
 
 @router.post("", response_model=CableSegment, status_code=201)
 def create_segment(segment: CableSegment):
+    segment = segment.model_copy(update={"id": normalize_id(segment.id, "segment")})
     segments = load_segments()
     if any(s.id == segment.id for s in segments):
         raise HTTPException(status_code=409, detail=f"Segment '{segment.id}' already exists")

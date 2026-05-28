@@ -2,12 +2,12 @@
 import csv
 import io
 import json
-import re
 from typing import Any, Literal
 
 from fastapi import APIRouter, File, Query, UploadFile
 from fastapi.responses import StreamingResponse
 
+from ..id_utils import ID_MAX_LEN, ID_SAFE_RE
 from ..data_loader import (
     load_capacity,
     load_nodes,
@@ -55,18 +55,12 @@ VALID_OWNERSHIPS = {"owned", "iru", "consortium", "integrated_lit_lease", "offne
 VALID_BB_SPEEDS  = {"1G", "10G", "100G", "400G"}
 VALID_UL_SPEEDS  = {"1G", "10G"}
 
-# ── ID validation ──────────────────────────────────────────────────────────────
+# ── ID validation (rules imported from id_utils; only bulk-specific hints here) ─
 
-_ID_SAFE_RE = re.compile(r'^[A-Za-z0-9_\-]+$')
+import re as _re
 
-_ID_MAX_LEN: dict[str, int] = {
-    "node": 15, "segment": 30, "system": 15, "capacity": 30, "coverage": 15,
-}
-
-# Non-blocking pattern hints (warn only)
-_NODE_HINT_RE    = re.compile(r'^[A-Z][A-Z0-9]{2,14}$')
-_SEGMENT_HINT_RE = re.compile(r'^[A-Z0-9][A-Z0-9_\-]{3,29}$')   # must contain a hyphen
-_SYSTEM_HINT_RE  = re.compile(r'^[A-Z][A-Z0-9_]{1,14}$')
+_NODE_HINT_RE    = _re.compile(r'^[A-Z][A-Z0-9]{2,14}$')
+_SYSTEM_HINT_RE  = _re.compile(r'^[A-Z][A-Z0-9_]{1,14}$')
 
 
 def _validate_id(
@@ -77,9 +71,9 @@ def _validate_id(
     warnings: list[dict] = []
     rid = raw.strip()
 
-    # ── 1. Block unsafe characters ────────────────────────────────────────────
-    if not _ID_SAFE_RE.match(rid):
-        bad = sorted({c for c in rid if not re.match(r'[A-Za-z0-9_\-]', c)})
+    # ── 1. Block unsafe characters (same rule as API) ─────────────────────────
+    if not ID_SAFE_RE.match(rid):
+        bad = sorted({c for c in rid if not _re.match(r'[A-Za-z0-9_\-]', c)})
         errors.append(_err(row_num, rid, "id", rid,
             f"Contains invalid characters {bad!r}. Only letters, digits, hyphens (-) and underscores (_) are allowed"))
         return rid.upper(), errors, warnings
@@ -90,13 +84,13 @@ def _validate_id(
         warnings.append({"row_num": row_num, "id": normalized, "field": "id",
             "message": f"Auto-uppercased: '{rid}' → '{normalized}'"})
 
-    # ── 3. Max length ─────────────────────────────────────────────────────────
-    max_len = _ID_MAX_LEN.get(entity, 30)
+    # ── 3. Max length (same limits as API) ────────────────────────────────────
+    max_len = ID_MAX_LEN.get(entity, 30)
     if len(normalized) > max_len:
         errors.append(_err(row_num, normalized, "id", normalized,
             f"ID is {len(normalized)} characters; maximum for {entity} is {max_len}"))
 
-    # ── 4. Pattern hint (warn only) ───────────────────────────────────────────
+    # ── 4. Pattern hints (bulk-only advisory, non-blocking) ───────────────────
     if entity == "node" and not _NODE_HINT_RE.match(normalized):
         warnings.append({"row_num": row_num, "id": normalized, "field": "id",
             "message": f"Unusual node ID '{normalized}'. Typical format: 3-4 uppercase letters + 1-2 digits (e.g. SIN3, HKG1, BOM2)"})
