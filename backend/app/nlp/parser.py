@@ -96,7 +96,7 @@ RULES:
             "avoid china" → must_avoid_countries: ["CN"]
             "must land in japan" → must_include_countries: ["JP"]
             "route via philippines" → must_include_countries: ["PH"]
-- Country codes: SG=Singapore, HK=Hong Kong, VN=Vietnam, PH=Philippines, JP=Japan, KR=South Korea, TW=Taiwan, MY=Malaysia, ID=Indonesia, IN=India, AU=Australia, US=United States, GB=United Kingdom, AE=UAE, DE=Germany, DJ=Djibouti, GU=Guam, NZ=New Zealand, CN=China, FR=France, EG=Egypt, SA=Saudi Arabia
+- Country codes: AE=UAE, AU=Australia, CN=China, DE=Germany, DJ=Djibouti, EG=Egypt, FJ=Fiji, FR=France, GB=United Kingdom, GR=Greece, GU=Guam, HK=Hong Kong, ID=Indonesia, IN=India, IT=Italy, JP=Japan, KH=Cambodia, KR=South Korea, LK=Sri Lanka, MM=Myanmar, MP=Northern Mariana Islands, MY=Malaysia, NZ=New Zealand, OM=Oman, PH=Philippines, PK=Pakistan, QA=Qatar, SA=Saudi Arabia, SG=Singapore, TH=Thailand, TW=Taiwan, US=United States, VN=Vietnam, VU=Vanuatu, YE=Yemen
 - Only use must_avoid_nodes / must_include_nodes when the user names a SPECIFIC node, facility, or PoP by name or ID.
 - Never return IDs that are not in the provided lists above.
 - Set confidence=high when both endpoints are unambiguous, medium when one is guessed, low otherwise.
