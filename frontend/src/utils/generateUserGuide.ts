@@ -308,9 +308,9 @@ function drawArchitecture(doc: jsPDF, nodeCount: number, segmentCount: number, s
       GREEN, 'PostgreSQL · Railway',
       ['PostgreSQL', 'Railway', 'Persistent']],
     ['🤖 AI Layer',
-      "TSABuddy is powered by Claude (Anthropic). When you type a route request, the backend sends your text to Claude with a prompt defining all valid node IDs, segments, systems, countries and parameter options. Claude extracts a structured JSON — origin, destination, diversity, country/system/node constraints, pool strategy, sort order — which the backend validates and returns to pre-fill the search form.",
-      ORANGE, 'Claude AI · Anthropic · TSABuddy',
-      ['Claude AI', 'Anthropic', 'Structured NLP', 'JSON extraction']],
+      "TSABuddy supports multiple LLM backends — Claude (Anthropic) by default, or Azure OpenAI if preferred. NLP requests are forwarded to the configured provider with a prompt defining all valid node IDs, segments, systems and parameter options. The model returns a structured JSON — origin, destination, diversity, constraints, pool strategy, sort order — which the backend validates and returns to pre-fill the search form.",
+      ORANGE, 'Claude AI · Azure OpenAI · TSABuddy',
+      ['Claude AI', 'Azure OpenAI', 'Structured NLP', 'JSON extraction']],
   ]
 
   for (const [title, desc, color, sub, badges] of tiers) {
@@ -713,6 +713,220 @@ function drawUserGuide(doc: jsPDF, pageNum: number) {
   footer(doc, pageNum)
 }
 
+function drawDataModel(doc: jsPDF, nodeCount: number, segmentCount: number, systemCount: number, pageNum: number) {
+  pageHeader(doc, 'Data Model')
+  let y = 24
+
+  // ── Intro ──────────────────────────────────────────────────────────────────
+  doc.setFillColor(...NAVY)
+  doc.rect(0, 24, PAGE_W, 24, 'F')
+  doc.setFontSize(13)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(...WHITE)
+  doc.text('Network Data Model', M, 36)
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(8.5)
+  doc.setTextColor(160, 190, 255)
+  doc.text(`${nodeCount} nodes · ${segmentCount} segments · ${systemCount} cable systems — the structured graph that powers every route calculation.`, M, 43)
+  y = 56
+
+  // ── Core Entities ──────────────────────────────────────────────────────────
+  y = sectionTitle(doc, 'Core Data Entities', y)
+
+  type EntityRow = { field: string; type: string; desc: string }
+  const entities: { icon: string; name: string; color: [number,number,number]; rows: EntityRow[] }[] = [
+    {
+      icon: '📍', name: 'Node', color: BLUE,
+      rows: [
+        { field: 'id',           type: 'string',  desc: 'Unique identifier (e.g. SIN3, HKG1). Used in route paths and all constraints.' },
+        { field: 'name',         type: 'string',  desc: 'Human-readable name of the landing station or PoP.' },
+        { field: 'country',      type: 'ISO-2',   desc: 'Country code — used for country-level hard constraints (must_avoid / must_include).' },
+        { field: 'type',         type: 'enum',    desc: 'landing_station | terrestrial_pop | branching_unit. BUs are traversed but never shown as endpoints.' },
+        { field: 'lat / lng',    type: 'float',   desc: 'Geographic coordinates for map rendering and nearest-node lookups.' },
+      ],
+    },
+    {
+      icon: '🔗', name: 'Segment', color: PURPLE,
+      rows: [
+        { field: 'id',           type: 'string',  desc: 'Unique segment identifier (e.g. EAC-2B2). Used in must_include/must_avoid segment constraints.' },
+        { field: 'system_id',    type: 'string',  desc: 'Parent cable system. Links segment to system-level constraints and margin scoring.' },
+        { field: 'type',         type: 'enum',    desc: 'wet | terrestrial. Wet hops are counted separately from terrestrial for diversity and hop limits.' },
+        { field: 'length_km',    type: 'float',   desc: 'Physical length — used to compute total route distance and as a graph edge weight.' },
+        { field: 'latency',      type: 'float ms',desc: 'One-way propagation delay — summed across all segments to compute end-to-end RTD.' },
+        { field: 'reliability',  type: 'float',   desc: 'Segment availability (0–1). Multiplied across the path for end-to-end availability.' },
+        { field: 'ownership',    type: 'enum',    desc: 'owned | iru | consortium | integrated_lit_lease | offnet_resell. Drives margin scoring.' },
+      ],
+    },
+    {
+      icon: '🌊', name: 'Cable System', color: GREEN,
+      rows: [
+        { field: 'id',           type: 'string',  desc: 'System identifier (e.g. EAC, AAG, C2C). Used in must_include/must_avoid systems constraints.' },
+        { field: 'name',         type: 'string',  desc: 'Display name shown in route cards and system viewer.' },
+        { field: 'margin',       type: 'float',   desc: 'Commercial margin score (1–10). Combined with ownership per segment to rank route attractiveness.' },
+      ],
+    },
+  ]
+
+  for (const ent of entities) {
+    if (y > PAGE_H - 60) break
+    const rowH = 5.5
+    const cardH = ent.rows.length * rowH + 16
+    doc.setFillColor(248, 249, 255)
+    doc.roundedRect(M, y, COL, cardH, 2, 2, 'F')
+    doc.setFillColor(...ent.color)
+    doc.rect(M, y, 3, cardH, 'F')
+
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...GREY1)
+    doc.text(`${ent.icon}  ${ent.name}`, M + 7, y + 7)
+    doc.setFont('helvetica', 'normal')
+
+    let ry = y + 13
+    for (const row of ent.rows) {
+      doc.setFontSize(7.5)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...ent.color)
+      doc.text(row.field, M + 7, ry)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(...GREY3)
+      doc.setFontSize(6.5)
+      doc.text(row.type, M + 36, ry)
+      doc.setFontSize(7)
+      doc.text(row.desc, M + 55, ry)
+      ry += rowH
+    }
+    y += cardH + 5
+  }
+
+  footer(doc, pageNum)
+}
+
+function drawDataModel2(doc: jsPDF, pageNum: number) {
+  pageHeader(doc, 'Data Model — Today vs Tomorrow')
+  let y = 24
+
+  // ── Supporting tables ──────────────────────────────────────────────────────
+  y = sectionTitle(doc, 'Supporting Data Tables', y)
+
+  type SuppRow = { entity: string; fields: string; role: string }
+  const supporting: SuppRow[] = [
+    { entity: 'Capacity',         fields: 'segment_id · total_capacity_t · available_capacity_t',  role: 'Powers the capacity dashboard and available-capacity sort dimension.' },
+    { entity: 'Outages',          fields: 'segment_id · fault_id · fault_date · estimated_repair_date · description', role: 'Flags affected segments on route cards. Used by the "UP" outage-push sort.' },
+    { entity: 'Interconnect Rules', fields: 'node_id · disallowed_pairs · allowed_pairs',          role: 'Enforces which cable systems may or may not connect at a given node — hard constraint in route validation.' },
+  ]
+  for (const row of supporting) {
+    if (y > PAGE_H - 80) break
+    const fLines = doc.splitTextToSize(row.fields, COL * 0.5 - 6) as string[]
+    const rLines = doc.splitTextToSize(row.role,   COL * 0.45 - 4) as string[]
+    const rh = Math.max(fLines.length, rLines.length) * 3.8 + 10
+    doc.setFillColor(248, 249, 255)
+    doc.roundedRect(M, y, COL, rh, 1.5, 1.5, 'F')
+    doc.setFontSize(8.5)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...GREY1)
+    doc.text(row.entity, M + 4, y + 6)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7.5)
+    doc.setTextColor(...BLUE)
+    doc.text(fLines, M + 4, y + 11)
+    doc.setFontSize(7.5)
+    doc.setTextColor(...GREY3)
+    doc.text(rLines, M + COL * 0.55, y + 6)
+    y += rh + 4
+  }
+
+  y += 4
+  // ── Today vs Tomorrow ──────────────────────────────────────────────────────
+  y = sectionTitle(doc, 'Today vs Tomorrow — Data Sources', y)
+
+  const cols = (COL - 8) / 2
+  const headers = ['Data Field', 'Today (Static)', 'Tomorrow (Live)']
+  const colWidths = [cols * 0.32, cols * 0.37, cols * 0.37]
+
+  // header row
+  doc.setFillColor(...NAVY)
+  doc.rect(M, y, COL, 7, 'F')
+  let hx = M + 2
+  for (let i = 0; i < headers.length; i++) {
+    doc.setFontSize(7.5)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...WHITE)
+    doc.text(headers[i], hx, y + 5)
+    hx += colWidths[i]
+  }
+  y += 7
+
+  const dataRows: [string, string, string, [number,number,number]][] = [
+    ['Network Capacity',  'Static table — manually updated from planning sheets',   'Inventory systems feed — live total & available capacity per segment', GREEN],
+    ['Segment Outages',   'Manually entered in Ref Data panel by network ops team', 'TSM (Trouble & Service Mgmt) — fault records pushed automatically on creation & update', ORANGE],
+    ['Latency / RTD',     'Fixed values derived from segment length (speed-of-light estimate)', 'NMS (Network Mgmt System) — measured round-trip delay per segment in real time', BLUE],
+    ['Node / Segment IDs','Maintained in PostgreSQL by engineering; updated per system landing', 'Unchanged — source of truth remains the internal network inventory database', PURPLE],
+    ['Margin Scores',     'Manual commercial weighting set by the commercial team',  'Pricing engine integration — margin auto-derived from live IRU/lease cost data', RED],
+  ]
+
+  for (let i = 0; i < dataRows.length; i++) {
+    const [field, today, tmrw, color] = dataRows[i]
+    const todayLines = doc.splitTextToSize(today, colWidths[1] - 4) as string[]
+    const tmrwLines  = doc.splitTextToSize(tmrw,  colWidths[2] - 4) as string[]
+    const fieldLines = doc.splitTextToSize(field, colWidths[0] - 4) as string[]
+    const rh = Math.max(fieldLines.length, todayLines.length, tmrwLines.length) * 3.8 + 6
+    doc.setFillColor(i % 2 === 0 ? 248 : 244, i % 2 === 0 ? 249 : 245, i % 2 === 0 ? 255 : 252)
+    doc.rect(M, y, COL, rh, 'F')
+    doc.setFillColor(...color)
+    doc.rect(M, y, 2.5, rh, 'F')
+
+    let cx = M + 4
+    doc.setFontSize(7.5)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...GREY1)
+    doc.text(fieldLines, cx, y + 5)
+    cx += colWidths[0]
+
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...GREY3)
+    doc.text(todayLines, cx, y + 5)
+    cx += colWidths[1]
+
+    doc.setTextColor(34, 120, 60)
+    doc.text(tmrwLines, cx, y + 5)
+    y += rh
+  }
+
+  y += 8
+  // ── How it all comes together ──────────────────────────────────────────────
+  if (y < PAGE_H - 55) {
+    y = sectionTitle(doc, 'How It All Comes Together — Route Calculation', y)
+    const steps: [string, [number,number,number], string][] = [
+      ['Graph Build',   BLUE,   'On startup, the backend loads all Nodes and Segments from PostgreSQL and builds a weighted NetworkX graph. Edge weights incorporate length, latency, reliability and ownership.'],
+      ['Constraint Resolution', ORANGE, 'When a search request arrives, the system resolves must_include / must_avoid IDs (nodes, segments, systems, countries) against the live node and segment datasets.'],
+      ['Capacity Overlay', GREEN,  'Available capacity per segment is loaded from the Capacity table (today: static; tomorrow: live Inventory feed) and applied as a secondary filter when sorting by capacity.'],
+      ['Outage Flagging',  RED,    'Each path is checked against the Outages table (today: manual; tomorrow: TSM feed). Affected routes receive an outage badge and can be pushed to the bottom of results.'],
+      ['Margin Scoring',  PURPLE, 'Each segment\'s ownership type and its parent system\'s margin score are combined to compute a weighted route margin (1–10) — the commercial attractiveness indicator.'],
+    ]
+    for (const [title, color, desc] of steps) {
+      if (y > PAGE_H - 20) break
+      const lines = doc.splitTextToSize(desc, COL - 26) as string[]
+      const sh = lines.length * 3.8 + 10
+      doc.setFillColor(248, 249, 255)
+      doc.roundedRect(M, y, COL, sh, 1.5, 1.5, 'F')
+      doc.setFillColor(...color)
+      doc.rect(M, y, 3, sh, 'F')
+      doc.setFontSize(8.5)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...GREY1)
+      doc.text(title, M + 7, y + 6)
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      doc.setTextColor(...GREY3)
+      doc.text(lines, M + 7, y + 11)
+      y += sh + 3
+    }
+  }
+
+  footer(doc, pageNum)
+}
+
 function drawVision(doc: jsPDF, pageNum: number) {
   pageHeader(doc, 'Vision & Roadmap')
   let y = 24
@@ -734,7 +948,7 @@ function drawVision(doc: jsPDF, pageNum: number) {
   y = sectionTitle(doc, 'Roadmap', y)
 
   for (const [title, desc, color, tag] of [
-    ['Real-Time Network Data',        'Connect RouteBuilder to live NMS feeds for real-time capacity, latency and outage data — removing the lag between network events and commercial decisions.',                                    GREEN,  'In Planning'],
+    ['Real-Time Network Data',        'Network capacity from Inventory systems, outage feeds from TSM, and live latency data from NMS — removing the lag between network events and commercial decisions.',           GREEN,  'In Planning'],
     ['Quoting & Pricing Integration', 'Bridge margin scores to actual pricing outputs, enabling indicative quotes directly from a route design.',                                                                                    ORANGE, 'In Planning'],
     ['AI-Driven Recommendations',     'TSABuddy evolves into a full commercial advisor — surfacing market intelligence and proactively optimising route recommendations.',                                                           BLUE,   'Future'],
     ['Customer-Facing Portal',        'A self-serve experience for enterprise customers to explore the network, model routes and initiate enquiries independently.',                                                                 BLUE,   'Future'],
@@ -773,7 +987,7 @@ function drawVision(doc: jsPDF, pageNum: number) {
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 export function generateUserGuidePDF(nodeCount = 0, segmentCount = 0, systemCount = 0) {
-  _totalPages = 9
+  _totalPages = 11
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
   drawCover(doc, 1)
@@ -784,7 +998,9 @@ export function generateUserGuidePDF(nodeCount = 0, segmentCount = 0, systemCoun
   doc.addPage(); drawConstraints(doc, 6)
   doc.addPage(); drawDiversity(doc, 7)
   doc.addPage(); drawUserGuide(doc, 8)
-  doc.addPage(); drawVision(doc, 9)
+  doc.addPage(); drawDataModel(doc, nodeCount, segmentCount, systemCount, 9)
+  doc.addPage(); drawDataModel2(doc, 10)
+  doc.addPage(); drawVision(doc, 11)
 
   doc.save(`RouteBuilder-Guide-${new Date().toISOString().slice(0, 10)}.pdf`)
 }

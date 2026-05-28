@@ -15,7 +15,7 @@ const STEPS = [
 ]
 
 const ROADMAP = [
-  { icon: '📶', title: 'Real-Time Network Data',       desc: 'Live capacity, latency and outage feeds from NMS — removing the lag between network events and commercial decisions.', tag: 'In Planning', color: '#22c55e' },
+  { icon: '📶', title: 'Real-Time Network Data',       desc: 'Network capacity from Inventory systems, outage feeds from TSM, and live latency data from NMS — removing the lag between network events and commercial decisions.', tag: 'In Planning', color: '#22c55e' },
   { icon: '💵', title: 'Quoting & Pricing Integration', desc: 'Bridge margin scores to actual pricing outputs, enabling indicative quotes directly from a route design.', tag: 'In Planning', color: '#f97316' },
   { icon: '🧠', title: 'AI-Driven Recommendations',    desc: 'TSABuddy evolves into a full commercial advisor — surfacing market intelligence and proactively optimising route recommendations.', tag: 'Future', color: '#3b82f6' },
   { icon: '🌐', title: 'Customer-Facing Portal',        desc: 'A self-serve experience for enterprise customers to explore the network, model routes and initiate enquiries independently.', tag: 'Future', color: '#3b82f6' },
@@ -29,7 +29,7 @@ interface Props {
 
 export function UserGuide({ nodes, segments, systems }: Props) {
   const t = useTheme()
-  const [page, setPage] = useState<1 | 2 | 3>(1)
+  const [page, setPage] = useState<1 | 2 | 3 | 4>(1)
 
   const nodeCount    = nodes.length
   const segmentCount = segments.length
@@ -91,7 +91,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         [1, '📖 Product Overview'],
         [2, '🏗 Architecture'],
         [3, '🔍 Search Algorithm'],
-      ] as [1|2|3, string][]).map(([p, label]) => (
+        [4, '🗄 Data Model'],
+      ] as [1|2|3|4, string][]).map(([p, label]) => (
         <button
           key={p}
           onClick={() => setPage(p)}
@@ -306,12 +307,12 @@ export function UserGuide({ nodes, segments, systems }: Props) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
                   <span style={{ fontSize: 22 }}>🤖</span>
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: '#fdba74' }}>Claude AI</div>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(253,186,116,0.6)', marginTop: 1 }}>Anthropic · TSABuddy</div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#fdba74' }}>Claude AI / Azure OpenAI</div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: 'rgba(253,186,116,0.6)', marginTop: 1 }}>Anthropic · Azure · TSABuddy</div>
                   </div>
                 </div>
                 <div style={{ fontSize: 10, color: 'rgba(253,186,116,0.7)', lineHeight: 1.6 }}>
-                  Plain-English route requests are interpreted by Claude, which extracts nodes, constraints, diversity preferences and sort order — then hands them back to the route engine.
+                  Plain-English route requests are routed to Claude (Anthropic) by default, or to Azure OpenAI if preferred — both extract nodes, constraints, diversity preferences and sort order, then hand them back to the route engine.
                 </div>
               </div>
             </div>
@@ -366,9 +367,9 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               'linear-gradient(135deg, rgba(234,88,12,0.18) 0%, rgba(194,65,12,0.08) 100%)',
               'rgba(251,146,60,0.3)', '🤖',
               'AI Layer — TSABuddy',
-              'Claude by Anthropic · Natural Language Interface',
-              ['Claude AI', 'Anthropic', 'NLP', 'Structured Extraction', 'TSABuddy'],
-              'TSABuddy is powered by Claude — Anthropic\'s AI model. When you type a plain-English route request, the backend sends your text to Claude with a structured prompt describing the network\'s parameters. Claude reads the request and returns a JSON object with extracted values: origin node, destination node, diversity setting, systems to avoid, and sort preference. The backend validates that output and hands it back to the browser to pre-fill the search form.',
+              'Claude (Anthropic) · Azure OpenAI · Natural Language Interface',
+              ['Claude AI', 'Azure OpenAI', 'NLP', 'Structured Extraction', 'TSABuddy'],
+              'TSABuddy supports multiple LLM backends — Claude (Anthropic) by default, or Azure OpenAI if preferred. When you type a plain-English route request, the backend sends your text to the configured provider with a structured prompt describing all valid node IDs, segments, systems, countries and parameter options. The model returns a JSON object with extracted values: origin, destination, diversity, constraints and sort preference. The backend validates that output and pre-fills the search form.',
             )}
 
           </div>
@@ -390,8 +391,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             {flow('B', '#a5b4fc', 'Using TSABuddy', [
               'You type a natural language request ("SIN to HKG on EAC, wet diversity")',
               'Browser sends the text to the backend\'s NLP endpoint',
-              'Backend forwards it to Claude AI with a structured prompt defining all valid node IDs and parameter options',
-              'Claude returns a structured JSON with extracted route parameters',
+              'Backend forwards it to Claude (Anthropic) or Azure OpenAI — whichever is configured — with a structured prompt defining all valid node IDs and parameter options',
+              'The LLM returns a structured JSON with extracted route parameters',
               'Backend validates the output and returns it to the browser, which fills all form fields and triggers the search automatically',
             ])}
 
@@ -415,7 +416,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
                 { layer: 'Frontend', items: ['React 18', 'TypeScript', 'Vite', 'Leaflet / OpenStreetMap'] },
                 { layer: 'Backend', items: ['Python 3.11', 'FastAPI', 'NetworkX', 'Pydantic'] },
                 { layer: 'Database', items: ['PostgreSQL', 'psycopg2', 'JSONB storage'] },
-                { layer: 'AI', items: ['Claude (Anthropic)', 'Structured NLP extraction'] },
+                { layer: 'AI', items: ['Claude (Anthropic)', 'Azure OpenAI (alternative)', 'Structured NLP extraction'] },
                 { layer: 'Hosting', items: ['Vercel (frontend)', 'Railway (backend + DB)'] },
                 { layer: 'Map Tiles', items: ['CARTO (dark & light themes)'] },
               ].map(({ layer, items }) => (
@@ -704,6 +705,223 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         {/* Footer */}
         <div style={{ textAlign: 'center', padding: '20px 0 0', borderTop: `1px solid ${t.border}` }}>
           <div style={{ fontSize: 11, color: t.textFaint }}>International Telco · RouteBuilder · Search Algorithm Reference</div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Page 4: Data Model ────────────────────────────────────────────────────
+  if (page === 4) {
+    const entityCard = (
+      icon: string, name: string, color: string,
+      fields: { field: string; type: string; desc: string }[],
+    ) => (
+      <div style={{ ...card() as React.CSSProperties, borderLeft: `4px solid ${color}`, paddingLeft: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+          <span style={{ fontSize: 20 }}>{icon}</span>
+          <span style={{ fontSize: 13, fontWeight: 800, color: t.text }}>{name}</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          {fields.map(({ field, type, desc }, i) => (
+            <div key={field} style={{
+              display: 'grid', gridTemplateColumns: '110px 80px 1fr',
+              gap: 8, padding: '6px 0',
+              borderTop: i > 0 ? `1px solid ${t.border}` : 'none',
+              alignItems: 'baseline',
+            }}>
+              <code style={{ fontSize: 10, fontWeight: 700, color, fontFamily: 'monospace' }}>{field}</code>
+              <span style={{ fontSize: 9, color: t.textFaint, fontFamily: 'monospace' }}>{type}</span>
+              <span style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{desc}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+
+    const todayTomorrowRow = (
+      field: string, color: string,
+      today: string, tomorrow: string,
+    ) => (
+      <div style={{
+        display: 'grid', gridTemplateColumns: '140px 1fr 1fr',
+        gap: 12, padding: '10px 12px',
+        borderRadius: 6, background: t.bgCard, border: `1px solid ${t.border}`,
+        alignItems: 'start',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ width: 3, height: '100%', minHeight: 24, background: color, borderRadius: 2, flexShrink: 0 }} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: t.text }}>{field}</span>
+        </div>
+        <div>
+          <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', color: t.orange, marginBottom: 3 }}>TODAY</div>
+          <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{today}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.08em', color: t.green, marginBottom: 3 }}>TOMORROW</div>
+          <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{tomorrow}</div>
+        </div>
+      </div>
+    )
+
+    return (
+      <div style={{
+        maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
+        fontFamily: 'system-ui, sans-serif', color: t.text,
+      }}>
+        {pageTabs}
+
+        {/* Hero */}
+        <div style={{
+          background: 'linear-gradient(135deg, #0f1e3c 0%, #0d2640 60%, #0c3a3a 100%)',
+          borderRadius: 16, padding: '32px 36px', marginBottom: 28, color: '#fff',
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#6ee7b7', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>DATA MODEL</div>
+          <h1 style={{ margin: '0 0 12px', fontSize: 26, fontWeight: 900, lineHeight: 1.2 }}>The Network in Data</h1>
+          <p style={{ margin: '0 0 16px', fontSize: 13, color: 'rgba(180,230,220,0.85)', lineHeight: 1.7, maxWidth: 580 }}>
+            Every route calculation draws on a structured graph of {nodeCount} nodes, {segmentCount} segments and {systems.filter(s => s.id !== 'TERRESTRIAL').length} cable systems.
+            Understanding the data model helps you build better constraints and interpret results with confidence.
+          </p>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {[
+              { n: String(nodeCount),    l: 'Nodes' },
+              { n: String(segmentCount), l: 'Segments' },
+              { n: String(systems.filter(s => s.id !== 'TERRESTRIAL').length), l: 'Cable Systems' },
+            ].map(({ n, l }) => (
+              <div key={l} style={{
+                background: 'rgba(255,255,255,0.07)', borderRadius: 8, padding: '8px 16px',
+                border: '1px solid rgba(255,255,255,0.1)',
+              }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: '#6ee7b7', lineHeight: 1 }}>{n}</div>
+                <div style={{ fontSize: 10, color: 'rgba(180,230,220,0.7)', marginTop: 2 }}>{l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Core entities */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={sectionLabel}>Core Entities</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {entityCard('📍', 'Node', t.blue, [
+              { field: 'id',        type: 'string',    desc: 'Unique identifier (e.g. SIN3, HKG1). Used in route paths and all node-level constraints.' },
+              { field: 'name',      type: 'string',    desc: 'Human-readable name of the landing station or PoP.' },
+              { field: 'country',   type: 'ISO-2',     desc: 'Country code — used for country-level hard constraints (must_avoid / must_include).' },
+              { field: 'type',      type: 'enum',      desc: 'landing_station | terrestrial_pop | branching_unit. BUs are graph-traversed but never shown as endpoints.' },
+              { field: 'lat / lng', type: 'float',     desc: 'Coordinates for map rendering and nearest-node distance lookups.' },
+            ])}
+            {entityCard('🔗', 'Segment', '#8b5cf6', [
+              { field: 'id',          type: 'string',  desc: 'Unique segment ID (e.g. EAC-2B2). Used in must_include / must_avoid segment constraints.' },
+              { field: 'system_id',   type: 'string',  desc: 'Parent cable system. Links to system-level constraints and commercial margin scoring.' },
+              { field: 'type',        type: 'enum',    desc: 'wet | terrestrial. Wet hops and terrestrial hops are counted separately for diversity and hop limits.' },
+              { field: 'length_km',   type: 'float',   desc: 'Physical distance used as primary graph edge weight and to compute total route km.' },
+              { field: 'latency',     type: 'float ms',desc: 'One-way propagation delay. Summed across all route segments to compute end-to-end RTD.' },
+              { field: 'reliability', type: 'float',   desc: 'Segment availability (0–1). Multiplied across the path for end-to-end availability score.' },
+              { field: 'ownership',   type: 'enum',    desc: 'owned | iru | consortium | integrated_lit_lease | offnet_resell. Drives commercial margin scoring.' },
+            ])}
+            {entityCard('🌊', 'Cable System', t.green, [
+              { field: 'id',     type: 'string', desc: 'System identifier (e.g. EAC, AAG, C2C). Used in must_include / must_avoid systems constraints.' },
+              { field: 'name',   type: 'string', desc: 'Display name shown in route cards, system viewer and constraint pickers.' },
+              { field: 'margin', type: 'float',  desc: 'Commercial margin score (1–10). Combined with per-segment ownership weight to rank route attractiveness.' },
+            ])}
+          </div>
+        </div>
+
+        {/* Supporting tables */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={sectionLabel}>Supporting Data Tables</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              { icon: '◈', name: 'Capacity', color: t.blue,
+                fields: 'segment_id · total_capacity_t · available_capacity_t',
+                role: 'Powers the capacity dashboard. Available Tbps at the bottleneck segment sets the est. capacity shown on each route card.' },
+              { icon: '🚨', name: 'Outages', color: t.red,
+                fields: 'segment_id · fault_id · fault_date · estimated_repair_date · description',
+                role: 'Flags affected segments on route cards with repair estimates. Drives the "UP" outage-push sort button.' },
+              { icon: '⇄', name: 'Interconnect Rules', color: t.orange,
+                fields: 'node_id · disallowed_pairs · allowed_pairs',
+                role: 'Defines which cable systems may or may not connect at a given node — a hard structural constraint applied during graph validation.' },
+            ].map(({ icon, name, color, fields, role }) => (
+              <div key={name} style={{
+                ...card() as React.CSSProperties,
+                display: 'grid', gridTemplateColumns: '140px 1fr 1fr', gap: 12,
+                alignItems: 'start', padding: '12px 16px',
+                borderLeft: `4px solid ${color}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 16 }}>{icon}</span>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: t.text }}>{name}</span>
+                </div>
+                <div style={{ fontSize: 10, color, fontFamily: 'monospace', lineHeight: 1.6 }}>{fields}</div>
+                <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{role}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Today vs Tomorrow */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={sectionLabel}>Today vs Tomorrow — Data Sources</div>
+          <div style={{ marginBottom: 10, fontSize: 11, color: t.textMuted, lineHeight: 1.6 }}>
+            RouteBuilder already delivers commercial value from static, manually-curated data.
+            The roadmap connects each field to the live operational system that will replace it.
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {/* column headers */}
+            <div style={{
+              display: 'grid', gridTemplateColumns: '140px 1fr 1fr',
+              gap: 12, padding: '6px 12px',
+            }}>
+              <div />
+              <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: t.orange }}>TODAY — STATIC</div>
+              <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: t.green }}>TOMORROW — LIVE</div>
+            </div>
+            {todayTomorrowRow('Network Capacity', t.green,
+              'Static table maintained manually — updated from network planning spreadsheets when capacity changes.',
+              'Inventory systems feed — total and available capacity per segment updated automatically as circuits are provisioned and released.')}
+            {todayTomorrowRow('Segment Outages', t.red,
+              'Manually entered in Ref Data by network ops team when a fault is raised or repaired.',
+              'TSM (Trouble & Service Management) — fault records pushed to RouteBuilder automatically on creation and status change.')}
+            {todayTomorrowRow('Latency / RTD', t.blue,
+              'Fixed values derived from segment length using speed-of-light propagation estimates.',
+              'NMS (Network Management System) — measured round-trip delay per segment in real time, reflecting actual fibre path and amplifier latency.')}
+            {todayTomorrowRow('Node & Segment IDs', '#8b5cf6',
+              'Maintained in PostgreSQL by engineering team — updated when new systems land or topology changes.',
+              'Network inventory database remains the source of truth; future integration auto-syncs new nodes and segments on commissioning.')}
+            {todayTomorrowRow('Margin Scores', t.orange,
+              'Manual commercial weights set by the commercial team — reviewed periodically.',
+              'Pricing engine integration — margin auto-derived from live IRU/lease cost data and commercial agreements.')}
+          </div>
+        </div>
+
+        {/* Pipeline */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={sectionLabel}>How It All Comes Together</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              { icon: '🏗', color: t.blue,     title: 'Graph Build',            desc: 'On startup, the backend loads all Nodes and Segments from PostgreSQL and builds a weighted NetworkX graph. Edge weights incorporate length, latency, reliability and ownership.' },
+              { icon: '⚖️', color: t.orange,   title: 'Constraint Resolution',  desc: 'When a search request arrives, must_include / must_avoid IDs (nodes, segments, systems, countries) are resolved against the live node and segment dataset.' },
+              { icon: '◈',  color: t.green,    title: 'Capacity Overlay',        desc: 'Available capacity per segment is loaded from the Capacity table and applied as a secondary filter when sorting by capacity.' },
+              { icon: '🚨', color: t.red,      title: 'Outage Flagging',         desc: 'Each path is checked against the Outages table. Affected routes receive an outage badge and can be pushed to the bottom of results by the UP sort.' },
+              { icon: '$',  color: '#8b5cf6',  title: 'Margin Scoring',          desc: 'Each segment\'s ownership type and its parent system\'s margin score are combined to compute a weighted route margin (1–10) — the commercial attractiveness indicator.' },
+            ].map(({ icon, color, title, desc }) => (
+              <div key={title} style={{
+                ...card() as React.CSSProperties,
+                display: 'flex', gap: 12, alignItems: 'flex-start',
+                padding: '12px 14px', borderLeft: `4px solid ${color}`,
+              }}>
+                <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: t.text, marginBottom: 4 }}>{title}</div>
+                  <div style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6 }}>{desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ textAlign: 'center', padding: '20px 0 0', borderTop: `1px solid ${t.border}` }}>
+          <div style={{ fontSize: 11, color: t.textFaint }}>International Telco · RouteBuilder · Data Model</div>
         </div>
       </div>
     )
