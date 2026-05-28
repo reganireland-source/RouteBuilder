@@ -68,6 +68,18 @@ const CONSTRAINT_DEFS = [
     description: 'No segments from any selected system will be used. Use this to route entirely clear of a cable system — for example, one affected by an outage or excluded by commercial policy.',
   },
   {
+    id: 'must_include_countries',
+    label: 'Must Include Countries',
+    icon: '🌍',
+    description: 'The route must transit at least one non-BU landing node in each selected country. Use to enforce geographic landing requirements — for example, a circuit that must land in Japan.',
+  },
+  {
+    id: 'must_avoid_countries',
+    label: 'Must Avoid Countries',
+    icon: '🌐',
+    description: 'The route will not transit any landing node in selected countries. Use to enforce geopolitical, licensing, security, or operational constraints — for example, avoiding a country for information-security reasons.',
+  },
+  {
     id: 'must_include_segments',
     label: 'Must Include Segments',
     icon: '🔗',
@@ -564,6 +576,9 @@ function AdvancedConstraintsModal({
   mustIncludeSegs, setMustIncludeSegs,
   mustIncludeSystems, setMustIncludeSystems,
   mustAvoidSystems, setMustAvoidSystems,
+  mustIncludeCountries, setMustIncludeCountries,
+  mustAvoidCountries, setMustAvoidCountries,
+  countryOptions,
   maxWetHops, setMaxWetHops,
   maxTerrestrialHops, setMaxTerrestrialHops,
   optimiseFor, setOptimiseFor,
@@ -589,6 +604,11 @@ function AdvancedConstraintsModal({
   setMustIncludeSystems: (v: string[]) => void
   mustAvoidSystems: string[]
   setMustAvoidSystems: (v: string[]) => void
+  mustIncludeCountries: string[]
+  setMustIncludeCountries: (v: string[]) => void
+  mustAvoidCountries: string[]
+  setMustAvoidCountries: (v: string[]) => void
+  countryOptions: { id: string; name: string }[]
   maxWetHops: number | ''
   setMaxWetHops: (v: number | '') => void
   maxTerrestrialHops: number | ''
@@ -612,6 +632,7 @@ function AdvancedConstraintsModal({
     mustIncludeNodes.length + mustAvoidNodes.length +
     mustAvoidSegs.length + mustIncludeSegs.length +
     mustIncludeSystems.length + mustAvoidSystems.length +
+    mustIncludeCountries.length + mustAvoidCountries.length +
     (maxWetHops !== '' ? 1 : 0) + (maxTerrestrialHops !== '' ? 1 : 0) +
     (optimiseFor !== '' ? 1 : 0)
 
@@ -629,6 +650,10 @@ function AdvancedConstraintsModal({
         return { chips: mustIncludeSystems.map(sid => systemOptions.find(s => s.id === sid)?.name ?? sid), hasValue: mustIncludeSystems.length > 0 }
       case 'must_avoid_systems':
         return { chips: mustAvoidSystems.map(sid => systemOptions.find(s => s.id === sid)?.name ?? sid), hasValue: mustAvoidSystems.length > 0 }
+      case 'must_include_countries':
+        return { chips: mustIncludeCountries.map(c => countryOptions.find(o => o.id === c)?.name ?? c), hasValue: mustIncludeCountries.length > 0 }
+      case 'must_avoid_countries':
+        return { chips: mustAvoidCountries.map(c => countryOptions.find(o => o.id === c)?.name ?? c), hasValue: mustAvoidCountries.length > 0 }
       case 'max_hops': {
         const chips: string[] = []
         if (maxWetHops !== '') chips.push(`🌊 Wet: ${maxWetHops}`)
@@ -652,6 +677,8 @@ function AdvancedConstraintsModal({
       case 'must_avoid_segments': setMustAvoidSegs([]); break
       case 'must_include_systems': setMustIncludeSystems([]); break
       case 'must_avoid_systems': setMustAvoidSystems([]); break
+      case 'must_include_countries': setMustIncludeCountries([]); break
+      case 'must_avoid_countries': setMustAvoidCountries([]); break
       case 'max_hops': setMaxWetHops(''); setMaxTerrestrialHops(''); break
       case 'optimise_for': setOptimiseFor(''); break
     }
@@ -674,6 +701,10 @@ function AdvancedConstraintsModal({
         return <FilteredMulti items={systemOptions.map(s => ({ id: s.id, primary: s.id, secondary: s.name }))} selected={mustIncludeSystems} onToggle={id => toggleMulti(id, mustIncludeSystems, setMustIncludeSystems)} placeholder="Filter systems…" listHeight={LIST_H} />
       case 'must_avoid_systems':
         return <FilteredMulti items={systemOptions.map(s => ({ id: s.id, primary: s.id, secondary: s.name }))} selected={mustAvoidSystems} onToggle={id => toggleMulti(id, mustAvoidSystems, setMustAvoidSystems)} placeholder="Filter systems…" listHeight={LIST_H} />
+      case 'must_include_countries':
+        return <FilteredMulti items={countryOptions.map(c => ({ id: c.id, primary: c.name, secondary: c.id }))} selected={mustIncludeCountries} onToggle={id => toggleMulti(id, mustIncludeCountries, setMustIncludeCountries)} placeholder="Filter countries…" listHeight={LIST_H} />
+      case 'must_avoid_countries':
+        return <FilteredMulti items={countryOptions.map(c => ({ id: c.id, primary: c.name, secondary: c.id }))} selected={mustAvoidCountries} onToggle={id => toggleMulti(id, mustAvoidCountries, setMustAvoidCountries)} placeholder="Filter countries…" listHeight={LIST_H} />
       case 'max_hops':
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
@@ -944,6 +975,8 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
   const [mustIncludeSegs, setMustIncludeSegs] = useState<string[]>([])
   const [mustIncludeSystems, setMustIncludeSystems] = useState<string[]>([])
   const [mustAvoidSystems, setMustAvoidSystems] = useState<string[]>([])
+  const [mustIncludeCountries, setMustIncludeCountries] = useState<string[]>([])
+  const [mustAvoidCountries, setMustAvoidCountries] = useState<string[]>([])
   const [maxWetHops, setMaxWetHops] = useState<number | ''>('')
   const [maxTerrestrialHops, setMaxTerrestrialHops] = useState<number | ''>('')
   const [optimiseFor, setOptimiseFor] = useState<string>('')
@@ -962,6 +995,8 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
     if (prefill.must_avoid_segments)   setMustAvoidSegs(prefill.must_avoid_segments)
     if (prefill.must_include_systems)  setMustIncludeSystems(prefill.must_include_systems)
     if (prefill.must_avoid_systems)    setMustAvoidSystems(prefill.must_avoid_systems)
+    if (prefill.must_include_countries) setMustIncludeCountries(prefill.must_include_countries)
+    if (prefill.must_avoid_countries)   setMustAvoidCountries(prefill.must_avoid_countries)
     if (prefill.max_wet_hops != null)         setMaxWetHops(prefill.max_wet_hops)
     if (prefill.max_terrestrial_hops != null) setMaxTerrestrialHops(prefill.max_terrestrial_hops)
     if (prefill.optimise_for != null)         setOptimiseFor(prefill.optimise_for)
@@ -972,6 +1007,8 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
       (prefill.must_avoid_segments?.length   ?? 0) > 0 ||
       (prefill.must_include_systems?.length  ?? 0) > 0 ||
       (prefill.must_avoid_systems?.length    ?? 0) > 0 ||
+      (prefill.must_include_countries?.length ?? 0) > 0 ||
+      (prefill.must_avoid_countries?.length   ?? 0) > 0 ||
       prefill.max_wet_hops != null ||
       prefill.max_terrestrial_hops != null ||
       prefill.optimise_for != null
@@ -989,6 +1026,18 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
     return { id, name: sys?.name ?? id }
   }).sort((a, b) => a.id.localeCompare(b.id))
 
+  const countryOptions = useMemo(() => {
+    const seen = new Set<string>()
+    const opts: { id: string; name: string }[] = []
+    for (const n of nodes) {
+      if (n.type !== 'branching_unit' && !seen.has(n.country)) {
+        seen.add(n.country)
+        opts.push({ id: n.country, name: countryName(n.country) })
+      }
+    }
+    return opts.sort((a, b) => a.name.localeCompare(b.name))
+  }, [nodes])
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!startNode || !endNode) return
@@ -1001,6 +1050,8 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
       must_include_segments: mustIncludeSegs,
       must_include_systems: mustIncludeSystems,
       must_avoid_systems: mustAvoidSystems,
+      must_include_countries: mustIncludeCountries,
+      must_avoid_countries: mustAvoidCountries,
       diversity,
       max_wet_hops: maxWetHops === '' ? undefined : maxWetHops as number,
       max_terrestrial_hops: maxTerrestrialHops === '' ? undefined : maxTerrestrialHops as number,
@@ -1015,6 +1066,8 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
     setMustIncludeSegs([])
     setMustIncludeSystems([])
     setMustAvoidSystems([])
+    setMustIncludeCountries([])
+    setMustAvoidCountries([])
     setMaxWetHops('')
     setMaxTerrestrialHops('')
     setOptimiseFor('')
@@ -1037,6 +1090,7 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
     mustIncludeNodes.length + mustAvoidNodes.length +
     mustAvoidSegs.length + mustIncludeSegs.length +
     mustIncludeSystems.length + mustAvoidSystems.length +
+    mustIncludeCountries.length + mustAvoidCountries.length +
     (maxWetHops !== '' ? 1 : 0) + (maxTerrestrialHops !== '' ? 1 : 0) +
     (optimiseFor !== '' ? 1 : 0)
 
@@ -1110,6 +1164,11 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
         setMustIncludeSystems={setMustIncludeSystems}
         mustAvoidSystems={mustAvoidSystems}
         setMustAvoidSystems={setMustAvoidSystems}
+        mustIncludeCountries={mustIncludeCountries}
+        setMustIncludeCountries={setMustIncludeCountries}
+        mustAvoidCountries={mustAvoidCountries}
+        setMustAvoidCountries={setMustAvoidCountries}
+        countryOptions={countryOptions}
         maxWetHops={maxWetHops}
         setMaxWetHops={setMaxWetHops}
         maxTerrestrialHops={maxTerrestrialHops}

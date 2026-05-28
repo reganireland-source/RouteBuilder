@@ -13,6 +13,9 @@ AVAILABLE WET SEGMENTS (id | name | system_id):
 AVAILABLE CABLE SYSTEMS (system_id):
 {system_catalog}
 
+AVAILABLE COUNTRIES (ISO code, node count):
+{country_catalog}
+
 DIVERSITY TYPES:
 - none                   : no diversity requirement
 - wet                    : diverse on submarine segments only
@@ -30,6 +33,8 @@ HOW THE SEARCH PIPELINE WORKS — this determines which field to use:
   • must_include_systems / must_avoid_systems   — force or forbid entire cable systems
   • max_wet_hops         — cap on submarine cable segments (integer ≥ 1); null = unconstrained
   • max_terrestrial_hops — cap on land cable segments (integer ≥ 1); null = unconstrained
+  • must_include_countries — ISO codes of countries the route MUST pass through (at least one landing node)
+  • must_avoid_countries   — ISO codes of countries the route must NOT pass through (any transit node)
 
   STEP 3 — POOL SELECTION via optimise_for (which 30 routes enter the memory pool):
   When set, ALL 30 pool slots are filled with the best routes for that single dimension.
@@ -61,6 +66,8 @@ Return ONLY a JSON object — no prose, no markdown fences — with these exact 
   "must_avoid_segments":   [],
   "must_include_systems":  [],
   "must_avoid_systems":    [],
+  "must_include_countries": [],
+  "must_avoid_countries":   [],
   "diversity": "none",
   "max_wet_hops": null,
   "max_terrestrial_hops": null,
@@ -81,6 +88,9 @@ RULES:
 - Only use must_include_segments / must_avoid_segments when a specific segment ID is mentioned.
 - "max N wet hops" / "no more than N submarine segments" / "single wet hop" → max_wet_hops: N
 - "max N terrestrial hops" / "limit land segments to N" → max_terrestrial_hops: N
+- "avoid country X" / "do not transit X" / "must not pass through X" → must_avoid_countries: ["XX"] (ISO code)
+- "must land in X" / "route via X country" / "must include X" (country) → must_include_countries: ["XX"]
+- Country codes: SG=Singapore, HK=Hong Kong, VN=Vietnam, PH=Philippines, JP=Japan, KR=South Korea, TW=Taiwan, MY=Malaysia, ID=Indonesia, IN=India, AU=Australia, US=United States, GB=United Kingdom, AE=UAE, DE=Germany, DJ=Djibouti, GU=Guam, NZ=New Zealand, CN=China, FR=France, EG=Egypt, SA=Saudi Arabia
 - Never return IDs that are not in the provided lists above.
 - Set confidence=high when both endpoints are unambiguous, medium when one is guessed, low otherwise.
 - In your explanation, briefly state what constraints are hard filters vs pool/sort preferences.
@@ -111,6 +121,12 @@ def _system_catalog(segments) -> str:
     return "\n".join(f"{sys_id}" for sys_id in sorted(seen))
 
 
+def _country_catalog(nodes) -> str:
+    from collections import Counter
+    counts = Counter(n.country for n in nodes if n.type != "branching_unit")
+    return "\n".join(f"{code} ({count} nodes)" for code, count in sorted(counts.items()))
+
+
 _VALID_DIVERSITY = {d.value for d in DiversityType}
 _VALID_SORT = {
     "hops", "distance", "length", "latency",
@@ -127,11 +143,13 @@ def parse_route_request(provider, nodes, segments, text: str) -> NlpParseRespons
     node_ids = {n.id for n in nodes}
     segment_ids = {s.id for s in segments}
     system_ids = {s.system_id for s in segments}
+    valid_countries = {n.country for n in nodes if n.type != "branching_unit"}
 
     prompt = SYSTEM_PROMPT.format(
         node_catalog=_node_catalog(nodes),
         segment_catalog=_segment_catalog(segments),
         system_catalog=_system_catalog(segments),
+        country_catalog=_country_catalog(nodes),
     )
     raw = provider.complete_json(prompt, text)
 
@@ -164,6 +182,8 @@ def parse_route_request(provider, nodes, segments, text: str) -> NlpParseRespons
         must_avoid_segments=clean_ids(raw.get("must_avoid_segments", []), segment_ids),
         must_include_systems=clean_ids(raw.get("must_include_systems", []), system_ids),
         must_avoid_systems=clean_ids(raw.get("must_avoid_systems", []), system_ids),
+        must_include_countries=clean_ids(raw.get("must_include_countries", []), valid_countries),
+        must_avoid_countries=clean_ids(raw.get("must_avoid_countries", []), valid_countries),
         diversity=diversity,
         max_wet_hops=_clean_hop(raw.get("max_wet_hops")),
         max_terrestrial_hops=_clean_hop(raw.get("max_terrestrial_hops")),

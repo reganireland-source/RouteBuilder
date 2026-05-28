@@ -93,6 +93,8 @@ export interface RouteRequest {
   must_include_segments: string[]
   must_include_systems: string[]
   must_avoid_systems: string[]
+  must_include_countries?: string[]
+  must_avoid_countries?: string[]
   diversity: DiversityType
   max_wet_hops?: number
   max_terrestrial_hops?: number
@@ -211,6 +213,8 @@ export interface NlpParseResponse {
   must_avoid_segments: string[]
   must_include_systems: string[]
   must_avoid_systems: string[]
+  must_include_countries: string[]
+  must_avoid_countries: string[]
   diversity: DiversityType
   max_wet_hops?: number | null
   max_terrestrial_hops?: number | null

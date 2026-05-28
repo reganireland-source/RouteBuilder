@@ -20,6 +20,13 @@ def search_routes(request: RouteRequest):
     capacities_by_id = {c.segment_id: c for c in capacities}
     outage_segment_ids = {o.segment_id for o in outages}
 
+    # Build non-BU node index by country for country constraints
+    from collections import defaultdict
+    country_to_node_ids: dict[str, set[str]] = defaultdict(set)
+    for n in nodes:
+        if n.type != "branching_unit":
+            country_to_node_ids[n.country].add(n.id)
+
     return find_routes(
         G=G,
         start=request.start_node_id,
@@ -38,4 +45,7 @@ def search_routes(request: RouteRequest):
         capacities_by_id=capacities_by_id,
         optimise_for=request.optimise_for,
         outage_segment_ids=outage_segment_ids,
+        must_avoid_countries=request.must_avoid_countries,
+        must_include_countries=request.must_include_countries,
+        country_to_node_ids=dict(country_to_node_ids),
     )

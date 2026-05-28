@@ -277,6 +277,9 @@ def find_routes(
     capacities_by_id: dict[str, SegmentCapacity] | None = None,
     optimise_for: str | None = None,
     outage_segment_ids: "set[str] | None" = None,
+    must_avoid_countries: list[str] | None = None,
+    must_include_countries: list[str] | None = None,
+    country_to_node_ids: "dict[str, set[str]] | None" = None,
 ) -> RouteResponse:
     # Build working graph with avoided nodes/segments/systems removed
     working_G = G.copy()
@@ -297,6 +300,19 @@ def find_routes(
             if seg.system_id == sys_id and working_G.has_edge(seg.start_node_id, seg.end_node_id):
                 avoid_edges.add((seg.start_node_id, seg.end_node_id))
                 working_G.remove_edge(seg.start_node_id, seg.end_node_id)
+
+    # Country avoidance — remove all non-BU transit nodes in avoided countries.
+    # If an endpoint is in an avoided country the constraint is unsatisfiable.
+    if must_avoid_countries and country_to_node_ids:
+        start_node_countries = {c for c, ids in country_to_node_ids.items() if start in ids}
+        end_node_countries   = {c for c, ids in country_to_node_ids.items() if end   in ids}
+        for country in must_avoid_countries:
+            if country in start_node_countries or country in end_node_countries:
+                return RouteResponse(routes=[], primary_routes=[], diverse_routes=[], total_found=0)
+        for country in must_avoid_countries:
+            for node_id in (country_to_node_ids.get(country) or set()):
+                if node_id != start and node_id != end and working_G.has_node(node_id):
+                    working_G.remove_node(node_id)
 
     if start not in working_G or end not in working_G:
         return RouteResponse(routes=[], primary_routes=[], diverse_routes=[])
@@ -369,6 +385,12 @@ def find_routes(
     candidates = _select_candidates(
         candidates, k, working_G, segments_by_id, capacities_by_id or {}, optimise_for, outage_segment_ids
     )
+
+    # Country include — keep only paths that visit at least one non-BU node per required country.
+    if must_include_countries and country_to_node_ids:
+        for country in must_include_countries:
+            country_nodes = country_to_node_ids.get(country, set())
+            candidates = [p for p in candidates if any(n in country_nodes for n in p)]
 
     if not candidates:
         return RouteResponse(routes=[], primary_routes=[], diverse_routes=[], total_found=0)
