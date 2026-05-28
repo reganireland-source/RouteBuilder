@@ -275,118 +275,14 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     </div>
   )
 
-  // ── Print-all: renders all pages stacked for window.print() ────────────────
-  if (printAll) {
-    const pageStyle: React.CSSProperties = {
-      maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
-      fontFamily: 'system-ui, sans-serif', color: t.text,
-      pageBreakAfter: 'always' as const,
-    }
-    const printContent = (
-      <div ref={printRef} id="rb-guide-print-portal" style={{
-        background: t.bgBase,
-        position: 'fixed', top: 0, left: '-200vw', width: '100vw',
-        WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact',
-      } as React.CSSProperties}>
-        {/* ── Page 1 content (inline) ── */}
-        <div style={pageStyle}>
-          <div style={{ background: `linear-gradient(135deg, #0f1e3c 0%, #1a3a6e 60%, #1d4ed8 100%)`, borderRadius: 12, padding: '44px 40px 40px', marginBottom: 28, position: 'relative', overflow: 'hidden' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(147,197,253,0.8)', marginBottom: 10 }}>International Telco</div>
-            <div style={{ fontSize: 36, fontWeight: 800, color: '#fff', lineHeight: 1.1, marginBottom: 8 }}>Route<span style={{ color: '#60a5fa' }}>Builder</span></div>
-            <p style={{ fontSize: 13, color: 'rgba(160,190,240,0.85)', maxWidth: 560, lineHeight: 1.7, margin: 0 }}>The fastest way to design, price and sell a subsea route. Replaces spreadsheets and tribal knowledge with a fast, visual, commercially-aware platform.</p>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 28 }}>
-            {[[String(nodeCount), 'Nodes', `Landing stations, PoPs & BUs`], [String(segmentCount), 'Segments', `Wet & backhaul`], [String(systemCount), 'Cable Systems', `Owned, consortium, IRU & partner`]].map(([num, label, sub]) => (
-              <div key={label} style={{ ...card(), textAlign: 'center', padding: '18px 12px' }}>
-                <div style={{ fontSize: 28, fontWeight: 800, color: t.blue, lineHeight: 1 }}>{num}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: t.text, marginTop: 4 }}>{label}</div>
-                <div style={{ fontSize: 10, color: t.textFaint, marginTop: 3 }}>{sub}</div>
-              </div>
-            ))}
-          </div>
-          <div style={sectionLabel}>Key Features</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10, marginBottom: 28 }}>
-            {FEATURES.map(f => (
-              <div key={f.title} style={card({ display: 'flex', flexDirection: 'column', gap: 8 })}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 22, lineHeight: 1 }}>{f.icon}</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{f.title}</span>
-                </div>
-                <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6, margin: 0 }}>{f.desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Page 2 content (inline) ── */}
-        <div style={pageStyle}>
-          <div style={{ background: 'linear-gradient(135deg, #070d1f 0%, #0f1e3c 50%, #1a1040 100%)', borderRadius: 12, padding: '44px 40px 40px', marginBottom: 28 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(147,197,253,0.7)', marginBottom: 10 }}>Technical Architecture</div>
-            <div style={{ fontSize: 34, fontWeight: 800, color: '#fff', lineHeight: 1.1, marginBottom: 10 }}>How Route<span style={{ color: '#818cf8' }}>Builder</span> Works</div>
-          </div>
-          <div style={{ marginBottom: 20 }}>
-            <div style={sectionLabel}>The Four Layers</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {tier('linear-gradient(135deg, rgba(37,99,235,0.18) 0%, rgba(29,78,216,0.08) 100%)', 'rgba(59,130,246,0.3)', '🌐', 'Frontend — What You See', 'React · Vercel', ['React 18', 'Vite', 'TypeScript', 'Leaflet Maps'], 'The entire interface runs as a React application inside your browser, delivered via Vercel\'s global edge network.')}
-              {tier('linear-gradient(135deg, rgba(99,102,241,0.18) 0%, rgba(79,70,229,0.08) 100%)', 'rgba(99,102,241,0.3)', '⚙️', 'Backend — Intelligence Engine', 'FastAPI · Python · NetworkX · Railway', ['FastAPI', 'Python', 'NetworkX', 'Graph Algorithms'], 'Models the cable network as a weighted graph. Runs traversal algorithms, applies diversity and constraints, scores every route for RTD, availability, margin and capacity.')}
-              {tier('linear-gradient(135deg, rgba(22,163,74,0.18) 0%, rgba(21,128,61,0.08) 100%)', 'rgba(34,197,94,0.3)', '🗄', 'Database — Persistent Memory', 'PostgreSQL · Railway', ['PostgreSQL', 'Railway', 'Persistent'], `All ${nodeCount} nodes, ${segmentCount} segments, ${systemCount} cable systems, capacity and outage records live here.`)}
-              {tier('linear-gradient(135deg, rgba(234,88,12,0.18) 0%, rgba(194,65,12,0.08) 100%)', 'rgba(251,146,60,0.3)', '🤖', 'AI Layer — TSABuddy', 'Claude (Anthropic) · Azure OpenAI', ['Claude AI', 'Azure OpenAI', 'Structured Extraction'], 'NLP requests routed to Claude or Azure OpenAI — extracts origin, destination, diversity, constraints and sort preference from plain English.')}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Page 3 content (inline) ── */}
-        <div style={pageStyle}>
-          <div style={{ background: 'linear-gradient(135deg, #0f1e3c 0%, #1a3a6e 60%, #1d4ed8 100%)', borderRadius: 16, padding: '32px 36px', marginBottom: 28, color: '#fff' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#93c5fd', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>ALGORITHM REFERENCE</div>
-            <h1 style={{ margin: '0 0 12px', fontSize: 26, fontWeight: 900 }}>How Routes Are Found & Ranked</h1>
-            <p style={{ margin: 0, fontSize: 13, color: 'rgba(200,220,255,0.85)', lineHeight: 1.7, maxWidth: 580 }}>A four-stage pipeline: Graph Search → Apply Constraints → Select Pool (30) → Sort & Display (1–10 shown).</p>
-          </div>
-          <div style={{ ...card() as React.CSSProperties, marginBottom: 24, padding: '22px 20px' }}>
-            <div style={sectionLabel as React.CSSProperties}>The Four-Stage Pipeline</div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
-              {pipeBox('1', '#3b82f6', '🔍', 'Graph Search', 'NetworkX finds all valid shortest paths', 'up to 500')}
-              {algoArrow}
-              {pipeBox('2', '#f59e0b', '⚖️', 'Constraints', 'Hard rules remove invalid paths', 'varies')}
-              {algoArrow}
-              {pipeBox('3', '#8b5cf6', '🎯', 'Select Pool', 'Best 30 chosen across 6 dimensions', '30 kept')}
-              {algoArrow}
-              {pipeBox('4', '#10b981', '📊', 'Sort & Display', 'Sorted by chosen metric; 1–10 shown', '1–10 shown')}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Page 4 content (inline) ── */}
-        <div style={pageStyle}>
-          <div style={{ background: 'linear-gradient(135deg, #0f1e3c 0%, #0d2640 60%, #0c3a3a 100%)', borderRadius: 16, padding: '32px 36px', marginBottom: 28, color: '#fff' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: '#6ee7b7', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 8 }}>DATA MODEL</div>
-            <h1 style={{ margin: '0 0 12px', fontSize: 26, fontWeight: 900 }}>The Network in Data</h1>
-            <p style={{ margin: 0, fontSize: 13, color: 'rgba(180,230,220,0.85)', lineHeight: 1.7, maxWidth: 580 }}>{nodeCount} nodes · {segmentCount} segments · {systemCount} cable systems — the structured graph that powers every route calculation.</p>
-          </div>
-          <div style={{ marginBottom: 20 }}>
-            <div style={sectionLabel}>Core Entities & Today vs Tomorrow</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {entityCard('📍', 'Node', t.blue, [{ field: 'id', type: 'string', desc: 'Unique ID (e.g. SIN3). Used in route paths and node constraints.' }, { field: 'country', type: 'ISO-2', desc: 'Country code for must_avoid / must_include country constraints.' }, { field: 'type', type: 'enum', desc: 'landing_station | terrestrial_pop | branching_unit.' }])}
-              {entityCard('🔗', 'Segment', '#8b5cf6', [{ field: 'system_id', type: 'string', desc: 'Parent cable system — links to system constraints and margin scoring.' }, { field: 'latency', type: 'float ms', desc: 'One-way delay summed across path for end-to-end RTD.' }, { field: 'ownership', type: 'enum', desc: 'owned | iru | consortium | integrated_lit_lease | offnet_resell.' }])}
-              {todayTomorrowRow('Network Capacity', t.green, 'Static table from planning spreadsheets.', 'Veritas inventory feed — live capacity per segment.')}
-              {todayTomorrowRow('Segment Outages', t.red, 'Manually entered in Ref Data by network ops.', 'Telstra Service Management (TSM / ServiceNow) — auto-pushed on fault creation.')}
-              {todayTomorrowRow('Latency / RTD', t.blue, 'Engineering RTD tests (distance estimate is temporary).', 'NMS — measured round-trip delay per segment in real time.')}
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-    return createPortal(printContent, document.body)
-  }
 
   // ── Architecture page ──────────────────────────────────────────────────────
-  if (page === 2) {
-    return (
-      <div style={{
-        maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
-        fontFamily: 'system-ui, sans-serif', color: t.text,
-      }}>
-        {pageTabs}
+  const arch = (
+    <div style={{
+      maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
+      fontFamily: 'system-ui, sans-serif', color: t.text,
+    }}>
+      {!printAll && pageTabs}
 
         {/* ── Hero ── */}
         <div style={{
@@ -640,18 +536,17 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         <div style={{ textAlign: 'center', padding: '20px 0 0', borderTop: `1px solid ${t.border}` }}>
           <div style={{ fontSize: 11, color: t.textFaint }}>International Telco · RouteBuilder · Architecture Overview</div>
         </div>
-      </div>
-    )
-  }
+    </div>
+  )
+  if (page === 2 && !printAll) return arch
 
   // ── Page 3: Search Algorithm ──────────────────────────────────────────────
-  if (page === 3) {
-    return (
-      <div style={{
-        maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
-        fontFamily: 'system-ui, sans-serif', color: t.text,
-      }}>
-        {pageTabs}
+  const algo = (
+    <div style={{
+      maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
+      fontFamily: 'system-ui, sans-serif', color: t.text,
+    }}>
+      {!printAll && pageTabs}
 
         {/* Hero */}
         <div style={{
@@ -833,18 +728,17 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         <div style={{ textAlign: 'center', padding: '20px 0 0', borderTop: `1px solid ${t.border}` }}>
           <div style={{ fontSize: 11, color: t.textFaint }}>International Telco · RouteBuilder · Search Algorithm Reference</div>
         </div>
-      </div>
-    )
-  }
+    </div>
+  )
+  if (page === 3 && !printAll) return algo
 
   // ── Page 4: Data Model ────────────────────────────────────────────────────
-  if (page === 4) {
-    return (
-      <div style={{
-        maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
-        fontFamily: 'system-ui, sans-serif', color: t.text,
-      }}>
-        {pageTabs}
+  const dataModel = (
+    <div style={{
+      maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
+      fontFamily: 'system-ui, sans-serif', color: t.text,
+    }}>
+      {!printAll && pageTabs}
 
         {/* Hero */}
         <div style={{
@@ -999,17 +893,17 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         <div style={{ textAlign: 'center', padding: '20px 0 0', borderTop: `1px solid ${t.border}` }}>
           <div style={{ fontSize: 11, color: t.textFaint }}>International Telco · RouteBuilder · Data Model</div>
         </div>
-      </div>
-    )
-  }
+    </div>
+  )
+  if (page === 4 && !printAll) return dataModel
 
   // ── Page 1: Product Overview ───────────────────────────────────────────────
-  return (
+  const overview = (
     <div style={{
       maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
       fontFamily: 'system-ui, sans-serif', color: t.text,
     }}>
-      {pageTabs}
+      {!printAll && pageTabs}
 
       {/* ── Hero ── */}
       <div style={{
@@ -1366,4 +1260,27 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       </div>
     </div>
   )
+  // ── Print-all portal ──────────────────────────────────────────────────────
+  if (printAll) {
+    const printContent = (
+      <div
+        ref={printRef}
+        id="rb-guide-print-portal"
+        style={{
+          background: t.bgBase,
+          position: 'fixed', top: 0, left: '-200vw', width: '100vw',
+          WebkitPrintColorAdjust: 'exact',
+          printColorAdjust: 'exact',
+        } as React.CSSProperties}
+      >
+        <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{overview}</div>
+        <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{arch}</div>
+        <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{algo}</div>
+        <div>{dataModel}</div>
+      </div>
+    )
+    return createPortal(printContent, document.body)
+  }
+
+  return overview
 }
