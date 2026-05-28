@@ -419,24 +419,42 @@ function PairCard({
 }) {
   const t = useTheme()
   const [segmentsOpen, setSegmentsOpen] = useState(false)
+  const [flipped, setFlipped] = useState(false)
 
-  const primarySegIds = new Set(pair.primary.segments.map(s => s.segment_id))
-  const sharedIds = new Set(pair.diverse.segments.filter(s => primarySegIds.has(s.segment_id)).map(s => s.segment_id))
+  // Flipping swaps which route is displayed as worker vs protect within this pair
+  const worker  = flipped ? pair.diverse  : pair.primary
+  const protect = flipped ? pair.primary  : pair.diverse
+
+  const workerSegIds = new Set(worker.segments.map(s => s.segment_id))
+  const sharedIds = new Set(protect.segments.filter(s => workerSegIds.has(s.segment_id)).map(s => s.segment_id))
 
   // Shared intermediate nodes (exclude endpoints — they're always the same for both routes)
-  const routeStart = pair.primary.nodes[0]
-  const routeEnd = pair.primary.nodes[pair.primary.nodes.length - 1]
-  const primaryNodeSet = new Set(pair.primary.nodes)
+  const routeStart = worker.nodes[0]
+  const routeEnd = worker.nodes[worker.nodes.length - 1]
+  const workerNodeSet = new Set(worker.nodes)
   const sharedNodeIds = new Set(
-    pair.diverse.nodes.filter(n => primaryNodeSet.has(n) && n !== routeStart && n !== routeEnd)
+    protect.nodes.filter(n => workerNodeSet.has(n) && n !== routeStart && n !== routeEnd)
   )
 
   return (
     <div style={{ marginBottom: 6 }}>
-      {/* Pair label + breakdown toggle */}
+      {/* Pair label + breakdown toggle + flip button */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px 3px' }}>
-        <div style={{ fontSize: 9, color: t.textFaint, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>
-          Pair {idx + 1}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ fontSize: 9, color: t.textFaint, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>
+            Pair {idx + 1}
+          </div>
+          <button
+            onClick={e => { e.stopPropagation(); setFlipped(f => !f) }}
+            title="Flip worker/protect roles within this pair"
+            style={{
+              fontSize: 11, padding: '1px 5px', borderRadius: 4, cursor: 'pointer',
+              border: `1px solid ${flipped ? t.orange + '88' : t.border}`,
+              background: flipped ? t.orange + '18' : 'transparent',
+              color: flipped ? t.orange : t.textFaint, fontWeight: 600,
+              lineHeight: 1,
+            }}
+          >⇅</button>
         </div>
         <button
           onClick={e => { e.stopPropagation(); setSegmentsOpen(o => !o) }}
@@ -454,14 +472,14 @@ function PairCard({
 
       {/* Worker */}
       <RouteCard
-        route={pair.primary}
-        selected={selected(pair.primary.id)}
-        onSelect={() => onSelectPair(pair.primary.id, pair.diverse.id)}
+        route={worker}
+        selected={selected(worker.id)}
+        onSelect={() => onSelectPair(worker.id, protect.id)}
         nodesById={nodesById}
         capacityById={capacityById}
         outagesById={outagesById}
         color={t.blue}
-        isPinned={pinnedKeys.has(routeKey(pair.primary))}
+        isPinned={pinnedKeys.has(routeKey(worker))}
         canPin={canPin}
         onPin={onPin}
         onNetSet={onNetSet}
@@ -478,14 +496,14 @@ function PairCard({
 
       {/* Protect */}
       <RouteCard
-        route={pair.diverse}
-        selected={selected(pair.diverse.id)}
-        onSelect={() => onSelectPair(pair.diverse.id, pair.primary.id)}
+        route={protect}
+        selected={selected(protect.id)}
+        onSelect={() => onSelectPair(protect.id, worker.id)}
         nodesById={nodesById}
         capacityById={capacityById}
         outagesById={outagesById}
         color={t.green}
-        isPinned={pinnedKeys.has(routeKey(pair.diverse))}
+        isPinned={pinnedKeys.has(routeKey(protect))}
         canPin={canPin}
         onPin={onPin}
         onNetSet={onNetSet}
@@ -500,11 +518,11 @@ function PairCard({
         >
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: t.blue, marginBottom: 6, letterSpacing: '0.04em' }}>🔵 Worker</div>
-            <PairBreakdown route={pair.primary} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.blue} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+            <PairBreakdown route={worker} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.blue} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
           </div>
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: t.green, marginBottom: 6, letterSpacing: '0.04em' }}>🟢 Protect</div>
-            <PairBreakdown route={pair.diverse} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.green} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+            <PairBreakdown route={protect} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.green} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
           </div>
         </div>
       )}

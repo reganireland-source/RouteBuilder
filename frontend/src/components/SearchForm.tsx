@@ -1096,9 +1096,28 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div>
+      <div style={{ position: 'relative' }}>
         <label style={labelStyle}>Origin</label>
         <NodeCombobox nodes={nodes} value={startNode} onChange={setStartNode} placeholder="Search city, code, country, owner…" />
+
+        {/* Flip origin ↔ destination — Google Maps style */}
+        <button
+          type="button"
+          title="Swap origin and destination"
+          onClick={() => { setStartNode(endNode); setEndNode(startNode) }}
+          style={{
+            position: 'absolute', right: -2, top: '50%',
+            transform: 'translateY(-50%)',
+            width: 26, height: 26, borderRadius: '50%',
+            border: `1px solid ${t.border}`,
+            background: t.bgDeep,
+            color: t.textMuted,
+            cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 14, lineHeight: 1,
+            zIndex: 1,
+          }}
+        >⇅</button>
       </div>
 
       <div>
