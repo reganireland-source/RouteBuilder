@@ -10,6 +10,8 @@ venv/
 node_modules/
 dist/
 .vite/
+.env.local
+.env.*.local
 
 # Editor
 .DS_Store
