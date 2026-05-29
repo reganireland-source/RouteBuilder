@@ -342,7 +342,6 @@ export default function App() {
     setPendingPinSaving(true)
     try {
       const { worker, protect, searchLabel } = pendingPin
-      const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
       const id = `${worker.nodes[0]}-${worker.nodes[worker.nodes.length - 1]}-${Date.now().toString(36)}`
       const label = pendingPinLabel.trim() || undefined
       const usedColors = pinnedRoutes.map(p => p.color)
