@@ -57,6 +57,8 @@ export default function App() {
   const [pendingPin, setPendingPin] = useState<{ worker: Route; protect?: Route; searchLabel: string } | null>(null)
   const [pendingPinLabel, setPendingPinLabel] = useState('')
   const [pendingPinSaving, setPendingPinSaving] = useState(false)
+  const [sldVersionPrompt, setSldVersionPrompt] = useState(false)
+  const [sldVersion, setSldVersion] = useState('')
   const [mode, setMode]               = useState<AppMode>('routebuilder')
   const [nodes, setNodes]             = useState<CableNode[]>([])
   const [segments, setSegments]       = useState<CableSegment[]>([])
@@ -723,7 +725,7 @@ export default function App() {
             {hasPins    && <span style={{ fontSize: 11, color: theme.textFaintest }}>· {pinnedRoutes.length} pinned</span>}
             {loading    && <span style={{ fontSize: 11, color: theme.blue }}>Searching…</span>}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-              {hasPins    && <button onClick={() => generateStraightLineDiagram(pinnedRoutes, nodes)} title="Export SLD" style={clearBtnStyle(theme)}>⬡ SLD</button>}
+              {hasPins    && <button onClick={() => { setSldVersion(''); setSldVersionPrompt(true) }} title="Export SLD" style={clearBtnStyle(theme)}>⬡ SLD</button>}
               {hasResults && <button onClick={clearSearch} style={clearBtnStyle(theme)}>Clear Search</button>}
               {(hasResults || hasPins) && <button onClick={clearAll} style={clearBtnStyle(theme, true)}>Clear All</button>}
             </div>
@@ -871,6 +873,62 @@ export default function App() {
             })
           }}
         />
+      )}
+
+      {/* ── SLD version prompt ────────────────────────────────────────────── */}
+      {sldVersionPrompt && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9500,
+          background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: theme.bgCard, border: `1px solid ${theme.border}`, borderRadius: 12,
+            padding: '24px 28px', width: 'min(95vw, 380px)', boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: theme.text, marginBottom: 4 }}>Export SLD</div>
+            <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 16 }}>
+              Add an optional version label to the PDF.
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+              {['Proposal', 'Draft', 'Final'].map(v => (
+                <button key={v} onClick={() => setSldVersion(v)}
+                  style={{
+                    padding: '5px 12px', borderRadius: 5, fontSize: 12, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    border: `1px solid ${sldVersion === v ? theme.blue : theme.border}`,
+                    background: sldVersion === v ? `${theme.blue}22` : 'transparent',
+                    color: sldVersion === v ? theme.blue : theme.textMuted,
+                  }}
+                >{v}</button>
+              ))}
+            </div>
+            <input
+              style={{
+                width: '100%', background: theme.bgBase, border: `1px solid ${theme.border}`,
+                borderRadius: 6, padding: '8px 11px', color: theme.text, fontSize: 13,
+                outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', marginBottom: 16,
+              }}
+              placeholder="Or type a custom version…"
+              value={sldVersion}
+              onChange={e => setSldVersion(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { generateStraightLineDiagram(pinnedRoutes, nodes, sldVersion || undefined); setSldVersionPrompt(false) }
+                if (e.key === 'Escape') setSldVersionPrompt(false)
+              }}
+            />
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => { generateStraightLineDiagram(pinnedRoutes, nodes, sldVersion || undefined); setSldVersionPrompt(false) }}
+                style={{ padding: '8px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none', background: theme.blue, color: theme.bgCard, fontFamily: 'inherit' }}
+              >Generate PDF</button>
+              <button
+                onClick={() => setSldVersionPrompt(false)}
+                style={{ padding: '8px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.border}`, background: 'transparent', color: theme.textMuted, fontFamily: 'inherit' }}
+              >Cancel</button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* ── Project pin label prompt ───────────────────────────────────────── */}

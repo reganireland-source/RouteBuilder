@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Map } from './Map'
 import { SearchForm } from './SearchForm'
 import { RouteList } from './RouteList'
@@ -142,8 +143,10 @@ export function MobileLayout({
   const lastTime    = useRef(0)
   const velocity    = useRef(0)  // px/ms, positive = downward
 
-  const [capDashOpen, setCapDashOpen]   = useState(false)
-  const [drawerOpen, setDrawerOpen]     = useState(false)
+  const [capDashOpen, setCapDashOpen]     = useState(false)
+  const [drawerOpen, setDrawerOpen]       = useState(false)
+  const [sldVersionPrompt, setSldVersionPrompt] = useState(false)
+  const [sldVersion, setSldVersion]       = useState('')
   const [searchPrefill, setSearchPrefill] = useState<import('../types').RouteRequest | undefined>(undefined)
   const hasPins    = pinnedRoutes.length > 0
   const hasResults = response !== null
@@ -459,7 +462,7 @@ export function MobileLayout({
                   {hasResults && !loading && <span style={{ fontSize: 11, color: t.textFaintest }}>{response!.primary_routes.length + response!.diverse_routes.length} routes found</span>}
                   {hasPins    && <span style={{ fontSize: 11, color: t.textFaintest }}>· {pinnedRoutes.length} pinned</span>}
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-                    {hasPins    && <button onClick={() => generateStraightLineDiagram(pinnedRoutes, nodes)} style={smallBtn()}>⬡ SLD</button>}
+                    {hasPins    && <button onClick={() => { setSldVersion(''); setSldVersionPrompt(true) }} style={smallBtn()}>⬡ SLD</button>}
                     {hasResults && <button onClick={clearSearch} style={smallBtn()}>Clear</button>}
                     {(hasResults || hasPins) && <button onClick={clearAll} style={smallBtn(true)}>Clear All</button>}
                   </div>
@@ -589,6 +592,57 @@ export function MobileLayout({
           onDataChange={onDataChange}
           onClose={onCloseRefData}
         />
+      )}
+
+      {/* ── SLD version prompt ──────────────────────────────────────────────── */}
+      {sldVersionPrompt && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9500,
+          background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '0 16px',
+        }}>
+          <div style={{
+            background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 12,
+            padding: '24px 20px', width: '100%', maxWidth: 380, boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 4 }}>Export SLD</div>
+            <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 14 }}>Add an optional version label to the PDF.</div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+              {['Proposal', 'Draft', 'Final'].map(v => (
+                <button key={v} onClick={() => setSldVersion(v)}
+                  style={{
+                    flex: 1, padding: '8px 4px', borderRadius: 5, fontSize: 12, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    border: `1px solid ${sldVersion === v ? t.blue : t.border}`,
+                    background: sldVersion === v ? `${t.blue}22` : 'transparent',
+                    color: sldVersion === v ? t.blue : t.textMuted,
+                  }}
+                >{v}</button>
+              ))}
+            </div>
+            <input
+              style={{
+                width: '100%', background: t.bgBase, border: `1px solid ${t.border}`,
+                borderRadius: 6, padding: '10px 12px', color: t.text, fontSize: 14,
+                outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', marginBottom: 16,
+              }}
+              placeholder="Or type a custom version…"
+              value={sldVersion}
+              onChange={e => setSldVersion(e.target.value)}
+            />
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => { generateStraightLineDiagram(pinnedRoutes, nodes, sldVersion || undefined); setSldVersionPrompt(false) }}
+                style={{ flex: 1, padding: '10px', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: 'none', background: t.blue, color: t.bgCard, fontFamily: 'inherit' }}
+              >Generate PDF</button>
+              <button
+                onClick={() => setSldVersionPrompt(false)}
+                style={{ flex: 1, padding: '10px', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted, fontFamily: 'inherit' }}
+              >Cancel</button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
     </div>

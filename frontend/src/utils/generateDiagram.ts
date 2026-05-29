@@ -25,7 +25,7 @@ const NODE_R      = 2.2   // node circle radius
 
 // ── Per-page diagram ──────────────────────────────────────────────────────────
 
-function drawRoute(doc: jsPDF, pinned: PinnedRoute, nodesById: Record<string, CableNode>, pageNum: number, total: number) {
+function drawRoute(doc: jsPDF, pinned: PinnedRoute, nodesById: Record<string, CableNode>, pageNum: number, total: number, version?: string) {
   const route     = pinned.route
   const segs      = route.segments
   const totalKm   = route.total_length_km
@@ -43,7 +43,8 @@ function drawRoute(doc: jsPDF, pinned: PinnedRoute, nodesById: Record<string, Ca
   doc.setFontSize(7)
   doc.setTextColor(140, 140, 140)
   doc.text('TELSTRA INTERNATIONAL · ROUTEBUILDER', MARGIN, 17)
-  doc.text(`Page ${pageNum} of ${total}  ·  ${new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })}`, PAGE_W - MARGIN, 17, { align: 'right' })
+  const versionTag = version ? `  ·  ${version.toUpperCase()}` : ''
+  doc.text(`Page ${pageNum} of ${total}  ·  ${new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })}${versionTag}`, PAGE_W - MARGIN, 17, { align: 'right' })
 
   // Route title
   doc.setFontSize(13)
@@ -246,7 +247,7 @@ function drawRoute(doc: jsPDF, pinned: PinnedRoute, nodesById: Record<string, Ca
 
 // ── Cover page ────────────────────────────────────────────────────────────────
 
-function drawCover(doc: jsPDF, pinnedRoutes: PinnedRoute[], nodesById: Record<string, CableNode>) {
+function drawCover(doc: jsPDF, pinnedRoutes: PinnedRoute[], nodesById: Record<string, CableNode>, version?: string) {
   // Header stripe
   doc.setFillColor(30, 30, 50)
   doc.rect(0, 0, PAGE_W, 40, 'F')
@@ -258,6 +259,15 @@ function drawCover(doc: jsPDF, pinnedRoutes: PinnedRoute[], nodesById: Record<st
   doc.setFontSize(9)
   doc.setTextColor(160, 160, 200)
   doc.text('RouteBuilder · International Telco', MARGIN, 33)
+
+  // Version badge
+  if (version) {
+    const versionText = version.toUpperCase()
+    doc.setFontSize(8)
+    doc.setTextColor(255, 230, 130)
+    const vX = MARGIN + 185
+    doc.text(versionText, vX, 24)
+  }
 
   // Date
   doc.setFontSize(8)
@@ -331,19 +341,20 @@ function drawCover(doc: jsPDF, pinnedRoutes: PinnedRoute[], nodesById: Record<st
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
-export function generateStraightLineDiagram(pinnedRoutes: PinnedRoute[], nodes: CableNode[]) {
+export function generateStraightLineDiagram(pinnedRoutes: PinnedRoute[], nodes: CableNode[], version?: string) {
   if (pinnedRoutes.length === 0) return
 
   const doc        = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
   const nodesById  = Object.fromEntries(nodes.map(n => [n.id, n]))
   const totalPages = pinnedRoutes.length + 1   // cover + one per route
 
-  drawCover(doc, pinnedRoutes, nodesById)
+  drawCover(doc, pinnedRoutes, nodesById, version)
 
   pinnedRoutes.forEach((pinned, i) => {
     doc.addPage()
-    drawRoute(doc, pinned, nodesById, i + 2, totalPages)
+    drawRoute(doc, pinned, nodesById, i + 2, totalPages, version)
   })
 
-  doc.save(`RouteBuilder-SLD-${new Date().toISOString().slice(0, 10)}.pdf`)
+  const versionSlug = version ? `-${version.replace(/\s+/g, '-')}` : ''
+  doc.save(`RouteBuilder-SLD-${new Date().toISOString().slice(0, 10)}${versionSlug}.pdf`)
 }
