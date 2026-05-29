@@ -769,18 +769,57 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
       <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, borderRadius: '6px 0 0 6px', background: color }} />
 
       <div style={{ paddingLeft: 6 }}>
-        {/* Search context label */}
-        <div style={{ fontSize: 10, color: t.textFaint, marginBottom: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>📌 {searchLabel}</span>
+        {/* Top row: circuit name (if set) or search label + enrich + unpin */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {circuitLabel
+              ? <span style={{ fontSize: 12, fontWeight: 700, color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{circuitLabel}</span>
+              : <span style={{ fontSize: 10, color: t.textFaint }}>📌 {searchLabel}</span>
+            }
+          </div>
+          <button
+            onClick={() => {
+              if (!projectId) { setEnrichNudge(true); setTimeout(() => setEnrichNudge(false), 3000); return }
+              onEnrichCircuit?.()
+            }}
+            title={
+              !projectId ? 'Add to a project first'
+              : enrich === 'full' ? 'Fully enriched — click to review'
+              : enrich === 'partial' ? 'Partially enriched — click to complete'
+              : 'No attributes enriched — click to add details'
+            }
+            style={{
+              fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 4, flexShrink: 0,
+              border: `1px solid ${projectId ? t.blue + '88' : t.border}`,
+              background: projectId ? `${t.blue}18` : t.bgDeep,
+              color: projectId ? t.blue : t.textFaintest,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
+            </svg>
+            Enrich
+            {projectId && (
+              <span style={{
+                width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                background: enrich === 'full' ? '#22c55e' : enrich === 'partial' ? '#f59e0b' : '#ef4444',
+                boxShadow: `0 0 4px ${enrich === 'full' ? '#22c55e' : enrich === 'partial' ? '#f59e0b' : '#ef4444'}99`,
+              }} />
+            )}
+          </button>
           <button
             onClick={onUnpin}
             title="Unpin route"
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: t.textFaint, fontSize: 14, lineHeight: 1, padding: '0 2px',
-            }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textFaint, fontSize: 14, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
           >×</button>
         </div>
+
+        {/* If circuit label shown above, show the search label as subtitle */}
+        {circuitLabel && (
+          <div style={{ fontSize: 10, color: t.textFaint, marginBottom: 3 }}>📌 {searchLabel}</div>
+        )}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flex: 1 }}>
@@ -803,54 +842,9 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
           <span>Avail: <strong style={{ color: t.text }}>{reliabilityPct}%</strong></span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
-          {projectId && (
-            <span style={{
-              fontSize: 10, fontWeight: 600, color: t.blue,
-              background: `${t.blue}22`, border: `1px solid ${t.blue}55`,
-              borderRadius: 4, padding: '2px 7px',
-            }}>
-              📁 {circuitLabel ?? 'In Project'}
-            </span>
-          )}
-          <button
-            onClick={() => {
-              if (!projectId) { setEnrichNudge(true); setTimeout(() => setEnrichNudge(false), 3000); return }
-              onEnrichCircuit?.()
-            }}
-            title={
-              !projectId ? 'Add to a project first via 📁'
-              : enrich === 'full' ? 'Fully enriched — click to review'
-              : enrich === 'partial' ? 'Partially enriched — click to complete'
-              : 'No attributes enriched — click to add details'
-            }
-            style={{
-              fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4,
-              border: `1px solid ${projectId ? t.blue + '88' : t.border}`,
-              background: projectId ? `${t.blue}18` : t.bgDeep,
-              color: projectId ? t.blue : t.textFaintest,
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-            }}
-          >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
-            </svg>
-            Enrich
-            {projectId && (
-              <span style={{
-                width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-                background: enrich === 'full' ? '#22c55e' : enrich === 'partial' ? '#f59e0b' : '#ef4444',
-                boxShadow: `0 0 4px ${enrich === 'full' ? '#22c55e' : enrich === 'partial' ? '#f59e0b' : '#ef4444'}99`,
-              }} />
-            )}
-          </button>
-          {enrichNudge && (
-            <span style={{ fontSize: 11, color: t.orange }}>
-              Add to a project first via 📁
-            </span>
-          )}
-        </div>
+        {enrichNudge && (
+          <div style={{ fontSize: 11, color: t.orange, marginBottom: 4 }}>Add to a project first via 📁</div>
+        )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div style={{
