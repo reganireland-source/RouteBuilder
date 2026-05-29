@@ -511,7 +511,7 @@ export default function App() {
 
   return (
     <ThemeContext.Provider value={theme}>
-      <div style={{ display: 'flex', height: '100vh', background: theme.bgBase, color: theme.text, fontFamily: 'system-ui, sans-serif', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', height: '100vh', background: theme.bgBase, color: theme.text, fontFamily: "'Inter', system-ui, sans-serif", overflow: 'hidden' }}>
 
         {/* Top-right control menu */}
         {(() => {
