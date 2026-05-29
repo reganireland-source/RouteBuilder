@@ -13,7 +13,7 @@ interface Props {
   onRestorePins?: (circuits: import('../types').ProjectCircuit[], projectId: string) => void
   onCircuitAdded?: (projectId: string, circuitId: string, circuitLabel?: string) => void
   onActivateProject?: (project: Project) => void
-  initialProjects?: Project[]
+  initialProjects?: Project[] | null
   onProjectsChange?: (projects: Project[]) => void
 }
 
@@ -54,7 +54,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    const projectsPromise = initialProjects ? Promise.resolve(initialProjects) : api.getProjects()
+    const projectsPromise = initialProjects != null ? Promise.resolve(initialProjects) : api.getProjects()
     Promise.all([projectsPromise, api.getInterfaces()]).then(([p, i]) => {
       setProjects(p)
       setInterfaces(i)

@@ -167,7 +167,7 @@ export default function App() {
   const [response, setResponse]       = useState<RouteResponse | null>(null)
   const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([])
   const [pinnedRoutes, setPinnedRoutes]         = useState<PinnedRoute[]>([])
-  const [cachedProjects, setCachedProjects]     = useState<import('./types').Project[]>([])
+  const [cachedProjects, setCachedProjects]     = useState<import('./types').Project[] | null>(null)
   const [selectedSystems, setSelectedSystems]   = useState<SelectedSystem[]>([])
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
