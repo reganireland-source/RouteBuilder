@@ -41,6 +41,104 @@ function useIsMobile() {
   return isMobile
 }
 
+function ModeBanner({ activeProject, onSwitch, onExit, theme }: {
+  activeProject: import('./types').Project | null
+  onSwitch: () => void
+  onExit: () => void
+  theme: import('./theme').Theme
+}) {
+  const [open, setOpen] = useState(false)
+  const isProject = !!activeProject
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+          padding: '9px 16px', border: 'none', cursor: 'pointer',
+          background: isProject ? `${theme.blue}22` : theme.bgDeep,
+          borderBottom: `1px solid ${isProject ? theme.blue + '55' : theme.border}`,
+          color: isProject ? theme.blue : theme.textMuted,
+          textAlign: 'left',
+        }}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+          {isProject
+            ? <><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></>
+            : <><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></>
+          }
+        </svg>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.75, lineHeight: 1 }}>
+            {isProject ? 'Project Mode' : 'Mode'}
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: isProject ? theme.blue : theme.text, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {isProject ? (activeProject.name || 'Untitled Project') : 'Circuit Designer'}
+          </div>
+        </div>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.5, transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 499 }} />
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 500,
+            background: theme.bgPanel, border: `1px solid ${theme.border}`,
+            borderTop: 'none', borderRadius: '0 0 8px 8px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            padding: 12, display: 'flex', flexDirection: 'column', gap: 8,
+          }}>
+            {isProject && activeProject.customer_name && (
+              <div style={{ fontSize: 11, color: theme.textMuted, paddingBottom: 4, borderBottom: `1px solid ${theme.border}` }}>
+                👤 {activeProject.customer_name} · {activeProject.circuits.length} circuit{activeProject.circuits.length !== 1 ? 's' : ''}
+              </div>
+            )}
+            {isProject ? (
+              <>
+                <button
+                  onClick={() => { setOpen(false); onSwitch() }}
+                  style={{
+                    padding: '8px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                    border: `1px solid ${theme.blue}66`, background: `${theme.blue}18`,
+                    color: theme.blue, cursor: 'pointer', textAlign: 'left',
+                  }}
+                >
+                  ⇄ Switch Project
+                </button>
+                <button
+                  onClick={() => { setOpen(false); onExit() }}
+                  style={{
+                    padding: '8px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                    border: `1px solid ${theme.border}`, background: 'transparent',
+                    color: theme.textMuted, cursor: 'pointer', textAlign: 'left',
+                  }}
+                >
+                  ✕ Exit to Circuit Designer
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => { setOpen(false); onSwitch() }}
+                style={{
+                  padding: '8px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                  border: `1px solid ${theme.blue}66`, background: `${theme.blue}18`,
+                  color: theme.blue, cursor: 'pointer', textAlign: 'left',
+                }}
+              >
+                📁 Open a Project
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function App() {
   const isMobile = useIsMobile()
 
@@ -709,8 +807,14 @@ export default function App() {
           width: 520, flexShrink: 0, display: 'flex', flexDirection: 'column',
           background: theme.bgDeep, borderRight: `1px solid ${theme.border}`,
         }}>
+          <ModeBanner
+            activeProject={activeProject}
+            onSwitch={() => { setAddToProjectRoute(null); setEnrichTarget(null); setProjectsOpen(true) }}
+            onExit={() => { setActiveProject(null); setPinnedRoutes([]) }}
+            theme={theme}
+          />
           <div style={{
-            padding: '10px 16px', borderBottom: `1px solid ${theme.border}`,
+            padding: '7px 16px', borderBottom: `1px solid ${theme.border}`,
             display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
           }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Routes</span>

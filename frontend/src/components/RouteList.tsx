@@ -231,43 +231,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
       {/* Pinned routes section */}
       {hasPins && (
         <div style={{ marginBottom: hasResults ? 8 : 0 }}>
-          {activeProject ? (
-            <div style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '7px 10px', borderRadius: 6, marginBottom: 6,
-              background: `${t.blue}18`, border: `1px solid ${t.blue}55`,
-            }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: t.blue, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                    📁 Project Mode
-                  </span>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: t.text }}>{activeProject.name || '(Untitled)'}</span>
-                </div>
-                {activeProject.customer_name && (
-                  <span style={{ fontSize: 10, color: t.textMuted }}>👤 {activeProject.customer_name}</span>
-                )}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 10, color: t.textFaint }}>{activeProject.circuits.length} circuit{activeProject.circuits.length !== 1 ? 's' : ''}</span>
-                <button
-                  onClick={onSwitchProject}
-                  title="Switch to a different project"
-                  style={{
-                    fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 4, cursor: 'pointer',
-                    border: `1px solid ${t.blue}66`, background: 'transparent', color: t.blue,
-                  }}
-                >Switch</button>
-                <button
-                  onClick={onExitProjectMode}
-                  title="Exit project mode (return to adhoc)"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textFaint, fontSize: 16, lineHeight: 1, padding: '0 2px' }}
-                >×</button>
-              </div>
-            </div>
-          ) : (
-            <div style={sectionLabelStyle(t)}>📌 Pinned Routes</div>
-          )}
+          {!activeProject && <div style={sectionLabelStyle(t)}>📌 Pinned Routes</div>}
           {pinnedRoutes.map(p => (
             <PinnedRouteCard
               key={p.pinId}

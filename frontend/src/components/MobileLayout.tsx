@@ -116,6 +116,83 @@ export interface MobileLayoutProps {
   onOpenGuide:                   () => void
 }
 
+function MobileModeBanner({ activeProject, onSwitch, onExit, t }: {
+  activeProject: Project | null
+  onSwitch: () => void
+  onExit: () => void
+  t: import('../theme').Theme
+}) {
+  const [open, setOpen] = useState(false)
+  const isProject = !!activeProject
+
+  return (
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+          padding: '8px 16px', border: 'none', cursor: 'pointer',
+          background: isProject ? `${t.blue}22` : t.bgPanel,
+          borderBottom: `1px solid ${isProject ? t.blue + '55' : t.border}`,
+          color: isProject ? t.blue : t.textMuted,
+          textAlign: 'left',
+        }}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+          {isProject
+            ? <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            : <><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></>
+          }
+        </svg>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.75, lineHeight: 1 }}>
+            {isProject ? 'Project Mode' : 'Mode'}
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: isProject ? t.blue : t.text, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {isProject ? (activeProject.name || 'Untitled Project') : 'Circuit Designer'}
+          </div>
+        </div>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.5, transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 499 }} />
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 500,
+            background: t.bgPanel, border: `1px solid ${t.border}`,
+            borderTop: 'none', borderRadius: '0 0 8px 8px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            padding: 12, display: 'flex', flexDirection: 'column', gap: 8,
+          }}>
+            {isProject && activeProject.customer_name && (
+              <div style={{ fontSize: 11, color: t.textMuted, paddingBottom: 4, borderBottom: `1px solid ${t.border}` }}>
+                👤 {activeProject.customer_name} · {activeProject.circuits.length} circuit{activeProject.circuits.length !== 1 ? 's' : ''}
+              </div>
+            )}
+            {isProject ? (
+              <>
+                <button onClick={() => { setOpen(false); onSwitch() }} style={{ padding: '8px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, border: `1px solid ${t.blue}66`, background: `${t.blue}18`, color: t.blue, cursor: 'pointer', textAlign: 'left' }}>
+                  ⇄ Switch Project
+                </button>
+                <button onClick={() => { setOpen(false); onExit() }} style={{ padding: '8px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted, cursor: 'pointer', textAlign: 'left' }}>
+                  ✕ Exit to Circuit Designer
+                </button>
+              </>
+            ) : (
+              <button onClick={() => { setOpen(false); onSwitch() }} style={{ padding: '8px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, border: `1px solid ${t.blue}66`, background: `${t.blue}18`, color: t.blue, cursor: 'pointer', textAlign: 'left' }}>
+                📁 Open a Project
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export function MobileLayout({
   nodes, segments, systems, capacity, outages, rules,
   response, selectedRoutes, selectedRouteIds, pinnedRoutes, selectedSystems,
@@ -435,6 +512,14 @@ export function MobileLayout({
         >
           <div style={{ width: 40, height: 4, borderRadius: 2, background: t.borderSubtle }} />
         </div>
+
+        {/* Mode banner */}
+        <MobileModeBanner
+          activeProject={activeProject ?? null}
+          onSwitch={() => onSwitchProject?.()}
+          onExit={() => onExitProjectMode?.()}
+          t={t}
+        />
 
         {/* Mode tabs */}
         <div style={{ flexShrink: 0, display: 'flex', borderBottom: `1px solid ${t.border}` }}>
