@@ -1,7 +1,21 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import type { Route, CableNode, CableSystem, SegmentCapacity, SegmentOutage, PinnedRoute, Project } from '../types'
+import type { Route, CableNode, CableSystem, SegmentCapacity, SegmentOutage, PinnedRoute, Project, ProjectCircuit, EndpointConfig } from '../types'
 import { useTheme } from '../theme'
+
+type EnrichLevel = 'none' | 'partial' | 'full'
+
+function enrichLevel(c: ProjectCircuit | undefined): EnrichLevel {
+  if (!c) return 'none'
+  const endFilled = (e: EndpointConfig) => !!(e.customer_site_name && e.access_type)
+  const coreFilled = !!(c.service_type && c.bandwidth && c.protection)
+  const endsFilled = endFilled(c.a_end) && endFilled(c.z_end)
+  if (coreFilled && endsFilled) return 'full'
+  const anyFilled = !!(c.service_type || c.bandwidth || c.protection ||
+    c.a_end.customer_site_name || c.a_end.access_type ||
+    c.z_end.customer_site_name || c.z_end.access_type)
+  return anyFilled ? 'partial' : 'none'
+}
 
 function useIsMobile(): boolean {
   const [mobile, setMobile] = useState(() => window.innerWidth < 768)
@@ -243,6 +257,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
               onNetSet={onNetSet}
               systemsById={systemsById}
               onEnrichCircuit={onEnrichCircuit ? () => onEnrichCircuit(p) : undefined}
+              activeProject={activeProject}
             />
           ))}
         </div>
@@ -600,7 +615,7 @@ function PairCard({
   )
 }
 
-function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, onNetSet, systemsById, onEnrichCircuit }: {
+function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, onNetSet, systemsById, onEnrichCircuit, activeProject }: {
   pinned: PinnedRoute
   onUnpin: () => void
   nodesById: Record<string, { name: string; type?: string }>
@@ -609,10 +624,13 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   onNetSet: Set<string>
   systemsById: Record<string, CableSystem>
   onEnrichCircuit?: () => void
+  activeProject?: Project | null
 }) {
   const t = useTheme()
   const isMobile = useIsMobile()
   const { route, color, searchLabel, projectId, circuitLabel } = pinned
+  const circuit = activeProject?.circuits.find(c => c.circuit_id === pinned.circuitId)
+  const enrich = enrichLevel(circuit)
   const [hovered, setHovered] = useState(false)
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
   const [segmentsOpen, setSegmentsOpen] = useState(false)
@@ -699,7 +717,12 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
               if (!projectId) { setEnrichNudge(true); setTimeout(() => setEnrichNudge(false), 3000); return }
               onEnrichCircuit?.()
             }}
-            title={projectId ? 'Open technical enrichment for this circuit' : 'Add to a project first via 📁'}
+            title={
+              !projectId ? 'Add to a project first via 📁'
+              : enrich === 'full' ? 'Fully enriched — click to review'
+              : enrich === 'partial' ? 'Partially enriched — click to complete'
+              : 'No attributes enriched — click to add details'
+            }
             style={{
               fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4,
               border: `1px solid ${projectId ? t.blue + '88' : t.border}`,
@@ -713,6 +736,13 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
               <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
             </svg>
             Enrich
+            {projectId && (
+              <span style={{
+                width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                background: enrich === 'full' ? '#22c55e' : enrich === 'partial' ? '#f59e0b' : '#ef4444',
+                boxShadow: `0 0 4px ${enrich === 'full' ? '#22c55e' : enrich === 'partial' ? '#f59e0b' : '#ef4444'}99`,
+              }} />
+            )}
           </button>
           {enrichNudge && (
             <span style={{ fontSize: 11, color: t.orange }}>
