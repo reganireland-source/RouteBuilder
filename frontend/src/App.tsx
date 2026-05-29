@@ -668,7 +668,7 @@ export default function App() {
               const color = PIN_COLORS.find(col => !usedColors.has(col)) ?? PIN_COLORS[i % PIN_COLORS.length]
               usedColors.add(color)
               pinCounter.current += 1
-              const label = c.search_label || `${nodesById[route.nodes[0]]?.name ?? route.nodes[0]} → ${nodesById[route.nodes[route.nodes.length - 1]]?.name ?? route.nodes[route.nodes.length - 1]}`
+              const label = c.label || c.search_label || `${nodesById[route.nodes[0]]?.name ?? route.nodes[0]} → ${nodesById[route.nodes[route.nodes.length - 1]]?.name ?? route.nodes[route.nodes.length - 1]}`
               return { pinId: `pin-${pinCounter.current}`, route, color, searchLabel: label }
             })
             setPinnedRoutes(newPins)

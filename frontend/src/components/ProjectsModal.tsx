@@ -44,6 +44,8 @@ export function ProjectsModal({ nodes, onClose, initialProject, pendingCircuit, 
   const [editingCircuit, setEditingCircuit] = useState<ProjectCircuit | null>(null)
   const [circuitDraft, setCircuitDraft] = useState<ProjectCircuit | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [pendingTargetProject, setPendingTargetProject] = useState<Project | null>(null)
+  const [pendingLabel, setPendingLabel] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -190,11 +192,12 @@ export function ProjectsModal({ nodes, onClose, initialProject, pendingCircuit, 
     return `${a?.name ?? r.nodes[0]} → ${z?.name ?? r.nodes[r.nodes.length - 1]}`
   }
 
-  function buildCircuitFromPending(p: typeof pendingCircuit): ProjectCircuit {
+  function buildCircuitFromPending(p: typeof pendingCircuit, label?: string): ProjectCircuit {
     const r = p!.route as unknown as Route
     const id = `${r.nodes[0]}-${r.nodes[r.nodes.length - 1]}-${Date.now().toString(36)}`
     return {
       circuit_id: id,
+      label: label?.trim() || undefined,
       search_label: p!.searchLabel,
       pin_color: '#94e2d5',
       order: 0,
@@ -206,14 +209,21 @@ export function ProjectsModal({ nodes, onClose, initialProject, pendingCircuit, 
     }
   }
 
-  async function addPendingToProject(p: Project) {
-    if (!pendingCircuit) return
-    const circuit = buildCircuitFromPending(pendingCircuit)
+  function handleProjectClick(p: Project) {
+    if (!pendingCircuit) { openProject(p); return }
+    setPendingTargetProject(p)
+    setPendingLabel('')
+  }
+
+  async function confirmAddToProject() {
+    if (!pendingCircuit || !pendingTargetProject) return
+    const circuit = buildCircuitFromPending(pendingCircuit, pendingLabel)
     setSaving(true); setErr('')
     try {
-      const updated = await api.addCircuit(p.id, circuit)
+      const updated = await api.addCircuit(pendingTargetProject.id, circuit)
       setProjects(ps => ps.map(proj => proj.id === updated.id ? updated : proj))
       setSelected(updated); setEditDraft(updated); setTab('detail'); setDetailTab('circuits')
+      setPendingTargetProject(null); setPendingLabel('')
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : 'Failed to add circuit')
     } finally {
@@ -226,7 +236,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, pendingCircuit, 
     return (
       <div style={s.scroll} ref={scrollRef}>
         {err && <div style={{ color: '#f38ba8', marginBottom: 12, fontSize: 13 }}>{err}</div>}
-        {pendingCircuit && (
+        {pendingCircuit && !pendingTargetProject && (
           <div style={{ padding: '12px 16px', borderRadius: 8, background: `${t.blue}18`, border: `1px solid ${t.blue}66`, marginBottom: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: t.blue, marginBottom: 4 }}>Adding circuit to project</div>
             <div style={{ fontSize: 12, color: t.textMuted }}>
@@ -234,6 +244,38 @@ export function ProjectsModal({ nodes, onClose, initialProject, pendingCircuit, 
               {pendingCircuit.protectRoute && <span style={{ color: '#f9e2af', marginLeft: 8 }}>+ Protect</span>}
             </div>
             <div style={{ fontSize: 12, color: t.textMuted, marginTop: 6 }}>Select a project below, or create a new one.</div>
+          </div>
+        )}
+        {pendingTargetProject && (
+          <div style={{ padding: '16px', borderRadius: 8, background: `${t.blue}18`, border: `1px solid ${t.blue}88`, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: t.blue, marginBottom: 2 }}>
+              Adding to: {pendingTargetProject.name}
+            </div>
+            <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 12 }}>
+              {pendingCircuit?.searchLabel}
+              {pendingCircuit?.protectRoute && <span style={{ color: '#f9e2af', marginLeft: 8 }}>+ Protect</span>}
+            </div>
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: t.textMuted, textTransform: 'uppercase' as const, marginBottom: 5 }}>
+                Circuit ID / Label <span style={{ fontWeight: 400, textTransform: 'none' as const }}>(optional — e.g. RFP-2025-001 or TOK-TPE-EPL-01)</span>
+              </div>
+              <input
+                autoFocus
+                style={s.input}
+                placeholder="Leave blank to auto-name"
+                value={pendingLabel}
+                onChange={e => setPendingLabel(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') confirmAddToProject() }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button style={s.btn(t.bgCard, t.blue)} onClick={confirmAddToProject} disabled={saving}>
+                {saving ? 'Adding…' : 'Add Circuit'}
+              </button>
+              <button style={s.btn(t.textMuted, 'transparent')} onClick={() => { setPendingTargetProject(null); setPendingLabel('') }}>
+                Back
+              </button>
+            </div>
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
@@ -244,10 +286,10 @@ export function ProjectsModal({ nodes, onClose, initialProject, pendingCircuit, 
             No projects yet. Create one to start building customer solutions.
           </div>
         )}
-        {projects.map(p => (
+        {!pendingTargetProject && projects.map(p => (
           <div key={p.id}
             style={{ ...s.card, borderColor: confirmDelete === p.id ? '#f38ba8' : pendingCircuit ? t.blue + '88' : t.border }}
-            onClick={() => pendingCircuit ? addPendingToProject(p) : openProject(p)}>
+            onClick={() => handleProjectClick(p)}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15, color: t.text, marginBottom: 3 }}>{p.name || '(Untitled)'}</div>
