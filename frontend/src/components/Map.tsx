@@ -28,6 +28,16 @@ interface Props {
   countryHighlight?: CountryHighlight | null
   subseaOnly?: boolean
   backhaulOnly?: boolean
+  panelWidth?: number
+}
+
+function MapResizer({ panelWidth }: { panelWidth?: number }) {
+  const map = useMap()
+  useEffect(() => {
+    const timer = setTimeout(() => map.invalidateSize(), 310)
+    return () => clearTimeout(timer)
+  }, [panelWidth, map])
+  return null
 }
 
 function MapFlyTo({ highlight }: { highlight: CountryHighlight | null | undefined }) {
@@ -90,7 +100,7 @@ function geoLines(
   return [[[lat1, nLng1], [lat2, nLng1 + d]]]
 }
 
-export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showAllOutages = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false }: Props) {
+export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showAllOutages = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth }: Props) {
   const t = useTheme()
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
@@ -183,6 +193,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         noWrap={false}
       />
 
+      <MapResizer panelWidth={panelWidth} />
       <MapFlyTo highlight={countryHighlight} />
 
       {segments.flatMap(seg => {

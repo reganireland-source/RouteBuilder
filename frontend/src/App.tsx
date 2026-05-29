@@ -919,6 +919,7 @@ export default function App() {
               subseaOnly={subseaOnly}
               backhaulOnly={backhaulOnly}
               countryHighlight={countryHighlight}
+              panelWidth={panelsOpen ? 960 : 0}
             />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.textFaint }}>
