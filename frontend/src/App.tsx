@@ -286,13 +286,21 @@ export default function App() {
   function restorePinsFromProject(project: Project) {
     const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
     const usedColors = new Set<string>()
-    const newPins = project.circuits.slice(0, MAX_PINS).map((c, i) => {
+    const newPins: PinnedRoute[] = []
+    project.circuits.slice(0, MAX_PINS).forEach((c, i) => {
       const route = c.route_snapshot as unknown as Route
+      const protect = c.protect_route_snapshot as unknown as Route | undefined
       const color = PIN_COLORS.find(col => !usedColors.has(col)) ?? PIN_COLORS[i % PIN_COLORS.length]
       usedColors.add(color)
+      const baseLabel = c.label || c.search_label || `${nodesById[route.nodes[0]]?.name ?? route.nodes[0]} → ${nodesById[route.nodes[route.nodes.length - 1]]?.name ?? route.nodes[route.nodes.length - 1]}`
+      const wCircuitLabel = protect ? (c.label ? `${c.label} (Worker)` : c.label) : c.label
+      const pCircuitLabel = c.label ? `${c.label} (Protect)` : undefined
       pinCounter.current += 1
-      const label = c.label || c.search_label || `${nodesById[route.nodes[0]]?.name ?? route.nodes[0]} → ${nodesById[route.nodes[route.nodes.length - 1]]?.name ?? route.nodes[route.nodes.length - 1]}`
-      return { pinId: `pin-${pinCounter.current}`, route, color, searchLabel: label, projectId: project.id, circuitId: c.circuit_id, circuitLabel: c.label }
+      newPins.push({ pinId: `pin-${pinCounter.current}`, route, color, searchLabel: protect ? `${baseLabel} (Worker)` : baseLabel, projectId: project.id, circuitId: c.circuit_id, circuitLabel: wCircuitLabel })
+      if (protect && newPins.length < MAX_PINS) {
+        pinCounter.current += 1
+        newPins.push({ pinId: `pin-${pinCounter.current}`, route: protect, color, searchLabel: `${baseLabel} (Protect)`, projectId: project.id, circuitId: c.circuit_id, circuitLabel: pCircuitLabel })
+      }
     })
     setPinnedRoutes(newPins)
   }
@@ -347,16 +355,17 @@ export default function App() {
       }
       const updated = await api.addCircuit(activeProject.id, circuit)
       setActiveProject(updated)
-      const pinLabel = label || searchLabel
+      const baseLabel = label || searchLabel
+      const wCircuitLabel = protect ? (label ? `${label} (Worker)` : label) : label
+      const pCircuitLabel = label ? `${label} (Protect)` : undefined
       pinCounter.current += 1
       const wId = pinCounter.current
       const newPins: PinnedRoute[] = [
-        { pinId: `pin-${wId}`, route: worker, color, searchLabel: pinLabel, projectId: activeProject.id, circuitId: id, circuitLabel: label }
+        { pinId: `pin-${wId}`, route: worker, color, searchLabel: protect ? `${baseLabel} (Worker)` : baseLabel, projectId: activeProject.id, circuitId: id, circuitLabel: wCircuitLabel }
       ]
       if (protect) {
         pinCounter.current += 1
-        const pLabel = `${nodesById[protect.nodes[0]]?.name ?? protect.nodes[0]} → ${nodesById[protect.nodes[protect.nodes.length - 1]]?.name ?? protect.nodes[protect.nodes.length - 1]} (Protect)`
-        newPins.push({ pinId: `pin-${pinCounter.current}`, route: protect, color, searchLabel: pLabel, projectId: activeProject.id, circuitId: id, circuitLabel: label })
+        newPins.push({ pinId: `pin-${pinCounter.current}`, route: protect, color, searchLabel: `${baseLabel} (Protect)`, projectId: activeProject.id, circuitId: id, circuitLabel: pCircuitLabel })
       }
       setPinnedRoutes(prev => [...prev, ...newPins])
       setPendingPin(null); setPendingPinLabel('')
