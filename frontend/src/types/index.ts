@@ -151,6 +151,9 @@ export interface PinnedRoute {
   route: Route
   color: string
   searchLabel: string
+  projectId?: string
+  circuitId?: string
+  circuitLabel?: string
 }
 
 export interface CityInfo {
