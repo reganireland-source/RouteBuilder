@@ -173,7 +173,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
       zoom={3}
       style={{ height: '100%', width: '100%', background: t.bgMap }}
       minZoom={2}
-      maxZoom={10}
+      maxZoom={18}
       worldCopyJump={true}
     >
       <TileLayer
