@@ -8,8 +8,10 @@ interface Props {
   nodes: CableNode[]
   onClose: () => void
   initialProject?: string | null
+  initialCircuitId?: string | null
   pendingCircuit?: { route: Route; protectRoute?: Route; searchLabel: string }
-  onRestorePins?: (circuits: import('../types').ProjectCircuit[]) => void
+  onRestorePins?: (circuits: import('../types').ProjectCircuit[], projectId: string) => void
+  onCircuitAdded?: (projectId: string, circuitId: string, circuitLabel?: string) => void
 }
 
 type ModalTab = 'list' | 'detail'
@@ -31,7 +33,7 @@ function newProject(): Project {
   }
 }
 
-export function ProjectsModal({ nodes, onClose, initialProject, pendingCircuit, onRestorePins }: Props) {
+export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId, pendingCircuit, onRestorePins, onCircuitAdded }: Props) {
   const t = useTheme()
   const [tab, setTab] = useState<ModalTab>('list')
   const [detailTab, setDetailTab] = useState<DetailTab>('info')
@@ -54,10 +56,16 @@ export function ProjectsModal({ nodes, onClose, initialProject, pendingCircuit, 
       setInterfaces(i)
       if (initialProject) {
         const found = p.find(pr => pr.id === initialProject)
-        if (found) { setSelected(found); setEditDraft(found); setTab('detail') }
+        if (found) {
+          setSelected(found); setEditDraft(found); setTab('detail')
+          if (initialCircuitId) {
+            const c = found.circuits.find(c => c.circuit_id === initialCircuitId)
+            if (c) { setEditingCircuit(c); setCircuitDraft({ ...c }); setDetailTab('circuits') }
+          }
+        }
       }
     }).catch(() => setErr('Failed to load projects'))
-  }, [initialProject])
+  }, [initialProject, initialCircuitId])
 
   const nodeMap = new Map(nodes.map(n => [n.id, n]))
 
@@ -182,7 +190,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, pendingCircuit, 
 
   function openProject(p: Project) {
     setSelected(p); setEditDraft({ ...p }); setTab('detail'); setDetailTab('info')
-    if (onRestorePins && p.circuits.length > 0) onRestorePins(p.circuits)
+    if (onRestorePins && p.circuits.length > 0) onRestorePins(p.circuits, p.id)
   }
 
   function routeLabel(r: Route) {
@@ -223,6 +231,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, pendingCircuit, 
       const updated = await api.addCircuit(pendingTargetProject.id, circuit)
       setProjects(ps => ps.map(proj => proj.id === updated.id ? updated : proj))
       setSelected(updated); setEditDraft(updated); setTab('detail'); setDetailTab('circuits')
+      onCircuitAdded?.(pendingTargetProject.id, circuit.circuit_id, circuit.label)
       setPendingTargetProject(null); setPendingLabel('')
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : 'Failed to add circuit')

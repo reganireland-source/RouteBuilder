@@ -56,6 +56,8 @@ interface Props {
   onFlipPair?: (pairId: string) => void
   // Add to project
   onAddToProject?: (route: Route, protectRoute?: Route) => void
+  // Open circuit enrichment for a pinned route already in a project
+  onEnrichCircuit?: (pin: PinnedRoute) => void
 }
 
 export type SortKey = 'hops' | 'distance' | 'latency' | 'availability' | 'margin' | 'capacity' | 'ownership'
@@ -127,7 +129,7 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
   })
 }
 
-export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown, optimiseFor, flippedPairIds, onFlipPair, onAddToProject }: Props) {
+export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown, optimiseFor, flippedPairIds, onFlipPair, onAddToProject, onEnrichCircuit }: Props) {
   const t = useTheme()
   const onNetSet = new Set(onNetOwnership)
   const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
@@ -236,6 +238,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
               outagesById={outagesById}
               onNetSet={onNetSet}
               systemsById={systemsById}
+              onEnrichCircuit={onEnrichCircuit ? () => onEnrichCircuit(p) : undefined}
             />
           ))}
         </div>
@@ -591,7 +594,7 @@ function PairCard({
   )
 }
 
-function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, onNetSet, systemsById }: {
+function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, onNetSet, systemsById, onEnrichCircuit }: {
   pinned: PinnedRoute
   onUnpin: () => void
   nodesById: Record<string, { name: string; type?: string }>
@@ -599,13 +602,15 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   outagesById: Record<string, SegmentOutage>
   onNetSet: Set<string>
   systemsById: Record<string, CableSystem>
+  onEnrichCircuit?: () => void
 }) {
   const t = useTheme()
   const isMobile = useIsMobile()
-  const { route, color, searchLabel } = pinned
+  const { route, color, searchLabel, projectId, circuitLabel } = pinned
   const [hovered, setHovered] = useState(false)
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
   const [segmentsOpen, setSegmentsOpen] = useState(false)
+  const [enrichNudge, setEnrichNudge] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -673,6 +678,18 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
           <span>Avail: <strong style={{ color: t.text }}>{reliabilityPct}%</strong></span>
         </div>
 
+        {projectId && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+            <span style={{
+              fontSize: 10, fontWeight: 600, color: t.blue,
+              background: `${t.blue}22`, border: `1px solid ${t.blue}55`,
+              borderRadius: 4, padding: '2px 7px',
+            }}>
+              📁 {circuitLabel ?? 'In Project'}
+            </span>
+          </div>
+        )}
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div style={{
             flex: 1, display: 'flex', alignItems: 'center', gap: 6,
@@ -707,6 +724,28 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
             <SegmentBreakdownRows route={route} capacityById={capacityById} outagesById={outagesById} onNetSet={onNetSet} />
           </div>
         )}
+
+        <div style={{ marginTop: 6 }}>
+          <button
+            onClick={() => {
+              if (!projectId) { setEnrichNudge(true); setTimeout(() => setEnrichNudge(false), 3000); return }
+              onEnrichCircuit?.()
+            }}
+            title={projectId ? 'Open technical enrichment for this circuit' : 'Add to a project first via 📁'}
+            style={{
+              fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 4,
+              border: `1px solid ${projectId ? t.blue + '88' : t.border}`,
+              background: projectId ? `${t.blue}18` : t.bgDeep,
+              color: projectId ? t.blue : t.textFaintest,
+              cursor: 'pointer',
+            }}
+          >✏ Enrich</button>
+          {enrichNudge && (
+            <span style={{ fontSize: 11, color: t.orange, marginLeft: 8 }}>
+              Add to a project first via 📁
+            </span>
+          )}
+        </div>
       </div>
 
       {!isMobile && hovered && createPortal(
