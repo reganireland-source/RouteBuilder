@@ -263,6 +263,7 @@ class ProjectCircuit(BaseModel):
     label: Optional[str] = None
     order: int = 0
     route_snapshot: dict
+    protect_route_snapshot: Optional[dict] = None
     search_label: str = ""
     pin_color: str = "#94e2d5"
     service_type: Optional[str] = None

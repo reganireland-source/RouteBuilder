@@ -14,7 +14,7 @@ import { HealthBar } from './components/HealthBar'
 import { MobileLayout } from './components/MobileLayout'
 import { CapacityDashboard } from './components/CapacityDashboard'
 import { UserGuide } from './components/UserGuide'
-import { generateStraightLineDiagram } from './utils/generateDiagram'
+import { generateStraightLineDiagram, generateSldFromProject, generateDrawioXml } from './utils/generateDiagram'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, type Theme, type ThemeMode } from './theme'
 import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem } from './types'
@@ -287,15 +287,16 @@ export default function App() {
 
   function restorePinsFromProject(project: Project) {
     const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
-    const usedColors = new Set<string>()
     const newPins: PinnedRoute[] = []
-    project.circuits.slice(0, MAX_PINS).forEach((c, i) => {
-      const route = c.route_snapshot as unknown as Route
+    project.circuits.slice(0, MAX_PINS).forEach(c => {
+      if (!c.route_snapshot) return
+      const route   = c.route_snapshot   as unknown as Route
       const protect = c.protect_route_snapshot as unknown as Route | undefined
-      const color = PIN_COLORS.find(col => !usedColors.has(col)) ?? PIN_COLORS[i % PIN_COLORS.length]
-      usedColors.add(color)
-      const baseLabel = c.label || c.search_label || `${nodesById[route.nodes[0]]?.name ?? route.nodes[0]} → ${nodesById[route.nodes[route.nodes.length - 1]]?.name ?? route.nodes[route.nodes.length - 1]}`
-      const wCircuitLabel = protect ? (c.label ? `${c.label} (Worker)` : c.label) : c.label
+      const color   = c.pin_color || PIN_COLORS[newPins.length % PIN_COLORS.length]
+      const startName = nodesById[route.nodes?.[0]]?.name ?? route.nodes?.[0] ?? '?'
+      const endName   = nodesById[route.nodes?.[route.nodes.length - 1]]?.name ?? route.nodes?.[route.nodes.length - 1] ?? '?'
+      const baseLabel = c.label || c.search_label || `${startName} → ${endName}`
+      const wCircuitLabel = protect ? (c.label ? `${c.label} (Worker)` : undefined) : c.label
       const pCircuitLabel = c.label ? `${c.label} (Protect)` : undefined
       pinCounter.current += 1
       newPins.push({ pinId: `pin-${pinCounter.current}`, route, color, searchLabel: protect ? `${baseLabel} (Worker)` : baseLabel, projectId: project.id, circuitId: c.circuit_id, circuitLabel: wCircuitLabel })
@@ -1039,15 +1040,37 @@ export default function App() {
               value={sldVersion}
               onChange={e => setSldVersion(e.target.value)}
               onKeyDown={e => {
-                if (e.key === 'Enter') { generateStraightLineDiagram(pinnedRoutes, nodes, sldVersion || undefined); setSldVersionPrompt(false) }
+                if (e.key === 'Enter') {
+                  if (activeProject) generateSldFromProject(activeProject, pinnedRoutes, nodes, sldVersion || undefined)
+                  else generateStraightLineDiagram(pinnedRoutes, nodes, sldVersion || undefined)
+                  setSldVersionPrompt(false)
+                }
                 if (e.key === 'Escape') setSldVersionPrompt(false)
               }}
             />
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <button
-                onClick={() => { generateStraightLineDiagram(pinnedRoutes, nodes, sldVersion || undefined); setSldVersionPrompt(false) }}
+                onClick={() => {
+                  if (activeProject) generateSldFromProject(activeProject, pinnedRoutes, nodes, sldVersion || undefined)
+                  else generateStraightLineDiagram(pinnedRoutes, nodes, sldVersion || undefined)
+                  setSldVersionPrompt(false)
+                }}
                 style={{ padding: '8px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none', background: theme.blue, color: theme.bgCard, fontFamily: 'inherit' }}
-              >Generate PDF</button>
+              >Export PDF</button>
+              <button
+                onClick={() => {
+                  const xml  = generateDrawioXml(pinnedRoutes, nodes, activeProject ?? undefined)
+                  const blob = new Blob([xml], { type: 'application/xml' })
+                  const url  = URL.createObjectURL(blob)
+                  const a    = document.createElement('a')
+                  a.href     = url
+                  a.download = `SLD-${new Date().toISOString().slice(0,10)}.drawio`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                  setSldVersionPrompt(false)
+                }}
+                style={{ padding: '8px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.blue}`, background: 'transparent', color: theme.blue, fontFamily: 'inherit' }}
+              >Export DrawIO</button>
               <button
                 onClick={() => setSldVersionPrompt(false)}
                 style={{ padding: '8px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.border}`, background: 'transparent', color: theme.textMuted, fontFamily: 'inherit' }}
