@@ -15,7 +15,7 @@ import { useTheme } from '../theme'
 import type { ThemeMode } from '../theme'
 import type {
   AppConfig, AppMode, CableNode, CableSegment, CableSystem, InterconnectRule,
-  NlpSortMode, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage,
+  NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage,
   SelectedSystem, DiversityType,
 } from '../types'
 
@@ -109,6 +109,9 @@ export interface MobileLayoutProps {
   onAddToProject?:               (route: Route, protectRoute?: Route) => void
   onEnrichCircuit?:              (pin: PinnedRoute) => void
   onOpenProjects?:               () => void
+  activeProject?:                Project | null
+  onExitProjectMode?:            () => void
+  onSwitchProject?:              () => void
   onOpenGuide:                   () => void
 }
 
@@ -123,7 +126,7 @@ export function MobileLayout({
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
   switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowAllOutages,
   onApplySort, nlpSortKey, nlpPushOutages, optimiseFor, flippedPairIds, onFlipPair,
-  onAddToProject, onEnrichCircuit, onOpenProjects, onOpenGuide,
+  onAddToProject, onEnrichCircuit, onOpenProjects, activeProject, onExitProjectMode, onSwitchProject, onOpenGuide,
   hideNonActive = false, showSegmentLabels = false, showAllOutages = false,
 }: MobileLayoutProps & { hideNonActive?: boolean; showSegmentLabels?: boolean; showAllOutages?: boolean }) {
   const t = useTheme()
@@ -519,6 +522,9 @@ export function MobileLayout({
                     onFlipPair={onFlipPair}
                     onAddToProject={onAddToProject}
                     onEnrichCircuit={onEnrichCircuit}
+                    activeProject={activeProject}
+                    onExitProjectMode={onExitProjectMode}
+                    onSwitchProject={onSwitchProject}
                   />
                 </div>
               )}

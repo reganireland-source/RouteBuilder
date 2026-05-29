@@ -12,6 +12,7 @@ interface Props {
   pendingCircuit?: { route: Route; protectRoute?: Route; searchLabel: string }
   onRestorePins?: (circuits: import('../types').ProjectCircuit[], projectId: string) => void
   onCircuitAdded?: (projectId: string, circuitId: string, circuitLabel?: string) => void
+  onActivateProject?: (project: Project) => void
 }
 
 type ModalTab = 'list' | 'detail'
@@ -33,7 +34,7 @@ function newProject(): Project {
   }
 }
 
-export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId, pendingCircuit, onRestorePins, onCircuitAdded }: Props) {
+export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId, pendingCircuit, onRestorePins, onCircuitAdded, onActivateProject }: Props) {
   const t = useTheme()
   const [tab, setTab] = useState<ModalTab>('list')
   const [detailTab, setDetailTab] = useState<DetailTab>('info')
@@ -106,18 +107,18 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
     input: {
       width: '100%', background: t.bgBase, border: `1px solid ${t.border}`,
       borderRadius: 6, padding: '7px 10px', color: t.text, fontSize: 13,
-      outline: 'none', boxSizing: 'border-box' as const,
+      outline: 'none', boxSizing: 'border-box' as const, fontFamily: 'inherit',
     },
     select: {
       width: '100%', background: t.bgBase, border: `1px solid ${t.border}`,
       borderRadius: 6, padding: '7px 10px', color: t.text, fontSize: 13,
-      outline: 'none', boxSizing: 'border-box' as const,
+      outline: 'none', boxSizing: 'border-box' as const, fontFamily: 'inherit',
     },
     row: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 14 },
     row3: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 14 },
     btn: (color: string, bg: string) => ({
       padding: '7px 16px', borderRadius: 6, fontSize: 13, fontWeight: 600,
-      cursor: 'pointer', border: 'none', background: bg, color: color,
+      cursor: 'pointer', border: 'none', background: bg, color: color, fontFamily: 'inherit',
     }),
     sectionHead: {
       fontSize: 12, fontWeight: 700, color: t.textMuted,
@@ -218,9 +219,9 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
   }
 
   function handleProjectClick(p: Project) {
-    if (!pendingCircuit) { openProject(p); return }
-    setPendingTargetProject(p)
-    setPendingLabel('')
+    if (pendingCircuit) { setPendingTargetProject(p); setPendingLabel(''); return }
+    if (onActivateProject) { onActivateProject(p); onClose(); return }
+    openProject(p)
   }
 
   async function confirmAddToProject() {
@@ -313,15 +314,22 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
                   }}>{p.visibility}</span>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 8 }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }} onClick={e => e.stopPropagation()}>
                 {confirmDelete === p.id ? (
                   <>
                     <button style={s.btn('#fff', '#f38ba8')} onClick={() => deleteProject(p.id)}>Confirm Delete</button>
                     <button style={s.btn(t.text, t.border)} onClick={() => setConfirmDelete(null)}>Cancel</button>
                   </>
                 ) : (
-                  <button style={{ ...s.btn(t.textMuted, 'transparent'), fontSize: 16 }}
-                    onClick={() => setConfirmDelete(p.id)}>🗑</button>
+                  <>
+                    <button
+                      style={{ ...s.btn(t.textMuted, 'transparent'), fontSize: 13 }}
+                      title="Edit project"
+                      onClick={() => openProject(p)}
+                    >✏</button>
+                    <button style={{ ...s.btn(t.textMuted, 'transparent'), fontSize: 16 }}
+                      onClick={() => setConfirmDelete(p.id)}>🗑</button>
+                  </>
                 )}
               </div>
             </div>

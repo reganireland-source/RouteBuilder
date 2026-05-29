@@ -17,7 +17,7 @@ import { UserGuide } from './components/UserGuide'
 import { generateStraightLineDiagram } from './utils/generateDiagram'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, type Theme, type ThemeMode } from './theme'
-import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem } from './types'
+import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem } from './types'
 import { ProjectsModal } from './components/ProjectsModal'
 
 const NLP_ENABLED = import.meta.env.VITE_ENABLE_NLP !== 'false'
@@ -53,6 +53,10 @@ export default function App() {
   const [projectsOpen,    setProjectsOpen]    = useState(false)
   const [addToProjectRoute, setAddToProjectRoute] = useState<{ route: Route; protectRoute?: Route; searchLabel: string } | null>(null)
   const [enrichTarget, setEnrichTarget] = useState<{ projectId: string; circuitId: string } | null>(null)
+  const [activeProject,   setActiveProject]   = useState<Project | null>(null)
+  const [pendingPin, setPendingPin] = useState<{ worker: Route; protect?: Route; searchLabel: string } | null>(null)
+  const [pendingPinLabel, setPendingPinLabel] = useState('')
+  const [pendingPinSaving, setPendingPinSaving] = useState(false)
   const [mode, setMode]               = useState<AppMode>('routebuilder')
   const [nodes, setNodes]             = useState<CableNode[]>([])
   const [segments, setSegments]       = useState<CableSegment[]>([])
@@ -155,21 +159,41 @@ export default function App() {
 
   function handlePin(route: Route) {
     const key = routeKey(route)
+    // Unpin if already pinned (same in both modes)
     if (pinnedRoutes.some(p => routeKey(p.route) === key)) {
       setPinnedRoutes(prev => prev.filter(p => routeKey(p.route) !== key))
       return
     }
     if (pinnedRoutes.length >= MAX_PINS) return
-    const usedColors = pinnedRoutes.map(p => p.color)
-    const color = PIN_COLORS.find(c => !usedColors.includes(c)) ?? PIN_COLORS[0]
     const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
     const searchLabel = `${nodesById[route.nodes[0]]?.name ?? route.nodes[0]} → ${nodesById[route.nodes[route.nodes.length - 1]]?.name ?? route.nodes[route.nodes.length - 1]}`
+    if (activeProject) {
+      setPendingPin({ worker: route, searchLabel })
+      setPendingPinLabel('')
+      return
+    }
+    const usedColors = pinnedRoutes.map(p => p.color)
+    const color = PIN_COLORS.find(c => !usedColors.includes(c)) ?? PIN_COLORS[0]
     pinCounter.current += 1
     setPinnedRoutes(prev => [...prev, { pinId: `pin-${pinCounter.current}`, route, color, searchLabel }])
   }
 
   function handleUnpin(pinId: string) {
     setPinnedRoutes(prev => prev.filter(p => p.pinId !== pinId))
+  }
+
+  function restorePinsFromProject(project: Project) {
+    const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+    const usedColors = new Set<string>()
+    const newPins = project.circuits.slice(0, MAX_PINS).map((c, i) => {
+      const route = c.route_snapshot as unknown as Route
+      const color = PIN_COLORS.find(col => !usedColors.has(col)) ?? PIN_COLORS[i % PIN_COLORS.length]
+      usedColors.add(color)
+      pinCounter.current += 1
+      const label = c.label || c.search_label || `${nodesById[route.nodes[0]]?.name ?? route.nodes[0]} → ${nodesById[route.nodes[route.nodes.length - 1]]?.name ?? route.nodes[route.nodes.length - 1]}`
+      return { pinId: `pin-${pinCounter.current}`, route, color, searchLabel: label, projectId: project.id, circuitId: c.circuit_id, circuitLabel: c.label }
+    })
+    setPinnedRoutes(newPins)
   }
 
   function handlePinPair(worker: Route, protect: Route) {
@@ -183,10 +207,15 @@ export default function App() {
     }
     const remaining = pinnedRoutes.filter(p => routeKey(p.route) !== wKey && routeKey(p.route) !== pKey)
     if (remaining.length + 2 > MAX_PINS) return
-    const usedColors = remaining.map(p => p.color)
-    const color = PIN_COLORS.find(c => !usedColors.includes(c)) ?? PIN_COLORS[0]
     const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
     const wLabel = `${nodesById[worker.nodes[0]]?.name ?? worker.nodes[0]} → ${nodesById[worker.nodes[worker.nodes.length - 1]]?.name ?? worker.nodes[worker.nodes.length - 1]}`
+    if (activeProject) {
+      setPendingPin({ worker, protect, searchLabel: wLabel })
+      setPendingPinLabel('')
+      return
+    }
+    const usedColors = remaining.map(p => p.color)
+    const color = PIN_COLORS.find(c => !usedColors.includes(c)) ?? PIN_COLORS[0]
     const pLabel = `${nodesById[protect.nodes[0]]?.name ?? protect.nodes[0]} → ${nodesById[protect.nodes[protect.nodes.length - 1]]?.name ?? protect.nodes[protect.nodes.length - 1]} (Protect)`
     pinCounter.current += 1
     const wId = pinCounter.current
@@ -195,6 +224,44 @@ export default function App() {
       { pinId: `pin-${wId}`,            route: worker,  color, searchLabel: wLabel },
       { pinId: `pin-${pinCounter.current}`, route: protect, color, searchLabel: pLabel },
     ])
+  }
+
+  async function confirmPinToProject() {
+    if (!pendingPin || !activeProject) return
+    setPendingPinSaving(true)
+    try {
+      const { worker, protect, searchLabel } = pendingPin
+      const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+      const id = `${worker.nodes[0]}-${worker.nodes[worker.nodes.length - 1]}-${Date.now().toString(36)}`
+      const label = pendingPinLabel.trim() || undefined
+      const usedColors = pinnedRoutes.map(p => p.color)
+      const color = PIN_COLORS.find(c => !usedColors.includes(c)) ?? PIN_COLORS[activeProject.circuits.length % PIN_COLORS.length]
+      const circuit = {
+        circuit_id: id, label, search_label: searchLabel, pin_color: color,
+        order: activeProject.circuits.length,
+        route_snapshot: worker as unknown as import('./types').Route,
+        protect_route_snapshot: protect as unknown as import('./types').Route | undefined,
+        a_end: {} as import('./types').EndpointConfig,
+        z_end: {} as import('./types').EndpointConfig,
+      }
+      const updated = await api.addCircuit(activeProject.id, circuit)
+      setActiveProject(updated)
+      const pinLabel = label || searchLabel
+      pinCounter.current += 1
+      const wId = pinCounter.current
+      const newPins: PinnedRoute[] = [
+        { pinId: `pin-${wId}`, route: worker, color, searchLabel: pinLabel, projectId: activeProject.id, circuitId: id, circuitLabel: label }
+      ]
+      if (protect) {
+        pinCounter.current += 1
+        const pLabel = `${nodesById[protect.nodes[0]]?.name ?? protect.nodes[0]} → ${nodesById[protect.nodes[protect.nodes.length - 1]]?.name ?? protect.nodes[protect.nodes.length - 1]} (Protect)`
+        newPins.push({ pinId: `pin-${pinCounter.current}`, route: protect, color, searchLabel: pLabel, projectId: activeProject.id, circuitId: id, circuitLabel: label })
+      }
+      setPinnedRoutes(prev => [...prev, ...newPins])
+      setPendingPin(null); setPendingPinLabel('')
+    } finally {
+      setPendingPinSaving(false)
+    }
   }
 
   function handleToggleSystem(systemId: string) {
@@ -329,6 +396,9 @@ export default function App() {
             setProjectsOpen(true)
           }}
           onOpenProjects={() => { setAddToProjectRoute(null); setEnrichTarget(null); setProjectsOpen(true) }}
+          activeProject={activeProject}
+          onExitProjectMode={() => { setActiveProject(null); setPinnedRoutes([]) }}
+          onSwitchProject={() => { setAddToProjectRoute(null); setEnrichTarget(null); setProjectsOpen(true) }}
         />
         {projectsOpen && (
           <ProjectsModal
@@ -337,19 +407,12 @@ export default function App() {
             initialProject={enrichTarget?.projectId ?? null}
             initialCircuitId={enrichTarget?.circuitId ?? null}
             onClose={() => { setProjectsOpen(false); setAddToProjectRoute(null); setEnrichTarget(null) }}
-            onRestorePins={(circuits, projectId) => {
-              const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
-              const usedColors = new Set<string>()
-              const newPins = circuits.slice(0, MAX_PINS).map((c, i) => {
-                const route = c.route_snapshot as unknown as Route
-                const color = PIN_COLORS.find(col => !usedColors.has(col)) ?? PIN_COLORS[i % PIN_COLORS.length]
-                usedColors.add(color)
-                pinCounter.current += 1
-                const label = c.label || c.search_label || `${nodesById[route.nodes[0]]?.name ?? route.nodes[0]} → ${nodesById[route.nodes[route.nodes.length - 1]]?.name ?? route.nodes[route.nodes.length - 1]}`
-                return { pinId: `pin-${pinCounter.current}`, route, color, searchLabel: label, projectId, circuitId: c.circuit_id, circuitLabel: c.label }
-              })
-              setPinnedRoutes(newPins)
+            onActivateProject={(project) => {
+              setActiveProject(project)
+              setProjectsOpen(false)
+              restorePinsFromProject(project)
             }}
+            onRestorePins={(circuits, projectId) => restorePinsFromProject({ id: projectId, circuits } as import('./types').Project)}
             onCircuitAdded={(projectId, circuitId, circuitLabel) => {
               setPinnedRoutes(prev => {
                 const route = addToProjectRoute?.route
@@ -381,6 +444,49 @@ export default function App() {
               title="Close guide"
             >×</button>
             <UserGuide nodes={nodes} segments={segments} systems={systems} />
+          </div>,
+          document.body
+        )}
+        {pendingPin && activeProject && createPortal(
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 9500,
+            background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '0 16px',
+          }}>
+            <div style={{
+              background: theme.bgCard, border: `1px solid ${theme.border}`, borderRadius: 12,
+              padding: '24px 20px', width: '100%', maxWidth: 420, boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+            }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: theme.text, marginBottom: 4 }}>
+                Add to {activeProject.name || 'Project'}
+              </div>
+              <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 16 }}>
+                {pendingPin.searchLabel}
+                {pendingPin.protect && <span style={{ color: '#f9e2af', marginLeft: 8 }}>+ Protect</span>}
+              </div>
+              <input
+                autoFocus
+                style={{
+                  width: '100%', background: theme.bgBase, border: `1px solid ${theme.border}`,
+                  borderRadius: 6, padding: '10px 12px', color: theme.text, fontSize: 14,
+                  outline: 'none', boxSizing: 'border-box', marginBottom: 16, fontFamily: 'inherit',
+                }}
+                placeholder="Circuit label (optional)"
+                value={pendingPinLabel}
+                onChange={e => setPendingPinLabel(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') confirmPinToProject() }}
+              />
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={confirmPinToProject} disabled={pendingPinSaving}
+                  style={{ flex: 1, padding: '10px', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: 'none', background: theme.blue, color: theme.bgCard, fontFamily: 'inherit' }}
+                >{pendingPinSaving ? 'Saving…' : 'Add Circuit'}</button>
+                <button
+                  onClick={() => { setPendingPin(null); setPendingPinLabel('') }}
+                  style={{ flex: 1, padding: '10px', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.border}`, background: 'transparent', color: theme.textMuted, fontFamily: 'inherit' }}
+                >Cancel</button>
+              </div>
+            </div>
           </div>,
           document.body
         )}
@@ -663,6 +769,9 @@ export default function App() {
                 setEnrichTarget({ projectId: pin.projectId, circuitId: pin.circuitId })
                 setProjectsOpen(true)
               }}
+              activeProject={activeProject}
+              onExitProjectMode={() => { setActiveProject(null); setPinnedRoutes([]) }}
+              onSwitchProject={() => { setAddToProjectRoute(null); setEnrichTarget(null); setProjectsOpen(true) }}
             />
           </div>
         </div>
@@ -745,19 +854,12 @@ export default function App() {
           initialProject={enrichTarget?.projectId ?? null}
           initialCircuitId={enrichTarget?.circuitId ?? null}
           onClose={() => { setProjectsOpen(false); setAddToProjectRoute(null); setEnrichTarget(null) }}
-          onRestorePins={(circuits, projectId) => {
-            const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
-            const usedColors = new Set<string>()
-            const newPins = circuits.slice(0, MAX_PINS).map((c, i) => {
-              const route = c.route_snapshot as unknown as Route
-              const color = PIN_COLORS.find(col => !usedColors.has(col)) ?? PIN_COLORS[i % PIN_COLORS.length]
-              usedColors.add(color)
-              pinCounter.current += 1
-              const label = c.label || c.search_label || `${nodesById[route.nodes[0]]?.name ?? route.nodes[0]} → ${nodesById[route.nodes[route.nodes.length - 1]]?.name ?? route.nodes[route.nodes.length - 1]}`
-              return { pinId: `pin-${pinCounter.current}`, route, color, searchLabel: label, projectId, circuitId: c.circuit_id, circuitLabel: c.label }
-            })
-            setPinnedRoutes(newPins)
+          onActivateProject={(project) => {
+            setActiveProject(project)
+            setProjectsOpen(false)
+            restorePinsFromProject(project)
           }}
+          onRestorePins={(circuits, projectId) => restorePinsFromProject({ id: projectId, circuits } as import('./types').Project)}
           onCircuitAdded={(projectId, circuitId, circuitLabel) => {
             setPinnedRoutes(prev => {
               const route = addToProjectRoute?.route
@@ -769,6 +871,64 @@ export default function App() {
             })
           }}
         />
+      )}
+
+      {/* ── Project pin label prompt ───────────────────────────────────────── */}
+      {pendingPin && activeProject && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9500,
+          background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: theme.bgCard, border: `1px solid ${theme.border}`, borderRadius: 12,
+            padding: '24px 28px', width: 'min(95vw, 420px)', boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: theme.text, marginBottom: 4 }}>
+              Add to {activeProject.name || 'Project'}
+            </div>
+            <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 16 }}>
+              {pendingPin.searchLabel}
+              {pendingPin.protect && <span style={{ color: '#f9e2af', marginLeft: 8 }}>+ Protect</span>}
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                Circuit Label <span style={{ fontWeight: 400, textTransform: 'none' }}>(optional)</span>
+              </div>
+              <input
+                autoFocus
+                style={{
+                  width: '100%', background: theme.bgBase, border: `1px solid ${theme.border}`,
+                  borderRadius: 6, padding: '8px 11px', color: theme.text, fontSize: 13,
+                  outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
+                }}
+                placeholder="e.g. TOK-HKG-EPL-01 or RFP-2025-003"
+                value={pendingPinLabel}
+                onChange={e => setPendingPinLabel(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') confirmPinToProject(); if (e.key === 'Escape') { setPendingPin(null); setPendingPinLabel('') } }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={confirmPinToProject}
+                disabled={pendingPinSaving}
+                style={{
+                  padding: '8px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600,
+                  cursor: 'pointer', border: 'none', background: theme.blue, color: theme.bgCard,
+                  fontFamily: 'inherit',
+                }}
+              >{pendingPinSaving ? 'Saving…' : 'Add Circuit'}</button>
+              <button
+                onClick={() => { setPendingPin(null); setPendingPinLabel('') }}
+                style={{
+                  padding: '8px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600,
+                  cursor: 'pointer', border: `1px solid ${theme.border}`, background: 'transparent',
+                  color: theme.textMuted, fontFamily: 'inherit',
+                }}
+              >Cancel</button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {guideOpen && createPortal(
