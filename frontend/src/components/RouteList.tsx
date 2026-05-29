@@ -720,8 +720,8 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
           <span>Avail: <strong style={{ color: t.text }}>{reliabilityPct}%</strong></span>
         </div>
 
-        {projectId && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+          {projectId && (
             <span style={{
               fontSize: 10, fontWeight: 600, color: t.blue,
               background: `${t.blue}22`, border: `1px solid ${t.blue}55`,
@@ -729,8 +729,33 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
             }}>
               📁 {circuitLabel ?? 'In Project'}
             </span>
-          </div>
-        )}
+          )}
+          <button
+            onClick={() => {
+              if (!projectId) { setEnrichNudge(true); setTimeout(() => setEnrichNudge(false), 3000); return }
+              onEnrichCircuit?.()
+            }}
+            title={projectId ? 'Open technical enrichment for this circuit' : 'Add to a project first via 📁'}
+            style={{
+              fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4,
+              border: `1px solid ${projectId ? t.blue + '88' : t.border}`,
+              background: projectId ? `${t.blue}18` : t.bgDeep,
+              color: projectId ? t.blue : t.textFaintest,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
+            </svg>
+            Enrich
+          </button>
+          {enrichNudge && (
+            <span style={{ fontSize: 11, color: t.orange }}>
+              Add to a project first via 📁
+            </span>
+          )}
+        </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div style={{
@@ -767,27 +792,6 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
           </div>
         )}
 
-        <div style={{ marginTop: 6 }}>
-          <button
-            onClick={() => {
-              if (!projectId) { setEnrichNudge(true); setTimeout(() => setEnrichNudge(false), 3000); return }
-              onEnrichCircuit?.()
-            }}
-            title={projectId ? 'Open technical enrichment for this circuit' : 'Add to a project first via 📁'}
-            style={{
-              fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 4,
-              border: `1px solid ${projectId ? t.blue + '88' : t.border}`,
-              background: projectId ? `${t.blue}18` : t.bgDeep,
-              color: projectId ? t.blue : t.textFaintest,
-              cursor: 'pointer',
-            }}
-          >✏ Enrich</button>
-          {enrichNudge && (
-            <span style={{ fontSize: 11, color: t.orange, marginLeft: 8 }}>
-              Add to a project first via 📁
-            </span>
-          )}
-        </div>
       </div>
 
       {!isMobile && hovered && createPortal(
