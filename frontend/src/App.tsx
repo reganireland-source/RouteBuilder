@@ -311,7 +311,57 @@ export default function App() {
           onApplySort={handleApplySort}
           nlpSortKey={nlpSortKey}
           nlpPushOutages={nlpPushOutages}
+          optimiseFor={lastOptimiseFor}
+          flippedPairIds={flippedPairIds}
+          onFlipPair={handleFlipPair}
+          onPinPair={handlePinPair}
+          onAddToProject={(route, protectRoute) => {
+            const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+            const label = `${nodesById[route.nodes[0]]?.name ?? route.nodes[0]} → ${nodesById[route.nodes[route.nodes.length - 1]]?.name ?? route.nodes[route.nodes.length - 1]}`
+            setAddToProjectRoute({ route, protectRoute, searchLabel: label })
+            setEnrichTarget(null)
+            setProjectsOpen(true)
+          }}
+          onEnrichCircuit={(pin) => {
+            if (!pin.projectId || !pin.circuitId) return
+            setAddToProjectRoute(null)
+            setEnrichTarget({ projectId: pin.projectId, circuitId: pin.circuitId })
+            setProjectsOpen(true)
+          }}
+          onOpenProjects={() => { setAddToProjectRoute(null); setEnrichTarget(null); setProjectsOpen(true) }}
         />
+        {projectsOpen && (
+          <ProjectsModal
+            nodes={nodes}
+            pendingCircuit={addToProjectRoute ?? undefined}
+            initialProject={enrichTarget?.projectId ?? null}
+            initialCircuitId={enrichTarget?.circuitId ?? null}
+            onClose={() => { setProjectsOpen(false); setAddToProjectRoute(null); setEnrichTarget(null) }}
+            onRestorePins={(circuits, projectId) => {
+              const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+              const usedColors = new Set<string>()
+              const newPins = circuits.slice(0, MAX_PINS).map((c, i) => {
+                const route = c.route_snapshot as unknown as Route
+                const color = PIN_COLORS.find(col => !usedColors.has(col)) ?? PIN_COLORS[i % PIN_COLORS.length]
+                usedColors.add(color)
+                pinCounter.current += 1
+                const label = c.label || c.search_label || `${nodesById[route.nodes[0]]?.name ?? route.nodes[0]} → ${nodesById[route.nodes[route.nodes.length - 1]]?.name ?? route.nodes[route.nodes.length - 1]}`
+                return { pinId: `pin-${pinCounter.current}`, route, color, searchLabel: label, projectId, circuitId: c.circuit_id, circuitLabel: c.label }
+              })
+              setPinnedRoutes(newPins)
+            }}
+            onCircuitAdded={(projectId, circuitId, circuitLabel) => {
+              setPinnedRoutes(prev => {
+                const route = addToProjectRoute?.route
+                if (!route) return prev
+                return prev.map(p => routeKey(p.route) === routeKey(route)
+                  ? { ...p, projectId, circuitId, circuitLabel }
+                  : p
+                )
+              })
+            }}
+          />
+        )}
         {guideOpen && createPortal(
           <div style={{
             position: 'fixed', inset: 0, zIndex: 2000,

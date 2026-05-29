@@ -82,6 +82,7 @@ export interface MobileLayoutProps {
   onToggleRoute:     (id: string) => void
   onPin:             (route: Route) => void
   onUnpin:           (pinId: string) => void
+  onPinPair?:        (worker: Route, protect: Route) => void
   onToggleSystem:    (systemId: string) => void
   onSetOrigin:       (nodeId: string) => void
   onSetDest:         (nodeId: string) => void
@@ -102,6 +103,12 @@ export interface MobileLayoutProps {
   onApplySort?:                  (mode: NlpSortMode) => void
   nlpSortKey?:                   SortKey
   nlpPushOutages?:               boolean
+  optimiseFor?:                  string
+  flippedPairIds?:               Set<string>
+  onFlipPair?:                   (pairId: string) => void
+  onAddToProject?:               (route: Route, protectRoute?: Route) => void
+  onEnrichCircuit?:              (pin: PinnedRoute) => void
+  onOpenProjects?:               () => void
   onOpenGuide:                   () => void
 }
 
@@ -111,11 +118,12 @@ export function MobileLayout({
   mode, loading, error, selectedNode, searchPin, nearestNodeIds,
   prefilledOrigin, prefilledDest, lastSearchDiversity,
   refDataOpen, themeMode, config,
-  onSearch, onToggleRoute, onPin, onUnpin, onToggleSystem,
+  onSearch, onToggleRoute, onPin, onUnpin, onPinPair, onToggleSystem,
   onSetOrigin, onSetDest, onSetPair, onNodeClick, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
   switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowAllOutages,
-  onApplySort, nlpSortKey, nlpPushOutages, onOpenGuide,
+  onApplySort, nlpSortKey, nlpPushOutages, optimiseFor, flippedPairIds, onFlipPair,
+  onAddToProject, onEnrichCircuit, onOpenProjects, onOpenGuide,
   hideNonActive = false, showSegmentLabels = false, showAllOutages = false,
 }: MobileLayoutProps & { hideNonActive?: boolean; showSegmentLabels?: boolean; showAllOutages?: boolean }) {
   const t = useTheme()
@@ -338,6 +346,11 @@ export function MobileLayout({
               {/* Actions */}
               {[
                 {
+                  label: 'Projects',
+                  icon: '📁',
+                  onClick: () => { onOpenProjects?.(); setDrawerOpen(false) },
+                },
+                {
                   label: 'Network Capacity',
                   icon: '📊',
                   onClick: () => { setCapDashOpen(true); setDrawerOpen(false) },
@@ -486,6 +499,7 @@ export function MobileLayout({
                   <RouteList
                     primaryRoutes={response?.primary_routes ?? []}
                     diverseRoutes={response?.diverse_routes ?? []}
+                    totalFound={response?.total_found}
                     selectedRouteIds={selectedRouteIds}
                     onSelectRoute={onToggleRoute}
                     nodes={nodes}
@@ -495,10 +509,16 @@ export function MobileLayout({
                     pinnedRoutes={pinnedRoutes}
                     onPin={onPin}
                     onUnpin={onUnpin}
+                    onPinPair={onPinPair}
                     diversityRequested={lastSearchDiversity !== 'none'}
                     onNetOwnership={config.on_net_ownership}
                     externalSortKey={nlpSortKey}
                     externalPushOutagesDown={nlpPushOutages}
+                    optimiseFor={optimiseFor}
+                    flippedPairIds={flippedPairIds}
+                    onFlipPair={onFlipPair}
+                    onAddToProject={onAddToProject}
+                    onEnrichCircuit={onEnrichCircuit}
                   />
                 </div>
               )}
@@ -564,6 +584,7 @@ export function MobileLayout({
           onClose={onCloseRefData}
         />
       )}
+
     </div>
   )
 }
