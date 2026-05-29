@@ -13,6 +13,8 @@ interface Props {
   onRestorePins?: (circuits: import('../types').ProjectCircuit[], projectId: string) => void
   onCircuitAdded?: (projectId: string, circuitId: string, circuitLabel?: string) => void
   onActivateProject?: (project: Project) => void
+  initialProjects?: Project[]
+  onProjectsChange?: (projects: Project[]) => void
 }
 
 type ModalTab = 'list' | 'detail'
@@ -34,11 +36,11 @@ function newProject(): Project {
   }
 }
 
-export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId, pendingCircuit, onRestorePins, onCircuitAdded, onActivateProject }: Props) {
+export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId, pendingCircuit, onRestorePins, onCircuitAdded, onActivateProject, initialProjects, onProjectsChange }: Props) {
   const t = useTheme()
   const [tab, setTab] = useState<ModalTab>('list')
   const [detailTab, setDetailTab] = useState<DetailTab>('info')
-  const [projects, setProjects] = useState<Project[]>([])
+  const [projects, setProjects] = useState<Project[]>(initialProjects ?? [])
   const [interfaces, setInterfaces] = useState<InterfaceType[]>([])
   const [selected, setSelected] = useState<Project | null>(null)
   const [editDraft, setEditDraft] = useState<Project | null>(null)
@@ -52,7 +54,8 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    Promise.all([api.getProjects(), api.getInterfaces()]).then(([p, i]) => {
+    const projectsPromise = initialProjects ? Promise.resolve(initialProjects) : api.getProjects()
+    Promise.all([projectsPromise, api.getInterfaces()]).then(([p, i]) => {
       setProjects(p)
       setInterfaces(i)
       if (initialProject) {
@@ -66,7 +69,15 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
         }
       }
     }).catch(() => setErr('Failed to load projects'))
-  }, [initialProject, initialCircuitId])
+  }, [initialProject, initialCircuitId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function updateProjects(updater: (prev: Project[]) => Project[]) {
+    setProjects(prev => {
+      const next = updater(prev)
+      onProjectsChange?.(next)
+      return next
+    })
+  }
 
   const nodeMap = new Map(nodes.map(n => [n.id, n]))
 
@@ -135,7 +146,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
       const updated = selected
         ? await api.updateProject(editDraft.id, editDraft)
         : await api.createProject(editDraft)
-      setProjects(ps => selected ? ps.map(p => p.id === updated.id ? updated : p) : [...ps, updated])
+      updateProjects(ps => selected ? ps.map(p => p.id === updated.id ? updated : p) : [...ps, updated])
       setSelected(updated); setEditDraft(updated)
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : 'Save failed')
@@ -146,7 +157,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
 
   async function deleteProject(id: string) {
     await api.deleteProject(id)
-    setProjects(ps => ps.filter(p => p.id !== id))
+    updateProjects(ps => ps.filter(p => p.id !== id))
     if (selected?.id === id) { setSelected(null); setEditDraft(null); setTab('list') }
     setConfirmDelete(null)
   }
@@ -160,7 +171,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
       const updated = isNew
         ? await api.addCircuit(selected.id, circuitDraft)
         : await api.updateCircuit(selected.id, circuitDraft.circuit_id, circuitDraft)
-      setProjects(ps => ps.map(p => p.id === updated.id ? updated : p))
+      updateProjects(ps => ps.map(p => p.id === updated.id ? updated : p))
       setSelected(updated); setEditDraft(updated)
       setEditingCircuit(null); setCircuitDraft(null)
     } catch (e: unknown) {
@@ -173,14 +184,14 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
   async function removeCircuit(circuitId: string) {
     if (!selected) return
     const updated = await api.removeCircuit(selected.id, circuitId)
-    setProjects(ps => ps.map(p => p.id === updated.id ? updated : p))
+    updateProjects(ps => ps.map(p => p.id === updated.id ? updated : p))
     setSelected(updated); setEditDraft(updated)
   }
 
   async function saveSldConfig(cfg: SldConfig) {
     if (!selected) return
     const updated = await api.updateSldConfig(selected.id, cfg)
-    setProjects(ps => ps.map(p => p.id === updated.id ? updated : p))
+    updateProjects(ps => ps.map(p => p.id === updated.id ? updated : p))
     setSelected(updated); setEditDraft(updated)
   }
 
@@ -230,7 +241,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
     setSaving(true); setErr('')
     try {
       const updated = await api.addCircuit(pendingTargetProject.id, circuit)
-      setProjects(ps => ps.map(proj => proj.id === updated.id ? updated : proj))
+      updateProjects(ps => ps.map(proj => proj.id === updated.id ? updated : proj))
       setSelected(updated); setEditDraft(updated); setTab('detail'); setDetailTab('circuits')
       onCircuitAdded?.(pendingTargetProject.id, circuit.circuit_id, circuit.label)
       setPendingTargetProject(null); setPendingLabel('')

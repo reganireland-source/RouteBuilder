@@ -167,6 +167,7 @@ export default function App() {
   const [response, setResponse]       = useState<RouteResponse | null>(null)
   const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([])
   const [pinnedRoutes, setPinnedRoutes]         = useState<PinnedRoute[]>([])
+  const [cachedProjects, setCachedProjects]     = useState<import('./types').Project[]>([])
   const [selectedSystems, setSelectedSystems]   = useState<SelectedSystem[]>([])
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
@@ -220,6 +221,7 @@ export default function App() {
     Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules(), api.getConfig(), api.getOutages()])
       .then(([n, s, c, sys, r, cfg, o]) => { setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r); setConfig(cfg); setOutages(o) })
       .catch(() => setError('Failed to load network data'))
+    api.getProjects().then(setCachedProjects).catch(() => {})
   }, [])
 
   function switchMode(next: AppMode) {
@@ -516,6 +518,8 @@ export default function App() {
             pendingCircuit={addToProjectRoute ?? undefined}
             initialProject={enrichTarget?.projectId ?? null}
             initialCircuitId={enrichTarget?.circuitId ?? null}
+            initialProjects={cachedProjects}
+            onProjectsChange={setCachedProjects}
             onClose={() => { setProjectsOpen(false); setAddToProjectRoute(null); setEnrichTarget(null) }}
             onActivateProject={(project) => {
               setActiveProject(project)
@@ -977,6 +981,8 @@ export default function App() {
           pendingCircuit={addToProjectRoute ?? undefined}
           initialProject={enrichTarget?.projectId ?? null}
           initialCircuitId={enrichTarget?.circuitId ?? null}
+          initialProjects={cachedProjects}
+          onProjectsChange={setCachedProjects}
           onClose={() => { setProjectsOpen(false); setAddToProjectRoute(null); setEnrichTarget(null) }}
           onActivateProject={(project) => {
             setActiveProject(project)
