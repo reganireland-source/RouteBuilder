@@ -155,6 +155,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
   const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
   const [internalSortKey, setInternalSortKey] = useState<SortKey | null>(null)
   const [internalPushOutagesDown, setInternalPushOutagesDown] = useState(false)
+  const [pinsCompressed, setPinsCompressed] = useState(false)
   const [shown, setShown] = useState(DEFAULT_SHOWN)
 
   // Sync from external when provided (e.g. TSABuddy sets the sort)
@@ -245,21 +246,47 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
       {/* Pinned routes section */}
       {hasPins && (
         <div style={{ marginBottom: hasResults ? 8 : 0 }}>
-          {!activeProject && <div style={sectionLabelStyle(t)}>📌 Pinned Routes</div>}
-          {pinnedRoutes.map(p => (
-            <PinnedRouteCard
-              key={p.pinId}
-              pinned={p}
-              onUnpin={() => onUnpin(p.pinId)}
-              nodesById={nodesById}
-              capacityById={capacityById}
-              outagesById={outagesById}
-              onNetSet={onNetSet}
-              systemsById={systemsById}
-              onEnrichCircuit={onEnrichCircuit ? () => onEnrichCircuit(p) : undefined}
-              activeProject={activeProject}
-            />
-          ))}
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4, gap: 6 }}>
+            {!activeProject && <div style={{ ...sectionLabelStyle(t), marginBottom: 0, flex: 1 }}>📌 Pinned Routes</div>}
+            {activeProject && <div style={{ flex: 1 }} />}
+            <button
+              onClick={() => setPinsCompressed(v => !v)}
+              style={{
+                fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 4, cursor: 'pointer',
+                border: `1px solid ${t.border}`, background: 'transparent',
+                color: t.textFaint, display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              {pinsCompressed
+                ? <><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 9l7 7 7-7"/></svg>Expand</>
+                : <><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 15l-7-7-7 7"/></svg>Compress</>
+              }
+            </button>
+          </div>
+          {pinsCompressed
+            ? pinnedRoutes.map(p => (
+                <CompressedPinCard
+                  key={p.pinId}
+                  pinned={p}
+                  onUnpin={() => onUnpin(p.pinId)}
+                  systemsById={systemsById}
+                />
+              ))
+            : pinnedRoutes.map(p => (
+                <PinnedRouteCard
+                  key={p.pinId}
+                  pinned={p}
+                  onUnpin={() => onUnpin(p.pinId)}
+                  nodesById={nodesById}
+                  capacityById={capacityById}
+                  outagesById={outagesById}
+                  onNetSet={onNetSet}
+                  systemsById={systemsById}
+                  onEnrichCircuit={onEnrichCircuit ? () => onEnrichCircuit(p) : undefined}
+                  activeProject={activeProject}
+                />
+              ))
+          }
         </div>
       )}
 
@@ -611,6 +638,42 @@ function PairCard({
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function CompressedPinCard({ pinned, onUnpin, systemsById }: {
+  pinned: PinnedRoute
+  onUnpin: () => void
+  systemsById: Record<string, CableSystem>
+}) {
+  const t = useTheme()
+  const { route, color, circuitLabel, searchLabel } = pinned
+  const wetSystems = [...new Set(route.segments.filter(s => s.type === 'wet').map(s => s.system_id))]
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      padding: '5px 10px', borderRadius: 6, marginBottom: 3,
+      border: `1px solid ${t.border}`, background: t.bgCard,
+      position: 'relative', overflow: 'hidden',
+    }}>
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, borderRadius: '6px 0 0 6px', background: color }} />
+      <div style={{ paddingLeft: 6, flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color, flexShrink: 0 }}>
+          {circuitLabel ?? searchLabel}
+        </span>
+        {wetSystems.length > 0 && (
+          <span style={{ fontSize: 10, color: t.textFaint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {wetSystems.map(id => systemsById[id]?.name ?? id).join(' · ')}
+          </span>
+        )}
+      </div>
+      <button
+        onClick={onUnpin}
+        title="Unpin route"
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textFaint, fontSize: 14, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
+      >×</button>
     </div>
   )
 }
