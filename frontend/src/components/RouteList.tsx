@@ -54,6 +54,8 @@ interface Props {
   // Pair flip state (lifted to App so map reflects the swap)
   flippedPairIds?: Set<string>
   onFlipPair?: (pairId: string) => void
+  // Pin both legs of a diverse pair together
+  onPinPair?: (worker: Route, protect: Route) => void
   // Add to project
   onAddToProject?: (route: Route, protectRoute?: Route) => void
   // Open circuit enrichment for a pinned route already in a project
@@ -129,7 +131,7 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
   })
 }
 
-export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown, optimiseFor, flippedPairIds, onFlipPair, onAddToProject, onEnrichCircuit }: Props) {
+export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown, optimiseFor, flippedPairIds, onFlipPair, onPinPair, onAddToProject, onEnrichCircuit }: Props) {
   const t = useTheme()
   const onNetSet = new Set(onNetOwnership)
   const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
@@ -352,6 +354,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                   pinnedKeys={pinnedKeys}
                   canPin={canPin}
                   onPin={onPin}
+                  onPinPair={onPinPair}
                   flipped={flippedPairIds?.has(pair.primary.id) ?? false}
                   onFlip={() => onFlipPair?.(pair.primary.id)}
                   onAddToProject={onAddToProject ? (w, p) => onAddToProject(w, p) : undefined}
@@ -451,7 +454,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
 function PairCard({
   pair, idx, selected, onSelectPair,
   nodesById, capacityById, outagesById, onNetSet, systemsById,
-  pinnedKeys, canPin, onPin,
+  pinnedKeys, canPin, onPin, onPinPair,
   flipped, onFlip, onAddToProject,
 }: {
   pair: { primary: Route; diverse: Route }
@@ -466,6 +469,7 @@ function PairCard({
   pinnedKeys: Set<string>
   canPin: boolean
   onPin: (route: Route) => void
+  onPinPair?: (worker: Route, protect: Route) => void
   flipped: boolean
   onFlip: () => void
   onAddToProject?: (worker: Route, protect: Route) => void
@@ -543,9 +547,9 @@ function PairCard({
         capacityById={capacityById}
         outagesById={outagesById}
         color={t.blue}
-        isPinned={pinnedKeys.has(routeKey(worker))}
+        isPinned={pinnedKeys.has(routeKey(worker)) && pinnedKeys.has(routeKey(protect))}
         canPin={canPin}
-        onPin={onPin}
+        onPin={onPinPair ? () => onPinPair(worker, protect) : onPin}
         onNetSet={onNetSet}
         systemsById={systemsById}
       />
@@ -567,9 +571,9 @@ function PairCard({
         capacityById={capacityById}
         outagesById={outagesById}
         color={t.green}
-        isPinned={pinnedKeys.has(routeKey(protect))}
+        isPinned={pinnedKeys.has(routeKey(worker)) && pinnedKeys.has(routeKey(protect))}
         canPin={canPin}
-        onPin={onPin}
+        onPin={onPinPair ? () => onPinPair(worker, protect) : onPin}
         onNetSet={onNetSet}
         systemsById={systemsById}
       />

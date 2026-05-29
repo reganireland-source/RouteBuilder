@@ -172,6 +172,31 @@ export default function App() {
     setPinnedRoutes(prev => prev.filter(p => p.pinId !== pinId))
   }
 
+  function handlePinPair(worker: Route, protect: Route) {
+    const wKey = routeKey(worker)
+    const pKey = routeKey(protect)
+    const wPinned = pinnedRoutes.some(p => routeKey(p.route) === wKey)
+    const pPinned = pinnedRoutes.some(p => routeKey(p.route) === pKey)
+    if (wPinned && pPinned) {
+      setPinnedRoutes(prev => prev.filter(p => routeKey(p.route) !== wKey && routeKey(p.route) !== pKey))
+      return
+    }
+    const remaining = pinnedRoutes.filter(p => routeKey(p.route) !== wKey && routeKey(p.route) !== pKey)
+    if (remaining.length + 2 > MAX_PINS) return
+    const usedColors = remaining.map(p => p.color)
+    const color = PIN_COLORS.find(c => !usedColors.includes(c)) ?? PIN_COLORS[0]
+    const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+    const wLabel = `${nodesById[worker.nodes[0]]?.name ?? worker.nodes[0]} → ${nodesById[worker.nodes[worker.nodes.length - 1]]?.name ?? worker.nodes[worker.nodes.length - 1]}`
+    const pLabel = `${nodesById[protect.nodes[0]]?.name ?? protect.nodes[0]} → ${nodesById[protect.nodes[protect.nodes.length - 1]]?.name ?? protect.nodes[protect.nodes.length - 1]} (Protect)`
+    pinCounter.current += 1
+    const wId = pinCounter.current
+    pinCounter.current += 1
+    setPinnedRoutes([...remaining,
+      { pinId: `pin-${wId}`,            route: worker,  color, searchLabel: wLabel },
+      { pinId: `pin-${pinCounter.current}`, route: protect, color, searchLabel: pLabel },
+    ])
+  }
+
   function handleToggleSystem(systemId: string) {
     const existing = selectedSystems.find(s => s.systemId === systemId)
     if (existing) {
@@ -567,7 +592,7 @@ export default function App() {
               onSelectRoute={toggleRoute}
               nodes={nodes} systems={systems} capacity={capacity} outages={outages}
               pinnedRoutes={pinnedRoutes}
-              onPin={handlePin} onUnpin={handleUnpin}
+              onPin={handlePin} onUnpin={handleUnpin} onPinPair={handlePinPair}
               diversityRequested={lastSearchDiversity !== 'none'}
               onNetOwnership={config.on_net_ownership}
               externalSortKey={nlpSortKey}
