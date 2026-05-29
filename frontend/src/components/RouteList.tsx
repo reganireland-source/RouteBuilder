@@ -322,7 +322,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                     activeProject={activeProject}
                   />
                 ))
-          }()}
+          })()}
         </div>
       )}
 
