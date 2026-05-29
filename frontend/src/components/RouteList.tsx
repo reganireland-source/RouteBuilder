@@ -263,30 +263,66 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
               }
             </button>
           </div>
-          {pinsCompressed
-            ? pinnedRoutes.map(p => (
-                <CompressedPinCard
-                  key={p.pinId}
-                  pinned={p}
-                  onUnpin={() => onUnpin(p.pinId)}
-                  systemsById={systemsById}
-                />
-              ))
-            : pinnedRoutes.map(p => (
-                <PinnedRouteCard
-                  key={p.pinId}
-                  pinned={p}
-                  onUnpin={() => onUnpin(p.pinId)}
-                  nodesById={nodesById}
-                  capacityById={capacityById}
-                  outagesById={outagesById}
-                  onNetSet={onNetSet}
-                  systemsById={systemsById}
-                  onEnrichCircuit={onEnrichCircuit ? () => onEnrichCircuit(p) : undefined}
-                  activeProject={activeProject}
-                />
-              ))
-          }
+          {(() => {
+            // Detect diversity pairs among pinned routes.
+            // Project pairs: share same circuitId (worker first, protect has "(Protect)" label).
+            // Ad-hoc pairs: same color, protect has "(Protect)" in searchLabel.
+            const protectPinIds = new Set<string>()
+            const protectByWorkerPinId = new Map<string, PinnedRoute>()
+            for (const p of pinnedRoutes) {
+              if (protectPinIds.has(p.pinId)) continue
+              const isProtect = p.searchLabel.includes('(Protect)')
+              if (isProtect) continue
+              // Find a protect partner
+              const partner = pinnedRoutes.find(q =>
+                q.pinId !== p.pinId &&
+                !protectPinIds.has(q.pinId) &&
+                q.searchLabel.includes('(Protect)') &&
+                (
+                  (p.circuitId && q.circuitId && p.circuitId === q.circuitId) ||
+                  (!p.circuitId && !q.circuitId && p.color === q.color)
+                )
+              )
+              if (partner) {
+                protectPinIds.add(partner.pinId)
+                protectByWorkerPinId.set(p.pinId, partner)
+              }
+            }
+            const visiblePins = pinnedRoutes.filter(p => !protectPinIds.has(p.pinId))
+
+            return pinsCompressed
+              ? visiblePins.map(p => (
+                  <CompressedPinCard
+                    key={p.pinId}
+                    pinned={p}
+                    onUnpin={() => {
+                      onUnpin(p.pinId)
+                      const partner = protectByWorkerPinId.get(p.pinId)
+                      if (partner) onUnpin(partner.pinId)
+                    }}
+                    systemsById={systemsById}
+                  />
+                ))
+              : visiblePins.map(p => (
+                  <PinnedRouteCard
+                    key={p.pinId}
+                    pinned={p}
+                    onUnpin={() => {
+                      onUnpin(p.pinId)
+                      const partner = protectByWorkerPinId.get(p.pinId)
+                      if (partner) onUnpin(partner.pinId)
+                    }}
+                    protectPin={protectByWorkerPinId.get(p.pinId)}
+                    nodesById={nodesById}
+                    capacityById={capacityById}
+                    outagesById={outagesById}
+                    onNetSet={onNetSet}
+                    systemsById={systemsById}
+                    onEnrichCircuit={onEnrichCircuit ? () => onEnrichCircuit(p) : undefined}
+                    activeProject={activeProject}
+                  />
+                ))
+          }()}
         </div>
       )}
 
@@ -678,7 +714,7 @@ function CompressedPinCard({ pinned, onUnpin, systemsById }: {
   )
 }
 
-function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, onNetSet, systemsById, onEnrichCircuit, activeProject }: {
+function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, onNetSet, systemsById, onEnrichCircuit, activeProject, protectPin }: {
   pinned: PinnedRoute
   onUnpin: () => void
   nodesById: Record<string, { name: string; type?: string }>
@@ -688,6 +724,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   systemsById: Record<string, CableSystem>
   onEnrichCircuit?: () => void
   activeProject?: Project | null
+  protectPin?: PinnedRoute
 }) {
   const t = useTheme()
   const isMobile = useIsMobile()
@@ -697,6 +734,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   const [hovered, setHovered] = useState(false)
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
   const [segmentsOpen, setSegmentsOpen] = useState(false)
+  const [pathCompareOpen, setPathCompareOpen] = useState(false)
   const [enrichNudge, setEnrichNudge] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
 
@@ -848,6 +886,47 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
             <SegmentBreakdownRows route={route} capacityById={capacityById} outagesById={outagesById} onNetSet={onNetSet} />
           </div>
         )}
+
+        {/* Path comparison for diversity pairs */}
+        {protectPin && (() => {
+          const worker = route
+          const protect = protectPin.route
+          const workerSegIds = new Set(worker.segments.map(s => s.segment_id))
+          const sharedIds = new Set(protect.segments.filter(s => workerSegIds.has(s.segment_id)).map(s => s.segment_id))
+          const routeStart = worker.nodes[0]
+          const routeEnd = worker.nodes[worker.nodes.length - 1]
+          const workerNodeSet = new Set(worker.nodes)
+          const sharedNodeIds = new Set(protect.nodes.filter(n => workerNodeSet.has(n) && n !== routeStart && n !== routeEnd))
+          return (
+            <>
+              <button
+                onClick={() => setPathCompareOpen(o => !o)}
+                style={{
+                  marginTop: 6, width: '100%',
+                  fontSize: 9, padding: '3px 8px', borderRadius: 4, cursor: 'pointer',
+                  border: `1px solid ${pathCompareOpen ? t.blue : t.border}`,
+                  background: pathCompareOpen ? t.blue + '18' : 'transparent',
+                  color: pathCompareOpen ? t.blue : t.textFaint, fontWeight: 600,
+                  letterSpacing: '0.04em', textAlign: 'left',
+                }}
+              >
+                ≡ Path Comparison {pathCompareOpen ? '▴' : '▾'}
+              </button>
+              {pathCompareOpen && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6, padding: '10px 10px 6px', borderRadius: 6, background: t.bgDeep, border: `1px solid ${t.border}` }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: t.blue, marginBottom: 6, letterSpacing: '0.04em' }}>🔵 Worker</div>
+                    <PairBreakdown route={worker} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.blue} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: t.green, marginBottom: 6, letterSpacing: '0.04em' }}>🟢 Protect</div>
+                    <PairBreakdown route={protect} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.green} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+                  </div>
+                </div>
+              )}
+            </>
+          )
+        })()}
 
       </div>
 
