@@ -189,7 +189,8 @@ export default function App() {
   const [nlpSortKey, setNlpSortKey]                 = useState<SortKey | undefined>(undefined)
   const [nlpPushOutages, setNlpPushOutages]         = useState<boolean | undefined>(undefined)
   const [countryHighlight, setCountryHighlight]     = useState<CountryHighlight | null>(null)
-  const [panelsOpen, setPanelsOpen]                 = useState(true)
+  const [leftOpen, setLeftOpen]                     = useState(true)
+  const [middleOpen, setMiddleOpen]                 = useState(true)
   const [flippedPairIds, setFlippedPairIds]         = useState<Set<string>>(new Set())
   const pinCounter = useRef(0)
 
@@ -727,17 +728,11 @@ export default function App() {
           )
         })()}
 
-        {/* Collapsible panels wrapper */}
-        <div style={{
-          display: 'flex', overflow: 'hidden', flexShrink: 0,
-          width: panelsOpen ? 960 : 0,
-          transition: 'width 0.3s ease',
-        }}>
-
         {/* Left panel */}
         <div style={{
-          width: 440, flexShrink: 0, display: 'flex', flexDirection: 'column',
-          background: theme.bgPanel, borderRight: `1px solid ${theme.border}`,
+          width: leftOpen ? 440 : 0, flexShrink: 0, display: 'flex', flexDirection: 'column',
+          background: theme.bgPanel, borderRight: leftOpen ? `1px solid ${theme.border}` : 'none',
+          overflow: 'hidden', transition: 'width 0.3s ease',
         }}>
           <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${theme.border}` }}>
             <div
@@ -802,10 +797,27 @@ export default function App() {
           <HealthBar dataLoaded={nodes.length > 0} />
         </div>
 
+        {/* Left panel collapse toggle */}
+        <button
+          onClick={() => setLeftOpen(v => !v)}
+          title={leftOpen ? 'Hide search panel' : 'Show search panel'}
+          style={{
+            flexShrink: 0, alignSelf: 'center',
+            zIndex: 500, background: theme.bgPanel,
+            border: `1px solid ${theme.border}`, borderLeft: 'none',
+            borderRadius: '0 6px 6px 0',
+            color: theme.textFaint, cursor: 'pointer',
+            padding: '10px 5px', fontSize: 13, fontWeight: 700, lineHeight: 1,
+            display: 'flex', alignItems: 'center',
+            boxShadow: '2px 0 6px rgba(0,0,0,0.2)',
+          }}
+        >{leftOpen ? '‹' : '›'}</button>
+
         {/* Middle panel */}
         <div style={{
-          width: 520, flexShrink: 0, display: 'flex', flexDirection: 'column',
-          background: theme.bgDeep, borderRight: `1px solid ${theme.border}`,
+          width: middleOpen ? 520 : 0, flexShrink: 0, display: 'flex', flexDirection: 'column',
+          background: theme.bgDeep, borderRight: middleOpen ? `1px solid ${theme.border}` : 'none',
+          overflow: 'hidden', transition: 'width 0.3s ease',
         }}>
           <ModeBanner
             activeProject={activeProject}
@@ -882,28 +894,24 @@ export default function App() {
           </div>
         </div>
 
-        {/* End collapsible panels wrapper */}
-        </div>
+        {/* Middle panel collapse toggle */}
+        <button
+          onClick={() => setMiddleOpen(v => !v)}
+          title={middleOpen ? 'Hide routes panel' : 'Show routes panel'}
+          style={{
+            flexShrink: 0, alignSelf: 'center',
+            zIndex: 500, background: theme.bgDeep,
+            border: `1px solid ${theme.border}`, borderLeft: 'none',
+            borderRadius: '0 6px 6px 0',
+            color: theme.textFaint, cursor: 'pointer',
+            padding: '10px 5px', fontSize: 13, fontWeight: 700, lineHeight: 1,
+            display: 'flex', alignItems: 'center',
+            boxShadow: '2px 0 6px rgba(0,0,0,0.2)',
+          }}
+        >{middleOpen ? '‹' : '›'}</button>
 
         {/* Map */}
         <div style={{ flex: 1, position: 'relative' }}>
-          {/* Drawer toggle */}
-          <button
-            onClick={() => setPanelsOpen(v => !v)}
-            title={panelsOpen ? 'Hide panels' : 'Show panels'}
-            style={{
-              position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)',
-              zIndex: 500, background: theme.bgPanel,
-              border: `1px solid ${theme.border}`, borderLeft: 'none',
-              borderRadius: '0 6px 6px 0',
-              color: theme.textFaint, cursor: 'pointer',
-              padding: '10px 5px', fontSize: 13, fontWeight: 700, lineHeight: 1,
-              display: 'flex', alignItems: 'center',
-              boxShadow: '2px 0 6px rgba(0,0,0,0.2)',
-            }}
-          >
-            {panelsOpen ? '‹' : '›'}
-          </button>
 
           {nodes.length > 0 ? (
             <Map
@@ -919,7 +927,7 @@ export default function App() {
               subseaOnly={subseaOnly}
               backhaulOnly={backhaulOnly}
               countryHighlight={countryHighlight}
-              panelWidth={panelsOpen ? 960 : 0}
+              panelWidth={(leftOpen ? 440 : 0) + (middleOpen ? 520 : 0)}
             />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.textFaint }}>
