@@ -1,360 +1,765 @@
 import jsPDF from 'jspdf'
-import type { PinnedRoute, CableNode } from '../types'
+import type { PinnedRoute, CableNode, Project, ProjectCircuit } from '../types'
 
-const PAGE_W = 297
-const PAGE_H = 210
-const MARGIN = 18
-const USABLE_W = PAGE_W - MARGIN * 2
+// ── Types ─────────────────────────────────────────────────────────────────────
+type RGB = [number, number, number]
 
-// ── Colour helpers ────────────────────────────────────────────────────────────
+// ── Colour palette ────────────────────────────────────────────────────────────
+const BLUE:      RGB = [0,   100, 190]
+const TEAL:      RGB = [0,   150, 170]
+const LT_GRAY:   RGB = [238, 238, 238]
+const MID_GRAY:  RGB = [170, 170, 170]
+const DK_GRAY:   RGB = [55,   55,  55]
+const WHITE:     RGB = [255, 255, 255]
+const BLACK:     RGB = [20,   20,  20]
 
-function hexToRgb(hex: string): [number, number, number] {
+// ── Page dimensions (landscape A4) ────────────────────────────────────────────
+const PW = 297
+const PH = 210
+const M  = 10    // outer margin
+
+// ── Vertical layout landmarks ─────────────────────────────────────────────────
+const TITLE_Y  = 7     // circuit label box top
+const TITLE_H  = 12
+const ZONE_Y   = TITLE_Y + TITLE_H + 2   // ≈ 21
+const ZONE_H   = 7
+const DIAG_Y   = ZONE_Y + ZONE_H + 1     // ≈ 29  diagram area starts
+const LINE_Y   = DIAG_Y + 40             // ≈ 69  main path line
+const DIAG_BOT = LINE_Y + 25             // ≈ 94  diagram area ends
+const PNL_Y    = DIAG_BOT + 3            // ≈ 97  panel/table area starts
+const PNL_H    = 55
+const PNL_BOT  = PNL_Y + PNL_H          // ≈ 152
+const LEG_Y    = PNL_BOT + 3            // ≈ 155
+const LEG_H    = 12
+const FTR_Y    = LEG_Y + LEG_H + 2      // ≈ 169
+
+// ── Three panel columns ───────────────────────────────────────────────────────
+const GAP    = 6
+const COL_W  = (PW - M * 2 - GAP * 2) / 3   // ≈ 87.7
+const COL_L  = M
+const COL_C  = M + COL_W + GAP
+const COL_R  = M + COL_W * 2 + GAP * 2
+
+// ── Attribute table row heights ───────────────────────────────────────────────
+const ROW_H        = 9.2
+const LABEL_W_END  = 26   // label column in A/Z-End tables
+const LABEL_W_SVC  = 35   // label column in service table
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function hexToRgb(hex: string): RGB {
   const c = hex.replace('#', '')
-  return [
-    parseInt(c.substring(0, 2), 16),
-    parseInt(c.substring(2, 4), 16),
-    parseInt(c.substring(4, 6), 16),
-  ]
+  return [parseInt(c.slice(0,2),16), parseInt(c.slice(2,4),16), parseInt(c.slice(4,6),16)]
 }
 
-// ── Layout constants ──────────────────────────────────────────────────────────
+function setFill(doc: jsPDF, c: RGB) { doc.setFillColor(...c) }
+function setStroke(doc: jsPDF, c: RGB, lw?: number) { doc.setDrawColor(...c); if (lw !== undefined) doc.setLineWidth(lw) }
+function setColor(doc: jsPDF, c: RGB) { doc.setTextColor(...c) }
 
-const LINE_Y      = 108   // cable line Y position
-const LABEL_GAP   = 4     // gap between line and labels
-const NODE_R      = 2.2   // node circle radius
+/** Clamp a string to maxLen characters */
+function clamp(s: string | undefined, maxLen: number): string {
+  if (!s) return '—'
+  return s.length > maxLen ? s.slice(0, maxLen - 1) + '…' : s
+}
 
-// ── Per-page diagram ──────────────────────────────────────────────────────────
+// ── Draw one attribute row (teal label | light-gray value) ────────────────────
+function attrRow(
+  doc: jsPDF,
+  x: number, y: number, w: number,
+  labelW: number, label: string, value: string | undefined,
+  rowH = ROW_H,
+) {
+  setFill(doc, TEAL)
+  doc.rect(x, y, labelW, rowH, 'F')
+  doc.setFontSize(6)
+  setColor(doc, WHITE)
+  doc.text(label, x + 2, y + rowH * 0.64)
 
-function drawRoute(doc: jsPDF, pinned: PinnedRoute, nodesById: Record<string, CableNode>, pageNum: number, total: number, version?: string) {
-  const route     = pinned.route
-  const segs      = route.segments
-  const totalKm   = route.total_length_km
-  const pinRgb    = hexToRgb(pinned.color)
-  const startNode = nodesById[route.nodes[0]]
-  const endNode   = nodesById[route.nodes[route.nodes.length - 1]]
-
-  // ── Header ──────────────────────────────────────────────────────────────────
-
-  // Pin colour stripe
-  doc.setFillColor(...pinRgb)
-  doc.rect(MARGIN, 8, USABLE_W, 2.5, 'F')
-
-  // Branding
+  setFill(doc, LT_GRAY)
+  doc.rect(x + labelW, y, w - labelW, rowH, 'F')
   doc.setFontSize(7)
-  doc.setTextColor(140, 140, 140)
-  doc.text('TELSTRA INTERNATIONAL · ROUTEBUILDER', MARGIN, 17)
-  const versionTag = version ? `  ·  ${version.toUpperCase()}` : ''
-  doc.text(`Page ${pageNum} of ${total}  ·  ${new Date().toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' })}${versionTag}`, PAGE_W - MARGIN, 17, { align: 'right' })
+  setColor(doc, DK_GRAY)
+  doc.text(value || '—', x + labelW + 2.5, y + rowH * 0.67, { maxWidth: w - labelW - 4 })
+}
 
-  // Route title
-  doc.setFontSize(13)
-  doc.setTextColor(20, 20, 20)
-  const fromName = startNode?.name ?? route.nodes[0]
-  const toName   = endNode?.name   ?? route.nodes[route.nodes.length - 1]
-  doc.text(`${fromName}  →  ${toName}`, MARGIN, 27)
+// ── Node icon types ───────────────────────────────────────────────────────────
+type IconType = 'pop' | 'cls' | 'mmr' | 'customer'
 
-  // Subtitle: searchLabel if available
-  if (pinned.searchLabel && pinned.searchLabel !== `${fromName} → ${toName}`) {
-    doc.setFontSize(8)
-    doc.setTextColor(120, 120, 120)
-    doc.text(pinned.searchLabel, MARGIN, 33)
+function iconTypeForNode(node: CableNode | undefined): IconType {
+  if (!node) return 'pop'
+  if (node.type === 'landing_station') return 'cls'
+  if (node.type === 'branching_unit')  return 'mmr'
+  return 'pop'
+}
+
+function drawNodeIcon(doc: jsPDF, cx: number, cy: number, type: IconType, sz = 5.5) {
+  const r = sz / 2
+  if (type === 'customer') {
+    setFill(doc, WHITE); setStroke(doc, MID_GRAY, 0.4)
+    doc.circle(cx, cy, r, 'FD')
+    setStroke(doc, DK_GRAY, 0.3)
+    doc.line(cx - r, cy, cx + r, cy)
+    doc.line(cx, cy - r, cx, cy + r)
+    doc.circle(cx, cy, r * 0.35, 'S')
+  } else if (type === 'cls') {
+    setFill(doc, WHITE); setStroke(doc, MID_GRAY, 0.4)
+    doc.rect(cx - r, cy - r, sz, sz, 'FD')
+    setStroke(doc, DK_GRAY, 0.3)
+    doc.line(cx - r + 1.5, cy - r, cx - r + 1.5, cy + r)
+    doc.line(cx - r, cy, cx + r, cy)
+  } else if (type === 'mmr') {
+    setFill(doc, WHITE); setStroke(doc, MID_GRAY, 0.4)
+    doc.rect(cx - r, cy - r, sz, sz, 'FD')
+    setFill(doc, DK_GRAY)
+    const step = (sz - 2) / 2
+    for (let row = 0; row < 3; row++)
+      for (let col = 0; col < 3; col++)
+        doc.circle(cx - r + 1 + col * step, cy - r + 1 + row * step, 0.45, 'F')
+  } else {
+    // POP: filled circle with ring
+    setFill(doc, [220, 235, 255] as RGB); setStroke(doc, BLUE, 0.5)
+    doc.circle(cx, cy, r, 'FD')
+    doc.setFontSize(3.5); setColor(doc, BLUE)
+    doc.text('●', cx, cy + 1.1, { align: 'center' })
   }
+}
 
-  // ── Route summary bar ────────────────────────────────────────────────────────
+// ── Draw the node diagram (top section of page) ───────────────────────────────
+function drawDiagram(
+  doc: jsPDF,
+  route: ReturnType<typeof buildRouteView>,
+  nodesById: Record<string, CableNode>,
+  showDwdm: boolean,
+  sldConfig?: { show_rtd?: boolean; show_distance?: boolean; show_segment_latency?: boolean },
+) {
+  const { nodes, segments, totalKm, totalLatency } = route
 
-  const summaryY = 41
-  doc.setFillColor(245, 245, 248)
-  doc.rect(MARGIN, summaryY - 4, USABLE_W, 12, 'F')
-  doc.setDrawColor(210, 210, 220)
-  doc.setLineWidth(0.2)
-  doc.rect(MARGIN, summaryY - 4, USABLE_W, 12)
+  // Customer-site dashed boxes at each end
+  const boxW = 52
+  const boxY = DIAG_Y + 2
+  const boxH = DIAG_BOT - boxY - 2
+  setFill(doc, [252, 252, 252] as RGB); setStroke(doc, MID_GRAY, 0.3)
+  doc.setLineDashPattern([3, 2], 0)
+  doc.rect(M, boxY, boxW, boxH, 'FD')
+  doc.rect(PW - M - boxW, boxY, boxW, boxH, 'FD')
+  doc.setLineDashPattern([], 0)
 
-  const summaryItems = [
-    ['Total Length',  `${totalKm.toLocaleString()} km`],
-    ['Total Latency', `${route.total_latency?.toFixed(1) ?? '—'} ms`],
-    ['Availability',  `${(route.end_to_end_reliability * 100).toFixed(3)}%`],
-    ['Segments',      `${segs.length}`],
-    ['Nodes',         `${route.nodes.length}`],
-  ]
-  const colW = USABLE_W / summaryItems.length
-  summaryItems.forEach(([label, value], i) => {
-    const x = MARGIN + i * colW + colW / 2
-    doc.setFontSize(6)
-    doc.setTextColor(120, 120, 120)
-    doc.text(label.toUpperCase(), x, summaryY, { align: 'center' })
-    doc.setFontSize(9)
-    doc.setTextColor(20, 20, 20)
-    doc.text(value, x, summaryY + 5.5, { align: 'center' })
-  })
+  // Customer site labels inside boxes
+  doc.setFontSize(6); setColor(doc, MID_GRAY)
+  doc.text('CUSTOMER SITE', M + boxW / 2, boxY + 4, { align: 'center' })
+  doc.text('CUSTOMER SITE', PW - M - boxW / 2, boxY + 4, { align: 'center' })
 
-  // ── Compute node X positions (proportional to segment length) ────────────────
+  // Node X positions proportional to segment lengths
+  const innerL = M + boxW + 3
+  const innerR = PW - M - boxW - 3
+  const innerW = innerR - innerL
 
   interface NodePos { x: number; nodeId: string }
   const positions: NodePos[] = []
-  positions.push({ x: MARGIN, nodeId: route.nodes[0] })
-
+  positions.push({ x: innerL, nodeId: nodes[0] })
   let cum = 0
-  for (const seg of segs) {
+  for (const seg of segments) {
     cum += seg.length_km
-    positions.push({ x: MARGIN + (cum / totalKm) * USABLE_W, nodeId: seg.end_node_id })
+    positions.push({ x: innerL + (cum / totalKm) * innerW, nodeId: seg.end_node_id })
   }
 
-  // ── Main cable line ──────────────────────────────────────────────────────────
+  // RTD arrow + label
+  if (sldConfig?.show_rtd !== false && totalLatency) {
+    const rtd = (totalLatency * 2).toFixed(1)
+    const arrowY = DIAG_Y + 8
+    setStroke(doc, MID_GRAY, 0.3)
+    doc.line(M + boxW + 1, arrowY, PW - M - boxW - 1, arrowY)
+    // Arrow heads
+    const ah = 1.5, al = 3
+    doc.line(M + boxW + 1, arrowY, M + boxW + 1 + al, arrowY - ah)
+    doc.line(M + boxW + 1, arrowY, M + boxW + 1 + al, arrowY + ah)
+    doc.line(PW - M - boxW - 1, arrowY, PW - M - boxW - 1 - al, arrowY - ah)
+    doc.line(PW - M - boxW - 1, arrowY, PW - M - boxW - 1 - al, arrowY + ah)
+    doc.setFontSize(6.5); setColor(doc, MID_GRAY)
+    doc.text(`RTD ~${rtd} ms`, PW / 2, arrowY - 1.5, { align: 'center' })
+  }
 
-  doc.setDrawColor(80, 80, 80)
-  doc.setLineWidth(0.7)
-  doc.line(MARGIN, LINE_Y, PAGE_W - MARGIN, LINE_Y)
+  // Main path line (solid blue)
+  setStroke(doc, BLUE, 1.0)
+  doc.line(M + boxW, LINE_Y, PW - M - boxW, LINE_Y)
 
-  // ── Segment labels (below line) ──────────────────────────────────────────────
+  // DWDM dashed line
+  if (showDwdm) {
+    setStroke(doc, BLUE, 0.5)
+    doc.setLineDashPattern([4, 2], 0)
+    doc.line(M + boxW, LINE_Y + 3.5, PW - M - boxW, LINE_Y + 3.5)
+    doc.setLineDashPattern([], 0)
+  }
 
-  segs.forEach((seg, i) => {
-    const x1   = positions[i].x
-    const x2   = positions[i + 1].x
-    const midX = (x1 + x2) / 2
+  // Segment labels above line
+  segments.forEach((seg, i) => {
+    const x1  = positions[i].x
+    const x2  = positions[i + 1].x
+    const mid = (x1 + x2) / 2
     const segW = x2 - x1
 
-    // Tick marks at segment boundaries
-    doc.setDrawColor(120, 120, 120)
-    doc.setLineWidth(0.3)
-    doc.line(x1, LINE_Y - 3, x1, LINE_Y + 3)
+    // Tick marks
+    setStroke(doc, MID_GRAY, 0.3)
+    doc.line(x1, LINE_Y - 4, x1, LINE_Y + 4)
 
-    // System ID
-    const sysLabel = seg.system_id.length > 14 ? seg.system_id.substring(0, 13) + '…' : seg.system_id
-    doc.setFontSize(segW > 30 ? 7 : 5.5)
-    doc.setTextColor(40, 80, 160)
-    doc.text(sysLabel, midX, LINE_Y + LABEL_GAP + 5, { align: 'center', maxWidth: segW - 2 })
-
-    // Length + latency
-    if (segW > 18) {
-      doc.setFontSize(6)
-      doc.setTextColor(70, 70, 70)
-      doc.text(`${seg.length_km.toLocaleString()} km`, midX, LINE_Y + LABEL_GAP + 10.5, { align: 'center' })
-      if (seg.latency != null) {
-        doc.text(`${seg.latency.toFixed(1)} ms`, midX, LINE_Y + LABEL_GAP + 14.5, { align: 'center' })
-      }
+    if (segW > 12) {
+      doc.setFontSize(Math.min(6.5, Math.max(4.5, segW / 9)))
+      setColor(doc, BLUE)
+      doc.text(clamp(seg.system_id, 20), mid, LINE_Y - 6, { align: 'center', maxWidth: segW - 2 })
+    }
+    if (segW > 22 && sldConfig?.show_segment_latency !== false) {
+      doc.setFontSize(5.5); setColor(doc, DK_GRAY)
+      const parts: string[] = []
+      if (sldConfig?.show_distance !== false) parts.push(`${seg.length_km.toLocaleString()} km`)
+      if (seg.latency != null) parts.push(`${seg.latency.toFixed(1)} ms`)
+      if (parts.length) doc.text(parts.join(' · '), mid, LINE_Y - 2, { align: 'center', maxWidth: segW - 2 })
     }
 
-    // Ownership badge for wide segments
-    if (segW > 40 && seg.ownership !== 'consortium') {
-      doc.setFontSize(5.5)
-      doc.setTextColor(130, 80, 10)
-      doc.text(seg.ownership.toUpperCase(), midX, LINE_Y + LABEL_GAP + 18.5, { align: 'center' })
-    }
-
-    // Segment type indicator (wet vs terrestrial) — dashed line for terrestrial
+    // Terrestrial: dashed orange overlay
     if (seg.type === 'terrestrial') {
-      doc.setLineDashPattern([1.5, 1.5], 0)
-      doc.setDrawColor(160, 100, 40)
-      doc.setLineWidth(0.9)
+      setStroke(doc, [160, 100, 40] as RGB, 0.8)
+      doc.setLineDashPattern([2, 2], 0)
       doc.line(x1, LINE_Y, x2, LINE_Y)
       doc.setLineDashPattern([], 0)
-      doc.setDrawColor(80, 80, 80)
-      doc.setLineWidth(0.7)
     }
   })
 
   // Closing tick
-  doc.setDrawColor(120, 120, 120)
-  doc.setLineWidth(0.3)
-  doc.line(PAGE_W - MARGIN, LINE_Y - 3, PAGE_W - MARGIN, LINE_Y + 3)
+  setStroke(doc, MID_GRAY, 0.3)
+  doc.line(PW - M - boxW, LINE_Y - 4, PW - M - boxW, LINE_Y + 4)
 
-  // ── Node circles + labels (above line) ───────────────────────────────────────
-
-  // Alternate label rows to reduce overlap on dense routes
+  // Node icons + labels
   positions.forEach((np, i) => {
-    const node     = nodesById[np.nodeId]
-    const isCLS    = node?.type === 'landing_station'
-    const isFirst  = i === 0
-    const isLast   = i === positions.length - 1
+    const node    = nodesById[np.nodeId]
+    const isFirst = i === 0
+    const isLast  = i === positions.length - 1
 
-    // Circle — filled for CLS, outline for POP
-    if (isCLS) {
-      doc.setFillColor(30, 100, 200)
-      doc.circle(np.x, LINE_Y, NODE_R, 'F')
-    } else {
-      doc.setFillColor(255, 255, 255)
-      doc.setDrawColor(120, 120, 180)
-      doc.setLineWidth(0.5)
-      doc.circle(np.x, LINE_Y, NODE_R - 0.4, 'FD')
-    }
+    // First/last nodes are in customer site boxes; inner nodes on line
+    let iconX = np.x
+    if (isFirst) iconX = M + boxW / 2
+    if (isLast)  iconX = PW - M - boxW / 2
 
-    // Label position: alternate rows for interior nodes to reduce overlap
-    const row   = (i % 2 === 0 || isFirst || isLast) ? 0 : 1
-    const baseY = LINE_Y - NODE_R - LABEL_GAP
+    const iconType: IconType = (isFirst || isLast) ? 'customer' : iconTypeForNode(node)
+    drawNodeIcon(doc, iconX, LINE_Y, iconType)
 
-    const nameY    = baseY - 3.5 - row * 6
-    const countryY = nameY - 3.8
+    // Labels
+    const row   = (!isFirst && !isLast && i % 2 === 0) ? 1 : 0
+    const baseY = LINE_Y + 7.5 + row * 6
 
-    const name    = node?.name    ?? np.nodeId
-    const country = node?.country ?? ''
-
-    // Node ID code (small, above name)
-    doc.setFontSize(5.5)
-    doc.setTextColor(140, 140, 160)
-    doc.text(np.nodeId, np.x, countryY, { align: 'center' })
-
-    // Node name
-    doc.setFontSize(isCLS ? 7.5 : 6.5)
-    doc.setTextColor(isCLS ? 20 : 60, isCLS ? 20 : 60, isCLS ? 20 : 80)
-    const displayName = name.length > 18 ? name.substring(0, 17) + '…' : name
-    doc.text(displayName, np.x, nameY, { align: 'center' })
-
-    // Country pill for CLS nodes
-    if (isCLS && country) {
-      doc.setFontSize(5.5)
-      doc.setTextColor(80, 120, 180)
-      doc.text(country, np.x, nameY + 3.5, { align: 'center' })
+    doc.setFontSize(5.5); setColor(doc, MID_GRAY)
+    doc.text(np.nodeId, iconX, baseY, { align: 'center' })
+    doc.setFontSize(isFirst || isLast ? 6.5 : 6); setColor(doc, DK_GRAY)
+    doc.text(clamp(node?.name, 18), iconX, baseY + 4, { align: 'center' })
+    if (node?.country && !isFirst && !isLast) {
+      doc.setFontSize(5); setColor(doc, MID_GRAY)
+      doc.text(node.country, iconX, baseY + 7.5, { align: 'center' })
     }
   })
+}
 
-  // ── Legend ───────────────────────────────────────────────────────────────────
+// ── Draw bottom panels + tables ───────────────────────────────────────────────
+function drawPanels(
+  doc: jsPDF,
+  circuit: ProjectCircuit | undefined,
+  pin: PinnedRoute,
+  nodesById: Record<string, CableNode>,
+) {
+  const route      = pin.route
+  const aEndNode   = nodesById[route.nodes[0]]
+  const zEndNode   = nodesById[route.nodes[route.nodes.length - 1]]
+  const aEnd       = circuit?.a_end
+  const zEnd       = circuit?.z_end
 
-  const legY = PAGE_H - 14
-  doc.setFontSize(6)
-  doc.setTextColor(120, 120, 120)
+  // ── A-End address panel (left column top) ─────────────────────────────────
+  const addrH = 28
+  setFill(doc, WHITE); setStroke(doc, MID_GRAY, 0.3)
+  doc.rect(COL_L, PNL_Y, COL_W, addrH, 'FD')
+  doc.setFontSize(7); setColor(doc, BLACK)
+  doc.text(`A-End: ${aEndNode?.country ?? ''}`, COL_L + 3, PNL_Y + 6)
+  doc.setFontSize(6.5)
+  const aName = aEnd?.customer_site_name ?? aEndNode?.name ?? '—'
+  doc.text(aName, COL_L + 3, PNL_Y + 11.5)
+  if (aEnd?.customer_site_address) {
+    doc.setFontSize(6); setColor(doc, DK_GRAY)
+    const lines = doc.splitTextToSize(aEnd.customer_site_address, COL_W - 6)
+    lines.slice(0, 3).forEach((line: string, i: number) =>
+      doc.text(line, COL_L + 3, PNL_Y + 16 + i * 4))
+  }
 
-  // Wet segment
-  doc.setDrawColor(80, 80, 80)
-  doc.setLineWidth(0.7)
-  doc.line(MARGIN, legY, MARGIN + 10, legY)
-  doc.text('Wet segment', MARGIN + 12, legY + 1)
+  // ── Z-End address panel (right column top) ────────────────────────────────
+  setFill(doc, WHITE); setStroke(doc, MID_GRAY, 0.3)
+  doc.rect(COL_R, PNL_Y, COL_W, addrH, 'FD')
+  doc.setFontSize(7); setColor(doc, BLACK)
+  doc.text(`Z-End: ${zEndNode?.country ?? ''}`, COL_R + 3, PNL_Y + 6)
+  doc.setFontSize(6.5)
+  const zName = zEnd?.customer_site_name ?? zEndNode?.name ?? '—'
+  doc.text(zName, COL_R + 3, PNL_Y + 11.5)
+  if (zEnd?.customer_site_address) {
+    doc.setFontSize(6); setColor(doc, DK_GRAY)
+    const lines = doc.splitTextToSize(zEnd.customer_site_address, COL_W - 6)
+    lines.slice(0, 3).forEach((line: string, i: number) =>
+      doc.text(line, COL_R + 3, PNL_Y + 16 + i * 4))
+  }
 
-  // Terrestrial
-  doc.setLineDashPattern([1.5, 1.5], 0)
-  doc.setDrawColor(160, 100, 40)
-  doc.line(MARGIN + 35, legY, MARGIN + 45, legY)
+  // ── Legend (center column top) ─────────────────────────────────────────────
+  const legBoxY = PNL_Y + 3
+  setStroke(doc, BLUE, 1.0)
+  doc.line(COL_C + 3, legBoxY + 3, COL_C + 18, legBoxY + 3)
+  doc.setFontSize(6.5); setColor(doc, DK_GRAY)
+  doc.text('Main Path - Estimated RTD', COL_C + 20, legBoxY + 4.5)
+
+  setStroke(doc, BLUE, 0.5); doc.setLineDashPattern([3, 2], 0)
+  doc.line(COL_C + 3, legBoxY + 9, COL_C + 18, legBoxY + 9)
   doc.setLineDashPattern([], 0)
-  doc.text('Terrestrial', MARGIN + 47, legY + 1)
+  doc.text('Dedicated DWDM Channel', COL_C + 20, legBoxY + 10.5)
 
-  // CLS dot
-  doc.setFillColor(30, 100, 200)
-  doc.circle(MARGIN + 72, legY, 1.5, 'F')
-  doc.setTextColor(120, 120, 120)
-  doc.text('Landing Station (CLS)', MARGIN + 75, legY + 1)
+  // ── Service table (center column, below legend) ────────────────────────────
+  const svcY = PNL_Y + addrH - ROW_H * 5
+  const rows: [string, string | undefined][] = [
+    ['SERVICE TYPE', circuit?.service_type],
+    ['CABLE SYSTEM', buildRouteView(pin.route).systems.join(', ') || undefined],
+    ['BANDWIDTH',    circuit?.bandwidth],
+    ['PROTECTION',   circuit?.protection],
+    ['FRAME SIZE',   circuit?.frame_size],
+    ['L1 SETTINGS',  circuit?.l1_settings],
+  ]
+  rows.forEach(([label, value], i) => {
+    attrRow(doc, COL_C, svcY + i * ROW_H, COL_W, LABEL_W_SVC, label, value)
+  })
 
-  // POP dot
-  doc.setFillColor(255, 255, 255)
-  doc.setDrawColor(120, 120, 180)
-  doc.setLineWidth(0.5)
-  doc.circle(MARGIN + 115, legY, 1.5, 'FD')
-  doc.text('Terrestrial POP', MARGIN + 118, legY + 1)
+  // ── A-End attribute table (left column bottom) ─────────────────────────────
+  const endY = PNL_Y + addrH + 2
+  const endRows: [string, string | undefined][] = [
+    ['ACCES TYPE', aEnd?.access_type],
+    ['SUPPLIER',   aEnd?.cc_supplier ? `${aEnd.cc_supplier}${aEnd.cc_arranged_by ? ` (Arr. by ${aEnd.cc_arranged_by})` : ''}` : undefined],
+    ['BANDWIDTH',  aEnd?.bandwidth],
+    ['INTERFACE',  aEnd?.interface_id],
+    ['PROTECTION', aEnd?.protection],
+  ]
+  endRows.forEach(([label, value], i) => {
+    attrRow(doc, COL_L, endY + i * ROW_H, COL_W, LABEL_W_END, label, value)
+  })
 
-  // Confidentiality footer
-  doc.setFontSize(5.5)
-  doc.setTextColor(180, 180, 180)
-  doc.text('TELSTRA INTERNATIONAL CONFIDENTIAL — Generated by RouteBuilder', PAGE_W / 2, PAGE_H - 5, { align: 'center' })
+  // ── Z-End attribute table (right column bottom) ────────────────────────────
+  const zEndRows: [string, string | undefined][] = [
+    ['ACCES TYPE', zEnd?.access_type],
+    ['SUPPLIER',   zEnd?.cc_supplier ? `${zEnd.cc_supplier}${zEnd.cc_arranged_by ? ` (Arr. by ${zEnd.cc_arranged_by})` : ''}` : undefined],
+    ['BANDWIDTH',  zEnd?.bandwidth],
+    ['INTERFACE',  zEnd?.interface_id],
+    ['PROTECTION', zEnd?.protection],
+  ]
+  zEndRows.forEach(([label, value], i) => {
+    attrRow(doc, COL_R, endY + i * ROW_H, COL_W, LABEL_W_END, label, value)
+  })
+}
+
+// ── Node icon legend bar ──────────────────────────────────────────────────────
+function drawLegendBar(doc: jsPDF) {
+  setFill(doc, LT_GRAY)
+  doc.rect(M, LEG_Y, PW - M * 2, LEG_H, 'F')
+
+  const items: [IconType, string][] = [
+    ['pop',      'Telecom POP'],
+    ['cls',      'Cable Landing Station'],
+    ['mmr',      'MMR Panel'],
+    ['customer', 'Customer Router'],
+  ]
+  const spacing = (PW - M * 2) / items.length
+  items.forEach(([type, label], i) => {
+    const cx = M + spacing * i + spacing / 2 - 12
+    const cy = LEG_Y + LEG_H / 2
+    drawNodeIcon(doc, cx, cy, type, 5)
+    doc.setFontSize(6.5); setColor(doc, DK_GRAY)
+    doc.text(label, cx + 5, cy + 1.5)
+  })
+}
+
+// ── Footer metadata bar ───────────────────────────────────────────────────────
+function drawFooter(
+  doc: jsPDF,
+  project: Project | undefined,
+  pageNum: number,
+  totalPages: number,
+  version: string | undefined,
+) {
+  const fH = PH - FTR_Y
+  setFill(doc, WHITE); setStroke(doc, MID_GRAY, 0.3)
+  doc.rect(M, FTR_Y, PW - M * 2, fH, 'FD')
+
+  // Vertical dividers
+  const col1 = M + (PW - M * 2) * 0.3
+  const col2 = M + (PW - M * 2) * 0.6
+  const col3 = M + (PW - M * 2) * 0.75
+  setStroke(doc, MID_GRAY, 0.2)
+  doc.line(col1, FTR_Y, col1, FTR_Y + fH)
+  doc.line(col2, FTR_Y, col2, FTR_Y + fH)
+  doc.line(col3, FTR_Y, col3, FTR_Y + fH)
+
+  const row1 = FTR_Y + 4
+  const row2 = FTR_Y + 9
+  const row3 = FTR_Y + 14
+  const row4 = FTR_Y + 19
+  const boldFonts = 7
+  const valFonts  = 6.5
+
+  // Left cell
+  doc.setFontSize(boldFonts); setColor(doc, BLACK)
+  doc.text('Customer Name:', M + 2, row1)
+  doc.setFontSize(valFonts);  setColor(doc, DK_GRAY)
+  doc.text(project?.customer_name ?? '—', M + 2, row2)
+  doc.setFontSize(boldFonts); setColor(doc, BLACK)
+  doc.text('Account Manager:', M + 2, row3)
+  doc.setFontSize(valFonts);  setColor(doc, DK_GRAY)
+  doc.text(project?.account_manager ?? '—', M + 2, row4)
+
+  // Second cell
+  doc.setFontSize(boldFonts); setColor(doc, BLACK)
+  doc.text('Opportunity ID:', col1 + 2, row1)
+  doc.setFontSize(valFonts);  setColor(doc, DK_GRAY)
+  doc.text(project?.opportunity_id ?? '—', col1 + 2, row2)
+  doc.setFontSize(boldFonts); setColor(doc, BLACK)
+  doc.text('Description:', col1 + 2, row3)
+  doc.setFontSize(valFonts);  setColor(doc, DK_GRAY)
+  doc.text(project?.opportunity_name ?? '—', col1 + 2, row4, { maxWidth: col2 - col1 - 4 })
+
+  // Date + page cell
+  const dateStr = new Date().toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: '2-digit' })
+  doc.setFontSize(boldFonts); setColor(doc, BLACK); doc.text('Date', col2 + 2, row1)
+  doc.setFontSize(valFonts);  setColor(doc, DK_GRAY); doc.text(dateStr, col2 + 2, row2)
+  doc.setFontSize(boldFonts); setColor(doc, BLACK); doc.text('Page', col2 + 2, row3)
+  doc.setFontSize(valFonts);  setColor(doc, DK_GRAY)
+  doc.text(`${pageNum} / ${totalPages}${version ? ` · ${version}` : ''}`, col2 + 2, row4)
+
+  // Confidential cell
+  doc.setFontSize(6); setColor(doc, DK_GRAY)
+  const confText = 'Commercial In Confidence\nThis document contains confidential information which may not be disclosed, reproduced or used except with express written consent.'
+  const confLines = doc.splitTextToSize(confText, col3 - col2 - 4 + (PW - M - col3) - 4)
+  confLines.slice(0, 4).forEach((line: string, i: number) =>
+    doc.text(line, col3 + 2, row1 + i * 4))
+
+  // Brand mark (text only for POC)
+  doc.setFontSize(9); setColor(doc, BLUE)
+  doc.text('International', PW - M - 2, FTR_Y + fH - 7, { align: 'right' })
+  doc.setFontSize(7); setColor(doc, TEAL)
+  doc.text('Telco RouteBuilder', PW - M - 2, FTR_Y + fH - 3, { align: 'right' })
+}
+
+// ── Helper: extract a compact route view ─────────────────────────────────────
+interface RouteView {
+  nodes:       string[]
+  segments:    Array<{
+    system_id: string; length_km: number; latency: number | null;
+    end_node_id: string; type: string; start_node_id: string
+  }>
+  totalKm:     number
+  totalLatency: number | null
+  systems:     string[]
+}
+
+function buildRouteView(route: PinnedRoute['route']): RouteView {
+  const systems = [...new Set(route.segments.map(s => s.system_id))]
+  return {
+    nodes:       route.nodes,
+    segments:    route.segments.map(s => ({
+      system_id:    s.system_id,
+      length_km:    s.length_km,
+      latency:      s.latency,
+      end_node_id:  s.end_node_id,
+      start_node_id: s.start_node_id,
+      type:         s.type,
+    })),
+    totalKm:      route.total_length_km,
+    totalLatency: route.total_latency ?? null,
+    systems,
+  }
+}
+
+// ── Draw a full circuit page ──────────────────────────────────────────────────
+function drawCircuitPage(
+  doc: jsPDF,
+  pin: PinnedRoute,
+  nodesById: Record<string, CableNode>,
+  circuit: ProjectCircuit | undefined,
+  project: Project | undefined,
+  pageNum: number,
+  totalPages: number,
+  version: string | undefined,
+) {
+  const rv       = buildRouteView(pin.route)
+  const label    = pin.circuitLabel ?? pin.searchLabel
+
+  // ── Circuit label box (top center) ─────────────────────────────────────────
+  const boxW = 100
+  const boxX = (PW - boxW) / 2
+  setFill(doc, TEAL)
+  doc.roundedRect(boxX, TITLE_Y, boxW, TITLE_H, 2, 2, 'F')
+  doc.setFontSize(9); setColor(doc, WHITE)
+  doc.text(clamp(label, 50), PW / 2, TITLE_Y + TITLE_H * 0.67, { align: 'center' })
+
+  // ── Zone bar ────────────────────────────────────────────────────────────────
+  setFill(doc, [230, 245, 248] as RGB); setStroke(doc, TEAL, 0.3)
+  doc.rect(M, ZONE_Y, PW - M * 2, ZONE_H, 'FD')
+  doc.setFontSize(6.5); setColor(doc, TEAL)
+  doc.text('CUSTOMER SITE', M + 25, ZONE_Y + ZONE_H * 0.7, { align: 'center' })
+  doc.text('INTERNATIONAL TELCO NETWORK', PW / 2, ZONE_Y + ZONE_H * 0.7, { align: 'center' })
+  doc.text('CUSTOMER SITE', PW - M - 25, ZONE_Y + ZONE_H * 0.7, { align: 'center' })
+  // Zone dividers
+  setStroke(doc, TEAL, 0.3)
+  doc.line(M + 50, ZONE_Y, M + 50, ZONE_Y + ZONE_H)
+  doc.line(PW - M - 50, ZONE_Y, PW - M - 50, ZONE_Y + ZONE_H)
+
+  // ── Node diagram ────────────────────────────────────────────────────────────
+  drawDiagram(doc, rv, nodesById, /* showDwdm */ false, project?.sld_config)
+
+  // ── Bottom panels + tables ──────────────────────────────────────────────────
+  drawPanels(doc, circuit, pin, nodesById)
+
+  // ── Legend bar ──────────────────────────────────────────────────────────────
+  drawLegendBar(doc)
+
+  // ── Footer ──────────────────────────────────────────────────────────────────
+  drawFooter(doc, project, pageNum, totalPages, version)
 }
 
 // ── Cover page ────────────────────────────────────────────────────────────────
-
-function drawCover(doc: jsPDF, pinnedRoutes: PinnedRoute[], nodesById: Record<string, CableNode>, version?: string) {
+function drawCover(
+  doc: jsPDF,
+  pins: PinnedRoute[],
+  nodesById: Record<string, CableNode>,
+  project: Project | undefined,
+  version: string | undefined,
+) {
   // Header stripe
-  doc.setFillColor(30, 30, 50)
-  doc.rect(0, 0, PAGE_W, 40, 'F')
+  setFill(doc, TEAL)
+  doc.rect(0, 0, PW, 42, 'F')
 
-  doc.setFontSize(22)
-  doc.setTextColor(255, 255, 255)
-  doc.text('Straight Line Diagrams', MARGIN, 24)
-
-  doc.setFontSize(9)
-  doc.setTextColor(160, 160, 200)
-  doc.text('RouteBuilder · International Telco', MARGIN, 33)
-
-  // Version badge
+  doc.setFontSize(20); setColor(doc, WHITE)
+  doc.text('Straight Line Diagrams', M, 20)
+  doc.setFontSize(9); setColor(doc, [200, 235, 240] as RGB)
+  doc.text('International Telco · RouteBuilder', M, 29)
   if (version) {
-    const versionText = version.toUpperCase()
-    doc.setFontSize(8)
-    doc.setTextColor(255, 230, 130)
-    const vX = MARGIN + 185
-    doc.text(versionText, vX, 24)
+    doc.setFontSize(8); setColor(doc, [255, 230, 130] as RGB)
+    doc.text(version.toUpperCase(), M, 36)
   }
 
-  // Date
-  doc.setFontSize(8)
-  doc.setTextColor(160, 160, 200)
+  // Date (top right)
+  doc.setFontSize(8); setColor(doc, [200, 235, 240] as RGB)
   doc.text(
     new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
-    PAGE_W - MARGIN, 33, { align: 'right' }
+    PW - M, 29, { align: 'right' },
   )
 
-  // Route summary table
-  const tableY = 55
-  doc.setFontSize(7)
-  doc.setTextColor(80, 80, 80)
-  doc.text('INCLUDED ROUTES', MARGIN, tableY)
+  // Project metadata block
+  if (project) {
+    const metaY = 52
+    const fields: [string, string | undefined][] = [
+      ['Customer',       project.customer_name],
+      ['Project',        project.name],
+      ['Account Manager',project.account_manager],
+      ['Opportunity ID', project.opportunity_id],
+      ['Description',    project.opportunity_name],
+    ]
+    fields.forEach(([k, v], i) => {
+      doc.setFontSize(7); setColor(doc, MID_GRAY)
+      doc.text(k.toUpperCase(), M, metaY + i * 9)
+      doc.setFontSize(9); setColor(doc, BLACK)
+      doc.text(v || '—', M + 45, metaY + i * 9)
+    })
+  }
 
-  const rowH  = 11
-  const cols  = [8, 70, 56, 40, 35, 35]    // relative col widths
-  const totalColW = cols.reduce((a, b) => a + b, 0)
-  const colXs = cols.map((_, i) => MARGIN + cols.slice(0, i).reduce((a, b) => a + b, 0) * (USABLE_W / totalColW))
+  // Circuit index table
+  const tableY = project ? 100 : 55
+  doc.setFontSize(7); setColor(doc, MID_GRAY)
+  doc.text('CIRCUITS / ROUTES IN THIS DOCUMENT', M, tableY)
 
-  const headers = ['#', 'Route', 'Via', 'Length', 'Latency', 'Availability']
+  const rowH = 10
+  const cols = [8, 70, 50, 35, 30, 32]
+  const total = cols.reduce((a, b) => a + b, 0)
+  const usable = PW - M * 2
+  const colXs = cols.map((_, i) => M + cols.slice(0, i).reduce((a, b) => a + b, 0) * (usable / total))
+
+  const headers = ['', 'Route', 'Via', 'Length', 'Latency', 'Availability']
   headers.forEach((h, ci) => {
-    doc.setFontSize(6.5)
-    doc.setTextColor(100, 100, 100)
+    doc.setFontSize(6.5); setColor(doc, DK_GRAY)
     doc.text(h, colXs[ci] + 2, tableY + 8)
   })
-  doc.setDrawColor(200, 200, 210)
-  doc.setLineWidth(0.2)
-  doc.line(MARGIN, tableY + 10, PAGE_W - MARGIN, tableY + 10)
+  setStroke(doc, MID_GRAY, 0.2)
+  doc.line(M, tableY + 10, PW - M, tableY + 10)
 
-  pinnedRoutes.forEach((pinned, i) => {
-    const route   = pinned.route
-    const rowY    = tableY + 10 + (i + 1) * rowH
-    const rgb     = hexToRgb(pinned.color)
-    const start   = nodesById[route.nodes[0]]?.name ?? route.nodes[0]
-    const end     = nodesById[route.nodes[route.nodes.length - 1]]?.name ?? route.nodes[route.nodes.length - 1]
-    const via     = route.nodes.slice(1, -1).map(id => nodesById[id]?.name ?? id).join(' → ')
+  pins.forEach((pin, i) => {
+    const r   = pin.route
+    const y   = tableY + 10 + (i + 1) * rowH
+    const rgb = hexToRgb(pin.color)
+    const s   = nodesById[r.nodes[0]]?.name ?? r.nodes[0]
+    const e   = nodesById[r.nodes[r.nodes.length - 1]]?.name ?? r.nodes[r.nodes.length - 1]
+    const via = r.nodes.slice(1, -1).map(id => nodesById[id]?.name ?? id).join(' → ')
 
-    // Alternating row background
-    if (i % 2 === 0) {
-      doc.setFillColor(248, 248, 252)
-      doc.rect(MARGIN, rowY - 6, USABLE_W, rowH, 'F')
-    }
+    if (i % 2 === 0) { setFill(doc, [248, 248, 252] as RGB); doc.rect(M, y - 6, usable, rowH, 'F') }
 
-    // Pin colour swatch
-    doc.setFillColor(...rgb)
-    doc.rect(colXs[0] + 1, rowY - 4.5, 4, 4.5, 'F')
+    setFill(doc, rgb)
+    doc.rect(colXs[0] + 1, y - 4, 4, 5, 'F')
 
-    doc.setFontSize(8)
-    doc.setTextColor(20, 20, 20)
-    doc.text(`${start} → ${end}`, colXs[1] + 2, rowY)
+    doc.setFontSize(8); setColor(doc, BLACK)
+    doc.text(pin.circuitLabel ?? `${s} → ${e}`, colXs[1] + 2, y)
+    doc.setFontSize(6); setColor(doc, DK_GRAY)
+    doc.text(clamp(via || '(direct)', 38), colXs[2] + 2, y)
+    doc.text(`${r.total_length_km.toLocaleString()} km`, colXs[3] + 2, y)
+    doc.text(`${r.total_latency?.toFixed(1) ?? '—'} ms`, colXs[4] + 2, y)
+    doc.text(`${(r.end_to_end_reliability * 100).toFixed(3)}%`, colXs[5] + 2, y)
 
-    doc.setFontSize(6.5)
-    doc.setTextColor(80, 80, 80)
-    const viaText = via.length > 40 ? via.substring(0, 38) + '…' : (via || '—')
-    doc.text(viaText, colXs[2] + 2, rowY)
-    doc.text(`${route.total_length_km.toLocaleString()} km`, colXs[3] + 2, rowY)
-    doc.text(`${route.total_latency?.toFixed(1) ?? '—'} ms`, colXs[4] + 2, rowY)
-    doc.text(`${(route.end_to_end_reliability * 100).toFixed(3)}%`, colXs[5] + 2, rowY)
-
-    doc.setDrawColor(220, 220, 230)
-    doc.setLineWidth(0.15)
-    doc.line(MARGIN, rowY + 4.5, PAGE_W - MARGIN, rowY + 4.5)
+    setStroke(doc, MID_GRAY, 0.15)
+    doc.line(M, y + 4, PW - M, y + 4)
   })
 
   // Footer
-  doc.setFontSize(5.5)
-  doc.setTextColor(180, 180, 180)
-  doc.text('TELSTRA INTERNATIONAL CONFIDENTIAL — Generated by RouteBuilder', PAGE_W / 2, PAGE_H - 5, { align: 'center' })
+  doc.setFontSize(5.5); setColor(doc, MID_GRAY)
+  doc.text('INTERNATIONAL TELCO CONFIDENTIAL — Generated by RouteBuilder', PW / 2, PH - 5, { align: 'center' })
 }
 
-// ── Public entry point ────────────────────────────────────────────────────────
-
-export function generateStraightLineDiagram(pinnedRoutes: PinnedRoute[], nodes: CableNode[], version?: string) {
+// ── Public: generate PDF for ad-hoc pinned routes ─────────────────────────────
+export function generateStraightLineDiagram(
+  pinnedRoutes: PinnedRoute[],
+  nodes: CableNode[],
+  version?: string,
+) {
   if (pinnedRoutes.length === 0) return
+  const doc       = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+  const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+  const total     = pinnedRoutes.length + 1
 
-  const doc        = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
-  const nodesById  = Object.fromEntries(nodes.map(n => [n.id, n]))
-  const totalPages = pinnedRoutes.length + 1   // cover + one per route
-
-  drawCover(doc, pinnedRoutes, nodesById, version)
-
-  pinnedRoutes.forEach((pinned, i) => {
+  drawCover(doc, pinnedRoutes, nodesById, undefined, version)
+  pinnedRoutes.forEach((pin, i) => {
     doc.addPage()
-    drawRoute(doc, pinned, nodesById, i + 2, totalPages, version)
+    drawCircuitPage(doc, pin, nodesById, undefined, undefined, i + 2, total, version)
   })
 
-  const versionSlug = version ? `-${version.replace(/\s+/g, '-')}` : ''
-  doc.save(`RouteBuilder-SLD-${new Date().toISOString().slice(0, 10)}${versionSlug}.pdf`)
+  const slug = version ? `-${version.replace(/\s+/g, '-')}` : ''
+  doc.save(`SLD-${new Date().toISOString().slice(0, 10)}${slug}.pdf`)
+}
+
+// ── Public: generate PDF from a Project ──────────────────────────────────────
+export function generateSldFromProject(
+  project: Project,
+  pinnedRoutes: PinnedRoute[],
+  nodes: CableNode[],
+  version?: string,
+) {
+  if (pinnedRoutes.length === 0) return
+  const doc       = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+  const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+  const total     = pinnedRoutes.length + 1
+
+  drawCover(doc, pinnedRoutes, nodesById, project, version)
+
+  pinnedRoutes.forEach((pin, i) => {
+    doc.addPage()
+    const circuit = project.circuits.find(c => c.circuit_id === pin.circuitId)
+    drawCircuitPage(doc, pin, nodesById, circuit, project, i + 2, total, version)
+  })
+
+  const safeName = (project.name ?? 'Project').replace(/[^a-z0-9]/gi, '-').slice(0, 30)
+  const slug     = version ? `-${version.replace(/\s+/g, '-')}` : ''
+  doc.save(`SLD-${safeName}-${new Date().toISOString().slice(0, 10)}${slug}.pdf`)
+}
+
+// ── Public: generate DrawIO XML ───────────────────────────────────────────────
+
+function escXml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+export function generateDrawioXml(
+  pinnedRoutes: PinnedRoute[],
+  nodes: CableNode[],
+  project?: Project,
+): string {
+  const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+  let id = 10
+  const cells: string[] = []
+
+  const PAGE_DX = 900   // X offset between circuit pages
+  const NODE_W  = 90
+  const NODE_H  = 36
+  const LINE_Y_DIO = 80
+  const USABLE_W_DIO = 720
+
+  pinnedRoutes.forEach((pin, pi) => {
+    const offsetX = pi * PAGE_DX
+    const route   = pin.route
+    const circuit = project?.circuits.find(c => c.circuit_id === pin.circuitId)
+    const label   = escXml(pin.circuitLabel ?? pin.searchLabel)
+    const rv      = buildRouteView(route)
+
+    // Circuit title box
+    cells.push(`<mxCell id="${id++}" value="${label}" style="rounded=1;fillColor=#009ab0;fontColor=#ffffff;strokeColor=none;fontSize=11;fontStyle=1;align=center;" vertex="1" parent="1"><mxGeometry x="${offsetX + 240}" y="10" width="220" height="28" as="geometry"/></mxCell>`)
+
+    // Node X positions
+    interface DioNode { x: number; nodeId: string }
+    const positions: DioNode[] = []
+    positions.push({ x: offsetX + 40, nodeId: route.nodes[0] })
+    let cum = 0
+    for (const seg of rv.segments) {
+      cum += seg.length_km
+      positions.push({ x: offsetX + 40 + (cum / rv.totalKm) * USABLE_W_DIO, nodeId: seg.end_node_id })
+    }
+
+    // Main path polyline
+    const pathPts = positions.map(p => `${p.x},${LINE_Y_DIO}`).join(';')
+    cells.push(`<mxCell id="${id++}" value="" style="edgeStyle=none;exitX=1;exitY=0.5;entryX=0;entryY=0.5;strokeColor=#0064be;strokeWidth=2;" edge="1" parent="1" source="${id + 1000}" target="${id + 1001}"><mxGeometry relative="1" as="geometry"><Array as="points">${pathPts}</Array></mxGeometry></mxCell>`)
+
+    // Segment labels
+    rv.segments.forEach((seg, si) => {
+      const x1  = positions[si].x
+      const x2  = positions[si + 1].x
+      const mid = (x1 + x2) / 2
+      cells.push(`<mxCell id="${id++}" value="${escXml(seg.system_id)}&#xa;${seg.length_km.toLocaleString()} km · ${seg.latency ?? '?'} ms" style="text;align=center;fontSize=8;fontColor=#0064be;" vertex="1" parent="1"><mxGeometry x="${mid - 50}" y="${LINE_Y_DIO - 30}" width="100" height="24" as="geometry"/></mxCell>`)
+    })
+
+    // Node boxes
+    positions.forEach((np, ni) => {
+      const node   = nodesById[np.nodeId]
+      const isEnd  = ni === 0 || ni === positions.length - 1
+      const nodeName = escXml(node?.name ?? np.nodeId)
+      const nodeId_  = escXml(np.nodeId)
+      const style  = isEnd
+        ? 'shape=mxgraph.cisco.routers.generic_router;fillColor=#dae8fc;strokeColor=#6c8ebf;'
+        : node?.type === 'landing_station'
+          ? 'shape=mxgraph.network.server;fillColor=#f5f5f5;strokeColor=#666666;'
+          : 'ellipse;fillColor=#dae8fc;strokeColor=#0064be;'
+      cells.push(`<mxCell id="${id++}" value="${nodeName}&#xa;&lt;font style='font-size:8px;color:#888'&gt;${nodeId_}&lt;/font&gt;" style="${style}fontSize=9;align=center;" vertex="1" parent="1"><mxGeometry x="${np.x - NODE_W / 2}" y="${LINE_Y_DIO - NODE_H / 2}" width="${NODE_W}" height="${NODE_H}" as="geometry"/></mxCell>`)
+    })
+
+    // A/Z end info boxes
+    const aEnd    = circuit?.a_end
+    const zEnd    = circuit?.z_end
+    const aEndNode = nodesById[route.nodes[0]]
+    const zEndNode = nodesById[route.nodes[route.nodes.length - 1]]
+    cells.push(`<mxCell id="${id++}" value="&lt;b&gt;A-End: ${escXml(aEndNode?.country ?? '')}&lt;/b&gt;&#xa;${escXml(aEnd?.customer_site_name ?? aEndNode?.name ?? '')}&#xa;${escXml(aEnd?.customer_site_address ?? '')}" style="text;align=left;fontSize=8;whiteSpace=wrap;" vertex="1" parent="1"><mxGeometry x="${offsetX + 10}" y="${LINE_Y_DIO + 60}" width="160" height="60" as="geometry"/></mxCell>`)
+    cells.push(`<mxCell id="${id++}" value="&lt;b&gt;Z-End: ${escXml(zEndNode?.country ?? '')}&lt;/b&gt;&#xa;${escXml(zEnd?.customer_site_name ?? zEndNode?.name ?? '')}&#xa;${escXml(zEnd?.customer_site_address ?? '')}" style="text;align=left;fontSize=8;whiteSpace=wrap;" vertex="1" parent="1"><mxGeometry x="${offsetX + PAGE_DX - 170}" y="${LINE_Y_DIO + 60}" width="160" height="60" as="geometry"/></mxCell>`)
+
+    // Service table (center)
+    const svcRows = [
+      ['SERVICE TYPE', circuit?.service_type ?? ''],
+      ['BANDWIDTH',    circuit?.bandwidth ?? ''],
+      ['PROTECTION',   circuit?.protection ?? ''],
+    ]
+    svcRows.forEach(([k, v], ri) => {
+      const sx = offsetX + PAGE_DX / 2 - 120
+      cells.push(`<mxCell id="${id++}" value="${escXml(k)}" style="fillColor=#009ab0;fontColor=#ffffff;fontSize=7;fontStyle=1;align=center;" vertex="1" parent="1"><mxGeometry x="${sx}" y="${LINE_Y_DIO + 60 + ri * 20}" width="80" height="18" as="geometry"/></mxCell>`)
+      cells.push(`<mxCell id="${id++}" value="${escXml(v)}" style="fillColor=#eeeeee;fontSize=8;" vertex="1" parent="1"><mxGeometry x="${sx + 80}" y="${LINE_Y_DIO + 60 + ri * 20}" width="160" height="18" as="geometry"/></mxCell>`)
+    })
+  })
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<mxfile>
+  <diagram name="SLD">
+    <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        ${cells.join('\n        ')}
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>`
 }
