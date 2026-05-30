@@ -435,8 +435,9 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
                   onManualNodeClick?.(node)
                 }}}
               >
-                <Tooltip permanent={manualMobileMode} direction="center" className="manual-cand-label">
-                  {manualMobileMode ? `${idx + 1}` : <><strong>{node.name}</strong><br />{c.segment.system_id} · {c.segment.length_km.toLocaleString()} km · {c.segment.latency.toFixed(1)} ms</>}
+                <Tooltip>
+                  <strong>{idx + 1}. {node.name}</strong><br />
+                  {c.segment.system_id} · {c.segment.length_km.toLocaleString()} km · {c.segment.latency.toFixed(1)} ms
                 </Tooltip>
               </CircleMarker>
             )
