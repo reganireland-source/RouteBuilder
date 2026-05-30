@@ -65,6 +65,22 @@ function MapFlyTo({ highlight }: { highlight: CountryHighlight | null | undefine
 }
 
 
+/** Each next-hop candidate gets a unique colour by index — same index used in both map dots and list cards */
+const CANDIDATE_PALETTE = [
+  '#4ade80',  // green
+  '#60a5fa',  // blue
+  '#f59e0b',  // amber
+  '#a78bfa',  // purple
+  '#fb923c',  // orange
+  '#34d399',  // teal
+  '#f472b6',  // pink
+  '#facc15',  // yellow
+]
+
+export function candidateColor(index: number): string {
+  return CANDIDATE_PALETTE[index % CANDIDATE_PALETTE.length]
+}
+
 /**
  * Normalise a longitude for a Pacific-centred map view.
  * Western Hemisphere longitudes (Americas, < −30°) are shifted +360°
@@ -401,16 +417,17 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
             ))
           })}
 
-          {/* Candidate node pulses */}
-          {manualCandidates.map(c => {
+          {/* Candidate node pulses — colour matches next-hop list cards */}
+          {manualCandidates.map((c, idx) => {
             const node = nodesById[c.nodeId]
             if (!node) return null
+            const fillColor = candidateColor(idx)
             return (
               <CircleMarker
                 key={`manual-cand-${c.segmentId}`}
                 center={[node.lat, normalizeLng(node.lng)]}
                 radius={9}
-                pathOptions={{ color: '#fff', fillColor: '#f59e0b', fillOpacity: 0.85, weight: 2 }}
+                pathOptions={{ color: '#fff', fillColor, fillOpacity: 0.9, weight: 2 }}
                 eventHandlers={{ click: (e) => {
                   e.originalEvent.stopPropagation()
                   onManualNodeClick?.(node)

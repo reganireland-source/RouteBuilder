@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { CableNode, CableSegment, CableSystem, Route, RouteSegmentDetail, SegmentCapacity } from '../types'
 import { useTheme } from '../theme'
+import { candidateColor } from './Map'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -315,28 +316,34 @@ export function RouteManual({ nodes, segments, systems, capacity, state, onPickH
                 {candidates.length === 0 ? 'No onward connections from this node' : 'No matches'}
               </div>
             )}
-            {filtered.map(c => {
-              const isOwned    = onNetSet.has(c.segment.ownership)
-              const ownerColor = isOwned ? t.green : t.textMuted
+            {filtered.map((c, idx) => {
+              const dotColor   = candidateColor(idx)
+              const ownerColor = onNetSet.has(c.segment.ownership) ? t.green : t.textMuted
               return (
                 <button
                   key={c.segmentId}
                   onClick={() => { onPickHop(c); setTab('path') }}
                   style={{
                     width: '100%', textAlign: 'left', background: t.bgCard,
-                    border: `1px solid ${t.border}`, borderRadius: 7,
+                    border: `1px solid ${t.border}`,
+                    borderLeft: `3px solid ${dotColor}`,
+                    borderRadius: 7,
                     padding: '9px 11px', marginBottom: 6, cursor: 'pointer',
                     fontFamily: 'inherit', transition: 'border-color 0.1s',
                   }}
-                  onMouseEnter={e => (e.currentTarget.style.borderColor = t.blue)}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = t.border)}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = dotColor; e.currentTarget.style.borderLeftColor = dotColor }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.borderLeftColor = dotColor }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 3 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{c.node.name}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {/* Colour dot — matches the map circle */}
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
+                      <div style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{c.node.name}</div>
+                    </div>
                     <div style={{ fontSize: 10, color: t.textMuted }}>{c.node.country}</div>
                   </div>
-                  <div style={{ fontSize: 10, color: t.blue, marginBottom: 4 }}>{c.segment.system_id} · {c.segment.name}</div>
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <div style={{ fontSize: 10, color: t.blue, marginBottom: 4, paddingLeft: 14 }}>{c.segment.system_id} · {c.segment.name}</div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', paddingLeft: 14 }}>
                     <Stat label="km"   value={c.segment.length_km.toLocaleString()} />
                     <Stat label="ms"   value={c.segment.latency.toFixed(1)} />
                     {c.margin != null && <Stat label="margin" value={`${c.margin.toFixed(0)}%`} />}
