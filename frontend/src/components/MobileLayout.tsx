@@ -749,7 +749,10 @@ export function MobileLayout({
               systems={systems}
               capacity={capacity}
               state={manualState ?? null}
-              onStart={(_nodeId) => switchMode('routemanual')}
+              onStart={(nodeId) => {
+                const node = nodes.find(n => n.id === nodeId)
+                if (node) onManualNodeClick?.(node)
+              }}
               onPickHop={(c) => { onManualPickHop?.(c); doSnap('peek') }}
               onUndo={onManualUndo ?? (() => {})}
               onFinish={onManualFinish ?? (() => {})}
