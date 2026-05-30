@@ -238,13 +238,19 @@ export function MobileLayout({
   const [sldVersionPrompt, setSldVersionPrompt] = useState(false)
   const [sldVersion, setSldVersion]       = useState('')
   const [searchPrefill, setSearchPrefill] = useState<import('../types').RouteRequest | undefined>(undefined)
-  const hasPins    = pinnedRoutes.length > 0
-  const hasResults = response !== null || manualResults.length > 0
+  const hasPins      = pinnedRoutes.length > 0
+  const hasResults   = response !== null || manualResults.length > 0
+  const manualBuilding = mode === 'routemanual' && !!manualState
 
   // Auto-expand when results arrive or search starts
   useEffect(() => {
     if ((hasResults || loading) && snap === 'peek') doSnap('mid')
   }, [hasResults, loading]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-peek sheet when RouteManual is actively building so map is mostly visible
+  useEffect(() => {
+    if (manualBuilding && snap !== 'peek') doSnap('peek')
+  }, [manualBuilding]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function doSnap(s: SheetSnap) {
     setAnimating(true)
@@ -330,6 +336,7 @@ export function MobileLayout({
             manualState={manualState}
             manualCandidates={manualCandidates}
             onManualNodeClick={onManualNodeClick}
+            manualMobileMode={manualBuilding}
           />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: t.textFaint, background: t.bgMap }}>
@@ -498,6 +505,69 @@ export function MobileLayout({
           </>
         )}
       </div>
+
+      {/* ── RouteManual floating build strip (shown only when building at peek) ── */}
+      {manualBuilding && snap === 'peek' && (() => {
+        const steps  = manualState!.steps
+        const hopCount = steps.length
+        const km     = steps.reduce((a, s) => {
+          const seg = segments.find(x => x.id === s.segmentId)
+          return a + (seg?.length_km ?? 0)
+        }, 0)
+        const ms     = steps.reduce((a, s) => {
+          const seg = segments.find(x => x.id === s.segmentId)
+          return a + (seg?.latency ?? 0)
+        }, 0)
+        return (
+          <div style={{
+            position: 'fixed', bottom: PEEK_H, left: 0, right: 0, zIndex: 49,
+            background: t.bgPanel + 'f8',
+            borderTop: `1px solid ${t.border}`,
+            padding: '8px 14px',
+            display: 'flex', alignItems: 'center', gap: 10,
+          }}>
+            {/* Stats */}
+            <div style={{ display: 'flex', gap: 12, flex: 1 }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{hopCount}</div>
+                <div style={{ fontSize: 9, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hops</div>
+              </div>
+              {hopCount > 0 && <>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{km.toLocaleString()}</div>
+                  <div style={{ fontSize: 9, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>km</div>
+                </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{ms.toFixed(0)}</div>
+                  <div style={{ fontSize: 9, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>ms</div>
+                </div>
+              </>}
+            </div>
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: 6 }}>
+              {hopCount > 0 && (
+                <button onClick={onManualUndo} style={{
+                  padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                  border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}>↩</button>
+              )}
+              {hopCount > 0 && (
+                <button onClick={onManualFinish} style={{
+                  padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                  border: 'none', background: t.green, color: '#fff',
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}>✓ Done</button>
+              )}
+              <button onClick={() => doSnap('mid')} style={{
+                padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                border: `1px solid ${t.blue}66`, background: `${t.blue}18`, color: t.blue,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>{manualCandidates.length} options ›</button>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ── Bottom sheet ────────────────────────────────────────────────── */}
       <div
@@ -680,7 +750,7 @@ export function MobileLayout({
               capacity={capacity}
               state={manualState ?? null}
               onStart={(_nodeId) => switchMode('routemanual')}
-              onPickHop={onManualPickHop ?? (() => {})}
+              onPickHop={(c) => { onManualPickHop?.(c); doSnap('peek') }}
               onUndo={onManualUndo ?? (() => {})}
               onFinish={onManualFinish ?? (() => {})}
               onDiscard={onManualDiscard ?? (() => {})}
