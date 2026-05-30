@@ -19,6 +19,8 @@ import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, type Theme, type ThemeMode } from './theme'
 import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem } from './types'
 import { ProjectsModal } from './components/ProjectsModal'
+import { RouteManual, computeCandidates, assembleRoute } from './components/RouteManual'
+import type { NextHopCandidate } from './components/RouteManual'
 
 const NLP_ENABLED = import.meta.env.VITE_ENABLE_NLP !== 'false'
 const NlpChat = NLP_ENABLED
@@ -190,6 +192,11 @@ export default function App() {
   const [nlpSortKey, setNlpSortKey]                 = useState<SortKey | undefined>(undefined)
   const [nlpPushOutages, setNlpPushOutages]         = useState<boolean | undefined>(undefined)
   const [countryHighlight, setCountryHighlight]     = useState<CountryHighlight | null>(null)
+
+  // ── RouteManual state ──────────────────────────────────────────────────────
+  const [manualState,   setManualState]   = useState<import('./components/RouteManual').ManualState | null>(null)
+  const [manualResults, setManualResults] = useState<Route[]>([])
+  const [manualFinishConfirm, setManualFinishConfirm] = useState<Route | null>(null)
   const [leftOpen, setLeftOpen]                     = useState(true)
   const [middleOpen, setMiddleOpen]                 = useState(true)
   const [flippedPairIds, setFlippedPairIds]         = useState<Set<string>>(new Set())
@@ -228,7 +235,74 @@ export default function App() {
     if (next === 'systemviewer') { setResponse(null); setSelectedRouteIds([]); setError(null) }
     if (next !== 'countryviewer') setCountryHighlight(null)
     if (next === 'countryviewer') setShowSegmentLabels(true)
+    if (next !== 'routemanual') { setManualState(null); setManualFinishConfirm(null) }
     setMode(next)
+  }
+
+  // ── RouteManual handlers ─────────────────────────────────────────────────
+  const nodesById_   = Object.fromEntries(nodes.map(n => [n.id, n]))
+  const segmentsById_ = Object.fromEntries(segments.map(s => [s.id, s]))
+
+  const manualCandidates: NextHopCandidate[] = (() => {
+    if (!manualState) return []
+    const currentId = manualState.steps.length
+      ? manualState.steps[manualState.steps.length - 1].nodeId
+      : manualState.originId
+    const visited = new Set([manualState.originId, ...manualState.steps.map(s => s.nodeId)])
+    return computeCandidates(currentId, visited, segments, nodesById_, systems)
+  })()
+
+  function handleManualNodeClick(node: CableNode) {
+    if (!manualState) {
+      // No state yet — this click sets the origin
+      setManualState({ originId: node.id, steps: [] })
+      return
+    }
+
+    const currentId = manualState.steps.length
+      ? manualState.steps[manualState.steps.length - 1].nodeId
+      : manualState.originId
+
+    // Double-click on current node → finish
+    if (node.id === currentId && manualState.steps.length > 0) {
+      const route = assembleRoute(manualState, nodesById_, segmentsById_)
+      setManualFinishConfirm(route)
+      return
+    }
+
+    // Find a matching candidate (may be multiple segments; pick first matching node)
+    const candidate = manualCandidates.find(c => c.nodeId === node.id)
+    if (!candidate) return
+    setManualState(prev => prev ? {
+      ...prev,
+      steps: [...prev.steps, { nodeId: candidate.nodeId, segmentId: candidate.segmentId }],
+    } : prev)
+  }
+
+  function handleManualPickHop(candidate: NextHopCandidate) {
+    setManualState(prev => prev ? {
+      ...prev,
+      steps: [...prev.steps, { nodeId: candidate.nodeId, segmentId: candidate.segmentId }],
+    } : prev)
+  }
+
+  function handleManualUndo() {
+    setManualState(prev => {
+      if (!prev || prev.steps.length === 0) return prev
+      return { ...prev, steps: prev.steps.slice(0, -1) }
+    })
+  }
+
+  function handleManualFinish() {
+    if (!manualState || manualState.steps.length === 0) return
+    const route = assembleRoute(manualState, nodesById_, segmentsById_)
+    setManualFinishConfirm(route)
+  }
+
+  function confirmManualRoute(route: Route) {
+    setManualResults(prev => [route, ...prev])
+    setManualFinishConfirm(null)
+    setManualState(null)
   }
 
   const [searchDuration, setSearchDuration] = useState<number | null>(null)
@@ -397,8 +471,8 @@ export default function App() {
     setSearchPin(pin); setNearestNodeIds(ids)
   }
 
-  function clearSearch() { setResponse(null); setSelectedRouteIds([]); setError(null); setLastSearchDiversity('none'); setSearchDuration(null); setLastOptimiseFor(undefined) }
-  function clearAll()    { setResponse(null); setSelectedRouteIds([]); setPinnedRoutes([]); setError(null); setLastSearchDiversity('none'); setSearchDuration(null); setLastOptimiseFor(undefined) }
+  function clearSearch() { setResponse(null); setSelectedRouteIds([]); setError(null); setLastSearchDiversity('none'); setSearchDuration(null); setLastOptimiseFor(undefined); setManualResults([]); setManualState(null); setManualFinishConfirm(null) }
+  function clearAll()    { setResponse(null); setSelectedRouteIds([]); setPinnedRoutes([]); setError(null); setLastSearchDiversity('none'); setSearchDuration(null); setLastOptimiseFor(undefined); setManualResults([]); setManualState(null); setManualFinishConfirm(null) }
 
   async function handleDataChange() {
     const [n, s, c, sys, r, cfg, o] = await Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules(), api.getConfig(), api.getOutages()])
@@ -443,7 +517,7 @@ export default function App() {
   }
 
   const hasPins    = pinnedRoutes.length > 0
-  const hasResults = response !== null
+  const hasResults = response !== null || manualResults.length > 0
 
   // ── Mobile layout ────────────────────────────────────────────────────────
   if (isMobile) {
@@ -759,16 +833,61 @@ export default function App() {
             <p style={{ fontSize: 11, color: theme.textFaint }}>International Telco · Subsea Circuit Design</p>
           </div>
 
-          <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
-            <button style={tabStyle(mode === 'routebuilder')}  onClick={() => switchMode('routebuilder')}><span style={{ fontSize: 14 }}>↔</span>Pop Routes</button>
-            <button style={tabStyle(mode === 'citypair')}      onClick={() => switchMode('citypair')}><span style={{ fontSize: 14 }}>🏙</span>City Pairs</button>
-            <button style={tabStyle(mode === 'systemviewer')}  onClick={() => switchMode('systemviewer')}><span style={{ fontSize: 14 }}>🌊</span>Subsea Systems</button>
-            <button style={tabStyle(mode === 'countryviewer')} onClick={() => switchMode('countryviewer')}><span style={{ fontSize: 14 }}>🌍</span>Country Viewer</button>
-            <button style={tabStyle(mode === 'nodefinder')}    onClick={() => switchMode('nodefinder')}><span style={{ fontSize: 14 }}>🔍</span>Node Search</button>
-            <button style={tabStyle(false)}                    onClick={() => setGuideOpen(true)}><span style={{ fontSize: 14 }}>📖</span>Guide</button>
-          </div>
+          {/* ── Two top-level tabs ── */}
+          {(() => {
+            const isBuilder  = mode === 'routebuilder' || mode === 'routemanual'
+            const isExplorer = mode === 'citypair' || mode === 'systemviewer' || mode === 'countryviewer' || mode === 'nodefinder'
+            const topTabStyle = (active: boolean): React.CSSProperties => ({
+              flex: 1, padding: '9px 4px', border: 'none', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: 11, fontWeight: 700,
+              background: active ? theme.bgBase : 'transparent',
+              color: active ? theme.blue : theme.textMuted,
+              borderBottom: active ? `2px solid ${theme.blue}` : '2px solid transparent',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            })
+            return (
+              <div style={{ flexShrink: 0 }}>
+                {/* Top-level tabs */}
+                <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}` }}>
+                  <button style={topTabStyle(isBuilder)} onClick={() => { if (!isBuilder) switchMode('routebuilder') }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12h18M3 6l9-3 9 3M3 18l9 3 9-3"/></svg>
+                    RouteBuilder
+                  </button>
+                  <button style={topTabStyle(isExplorer)} onClick={() => { if (!isExplorer) switchMode('countryviewer') }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    NetworkExplorer
+                  </button>
+                  <button style={{ ...topTabStyle(false), flex: 'none', padding: '9px 10px' }} onClick={() => setGuideOpen(true)} title="Open guide">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  </button>
+                </div>
+                {/* Sub-tabs */}
+                <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, background: theme.bgDeep }}>
+                  {isBuilder ? (
+                    <>
+                      <button style={tabStyle(mode === 'routebuilder')} onClick={() => switchMode('routebuilder')}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        RouteFinder
+                      </button>
+                      <button style={tabStyle(mode === 'routemanual')} onClick={() => switchMode('routemanual')}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                        RouteManual
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button style={tabStyle(mode === 'countryviewer')} onClick={() => switchMode('countryviewer')}>🌍 Country</button>
+                      <button style={tabStyle(mode === 'citypair')}      onClick={() => switchMode('citypair')}>🏙 City Pairs</button>
+                      <button style={tabStyle(mode === 'systemviewer')}  onClick={() => switchMode('systemviewer')}>🌊 Systems</button>
+                      <button style={tabStyle(mode === 'nodefinder')}    onClick={() => switchMode('nodefinder')}>🔍 Nodes</button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
 
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+          <div style={{ flex: 1, overflowY: mode === 'routemanual' ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column', padding: mode === 'routemanual' ? 0 : '16px' }}>
             {mode === 'routebuilder' && (
               <>
                 {NlpChat && (
@@ -785,6 +904,20 @@ export default function App() {
                 <SearchForm nodes={nodes} segments={segments} systems={systems} onSearch={handleSearch} loading={loading} prefilledOrigin={prefilledOrigin} prefilledDest={prefilledDest} prefill={searchPrefill} />
                 {error && <div style={{ marginTop: 12, color: theme.red, fontSize: 13 }}>{error}</div>}
               </>
+            )}
+            {mode === 'routemanual' && (
+              <RouteManual
+                nodes={nodes}
+                segments={segments}
+                systems={systems}
+                state={manualState}
+                onStart={(nodeId) => setManualState({ originId: nodeId, steps: [] })}
+                onPickHop={handleManualPickHop}
+                onUndo={handleManualUndo}
+                onFinish={handleManualFinish}
+                onDiscard={() => { setManualState(null); setManualResults([]) }}
+                onNetOwnership={config.on_net_ownership}
+              />
             )}
             {mode === 'citypair' && (
               <CityPairPanel nodes={nodes} segments={segments} systems={systems} onNetOwnership={config.on_net_ownership} onPlanRoute={handleSetPair} />
@@ -864,16 +997,21 @@ export default function App() {
             {mode === 'systemviewer' && !hasPins && (
               <p style={{ color: theme.textFaintest, fontSize: 13, marginTop: 8 }}>Select a cable system on the left to highlight it on the map.</p>
             )}
-            {(mode === 'routebuilder' || mode === 'citypair') && !hasResults && !loading && !hasPins && (
+            {(mode === 'routebuilder' || mode === 'citypair') && !hasResults && !loading && !hasPins && manualResults.length === 0 && (
               <p style={{ color: theme.textFaintest, fontSize: 13, marginTop: 8 }}>
                 {mode === 'citypair'
                   ? 'Select a city pair on the left to find subsea system itineraries. Use Plan Route to open a full route search.'
                   : 'Configure a route request on the left and press Search.'}
               </p>
             )}
+            {mode === 'routemanual' && manualResults.length === 0 && !hasPins && (
+              <p style={{ color: theme.textFaintest, fontSize: 13, marginTop: 8 }}>
+                Completed routes will appear here. Click any node on the map to start building.
+              </p>
+            )}
             <RouteList
-              primaryRoutes={response?.primary_routes ?? []}
-              diverseRoutes={response?.diverse_routes ?? []}
+              primaryRoutes={mode === 'routemanual' ? manualResults : (response?.primary_routes ?? [])}
+              diverseRoutes={mode === 'routemanual' ? [] : (response?.diverse_routes ?? [])}
               totalFound={response?.total_found}
               selectedRouteIds={selectedRouteIds}
               onSelectRoute={toggleRoute}
@@ -931,7 +1069,7 @@ export default function App() {
               nodes={nodes} segments={segments} selectedRoutes={selectedRoutes}
               capacity={capacity} pinnedRoutes={pinnedRoutes} selectedSystems={selectedSystems}
               outages={outages}
-              onNodeClick={(node, x, y) => setSelectedNode({ node, x, y })}
+              onNodeClick={mode === 'routemanual' ? undefined : (node, x, y) => setSelectedNode({ node, x, y })}
               searchPin={searchPin ?? undefined}
               nearestNodeIds={nearestNodeIds}
               hideNonActive={hideNonActive}
@@ -941,6 +1079,9 @@ export default function App() {
               backhaulOnly={backhaulOnly}
               countryHighlight={countryHighlight}
               panelWidth={(leftOpen ? 440 : 0) + (middleOpen ? 520 : 0)}
+              manualState={mode === 'routemanual' ? manualState : null}
+              manualCandidates={mode === 'routemanual' ? manualCandidates : []}
+              onManualNodeClick={mode === 'routemanual' ? handleManualNodeClick : undefined}
             />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.textFaint }}>
@@ -1004,6 +1145,51 @@ export default function App() {
       )}
 
       {/* ── SLD version prompt ────────────────────────────────────────────── */}
+      {/* ── RouteManual finish confirmation ─────────────────────────────── */}
+      {manualFinishConfirm && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9500, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: theme.bgCard, border: `1px solid ${theme.border}`, borderRadius: 14, padding: '24px 28px', width: 'min(95vw, 420px)', boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: theme.text, marginBottom: 4 }}>Route Complete</div>
+            <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 16 }}>
+              Manually assembled via RouteManual. Review stats then pin or add to project.
+            </div>
+            {/* Stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 18 }}>
+              {[
+                { label: 'Hops',    value: `${manualFinishConfirm.nodes.length - 1}` },
+                { label: 'km',      value: `${manualFinishConfirm.total_length_km.toLocaleString()}` },
+                { label: 'ms',      value: `${manualFinishConfirm.total_latency.toFixed(1)}` },
+                { label: 'Avail',   value: `${(manualFinishConfirm.end_to_end_reliability * 100).toFixed(2)}%` },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ background: theme.bgBase, borderRadius: 8, padding: '10px 8px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: theme.text }}>{value}</div>
+                  <div style={{ fontSize: 9, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
+                </div>
+              ))}
+            </div>
+            {/* Systems used */}
+            <div style={{ fontSize: 10, color: theme.textMuted, marginBottom: 16 }}>
+              Systems: {[...new Set(manualFinishConfirm.segments.map(s => s.system_id))].join(' · ')}
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                onClick={() => { confirmManualRoute(manualFinishConfirm) }}
+                style={{ padding: '8px 16px', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: 'none', background: theme.blue, color: theme.bgCard, fontFamily: 'inherit' }}
+              >✓ Use Route</button>
+              <button
+                onClick={() => { setManualFinishConfirm(null) }}
+                style={{ padding: '8px 16px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.border}`, background: 'transparent', color: theme.textMuted, fontFamily: 'inherit' }}
+              >← Keep Building</button>
+              <button
+                onClick={() => { setManualFinishConfirm(null); setManualState(null) }}
+                style={{ padding: '8px 16px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.red}44`, background: 'transparent', color: theme.red, fontFamily: 'inherit' }}
+              >✕ Discard</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {sldVersionPrompt && createPortal(
         <div style={{
           position: 'fixed', inset: 0, zIndex: 9500,

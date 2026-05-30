@@ -6,7 +6,7 @@ import type { CableNode, CableSegment, CableSystem } from '../types'
 
 
 const STEPS = [
-  { title: 'Open PoP Routes', desc: 'Select the ↔ Pop Routes tab. TSABuddy appears at the top — use it for natural language, or configure the search manually below.' },
+  { title: 'Open RouteFinder', desc: 'Select the RouteBuilder top-level tab, then the RouteFinder sub-tab. TSABuddy appears at the top — use it for natural language, or configure the search manually below.' },
   { title: 'Select Origin & Destination', desc: 'Type a city or node name in the search boxes. The live combobox filters as you type — select the specific landing station or PoP you need. Use the ⇅ swap button between the two fields to flip origin and destination instantly.' },
   { title: 'Set Diversity', desc: 'Choose a diversity type if required. Wet isolates submarine segments only. Full means no shared segments end-to-end. Full-Node adds node isolation on top. Terrestrial variants isolate backhaul at the origin end, destination end, or both. Leave as None for a single best-path search.' },
   { title: 'Add Constraints (optional)', desc: 'Expand Advanced Constraints to force via or avoid on specific nodes, segments, cable systems or entire countries. Country constraints are a hard geopolitical filter — no landing node in an avoided country will appear on any result.' },
@@ -1263,6 +1263,71 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         ))}
       </div>
 
+      {/* ── Two primary modes ── */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel}>Two Ways to Build a Route</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+          {/* RouteBuilder group */}
+          <div style={{ background: t.bgCard, border: `2px solid ${t.blue}`, borderRadius: 12, padding: '20px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: `${t.blue}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={t.blue} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12h18M3 6l9-3 9 3M3 18l9 3 9-3"/></svg>
+              </div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: t.text }}>RouteBuilder</div>
+                <div style={{ fontSize: 10, color: t.textMuted }}>Left panel top-level tab</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 10 }}>
+              <div style={{ background: t.bgBase, borderRadius: 8, padding: '12px 14px', border: `1px solid ${t.blue}44` }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: t.blue, marginBottom: 4 }}>RouteFinder (automated)</div>
+                <div style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6 }}>
+                  The graph-based pathfinding engine. Describe a route — by nodes, systems, countries, or in plain English via TSABuddy — and the engine finds all viable paths ranked by your chosen metric. Supports diversity, constraints, and real-time capacity weighting. Best for exploring options quickly.
+                </div>
+              </div>
+              <div style={{ background: t.bgBase, borderRadius: 8, padding: '12px 14px', border: `1px solid #f59e0b44` }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#f59e0b', marginBottom: 4 }}>RouteManual (DIY)</div>
+                <div style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6 }}>
+                  Expert manual mode. Click an origin node on the map, then pick each next hop one at a time from a list of directly-connected nodes — with per-hop stats (km, ms, margin, ownership) shown to guide your choice. Undo any step. When you reach your destination, double-click to finish and the assembled path becomes a standard route card with full statistics.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* NetworkExplorer group */}
+          <div style={{ background: t.bgCard, border: `2px solid ${t.border}`, borderRadius: 12, padding: '20px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: `${t.green}22`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={t.green} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              </div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: t.text }}>NetworkExplorer</div>
+                <div style={{ fontSize: 10, color: t.textMuted }}>Left panel top-level tab — "look, don't build"</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6, marginBottom: 10 }}>
+              Exploratory tools for understanding the network — not for building routes. Use these to brief yourself on topology, capacity, and health before entering a design session.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 6 }}>
+              {[
+                { label: '🌍 Country Viewer', desc: 'All cables serving a country — subsea systems coloured by system, terrestrial backhaul overlaid.' },
+                { label: '🏙 City Pairs', desc: 'Fast subsea system itineraries between two cities without a full route search.' },
+                { label: '🌊 Subsea Systems', desc: 'Highlight one or more cable systems on the map to inspect their routes and node coverage.' },
+                { label: '🔍 Node Search', desc: 'Find a specific node by name, pin it on the map, and use it as a jump-off for route searches.' },
+              ].map(({ label, desc }) => (
+                <div key={label} style={{ background: t.bgBase, borderRadius: 6, padding: '8px 10px', border: `1px solid ${t.border}` }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: t.text, marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.4 }}>{desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div style={{ background: `${t.blue}11`, border: `1px solid ${t.blue}33`, borderRadius: 8, padding: '10px 14px', fontSize: 11, color: t.textMuted, lineHeight: 1.6 }}>
+          <strong style={{ color: t.blue }}>Tip:</strong> RouteFinder and RouteManual both produce the same output — a route card with full statistics that can be pinned, compared, added to a project, and exported as an SLD. The difference is how you get there: automated vs. expert-controlled.
+        </div>
+      </div>
+
       {/* ── Features ── */}
       <div style={{ marginBottom: 32 }}>
         <div style={sectionLabel}>Key Features</div>
@@ -1473,7 +1538,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             {
               icon: '↔ 🏙 🌊 🌍 🔍 📖',
               title: 'Mode Tabs',
-              desc: 'The six vertical tabs on the left panel: Pop Routes, City Pairs, Subsea Systems, Country Viewer, Node Search, and Guide. Each tab clears unrelated highlights so the map stays uncluttered.',
+              desc: 'Two top-level tabs — RouteBuilder (RouteFinder + RouteManual sub-tabs) and NetworkExplorer (Country, City Pairs, Systems, Node Search). Each tab clears unrelated highlights so the map stays uncluttered.',
             },
           ].map(f => (
             <div key={f.title} style={card({ display: 'flex', flexDirection: 'column', gap: 8 })}>

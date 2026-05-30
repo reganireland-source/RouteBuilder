@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet'
 import type { CableNode, CableSegment, CountryHighlight, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
 import { useTheme } from '../theme'
+import type { ManualState, NextHopCandidate } from './RouteManual'
 
 const OWNERSHIP_LABEL: Record<string, string> = {
   owned:                'Owned',
@@ -29,6 +30,10 @@ interface Props {
   subseaOnly?: boolean
   backhaulOnly?: boolean
   panelWidth?: number
+  // RouteManual
+  manualState?: ManualState | null
+  manualCandidates?: NextHopCandidate[]
+  onManualNodeClick?: (node: CableNode) => void
 }
 
 function MapResizer({ panelWidth }: { panelWidth?: number }) {
@@ -100,7 +105,7 @@ function geoLines(
   return [[[lat1, nLng1], [lat2, nLng1 + d]]]
 }
 
-export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showAllOutages = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth }: Props) {
+export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showAllOutages = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick }: Props) {
   const t = useTheme()
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
@@ -119,6 +124,10 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         return seg ? [seg.start_node_id, seg.end_node_id] : []
       }))
     : null
+
+  // ── RouteManual derived state ──────────────────────────────────────────────
+  const manualActive   = !!manualState
+  const segmentsById   = Object.fromEntries(segments.map(s => [s.id, s]))
 
   const systemViewerActive = selectedSystems.length > 0
   const systemColorMap: Record<string, string> = Object.fromEntries(
@@ -374,6 +383,79 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
           </Tooltip>
         </CircleMarker>
       )}
+
+      {/* ── RouteManual overlay ── */}
+      {manualActive && (
+        <>
+          {/* Locked path segments */}
+          {manualState!.steps.map(step => {
+            const seg = segmentsById[step.segmentId]
+            if (!seg) return null
+            const start = nodesById[seg.start_node_id]
+            const end   = nodesById[seg.end_node_id]
+            if (!start || !end) return null
+            const lines = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined)
+            return lines.map((positions, i) => (
+              <Polyline key={`manual-locked-${step.segmentId}-${i}`} positions={positions}
+                pathOptions={{ color: '#f9a825', weight: 3.5, opacity: 0.95 }} />
+            ))
+          })}
+
+          {/* Candidate node pulses */}
+          {manualCandidates.map(c => {
+            const node = nodesById[c.nodeId]
+            if (!node) return null
+            return (
+              <CircleMarker
+                key={`manual-cand-${c.segmentId}`}
+                center={[node.lat, normalizeLng(node.lng)]}
+                radius={9}
+                pathOptions={{ color: '#fff', fillColor: '#f59e0b', fillOpacity: 0.85, weight: 2 }}
+                eventHandlers={{ click: (e) => {
+                  e.originalEvent.stopPropagation()
+                  onManualNodeClick?.(node)
+                }}}
+              >
+                <Tooltip><strong>{node.name}</strong><br />{c.segment.system_id} · {c.segment.length_km.toLocaleString()} km · {c.segment.latency.toFixed(1)} ms</Tooltip>
+              </CircleMarker>
+            )
+          })}
+
+          {/* Locked path nodes */}
+          {[...(manualState ? [manualState.originId, ...manualState.steps.map(s => s.nodeId)] : [])].map((nodeId, idx, arr) => {
+            const node    = nodesById[nodeId]
+            if (!node) return null
+            const isOrigin  = idx === 0
+            const isCurrent = idx === arr.length - 1
+            const fillColor = isOrigin ? '#3b82f6' : isCurrent ? '#10b981' : '#f9a825'
+            return (
+              <CircleMarker
+                key={`manual-locked-node-${nodeId}-${idx}`}
+                center={[node.lat, normalizeLng(node.lng)]}
+                radius={isCurrent ? 8 : 6}
+                pathOptions={{ color: '#fff', fillColor, fillOpacity: 1, weight: 2 }}
+                eventHandlers={{ click: (e) => {
+                  e.originalEvent.stopPropagation()
+                  if (isCurrent) onManualNodeClick?.(node)
+                }}}
+              >
+                <Tooltip><strong>{node.name}</strong>{isOrigin ? ' (Origin)' : isCurrent ? ' — double-click to finish' : ''}</Tooltip>
+              </CircleMarker>
+            )
+          })}
+        </>
+      )}
+
+      {/* RouteManual: clickable ALL nodes when waiting for origin */}
+      {manualActive && !manualState?.originId && nodes.map(node => (
+        <CircleMarker
+          key={`manual-origin-${node.id}`}
+          center={[node.lat, normalizeLng(node.lng)]}
+          radius={5}
+          pathOptions={{ color: t.blue, fillColor: t.blue, fillOpacity: 0.3, weight: 1 }}
+          eventHandlers={{ click: (e) => { e.originalEvent.stopPropagation(); onManualNodeClick?.(node) } }}
+        />
+      ))}
     </MapContainer>
   )
 }
