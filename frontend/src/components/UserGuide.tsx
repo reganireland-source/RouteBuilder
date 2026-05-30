@@ -936,6 +936,59 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         </div>
       </div>
 
+      {/* User Journey scenario */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={sectionLabel as React.CSSProperties}>Example User Journey</div>
+        <div style={{ background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 12, padding: '20px 22px', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#0ea5e9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>🏢</div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: t.text }}>Scenario: Nvidia Japan–Taiwan Protected EPL</div>
+              <div style={{ fontSize: 10, color: t.textMuted }}>TSA receives a customer brief for a protected 100G EPL between Tokyo and Taipei</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 10 }}>
+            {([
+              { phase: 'Day 1 — Intake', color: '#8b5cf6', steps: [
+                'Account Manager shares opportunity brief: Nvidia, 100G EPL, Tokyo ↔ Taipei, 1+1 protected, low latency priority.',
+                'TSA opens RouteBuilder and clicks the Mode banner → "Open a Project" → creates "Nvidia_JP-TW_EPL" with the customer and opportunity details.',
+                'Project mode activates. The mode banner shows the project name at the top of every session.',
+              ]},
+              { phase: 'Day 1 — Route Design', color: t.blue, steps: [
+                'TSA searches PoP Route Builder: Origin = TYO-EQX (Equinix TY4), Destination = TPE-CHT (Chief Telecom LY).',
+                'Enables Diversity mode and sorts by Latency. Two route cards appear — worker via EAC, protect via APG.',
+                'Clicks "Add Pair" → enters circuit label "NWD_Nvidia_100G_EPL_JPN-TWN". Both routes are saved to the project and auto-pinned — worker as "(Worker)", protect as "(Protect)".',
+              ]},
+              { phase: 'Day 2 — Enrichment', color: '#0ea5e9', steps: [
+                'TSA opens the Enrich panel on the worker circuit. The traffic-light dot is red — nothing filled yet.',
+                'Fills in: Service Type = "Ethernet Private Line (EPL)", Bandwidth = "100G LAN PHY (OTU4 – Layer 1)", Protection = "Unprotected (1+0)" (worker leg), Frame Size = "9200 bytes", L1 = "MACSec Transparent, LLF Enable".',
+                'For A-End: Customer Site = "Equinix TY4", Address = "1-9-5 Otemachi…", Access Type = "X-Connect", Supplier = "Equinix", Arranged By = "Nvidia".',
+                'For Z-End: Customer Site = "Chief Telecom LY Building", Address = "No. 250 Yangguang St…", Access Type = "X-Connect", Supplier = "Chief Telecom", Arranged By = "Nvidia".',
+                'Traffic light turns green. Repeats for the protect circuit.',
+              ]},
+              { phase: 'Day 2 — Delivery', color: '#10b981', steps: [
+                'TSA clicks ⬡ SLD → selects "Proposal" version → "Export PDF".',
+                'A2 landscape PDF is generated: cover page with customer and opportunity metadata, then one page per circuit showing the node diagram, A/Z-End panels, and the full service + endpoint tables.',
+                'TSA also clicks "Export DrawIO" for the Network Design team to customise icons and annotations in DrawIO/Visio before final delivery.',
+                'PDF is attached to the Salesforce opportunity and sent to the AM for customer review.',
+              ]},
+            ] as { phase: string; color: string; steps: string[] }[]).map(({ phase, color, steps }) => (
+              <div key={phase} style={{ borderLeft: `3px solid ${color}`, paddingLeft: 14 }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color, textTransform: 'uppercase' as const, letterSpacing: '0.08em', marginBottom: 6 }}>{phase}</div>
+                <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 5 }}>
+                  {steps.map((s, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                      <span style={{ fontSize: 9, fontWeight: 700, color, background: color + '22', borderRadius: 3, padding: '1px 5px', flexShrink: 0, marginTop: 1 }}>{i + 1}</span>
+                      <span style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6 }}>{s}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Two-tier concept */}
       <div style={{ marginBottom: 28 }}>
         <div style={sectionLabel as React.CSSProperties}>Two Levels of SLD Output</div>
@@ -943,15 +996,15 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           {[
             {
               icon: '⚡',
-              title: 'Fast SLD',
+              title: 'Quick SLD',
               sub: 'Built from route data only',
               color: t.blue,
               bullets: [
-                'Generated instantly from any pinned route',
+                'Generated instantly from any pinned route — no project needed',
                 'Shows cable systems, nodes, segment lengths and latency',
-                'Proportional segment layout on the diagram',
-                'One page per circuit — cover page with route summary',
-                'No project required — available from the pin bar',
+                'Proportional segment layout, RTD arrow, node icons',
+                'One page per pinned circuit — cover page with route summary',
+                'Use for internal design reviews and feasibility checks',
               ],
               tag: 'Always Available',
             },
@@ -961,12 +1014,11 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               sub: 'Enriched, branded, customer-ready',
               color: '#0ea5e9',
               bullets: [
-                'Requires a Customer Solution Project',
-                'Adds A-End and Z-End site information and access details',
-                'Shows cross-connect and local loop arrangements',
-                'Includes service type, bandwidth, protection and L1 settings',
-                'Configurable display settings per project and per circuit',
-                'Diverse circuits show worker + protect on a single page',
+                'Requires a Customer Solution Project with enriched circuits',
+                'Adds A-End / Z-End site info, access type and supplier details',
+                'Shows service type, bandwidth, protection and L1 settings',
+                'Cover page includes customer name, opportunity ID, account manager',
+                'Export as PDF (for delivery) or DrawIO XML (for custom editing)',
               ],
               tag: 'Requires Project',
             },
@@ -996,21 +1048,21 @@ export function UserGuide({ nodes, segments, systems }: Props) {
 
       {/* Workflow */}
       <div style={{ marginBottom: 28 }}>
-        <div style={sectionLabel as React.CSSProperties}>Project Workflow</div>
+        <div style={sectionLabel as React.CSSProperties}>Step-by-Step Workflow</div>
         <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 0, position: 'relative' as const }}>
-          <div style={{ position: 'absolute' as const, left: 13, top: 28, bottom: 28, width: 2, background: `linear-gradient(to bottom, ${t.blue}, #0ea5e9, #10b981)`, borderRadius: 1 }} />
-          {[
-            { num: '1', color: t.blue,    icon: '🔍', title: 'Search & Identify Routes',
-              desc: 'Use PoP Route Builder or City Pairs to find the best worker and protect routes. Apply diversity, constraints and sorting as needed. Pin routes for comparison.' },
-            { num: '2', color: '#0ea5e9', icon: '📁', title: 'Add to Project',
-              desc: 'Click the 📁 button on any route card (or "📁 Add Pair" on a diversity pair) to open the Projects panel. Select an existing project or create a new one. The route is saved as a circuit with a snapshot of the path.' },
-            { num: '3', color: '#0ea5e9', icon: '✏️', title: 'Enrich the Circuit',
-              desc: 'Open the circuit editor to add A-End and Z-End details: site name, address, access type (X-Connect or Local Loop), supplier, who arranges it, interface type, bandwidth and protection scheme.' },
-            { num: '4', color: '#0ea5e9', icon: '⚙️', title: 'Configure Project Info',
-              desc: 'Add customer name, opportunity ID, account manager, solution architect and date prepared. Set the visibility to confidential (default) or public. Configure which parameters appear on the SLD.' },
-            { num: '5', color: '#10b981', icon: '📄', title: 'Export Customer SLD',
-              desc: 'Generate a branded, customer-ready SLD PDF directly from the project. Diverse circuits (worker + protect pairs) appear together on a single page, converging at the shared A-End and Z-End handoff points.' },
-          ].map(({ num, color, icon, title, desc }, i) => (
+          <div style={{ position: 'absolute' as const, left: 13, top: 28, bottom: 28, width: 2, background: `linear-gradient(to bottom, #8b5cf6, ${t.blue}, #0ea5e9, #10b981)`, borderRadius: 1 }} />
+          {([
+            { num: '1', color: '#8b5cf6', icon: '📁', title: 'Create or Open a Project',
+              desc: 'Click the Mode banner at the top of the left panel → "Open a Project". Create a new project with the customer name, opportunity ID, and account manager details, or select an existing one. The mode banner will show the project name for the rest of your session.' },
+            { num: '2', color: t.blue, icon: '🔍', title: 'Search & Identify Routes',
+              desc: 'Use PoP Route Builder or City Pairs to find the best worker and (if protected) protect routes. Enable Diversity mode for 1+1 protection. Sort by Latency, Hops, or Ownership as required. Use constraints to force or avoid specific nodes, segments and systems.' },
+            { num: '3', color: t.blue, icon: '📌', title: 'Add Routes to the Project',
+              desc: 'Click the 📁 "Add to Project" button on any route card, or "📁 Add Pair" on a diverse pair card. Enter a circuit label (e.g. "NWD_Nvidia_100G_EPL_JPN-TWN"). Both worker and protect routes are saved as a single circuit and auto-pinned — worker as "(Worker)", protect as "(Protect)".' },
+            { num: '4', color: '#0ea5e9', icon: '✏️', title: 'Enrich Each Circuit',
+              desc: 'Click the Enrich button (●) on a pinned circuit card. The traffic-light dot shows Red (nothing filled), Amber (some fields), or Green (complete). Fill in: Service Type, Bandwidth, Protection, Frame Size, L1 Settings. For each end: Customer Site name and address, Access Type (X-Connect, Local Loop, or Direct), Supplier, Arranged By, Interface type, and endpoint Protection scheme.' },
+            { num: '5', color: '#10b981', icon: '📄', title: 'Export the Customer SLD',
+              desc: 'When all circuits are green (fully enriched), click ⬡ SLD in the route card toolbar. Choose a version label (Proposal / Draft / Final). Click "Export PDF" for a customer-ready PDF, or "Export DrawIO" for an editable DrawIO / Visio XML file. The PDF includes a cover page and one diagram page per circuit, with full endpoint and service details.' },
+          ] as { num: string; color: string; icon: string; title: string; desc: string }[]).map(({ num, color, icon, title, desc }, i) => (
             <div key={num} style={{ display: 'flex', gap: 16, paddingBottom: i < 4 ? 20 : 0, paddingLeft: 4 }}>
               <div style={{ width: 26, height: 26, borderRadius: '50%', flexShrink: 0, background: color, border: `2px solid ${color}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff', zIndex: 1 }}>{num}</div>
               <div style={{ ...card() as React.CSSProperties, flex: 1, padding: '12px 14px', marginBottom: 0 }}>
@@ -1020,6 +1072,29 @@ export function UserGuide({ nodes, segments, systems }: Props) {
                 </div>
                 <div style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6 }}>{desc}</div>
               </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Tips & best practices */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={sectionLabel as React.CSSProperties}>Tips & Best Practices</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          {([
+            { icon: '🏷️', tip: 'Use consistent circuit label naming', detail: 'Follow the NWD format: NWD_<Customer>_<BW>_<ServiceType>_<AEnd>-<ZEnd>. This ensures the label flows cleanly into the SLD cover page and opportunity records.' },
+            { icon: '🟢', tip: 'Aim for green before exporting', detail: 'The enrichment traffic light (Red/Amber/Green) on each pinned card tells you if the circuit is ready for customer delivery. Only circuits with all endpoint and service fields filled will show a complete Customer SLD.' },
+            { icon: '🔄', tip: 'Projects persist between sessions', detail: 'Your project and all its circuits (including route snapshots) are saved to the database. Switch away and return anytime — circuits are auto-pinned when you re-enter project mode.' },
+            { icon: '📋', tip: 'Export DrawIO for collaborative editing', detail: 'Use "Export DrawIO" when the network design team needs to annotate the SLD, adjust layouts, or add custom icons before final customer delivery. DrawIO files can also be opened in Visio.' },
+            { icon: '⚡', tip: 'Use Quick SLD during feasibility', detail: 'Before a project is ready, use ⬡ SLD directly from the pin bar (without a project) for fast internal route diagrams during pre-sales or feasibility reviews.' },
+            { icon: '🗂️', tip: 'One project per opportunity', detail: 'Create a separate project for each Salesforce opportunity. This keeps circuits, enrichment data, and SLD exports cleanly scoped to a single customer engagement.' },
+          ] as { icon: string; tip: string; detail: string }[]).map(({ icon, tip, detail }) => (
+            <div key={tip} style={{ background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 10, padding: '12px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+                <span style={{ fontSize: 14 }}>{icon}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: t.text }}>{tip}</span>
+              </div>
+              <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{detail}</div>
             </div>
           ))}
         </div>
