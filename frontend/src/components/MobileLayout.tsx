@@ -9,6 +9,7 @@ import { NodeFinder } from './NodeFinder'
 import { CityPairPanel } from './CityPairPanel'
 import { RouteManual } from './RouteManual'
 import type { ManualState, NextHopCandidate } from './RouteManual'
+import { OutagePanel } from './OutagePanel'
 import { NodeInfoPanel } from './NodeInfoPanel'
 import { RefDataModal } from './RefDataModal'
 import { HealthBar } from './HealthBar'
@@ -610,7 +611,7 @@ export function MobileLayout({
         {/* ── Top-level tabs: RouteBuilder | NetworkExplorer | Guide ── */}
         {(() => {
           const isRouteBuilder   = mode === 'routebuilder' || mode === 'routemanual'
-          const isNetworkExplorer = mode === 'citypair' || mode === 'systemviewer' || mode === 'nodefinder' || mode === 'countryviewer'
+          const isNetworkExplorer = mode === 'citypair' || mode === 'systemviewer' || mode === 'nodefinder' || mode === 'countryviewer' || mode === 'outageviewer'
           return (
             <div style={{ flexShrink: 0, display: 'flex', borderBottom: `1px solid ${t.border}` }}>
               <button style={tabBtn(isRouteBuilder)}    onClick={() => tapTab(mode === 'routemanual' ? 'routemanual' : 'routebuilder')}>
@@ -644,11 +645,12 @@ export function MobileLayout({
         )}
 
         {/* ── Sub-tabs for NetworkExplorer ── */}
-        {(mode === 'citypair' || mode === 'systemviewer' || mode === 'nodefinder' || mode === 'countryviewer') && (
+        {(mode === 'citypair' || mode === 'systemviewer' || mode === 'nodefinder' || mode === 'countryviewer' || mode === 'outageviewer') && (
           <div style={{ flexShrink: 0, display: 'flex', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
-            <button style={tabBtn(mode === 'citypair')}     onClick={() => tapTab('citypair')}>City Pairs</button>
-            <button style={tabBtn(mode === 'systemviewer')} onClick={() => tapTab('systemviewer')}>Cables</button>
-            <button style={tabBtn(mode === 'nodefinder')}   onClick={() => tapTab('nodefinder')}>Nodes</button>
+            <button style={tabBtn(mode === 'citypair')}      onClick={() => tapTab('citypair')}>City Pairs</button>
+            <button style={tabBtn(mode === 'systemviewer')}  onClick={() => tapTab('systemviewer')}>Cables</button>
+            <button style={tabBtn(mode === 'nodefinder')}    onClick={() => tapTab('nodefinder')}>Nodes</button>
+            <button style={tabBtn(mode === 'outageviewer')}  onClick={() => tapTab('outageviewer')}>Outages</button>
           </div>
         )}
 
@@ -808,6 +810,10 @@ export function MobileLayout({
                 onSetDest={onSetDest}
               />
             </div>
+          )}
+
+          {mode === 'outageviewer' && (
+            <OutagePanel outages={outages} segments={segments} systems={systems} />
           )}
 
         </div>

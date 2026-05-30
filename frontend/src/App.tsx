@@ -21,6 +21,7 @@ import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryH
 import { ProjectsModal } from './components/ProjectsModal'
 import { RouteManual, computeCandidates, assembleRoute } from './components/RouteManual'
 import type { NextHopCandidate } from './components/RouteManual'
+import { OutagePanel } from './components/OutagePanel'
 
 const NLP_ENABLED = import.meta.env.VITE_ENABLE_NLP !== 'false'
 const NlpChat = NLP_ENABLED
@@ -236,6 +237,7 @@ export default function App() {
     if (next !== 'countryviewer') setCountryHighlight(null)
     if (next === 'countryviewer') setShowSegmentLabels(true)
     if (next !== 'routemanual') { setManualState(null); setManualFinishConfirm(null) }
+    if (next === 'outageviewer') setShowAllOutages(true)
     setMode(next)
   }
 
@@ -845,7 +847,7 @@ export default function App() {
           {/* ── Two top-level tabs ── */}
           {(() => {
             const isBuilder  = mode === 'routebuilder' || mode === 'routemanual'
-            const isExplorer = mode === 'citypair' || mode === 'systemviewer' || mode === 'countryviewer' || mode === 'nodefinder'
+            const isExplorer = mode === 'citypair' || mode === 'systemviewer' || mode === 'countryviewer' || mode === 'nodefinder' || mode === 'outageviewer'
             const topTabStyle = (active: boolean): React.CSSProperties => ({
               flex: 1, padding: '9px 4px', border: 'none', cursor: 'pointer',
               fontFamily: 'inherit', fontSize: 11, fontWeight: 700,
@@ -885,10 +887,11 @@ export default function App() {
                     </>
                   ) : (
                     <>
-                      <button style={tabStyle(mode === 'countryviewer')} onClick={() => switchMode('countryviewer')}>🌍 Country</button>
-                      <button style={tabStyle(mode === 'citypair')}      onClick={() => switchMode('citypair')}>🏙 City Pairs</button>
-                      <button style={tabStyle(mode === 'systemviewer')}  onClick={() => switchMode('systemviewer')}>🌊 Systems</button>
-                      <button style={tabStyle(mode === 'nodefinder')}    onClick={() => switchMode('nodefinder')}>🔍 Nodes</button>
+                      <button style={tabStyle(mode === 'countryviewer')}  onClick={() => switchMode('countryviewer')}>🌍 Country</button>
+                      <button style={tabStyle(mode === 'citypair')}       onClick={() => switchMode('citypair')}>🏙 City Pairs</button>
+                      <button style={tabStyle(mode === 'systemviewer')}   onClick={() => switchMode('systemviewer')}>🌊 Systems</button>
+                      <button style={tabStyle(mode === 'nodefinder')}     onClick={() => switchMode('nodefinder')}>🔍 Nodes</button>
+                      <button style={tabStyle(mode === 'outageviewer')}   onClick={() => switchMode('outageviewer')}>⚠️ Outages</button>
                     </>
                   )}
                 </div>
@@ -940,6 +943,9 @@ export default function App() {
                 nodes={nodes} segments={segments} systems={systems}
                 onSelect={setCountryHighlight}
               />
+            )}
+            {mode === 'outageviewer' && (
+              <OutagePanel outages={outages} segments={segments} systems={systems} />
             )}
             {mode === 'nodefinder' && (
               <NodeFinder
