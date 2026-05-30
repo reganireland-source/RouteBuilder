@@ -132,7 +132,8 @@ interface Props {
 
 export function RouteManual({ nodes, segments, systems, capacity, state, onPickHop, onUndo, onFinish, onDiscard, onNetOwnership }: Props) {
   const t = useTheme()
-  const [filter, setFilter] = useState('')
+  const [tab, setTab]       = useState<'nexthop' | 'path'>('nexthop')
+  const [search, setSearch] = useState('')
 
   const nodesById       = useMemo(() => Object.fromEntries(nodes.map(n => [n.id, n])), [nodes])
   const segmentsById    = useMemo(() => Object.fromEntries(segments.map(s => [s.id, s])), [segments])
@@ -153,11 +154,11 @@ export function RouteManual({ nodes, segments, systems, capacity, state, onPickH
     return computeCandidates(currentNodeId, visitedIds, segments, nodesById, systems, capacityBySegId)
   }, [currentNodeId, visitedIds, segments, nodesById, systems, capacityBySegId])
 
-  const filtered = filter.trim()
+  const filtered = search.trim()
     ? candidates.filter(c =>
-        c.node.name.toLowerCase().includes(filter.toLowerCase()) ||
-        c.node.country.toLowerCase().includes(filter.toLowerCase()) ||
-        c.segment.system_id.toLowerCase().includes(filter.toLowerCase()))
+        c.node.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.node.country.toLowerCase().includes(search.toLowerCase()) ||
+        c.segment.system_id.toLowerCase().includes(search.toLowerCase()))
     : candidates
 
   // Assemble running stats
@@ -199,14 +200,16 @@ export function RouteManual({ nodes, segments, systems, capacity, state, onPickH
     )
   }
 
-  const originNode   = nodesById[state.originId]
-  const currentNode  = currentNodeId ? nodesById[currentNodeId] : null
-  const hopCount     = state.steps.length
+  const hopCount = state.steps.length
+
+  // Build ordered node+segment list for metro map
+  const metroNodeIds = [state.originId, ...state.steps.map(s => s.nodeId)]
+  const metroSegs    = state.steps.map(s => segmentsById[s.segmentId]).filter(Boolean) as CableSegment[]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Header */}
-      <div style={{ padding: '12px 14px', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
+      <div style={{ padding: '10px 12px 8px', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: t.text }}>Building Route</div>
           <div style={{ display: 'flex', gap: 6 }}>
@@ -217,143 +220,241 @@ export function RouteManual({ nodes, segments, systems, capacity, state, onPickH
                 cursor: 'pointer', fontFamily: 'inherit',
               }}>↩ Undo</button>
             )}
+            {hopCount > 0 && (
+              <button onClick={onFinish} style={{
+                padding: '4px 10px', borderRadius: 5, fontSize: 11, fontWeight: 700,
+                border: 'none', background: t.green, color: '#fff',
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>✓ Finish</button>
+            )}
             <button onClick={onDiscard} title="Discard and start over" style={{
               padding: '4px 10px', borderRadius: 5, fontSize: 11, fontWeight: 600,
               border: `1px solid ${t.red}44`, background: 'transparent', color: t.red,
               cursor: 'pointer', fontFamily: 'inherit',
-            }}>✕ Discard</button>
+            }}>✕</button>
           </div>
         </div>
 
-        {/* Path breadcrumb */}
-        <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.6, overflowX: 'auto', whiteSpace: 'nowrap' }}>
-          <span style={{ color: t.blue, fontWeight: 700 }}>{originNode?.name ?? state.originId}</span>
-          {state.steps.map((step, i) => {
-            const n = nodesById[step.nodeId]
-            const isLast = i === state.steps.length - 1
-            return (
-              <span key={i}>
-                <span style={{ color: t.textFaint }}> → </span>
-                <span style={{ color: isLast ? t.text : t.textMuted, fontWeight: isLast ? 700 : 400 }}>
-                  {n?.name ?? step.nodeId}
-                </span>
-              </span>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Running stats */}
-      {runningStats && (
-        <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
-          {[
-            { label: 'Hops',    value: `${hopCount}` },
-            { label: 'km',      value: `${runningStats.km.toLocaleString()}` },
-            { label: 'ms',      value: `${runningStats.latency.toFixed(1)}` },
-            { label: 'On-Net',  value: `${runningStats.onNetPct}%` },
-          ].map(({ label, value }) => (
-            <div key={label} style={{ flex: 1, textAlign: 'center', padding: '7px 4px', borderRight: `1px solid ${t.border}` }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: t.text }}>{value}</div>
-              <div style={{ fontSize: 9, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Current position */}
-      <div style={{ padding: '10px 14px', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
-        <div style={{ fontSize: 10, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>
-          Current node
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{currentNode?.name ?? currentNodeId}</div>
-            <div style={{ fontSize: 10, color: t.textMuted }}>{currentNode?.country} · {currentNode?.type?.replace('_', ' ')}</div>
-          </div>
-          {hopCount > 0 && (
-            <button
-              onClick={onFinish}
-              style={{
-                padding: '6px 14px', borderRadius: 6, fontSize: 11, fontWeight: 700,
-                border: 'none', background: t.green, color: '#fff',
-                cursor: 'pointer', fontFamily: 'inherit',
-              }}
-            >
-              ✓ Finish Here
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Next hop candidates */}
-      <div style={{ padding: '10px 14px 6px', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-          <div style={{ fontSize: 10, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            Next hop · {candidates.length} option{candidates.length !== 1 ? 's' : ''}
-          </div>
-        </div>
-        <input
-          placeholder="Filter nodes, country, system…"
-          value={filter}
-          onChange={e => setFilter(e.target.value)}
-          style={{
-            width: '100%', background: t.bgBase, border: `1px solid ${t.border}`,
-            borderRadius: 5, padding: '5px 8px', color: t.text, fontSize: 11,
-            outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
-          }}
-        />
-      </div>
-
-      {/* Candidate list */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '6px 10px 16px' }}>
-        {filtered.length === 0 && (
-          <div style={{ fontSize: 11, color: t.textFaint, textAlign: 'center', padding: '20px 0' }}>
-            {candidates.length === 0 ? 'No onward connections from this node' : 'No matches'}
+        {/* Running stats */}
+        {runningStats && (
+          <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: `1px solid ${t.border}` }}>
+            {[
+              { label: 'Hops',   value: `${hopCount}` },
+              { label: 'km',     value: runningStats.km.toLocaleString() },
+              { label: 'ms',     value: runningStats.latency.toFixed(1) },
+              { label: 'On-Net', value: `${runningStats.onNetPct}%` },
+            ].map(({ label, value }, i, arr) => (
+              <div key={label} style={{
+                flex: 1, textAlign: 'center', padding: '5px 2px',
+                borderRight: i < arr.length - 1 ? `1px solid ${t.border}` : 'none',
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: t.text }}>{value}</div>
+                <div style={{ fontSize: 9, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+              </div>
+            ))}
           </div>
         )}
-        {filtered.map(c => {
-          const isOwned  = onNetSet.has(c.segment.ownership)
-          const ownerColor = isOwned ? t.green : t.textMuted
+      </div>
+
+      {/* Tab bar: Path map | Next hop */}
+      <div style={{ display: 'flex', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
+        {(['path', 'nexthop'] as const).map(t_ => {
+          const active = tab === t_
+          const label  = t_ === 'path' ? `Path (${metroNodeIds.length})` : `Next Hop (${candidates.length})`
           return (
             <button
-              key={c.segmentId}
-              onClick={() => onPickHop(c)}
+              key={t_}
+              onClick={() => setTab(t_)}
               style={{
-                width: '100%', textAlign: 'left', background: t.bgCard,
-                border: `1px solid ${t.border}`, borderRadius: 7,
-                padding: '9px 11px', marginBottom: 6, cursor: 'pointer',
-                fontFamily: 'inherit', transition: 'border-color 0.1s',
+                flex: 1, padding: '7px 4px', fontSize: 11, fontWeight: active ? 700 : 400,
+                color: active ? t.blue : t.textMuted,
+                background: 'transparent', border: 'none',
+                borderBottom: active ? `2px solid ${t.blue}` : '2px solid transparent',
+                cursor: 'pointer', fontFamily: 'inherit',
               }}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = t.blue)}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = t.border)}
-            >
-              {/* Node name + country */}
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 3 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{c.node.name}</div>
-                <div style={{ fontSize: 10, color: t.textMuted }}>{c.node.country}</div>
-              </div>
-              {/* Segment / system */}
-              <div style={{ fontSize: 10, color: t.blue, marginBottom: 4 }}>{c.segment.system_id} · {c.segment.name}</div>
-              {/* Stats row */}
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <Stat label="km"      value={c.segment.length_km.toLocaleString()} />
-                <Stat label="ms"      value={c.segment.latency.toFixed(1)} />
-                {c.margin != null && <Stat label="margin" value={`${c.margin.toFixed(0)}%`} />}
-                {c.availCapTbps != null && (
-                  <Stat
-                    label="avail"
-                    value={`${c.availCapTbps.toFixed(1)}T`}
-                    color={c.availCapTbps < 1 ? t.red : c.availCapTbps < 5 ? '#c07a20' : t.green}
-                    bold
-                  />
-                )}
-                <Stat label={OWNERSHIP_LABEL[c.segment.ownership] ?? c.segment.ownership} value="" color={ownerColor} bold />
-                <Stat label={c.segment.type} value="" color={c.segment.type === 'wet' ? t.blue : '#c07a20'} />
-              </div>
-            </button>
+            >{label}</button>
           )
         })}
       </div>
+
+      {/* ── Path tab: progressive metro map ── */}
+      {tab === 'path' && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px 16px' }}>
+          {metroNodeIds.length === 1 && (
+            <div style={{ fontSize: 11, color: t.textFaint, padding: '12px 0' }}>
+              Origin set — pick the first hop to see the path grow.
+            </div>
+          )}
+          <ManualMetroMap
+            nodeIds={metroNodeIds}
+            segments={metroSegs}
+            nodesById={nodesById}
+            onNetSet={onNetSet}
+          />
+        </div>
+      )}
+
+      {/* ── Next hop tab: filter + candidate list ── */}
+      {tab === 'nexthop' && (
+        <>
+          <div style={{ padding: '8px 12px 6px', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
+            <input
+              placeholder="Filter nodes, country, system…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{
+                width: '100%', background: t.bgBase, border: `1px solid ${t.border}`,
+                borderRadius: 5, padding: '5px 8px', color: t.text, fontSize: 11,
+                outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
+              }}
+            />
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '6px 10px 16px' }}>
+            {filtered.length === 0 && (
+              <div style={{ fontSize: 11, color: t.textFaint, textAlign: 'center', padding: '20px 0' }}>
+                {candidates.length === 0 ? 'No onward connections from this node' : 'No matches'}
+              </div>
+            )}
+            {filtered.map(c => {
+              const isOwned    = onNetSet.has(c.segment.ownership)
+              const ownerColor = isOwned ? t.green : t.textMuted
+              return (
+                <button
+                  key={c.segmentId}
+                  onClick={() => { onPickHop(c); setTab('path') }}
+                  style={{
+                    width: '100%', textAlign: 'left', background: t.bgCard,
+                    border: `1px solid ${t.border}`, borderRadius: 7,
+                    padding: '9px 11px', marginBottom: 6, cursor: 'pointer',
+                    fontFamily: 'inherit', transition: 'border-color 0.1s',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.borderColor = t.blue)}
+                  onMouseLeave={e => (e.currentTarget.style.borderColor = t.border)}
+                >
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 3 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{c.node.name}</div>
+                    <div style={{ fontSize: 10, color: t.textMuted }}>{c.node.country}</div>
+                  </div>
+                  <div style={{ fontSize: 10, color: t.blue, marginBottom: 4 }}>{c.segment.system_id} · {c.segment.name}</div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <Stat label="km"   value={c.segment.length_km.toLocaleString()} />
+                    <Stat label="ms"   value={c.segment.latency.toFixed(1)} />
+                    {c.margin != null && <Stat label="margin" value={`${c.margin.toFixed(0)}%`} />}
+                    {c.availCapTbps != null && (
+                      <Stat
+                        label="avail"
+                        value={`${c.availCapTbps.toFixed(1)}T`}
+                        color={c.availCapTbps < 1 ? t.red : c.availCapTbps < 5 ? '#c07a20' : t.green}
+                        bold
+                      />
+                    )}
+                    <Stat label={OWNERSHIP_LABEL[c.segment.ownership] ?? c.segment.ownership} value="" color={ownerColor} bold />
+                    <Stat label={c.segment.type} value="" color={c.segment.type === 'wet' ? t.blue : '#c07a20'} />
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Progressive metro map ─────────────────────────────────────────────────────
+
+const AMBER = '#f9a825'
+
+function ManualMetroMap({ nodeIds, segments, nodesById, onNetSet }: {
+  nodeIds:   string[]
+  segments:  CableSegment[]
+  nodesById: Record<string, CableNode>
+  onNetSet:  Set<string>
+}) {
+  const t = useTheme()
+  return (
+    <div style={{ paddingBottom: 4 }}>
+      {nodeIds.map((nodeId, i) => {
+        const seg     = segments[i - 1]   // segment that led TO this node (undefined for origin)
+        const node    = nodesById[nodeId]
+        const isBU    = node?.type === 'branching_unit'
+        const isFirst = i === 0
+        const isLast  = i === nodeIds.length - 1
+
+        // Node dot colour: blue origin, green current end, amber intermediates
+        const dotColor = isFirst ? '#60a5fa' : isLast ? '#4ade80' : AMBER
+        const dotSize  = isBU ? 8 : 12
+        const dotOffset = isBU ? 2 : 0
+
+        // Segment track colour based on ownership
+        const isOnNet     = seg ? onNetSet.has(seg.ownership) : false
+        const trackColor  = seg?.type === 'wet' ? '#60a5fa88' : '#4ade8088'
+        const cardBorder  = isOnNet ? '#4ade8066' : t.border
+        const cardBg      = isOnNet ? '#4ade8011' : t.bgCard
+
+        return (
+          <div key={`${nodeId}-${i}`}>
+            {/* Track + segment card above this node (i > 0) */}
+            {seg && (
+              <div style={{ display: 'flex', alignItems: 'stretch', margin: '2px 0' }}>
+                <div style={{
+                  width: 2, flexShrink: 0, background: trackColor,
+                  marginLeft: 5, borderRadius: 1,
+                }} />
+                <div style={{
+                  flex: 1, marginLeft: 10, marginTop: 3, marginBottom: 3,
+                  padding: '5px 8px', borderRadius: 5,
+                  border: `1px solid ${cardBorder}`, background: cardBg,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: seg.type === 'wet' ? '#60a5fa' : '#4ade80' }}>
+                      {seg.system_id}
+                    </span>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      {isOnNet && (
+                        <span style={{ fontSize: 7, fontWeight: 700, color: '#4ade80', background: '#4ade8022', padding: '1px 4px', borderRadius: 3, letterSpacing: '0.04em' }}>
+                          ON-NET
+                        </span>
+                      )}
+                      <span style={{ fontSize: 9, color: t.textFaint, textTransform: 'uppercase' as const }}>{seg.type}</span>
+                    </div>
+                  </div>
+                  {seg.name && seg.name !== seg.system_id && (
+                    <div style={{ fontSize: 9, color: t.textMuted, marginBottom: 2 }}>{seg.name}</div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
+                    <span style={{ fontSize: 9, color: t.textFaint }}>{seg.length_km.toLocaleString()} km</span>
+                    <span style={{ fontSize: 9, color: t.textFaint }}>{seg.latency.toFixed(1)} ms</span>
+                    <span style={{ fontSize: 9, color: t.textMuted }}>{OWNERSHIP_LABEL[seg.ownership] ?? seg.ownership}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Node dot + label */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{
+                width: dotSize, height: dotSize, borderRadius: '50%',
+                background: isFirst || isLast ? dotColor : t.bgDeep,
+                border: `2px solid ${dotColor}`,
+                flexShrink: 0, marginLeft: dotOffset,
+              }} />
+              <div style={{ minWidth: 0 }}>
+                {isBU ? (
+                  <span style={{ fontSize: 8, color: t.textFaint, fontFamily: 'monospace' }}>◈ {nodeId}</span>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' as const }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: dotColor }}>{node?.name ?? nodeId}</span>
+                    {node?.country && <span style={{ fontSize: 9, color: t.textMuted }}>{node.country}</span>}
+                    {isFirst && <span style={{ fontSize: 8, fontWeight: 700, color: '#60a5fa', background: '#60a5fa22', padding: '1px 4px', borderRadius: 3 }}>ORIGIN</span>}
+                    {isLast && nodeIds.length > 1 && <span style={{ fontSize: 8, fontWeight: 700, color: '#4ade80', background: '#4ade8022', padding: '1px 4px', borderRadius: 3 }}>HERE</span>}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
