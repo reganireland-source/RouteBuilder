@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import type { CableNode, CableSegment, CableSystem, Route, RouteSegmentDetail, SegmentCapacity } from '../types'
 import { useTheme } from '../theme'
 import { candidateColor } from './Map'
@@ -131,7 +131,7 @@ interface Props {
   onNetOwnership: string[]
 }
 
-export function RouteManual({ nodes, segments, systems, capacity, state, onPickHop, onUndo, onFinish, onDiscard, onNetOwnership }: Props) {
+export function RouteManual({ nodes, segments, systems, capacity, state, onStart, onPickHop, onUndo, onFinish, onDiscard, onNetOwnership }: Props) {
   const t = useTheme()
   const [tab, setTab]       = useState<'nexthop' | 'path'>('nexthop')
   const [search, setSearch] = useState('')
@@ -181,23 +181,7 @@ export function RouteManual({ nodes, segments, systems, capacity, state, onPickH
 
   if (!state) {
     return (
-      <div style={{ padding: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 8 }}>RouteManual</div>
-        <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.6, marginBottom: 16 }}>
-          Click any node on the map to set your <strong style={{ color: t.text }}>origin</strong> and begin building a path hop-by-hop.
-        </div>
-        <div style={{ ...card, background: t.bgBase }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: t.blue, marginBottom: 6 }}>How it works</div>
-          {[
-            '① Click a node on the map to set origin',
-            '② Connected nodes highlight — pick the next hop from the list below or click on the map',
-            '③ Repeat until you reach your destination',
-            '④ Double-click the final node to finish and review route stats',
-          ].map((s, i) => (
-            <div key={i} style={{ fontSize: 11, color: t.textMuted, marginBottom: 4, lineHeight: 1.5 }}>{s}</div>
-          ))}
-        </div>
-      </div>
+      <OriginSearch nodes={nodes} onStart={onStart} card={card} />
     )
   }
 
@@ -465,6 +449,96 @@ function ManualMetroMap({ nodeIds, segments, nodesById, onNetSet }: {
     </div>
   )
 }
+
+// ── Origin search panel ───────────────────────────────────────────────────────
+
+function OriginSearch({ nodes, onStart, card }: {
+  nodes: CableNode[]
+  onStart: (nodeId: string) => void
+  card: React.CSSProperties
+}) {
+  const t = useTheme()
+  const [query, setQuery] = useState('')
+
+  const results = query.trim().length >= 1
+    ? nodes.filter(n =>
+        n.name.toLowerCase().includes(query.toLowerCase()) ||
+        n.country.toLowerCase().includes(query.toLowerCase()) ||
+        n.id.toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 8)
+    : []
+
+  return (
+    <div style={{ padding: 16 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 8 }}>RouteManual</div>
+
+      {/* Origin search */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>
+          Set origin node
+        </div>
+        <input
+          autoFocus
+          placeholder="Search by name, country or ID…"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          style={{
+            width: '100%', background: t.bgBase, border: `1px solid ${t.blue}`,
+            borderRadius: 7, padding: '10px 12px', color: t.text, fontSize: 13,
+            outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
+          }}
+        />
+        {results.length > 0 && (
+          <div style={{
+            marginTop: 4, border: `1px solid ${t.border}`, borderRadius: 7,
+            overflow: 'hidden', background: t.bgCard,
+          }}>
+            {results.map(n => (
+              <button
+                key={n.id}
+                onClick={() => onStart(n.id)}
+                style={{
+                  width: '100%', textAlign: 'left', padding: '9px 12px',
+                  background: 'transparent', border: 'none',
+                  borderBottom: `1px solid ${t.border}`,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'baseline', gap: 8,
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = t.bgDeep)}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                <span style={{ fontSize: 12, fontWeight: 700, color: t.text, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.name}</span>
+                <span style={{ fontSize: 10, color: t.textMuted, flexShrink: 0 }}>{n.country}</span>
+                <span style={{ fontSize: 9, color: t.textFaint, flexShrink: 0, textTransform: 'capitalize' }}>{n.type?.replace('_', ' ')}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {query.trim().length >= 1 && results.length === 0 && (
+          <div style={{ fontSize: 11, color: t.textFaint, padding: '8px 0' }}>No nodes match</div>
+        )}
+      </div>
+
+      <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 10 }}>
+        or tap any node directly on the map
+      </div>
+
+      <div style={{ ...card, background: t.bgBase }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: t.blue, marginBottom: 6 }}>How it works</div>
+        {[
+          '① Set origin by searching above or tapping a node on the map',
+          '② Reachable next hops highlight — pick from the list or tap the map',
+          '③ Repeat until you reach your destination',
+          '④ Tap Finish to review route stats, then pin or add to project',
+        ].map((s, i) => (
+          <div key={i} style={{ fontSize: 11, color: t.textMuted, marginBottom: 4, lineHeight: 1.5 }}>{s}</div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Stat chip ─────────────────────────────────────────────────────────────────
 
 function Stat({ label, value, color, bold }: { label: string; value: string; color?: string; bold?: boolean }) {
   const t = useTheme()
