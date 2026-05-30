@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
-import { MapContainer, TileLayer, CircleMarker, Marker, Polyline, Tooltip, useMap } from 'react-leaflet'
-import L from 'leaflet'
+import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet'
 import type { CableNode, CableSegment, CountryHighlight, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
 import { useTheme } from '../theme'
 import type { ManualState, NextHopCandidate } from './RouteManual'
@@ -423,41 +422,22 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
           {manualCandidates.map((c, idx) => {
             const node = nodesById[c.nodeId]
             if (!node) return null
-            const color = candidateColor(idx)
-            if (manualMobileMode) {
-              // Large numbered touch target
-              const icon = L.divIcon({
-                className: '',
-                iconSize: [44, 44],
-                iconAnchor: [22, 22],
-                html: `<div style="width:44px;height:44px;border-radius:50%;background:${color};border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#000;box-shadow:0 2px 8px rgba(0,0,0,0.5);font-family:system-ui,sans-serif;">${idx + 1}</div>`,
-              })
-              return (
-                <Marker
-                  key={`manual-cand-${c.segmentId}`}
-                  position={[node.lat, normalizeLng(node.lng)]}
-                  icon={icon}
-                  eventHandlers={{ click: (e) => {
-                    e.originalEvent.stopPropagation()
-                    onManualNodeClick?.(node)
-                  }}}
-                >
-                  <Tooltip><strong>{node.name}</strong><br />{c.segment.system_id} · {c.segment.length_km.toLocaleString()} km · {c.segment.latency.toFixed(1)} ms</Tooltip>
-                </Marker>
-              )
-            }
+            const color  = candidateColor(idx)
+            const radius = manualMobileMode ? 20 : 9
             return (
               <CircleMarker
                 key={`manual-cand-${c.segmentId}`}
                 center={[node.lat, normalizeLng(node.lng)]}
-                radius={9}
-                pathOptions={{ color: '#fff', fillColor: color, fillOpacity: 0.9, weight: 2 }}
+                radius={radius}
+                pathOptions={{ color: '#fff', fillColor: color, fillOpacity: 0.9, weight: manualMobileMode ? 3 : 2 }}
                 eventHandlers={{ click: (e) => {
                   e.originalEvent.stopPropagation()
                   onManualNodeClick?.(node)
                 }}}
               >
-                <Tooltip><strong>{node.name}</strong><br />{c.segment.system_id} · {c.segment.length_km.toLocaleString()} km · {c.segment.latency.toFixed(1)} ms</Tooltip>
+                <Tooltip permanent={manualMobileMode} direction="center" className="manual-cand-label">
+                  {manualMobileMode ? `${idx + 1}` : <><strong>{node.name}</strong><br />{c.segment.system_id} · {c.segment.length_km.toLocaleString()} km · {c.segment.latency.toFixed(1)} ms</>}
+                </Tooltip>
               </CircleMarker>
             )
           })}
