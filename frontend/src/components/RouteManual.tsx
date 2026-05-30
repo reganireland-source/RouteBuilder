@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { CableNode, CableSegment, CableSystem, Route, RouteSegmentDetail } from '../types'
+import type { CableNode, CableSegment, CableSystem, Route, RouteSegmentDetail, SegmentCapacity } from '../types'
 import { useTheme } from '../theme'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -15,11 +15,13 @@ export interface ManualState {
 }
 
 export interface NextHopCandidate {
-  nodeId:    string
-  segmentId: string
-  node:      CableNode
-  segment:   CableSegment
-  margin:    number | null
+  nodeId:         string
+  segmentId:      string
+  node:           CableNode
+  segment:        CableSegment
+  margin:         number | null
+  availCapTbps:   number | null   // available capacity in Tbps (null = no data)
+  totalCapTbps:   number | null
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -43,6 +45,7 @@ export function computeCandidates(
   segments: CableSegment[],
   nodesById: Record<string, CableNode>,
   systems: CableSystem[],
+  capacityBySegId: Record<string, SegmentCapacity>,
 ): NextHopCandidate[] {
   const out: NextHopCandidate[] = []
   for (const seg of segments) {
@@ -53,12 +56,15 @@ export function computeCandidates(
     if (visitedNodeIds.has(peerId)) continue   // no loops
     const node = nodesById[peerId]
     if (!node) continue
+    const cap = capacityBySegId[seg.id]
     out.push({
-      nodeId:    peerId,
-      segmentId: seg.id,
+      nodeId:       peerId,
+      segmentId:    seg.id,
       node,
-      segment:   seg,
-      margin:    getMargin(seg.system_id, systems),
+      segment:      seg,
+      margin:       getMargin(seg.system_id, systems),
+      availCapTbps: cap ? cap.available_capacity_t : null,
+      totalCapTbps: cap ? cap.total_capacity_t : null,
     })
   }
   // Sort: owned first, then by latency
@@ -114,6 +120,7 @@ interface Props {
   nodes:    CableNode[]
   segments: CableSegment[]
   systems:  CableSystem[]
+  capacity: SegmentCapacity[]
   state:    ManualState | null
   onStart:  (nodeId: string) => void   // user picks an origin via node search
   onPickHop: (candidate: NextHopCandidate) => void
@@ -123,13 +130,14 @@ interface Props {
   onNetOwnership: string[]
 }
 
-export function RouteManual({ nodes, segments, systems, state, onPickHop, onUndo, onFinish, onDiscard, onNetOwnership }: Props) {
+export function RouteManual({ nodes, segments, systems, capacity, state, onPickHop, onUndo, onFinish, onDiscard, onNetOwnership }: Props) {
   const t = useTheme()
   const [filter, setFilter] = useState('')
 
-  const nodesById    = useMemo(() => Object.fromEntries(nodes.map(n => [n.id, n])), [nodes])
-  const segmentsById = useMemo(() => Object.fromEntries(segments.map(s => [s.id, s])), [segments])
-  const onNetSet     = useMemo(() => new Set(onNetOwnership), [onNetOwnership])
+  const nodesById       = useMemo(() => Object.fromEntries(nodes.map(n => [n.id, n])), [nodes])
+  const segmentsById    = useMemo(() => Object.fromEntries(segments.map(s => [s.id, s])), [segments])
+  const capacityBySegId = useMemo(() => Object.fromEntries(capacity.map(c => [c.segment_id, c])), [capacity])
+  const onNetSet        = useMemo(() => new Set(onNetOwnership), [onNetOwnership])
 
   const currentNodeId = state
     ? (state.steps.length ? state.steps[state.steps.length - 1].nodeId : state.originId)
@@ -142,8 +150,8 @@ export function RouteManual({ nodes, segments, systems, state, onPickHop, onUndo
 
   const candidates = useMemo(() => {
     if (!currentNodeId) return []
-    return computeCandidates(currentNodeId, visitedIds, segments, nodesById, systems)
-  }, [currentNodeId, visitedIds, segments, nodesById, systems])
+    return computeCandidates(currentNodeId, visitedIds, segments, nodesById, systems, capacityBySegId)
+  }, [currentNodeId, visitedIds, segments, nodesById, systems, capacityBySegId])
 
   const filtered = filter.trim()
     ? candidates.filter(c =>
@@ -331,6 +339,14 @@ export function RouteManual({ nodes, segments, systems, state, onPickHop, onUndo
                 <Stat label="km"      value={c.segment.length_km.toLocaleString()} />
                 <Stat label="ms"      value={c.segment.latency.toFixed(1)} />
                 {c.margin != null && <Stat label="margin" value={`${c.margin.toFixed(0)}%`} />}
+                {c.availCapTbps != null && (
+                  <Stat
+                    label="avail"
+                    value={`${c.availCapTbps.toFixed(1)}T`}
+                    color={c.availCapTbps < 1 ? t.red : c.availCapTbps < 5 ? '#c07a20' : t.green}
+                    bold
+                  />
+                )}
                 <Stat label={OWNERSHIP_LABEL[c.segment.ownership] ?? c.segment.ownership} value="" color={ownerColor} bold />
                 <Stat label={c.segment.type} value="" color={c.segment.type === 'wet' ? t.blue : '#c07a20'} />
               </div>

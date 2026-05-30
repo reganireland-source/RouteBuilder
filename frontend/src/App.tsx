@@ -240,8 +240,9 @@ export default function App() {
   }
 
   // ── RouteManual handlers ─────────────────────────────────────────────────
-  const nodesById_   = Object.fromEntries(nodes.map(n => [n.id, n]))
-  const segmentsById_ = Object.fromEntries(segments.map(s => [s.id, s]))
+  const nodesById_      = Object.fromEntries(nodes.map(n => [n.id, n]))
+  const segmentsById_   = Object.fromEntries(segments.map(s => [s.id, s]))
+  const capacityBySegId_ = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
 
   const manualCandidates: NextHopCandidate[] = (() => {
     if (!manualState) return []
@@ -249,7 +250,7 @@ export default function App() {
       ? manualState.steps[manualState.steps.length - 1].nodeId
       : manualState.originId
     const visited = new Set([manualState.originId, ...manualState.steps.map(s => s.nodeId)])
-    return computeCandidates(currentId, visited, segments, nodesById_, systems)
+    return computeCandidates(currentId, visited, segments, nodesById_, systems, capacityBySegId_)
   })()
 
   function handleManualNodeClick(node: CableNode) {
@@ -910,6 +911,7 @@ export default function App() {
                 nodes={nodes}
                 segments={segments}
                 systems={systems}
+                capacity={capacity}
                 state={manualState}
                 onStart={(nodeId) => setManualState({ originId: nodeId, steps: [] })}
                 onPickHop={handleManualPickHop}
