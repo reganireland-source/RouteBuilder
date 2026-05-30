@@ -586,6 +586,14 @@ export default function App() {
           activeProject={activeProject}
           onExitProjectMode={() => { setActiveProject(null); setPinnedRoutes([]) }}
           onSwitchProject={() => { setAddToProjectRoute(null); setEnrichTarget(null); setProjectsOpen(true) }}
+          manualState={manualState}
+          manualCandidates={manualCandidates}
+          manualResults={manualResults}
+          onManualNodeClick={handleManualNodeClick}
+          onManualPickHop={handleManualPickHop}
+          onManualUndo={handleManualUndo}
+          onManualFinish={handleManualFinish}
+          onManualDiscard={() => { setManualState(null); setManualResults([]) }}
         />
         {projectsOpen && (
           <ProjectsModal

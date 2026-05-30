@@ -7,6 +7,8 @@ import type { SortKey } from './RouteList'
 import { SystemViewer } from './SystemViewer'
 import { NodeFinder } from './NodeFinder'
 import { CityPairPanel } from './CityPairPanel'
+import { RouteManual } from './RouteManual'
+import type { ManualState, NextHopCandidate } from './RouteManual'
 import { NodeInfoPanel } from './NodeInfoPanel'
 import { RefDataModal } from './RefDataModal'
 import { HealthBar } from './HealthBar'
@@ -114,6 +116,15 @@ export interface MobileLayoutProps {
   onExitProjectMode?:            () => void
   onSwitchProject?:              () => void
   onOpenGuide:                   () => void
+  // RouteManual
+  manualState?:                  ManualState | null
+  manualCandidates?:             NextHopCandidate[]
+  manualResults?:                Route[]
+  onManualNodeClick?:            (node: CableNode) => void
+  onManualPickHop?:              (c: NextHopCandidate) => void
+  onManualUndo?:                 () => void
+  onManualFinish?:               () => void
+  onManualDiscard?:              () => void
 }
 
 function MobileModeBanner({ activeProject, onSwitch, onExit, t }: {
@@ -205,6 +216,8 @@ export function MobileLayout({
   switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowAllOutages,
   onApplySort, nlpSortKey, nlpPushOutages, optimiseFor, flippedPairIds, onFlipPair,
   onAddToProject, onEnrichCircuit, onOpenProjects, activeProject, onExitProjectMode, onSwitchProject, onOpenGuide,
+  manualState, manualCandidates = [], manualResults = [], onManualNodeClick,
+  onManualPickHop, onManualUndo, onManualFinish, onManualDiscard,
   hideNonActive = false, showSegmentLabels = false, showAllOutages = false,
 }: MobileLayoutProps & { hideNonActive?: boolean; showSegmentLabels?: boolean; showAllOutages?: boolean }) {
   const t = useTheme()
@@ -226,7 +239,7 @@ export function MobileLayout({
   const [sldVersion, setSldVersion]       = useState('')
   const [searchPrefill, setSearchPrefill] = useState<import('../types').RouteRequest | undefined>(undefined)
   const hasPins    = pinnedRoutes.length > 0
-  const hasResults = response !== null
+  const hasResults = response !== null || manualResults.length > 0
 
   // Auto-expand when results arrive or search starts
   useEffect(() => {
@@ -307,13 +320,16 @@ export function MobileLayout({
             capacity={capacity}
             pinnedRoutes={pinnedRoutes}
             selectedSystems={selectedSystems}
-            onNodeClick={onNodeClick}
+            onNodeClick={mode === 'routemanual' && onManualNodeClick ? onManualNodeClick : onNodeClick}
             searchPin={searchPin ?? undefined}
             nearestNodeIds={nearestNodeIds}
             hideNonActive={hideNonActive}
             showSegmentLabels={showSegmentLabels}
             showAllOutages={showAllOutages}
             outages={outages}
+            manualState={manualState}
+            manualCandidates={manualCandidates}
+            onManualNodeClick={onManualNodeClick}
           />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: t.textFaint, background: t.bgMap }}>
@@ -521,19 +537,55 @@ export function MobileLayout({
           t={t}
         />
 
-        {/* Mode tabs */}
-        <div style={{ flexShrink: 0, display: 'flex', borderBottom: `1px solid ${t.border}` }}>
-          <button style={tabBtn(mode === 'routebuilder')} onClick={() => tapTab('routebuilder')}>Routes</button>
-          <button style={tabBtn(mode === 'citypair')}     onClick={() => tapTab('citypair')}>City Pairs</button>
-          <button style={tabBtn(mode === 'systemviewer')} onClick={() => tapTab('systemviewer')}>Cables</button>
-          <button style={tabBtn(mode === 'nodefinder')}   onClick={() => tapTab('nodefinder')}>Nodes</button>
-          <button style={tabBtn(false)}                   onClick={onOpenGuide}>Guide</button>
-        </div>
+        {/* ── Top-level tabs: RouteBuilder | NetworkExplorer | Guide ── */}
+        {(() => {
+          const isRouteBuilder   = mode === 'routebuilder' || mode === 'routemanual'
+          const isNetworkExplorer = mode === 'citypair' || mode === 'systemviewer' || mode === 'nodefinder' || mode === 'countryviewer'
+          return (
+            <div style={{ flexShrink: 0, display: 'flex', borderBottom: `1px solid ${t.border}` }}>
+              <button style={tabBtn(isRouteBuilder)}    onClick={() => tapTab(mode === 'routemanual' ? 'routemanual' : 'routebuilder')}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 2 }}>
+                  <path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/>
+                </svg>
+                <br/>RouteBuilder
+              </button>
+              <button style={tabBtn(isNetworkExplorer)} onClick={() => tapTab('citypair')}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 2 }}>
+                  <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+                <br/>NetworkExp.
+              </button>
+              <button style={tabBtn(false)} onClick={onOpenGuide}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 2 }}>
+                  <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <br/>Guide
+              </button>
+            </div>
+          )
+        })()}
 
-        {/* Scrollable content — clipped to sheet height automatically */}
+        {/* ── Sub-tabs for RouteBuilder ── */}
+        {(mode === 'routebuilder' || mode === 'routemanual') && (
+          <div style={{ flexShrink: 0, display: 'flex', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
+            <button style={tabBtn(mode === 'routebuilder')} onClick={() => tapTab('routebuilder')}>RouteFinder</button>
+            <button style={tabBtn(mode === 'routemanual')}  onClick={() => tapTab('routemanual')}>RouteManual</button>
+          </div>
+        )}
+
+        {/* ── Sub-tabs for NetworkExplorer ── */}
+        {(mode === 'citypair' || mode === 'systemviewer' || mode === 'nodefinder' || mode === 'countryviewer') && (
+          <div style={{ flexShrink: 0, display: 'flex', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
+            <button style={tabBtn(mode === 'citypair')}     onClick={() => tapTab('citypair')}>City Pairs</button>
+            <button style={tabBtn(mode === 'systemviewer')} onClick={() => tapTab('systemviewer')}>Cables</button>
+            <button style={tabBtn(mode === 'nodefinder')}   onClick={() => tapTab('nodefinder')}>Nodes</button>
+          </div>
+        )}
+
+        {/* Scrollable content */}
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain' } as React.CSSProperties}>
 
-          {/* ── Routes mode ───────────────────────────────────────────── */}
+          {/* ── RouteFinder mode ──────────────────────────────────────── */}
           {mode === 'routebuilder' && (
             <div style={{ padding: '14px 16px 32px' }}>
 
@@ -543,8 +595,8 @@ export function MobileLayout({
                   display: 'flex', alignItems: 'center', gap: 8,
                   marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${t.border}`,
                 }}>
-                  {loading   && <span style={{ fontSize: 11, color: t.blue }}>Searching…</span>}
-                  {hasResults && !loading && <span style={{ fontSize: 11, color: t.textFaintest }}>{response!.primary_routes.length + response!.diverse_routes.length} routes found</span>}
+                  {loading    && <span style={{ fontSize: 11, color: t.blue }}>Searching…</span>}
+                  {hasResults && !loading && <span style={{ fontSize: 11, color: t.textFaintest }}>{(response?.primary_routes.length ?? 0) + (response?.diverse_routes.length ?? 0)} routes found</span>}
                   {hasPins    && <span style={{ fontSize: 11, color: t.textFaintest }}>· {pinnedRoutes.length} pinned</span>}
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
                     {hasPins    && <button onClick={() => { setSldVersion(''); setSldVersionPrompt(true) }} style={smallBtn()}>⬡ SLD</button>}
@@ -616,6 +668,46 @@ export function MobileLayout({
                   />
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── RouteManual mode ──────────────────────────────────────── */}
+          {mode === 'routemanual' && (
+            <RouteManual
+              nodes={nodes}
+              segments={segments}
+              systems={systems}
+              capacity={capacity}
+              state={manualState ?? null}
+              onStart={(_nodeId) => switchMode('routemanual')}
+              onPickHop={onManualPickHop ?? (() => {})}
+              onUndo={onManualUndo ?? (() => {})}
+              onFinish={onManualFinish ?? (() => {})}
+              onDiscard={onManualDiscard ?? (() => {})}
+              onNetOwnership={config.on_net_ownership}
+            />
+          )}
+
+          {/* ── RouteManual results ───────────────────────────────────── */}
+          {mode === 'routemanual' && manualResults.length > 0 && (
+            <div style={{ padding: '0 16px 32px' }}>
+              <RouteList
+                primaryRoutes={manualResults}
+                diverseRoutes={[]}
+                selectedRouteIds={selectedRouteIds}
+                onSelectRoute={onToggleRoute}
+                nodes={nodes}
+                systems={systems}
+                capacity={capacity}
+                outages={outages}
+                pinnedRoutes={pinnedRoutes}
+                onPin={onPin}
+                onUnpin={onUnpin}
+                diversityRequested={false}
+                onNetOwnership={config.on_net_ownership}
+                onAddToProject={onAddToProject}
+                activeProject={activeProject}
+              />
             </div>
           )}
 
