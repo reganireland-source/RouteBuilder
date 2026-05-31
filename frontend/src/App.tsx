@@ -19,7 +19,7 @@ import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, type Theme, type ThemeMode } from './theme'
 import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem } from './types'
 import { ProjectsModal } from './components/ProjectsModal'
-import { RouteManual, computeCandidates, assembleRoute } from './components/RouteManual'
+import { RouteManualLeft, RouteManualMiddle, computeCandidates, assembleRoute } from './components/RouteManual'
 import type { NextHopCandidate } from './components/RouteManual'
 import { OutagePanel } from './components/OutagePanel'
 
@@ -918,12 +918,13 @@ export default function App() {
               </>
             )}
             {mode === 'routemanual' && (
-              <RouteManual
+              <RouteManualLeft
                 nodes={nodes}
                 segments={segments}
                 systems={systems}
                 capacity={capacity}
                 state={manualState}
+                candidates={manualCandidates}
                 onStart={(nodeId) => setManualState({ originId: nodeId, steps: [] })}
                 onPickHop={handleManualPickHop}
                 onUndo={handleManualUndo}
@@ -1021,9 +1022,12 @@ export default function App() {
               </p>
             )}
             {mode === 'routemanual' && manualResults.length === 0 && !hasPins && (
-              <p style={{ color: theme.textFaintest, fontSize: 13, marginTop: 8 }}>
-                Completed routes will appear here. Click any node on the map to start building.
-              </p>
+              <RouteManualMiddle
+                state={manualState}
+                segments={segments}
+                nodes={nodes}
+                onNetOwnership={config.on_net_ownership}
+              />
             )}
             <RouteList
               primaryRoutes={mode === 'routemanual' ? manualResults : (response?.primary_routes ?? [])}

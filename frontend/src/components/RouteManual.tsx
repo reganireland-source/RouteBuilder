@@ -548,3 +548,213 @@ function Stat({ label, value, color, bold }: { label: string; value: string; col
     </span>
   )
 }
+
+// ── Desktop split-panel components ────────────────────────────────────────────
+
+interface DesktopProps {
+  nodes:          CableNode[]
+  segments:       CableSegment[]
+  systems:        CableSystem[]
+  capacity:       SegmentCapacity[]
+  state:          ManualState | null
+  candidates:     NextHopCandidate[]
+  onStart:        (nodeId: string) => void
+  onPickHop:      (c: NextHopCandidate) => void
+  onUndo:         () => void
+  onFinish:       () => void
+  onDiscard:      () => void
+  onNetOwnership: string[]
+}
+
+/** Left panel for desktop: origin search → candidate list + stats + controls */
+export function RouteManualLeft({ nodes, segments, systems: _systems, capacity: _capacity, state, candidates, onStart, onPickHop, onUndo, onFinish, onDiscard, onNetOwnership }: DesktopProps) {
+  const t = useTheme()
+  const [search, setSearch] = useState('')
+
+  const segmentsById    = useMemo(() => Object.fromEntries(segments.map(s => [s.id, s])), [segments])
+  const onNetSet        = useMemo(() => new Set(onNetOwnership), [onNetOwnership])
+
+  const filtered = search.trim()
+    ? candidates.filter(c =>
+        c.node.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.node.country.toLowerCase().includes(search.toLowerCase()) ||
+        c.segment.system_id.toLowerCase().includes(search.toLowerCase()))
+    : candidates
+
+  const runningStats = useMemo(() => {
+    if (!state || state.steps.length === 0) return null
+    const segs = state.steps.map(s => segmentsById[s.segmentId]).filter(Boolean) as CableSegment[]
+    const km      = segs.reduce((a, s) => a + s.length_km, 0)
+    const latency = segs.reduce((a, s) => a + s.latency, 0)
+    const onNetKm = segs.filter(s => onNetSet.has(s.ownership)).reduce((a, s) => a + s.length_km, 0)
+    const onNetPct = km > 0 ? Math.round((onNetKm / km) * 100) : 0
+    return { km, latency, hopCount: state.steps.length, onNetPct }
+  }, [state, segmentsById, onNetSet])
+
+  const card: React.CSSProperties = {
+    background: t.bgCard, border: `1px solid ${t.border}`,
+    borderRadius: 8, padding: '10px 12px', marginBottom: 8,
+  }
+
+  // ── No active route: show origin search ──
+  if (!state) {
+    return (
+      <OriginSearch nodes={nodes} onStart={onStart} card={card} />
+    )
+  }
+
+  // ── Building: stats + controls + candidate list ──
+  const hopCount = state.steps.length
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+
+      {/* Controls header */}
+      <div style={{ padding: '10px 14px 8px', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: runningStats ? 8 : 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: t.text }}>Building Route</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {hopCount > 0 && (
+              <button onClick={onUndo} style={{
+                padding: '4px 10px', borderRadius: 5, fontSize: 11, fontWeight: 600,
+                border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>↩ Undo</button>
+            )}
+            {hopCount > 0 && (
+              <button onClick={onFinish} style={{
+                padding: '4px 12px', borderRadius: 5, fontSize: 11, fontWeight: 700,
+                border: 'none', background: t.green, color: '#fff',
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>✓ Finish</button>
+            )}
+            <button onClick={onDiscard} style={{
+              padding: '4px 8px', borderRadius: 5, fontSize: 11, fontWeight: 600,
+              border: `1px solid ${t.red}44`, background: 'transparent', color: t.red,
+              cursor: 'pointer', fontFamily: 'inherit',
+            }}>✕</button>
+          </div>
+        </div>
+
+        {/* Running stats strip */}
+        {runningStats && (
+          <div style={{ display: 'flex', gap: 0, borderRadius: 6, overflow: 'hidden', border: `1px solid ${t.border}` }}>
+            {[
+              { label: 'Hops',   value: `${runningStats.hopCount}` },
+              { label: 'km',     value: runningStats.km.toLocaleString() },
+              { label: 'ms',     value: runningStats.latency.toFixed(1) },
+              { label: 'On-Net', value: `${runningStats.onNetPct}%` },
+            ].map(({ label, value }, i, arr) => (
+              <div key={label} style={{
+                flex: 1, textAlign: 'center', padding: '5px 2px',
+                borderRight: i < arr.length - 1 ? `1px solid ${t.border}` : 'none',
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: t.text }}>{value}</div>
+                <div style={{ fontSize: 9, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Next hop header + filter */}
+      <div style={{ padding: '8px 14px 6px', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
+        <div style={{ fontSize: 10, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+          Next hop · {candidates.length} option{candidates.length !== 1 ? 's' : ''}
+        </div>
+        <input
+          placeholder="Filter nodes, country, system…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{
+            width: '100%', background: t.bgBase, border: `1px solid ${t.border}`,
+            borderRadius: 5, padding: '5px 8px', color: t.text, fontSize: 11,
+            outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit',
+          }}
+        />
+      </div>
+
+      {/* Candidate list */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '6px 10px 16px' }}>
+        {filtered.length === 0 && (
+          <div style={{ fontSize: 11, color: t.textFaint, textAlign: 'center', padding: '20px 0' }}>
+            {candidates.length === 0 ? 'No onward connections from this node' : 'No matches'}
+          </div>
+        )}
+        {filtered.map((c, idx) => {
+          const dotColor   = candidateColor(idx)
+          const ownerColor = onNetSet.has(c.segment.ownership) ? t.green : t.textMuted
+          return (
+            <button
+              key={c.segmentId}
+              onClick={() => onPickHop(c)}
+              style={{
+                width: '100%', textAlign: 'left', background: t.bgCard,
+                border: `1px solid ${t.border}`,
+                borderLeft: `3px solid ${dotColor}`,
+                borderRadius: 7,
+                padding: '9px 11px', marginBottom: 6, cursor: 'pointer',
+                fontFamily: 'inherit', transition: 'border-color 0.1s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = dotColor; e.currentTarget.style.borderLeftColor = dotColor }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.borderLeftColor = dotColor }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
+                  <div style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{c.node.name}</div>
+                </div>
+                <div style={{ fontSize: 10, color: t.textMuted }}>{c.node.country}</div>
+              </div>
+              <div style={{ fontSize: 10, color: t.blue, marginBottom: 4, paddingLeft: 14 }}>{c.segment.system_id} · {c.segment.name}</div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', paddingLeft: 14 }}>
+                <Stat label="km"   value={c.segment.length_km.toLocaleString()} />
+                <Stat label="ms"   value={c.segment.latency.toFixed(1)} />
+                {c.margin != null && <Stat label="margin" value={`${c.margin.toFixed(0)}%`} />}
+                {c.availCapTbps != null && (
+                  <Stat label="avail" value={`${c.availCapTbps.toFixed(1)}T`}
+                    color={c.availCapTbps < 1 ? t.red : c.availCapTbps < 5 ? '#c07a20' : t.green} bold />
+                )}
+                <Stat label={OWNERSHIP_LABEL[c.segment.ownership] ?? c.segment.ownership} value="" color={ownerColor} bold />
+                <Stat label={c.segment.type} value="" color={c.segment.type === 'wet' ? t.blue : '#c07a20'} />
+              </div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/** Middle panel for desktop: progressive metro map of the WIP route */
+export function RouteManualMiddle({ state, segments, nodes, onNetOwnership }: {
+  state:          ManualState | null
+  segments:       CableSegment[]
+  nodes:          CableNode[]
+  onNetOwnership: string[]
+}) {
+  const t = useTheme()
+  const nodesById  = useMemo(() => Object.fromEntries(nodes.map(n => [n.id, n])), [nodes])
+  const segById    = useMemo(() => Object.fromEntries(segments.map(s => [s.id, s])), [segments])
+  const onNetSet   = useMemo(() => new Set(onNetOwnership), [onNetOwnership])
+
+  if (!state) {
+    return (
+      <div style={{ padding: '24px 20px', color: t.textFaint, fontSize: 13 }}>
+        Set an origin node on the left to begin building your route.
+      </div>
+    )
+  }
+
+  const metroNodeIds = [state.originId, ...state.steps.map(s => s.nodeId)]
+  const metroSegs    = state.steps.map(s => segById[s.segmentId]).filter(Boolean) as CableSegment[]
+
+  return (
+    <div style={{ padding: '12px 16px 32px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+        Route in progress
+      </div>
+      <ManualMetroMap nodeIds={metroNodeIds} segments={metroSegs} nodesById={nodesById} onNetSet={onNetSet} />
+    </div>
+  )
+}
