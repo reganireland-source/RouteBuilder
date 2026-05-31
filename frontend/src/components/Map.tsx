@@ -80,7 +80,7 @@ function ManualFitBounds({ manualState, manualCandidates, nodes }: {
     const minLng = Math.min(...lngs), maxLng = Math.max(...lngs)
 
     map.fitBounds([[minLat, minLng], [maxLat, maxLng]], {
-      padding: [60, 60], maxZoom: 8, animate: true,
+      padding: [60, 60], animate: true,
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
