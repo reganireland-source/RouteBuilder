@@ -437,7 +437,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
               >
                 <Tooltip>
                   <strong>{idx + 1}. {node.name}</strong><br />
-                  {c.segment.system_id} · {c.segment.length_km.toLocaleString()} km · {c.segment.latency.toFixed(1)} ms
+                  {c.segment.system_id} · {c.segment.length_km?.toLocaleString() ?? '?'} km · {c.segment.latency?.toFixed(1) ?? '?'} ms
                 </Tooltip>
               </CircleMarker>
             )

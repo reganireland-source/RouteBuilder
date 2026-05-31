@@ -226,7 +226,7 @@ export function RouteManual({ nodes, segments, systems, capacity, state, onStart
             {[
               { label: 'Hops',   value: `${hopCount}` },
               { label: 'km',     value: runningStats.km.toLocaleString() },
-              { label: 'ms',     value: runningStats.latency.toFixed(1) },
+              { label: 'ms',     value: (runningStats.latency ?? 0).toFixed(1) },
               { label: 'On-Net', value: `${runningStats.onNetPct}%` },
             ].map(({ label, value }, i, arr) => (
               <div key={label} style={{
@@ -328,8 +328,8 @@ export function RouteManual({ nodes, segments, systems, capacity, state, onStart
                   </div>
                   <div style={{ fontSize: 10, color: t.blue, marginBottom: 4, paddingLeft: 14 }}>{c.segment.system_id} · {c.segment.name}</div>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', paddingLeft: 14 }}>
-                    <Stat label="km"   value={c.segment.length_km.toLocaleString()} />
-                    <Stat label="ms"   value={c.segment.latency.toFixed(1)} />
+                    <Stat label="km"   value={(c.segment.length_km ?? 0).toLocaleString()} />
+                    <Stat label="ms"   value={(c.segment.latency ?? 0).toFixed(1)} />
                     {c.margin != null && <Stat label="margin" value={`${c.margin.toFixed(0)}%`} />}
                     {c.availCapTbps != null && (
                       <Stat
@@ -414,8 +414,8 @@ function ManualMetroMap({ nodeIds, segments, nodesById, onNetSet }: {
                     <div style={{ fontSize: 9, color: t.textMuted, marginBottom: 2 }}>{seg.name}</div>
                   )}
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' as const }}>
-                    <span style={{ fontSize: 9, color: t.textFaint }}>{seg.length_km.toLocaleString()} km</span>
-                    <span style={{ fontSize: 9, color: t.textFaint }}>{seg.latency.toFixed(1)} ms</span>
+                    <span style={{ fontSize: 9, color: t.textFaint }}>{(seg.length_km ?? 0).toLocaleString()} km</span>
+                    <span style={{ fontSize: 9, color: t.textFaint }}>{(seg.latency ?? 0).toFixed(1)} ms</span>
                     <span style={{ fontSize: 9, color: t.textMuted }}>{OWNERSHIP_LABEL[seg.ownership] ?? seg.ownership}</span>
                   </div>
                 </div>
@@ -642,7 +642,7 @@ export function RouteManualLeft({ nodes, segments, systems: _systems, capacity: 
             {[
               { label: 'Hops',   value: `${runningStats.hopCount}` },
               { label: 'km',     value: runningStats.km.toLocaleString() },
-              { label: 'ms',     value: runningStats.latency.toFixed(1) },
+              { label: 'ms',     value: (runningStats.latency ?? 0).toFixed(1) },
               { label: 'On-Net', value: `${runningStats.onNetPct}%` },
             ].map(({ label, value }, i, arr) => (
               <div key={label} style={{
@@ -708,8 +708,8 @@ export function RouteManualLeft({ nodes, segments, systems: _systems, capacity: 
               </div>
               <div style={{ fontSize: 10, color: t.blue, marginBottom: 4, paddingLeft: 14 }}>{c.segment.system_id} · {c.segment.name}</div>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', paddingLeft: 14 }}>
-                <Stat label="km"   value={c.segment.length_km.toLocaleString()} />
-                <Stat label="ms"   value={c.segment.latency.toFixed(1)} />
+                <Stat label="km"   value={(c.segment.length_km ?? 0).toLocaleString()} />
+                <Stat label="ms"   value={(c.segment.latency ?? 0).toFixed(1)} />
                 {c.margin != null && <Stat label="margin" value={`${c.margin.toFixed(0)}%`} />}
                 {c.availCapTbps != null && (
                   <Stat label="avail" value={`${c.availCapTbps.toFixed(1)}T`}
