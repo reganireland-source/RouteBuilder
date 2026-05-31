@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from .models import Node, CableSystem, CableSegment, InterconnectRule, SegmentCapacity, SegmentOutage, InterfaceType, Project
+from .models import Node, CableSystem, CableSegment, InterconnectRule, SegmentCapacity, SegmentOutage, InterfaceType, TechLookupItem, Project
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
@@ -246,6 +246,38 @@ def save_interfaces(interfaces: list[InterfaceType]) -> None:
         _db_replace_all("interfaces", "id", "id", interfaces)
         return
     _write(DATA_DIR / "interfaces.json", [i.model_dump() for i in interfaces])
+
+
+# ── Technical Enrichment Lookups ──────────────────────────────────────────────
+
+_TECH_TABLES = [
+    "tech_service_types",
+    "tech_bandwidths",
+    "tech_protections",
+    "tech_frame_sizes",
+    "tech_access_types",
+    "tech_arranged_by",
+    "tech_l1_settings",
+]
+
+def load_tech_lookup(table: str) -> list[TechLookupItem]:
+    assert table in _TECH_TABLES, f"Unknown tech lookup table: {table}"
+    cached = _get(table)
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+    if _use_db():
+        result = _db_load_all(table, "id", TechLookupItem)
+    else:
+        result = []
+    result.sort(key=lambda x: x.order)
+    _set(table, result)
+    return result
+
+def save_tech_lookup(table: str, items: list[TechLookupItem]) -> None:
+    assert table in _TECH_TABLES, f"Unknown tech lookup table: {table}"
+    _bust(table)
+    if _use_db():
+        _db_replace_all(table, "id", "id", items)
 
 
 # ── Projects ──────────────────────────────────────────────────────────────────

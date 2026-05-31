@@ -4,6 +4,7 @@ import { useTheme } from '../theme'
 import { api } from '../api/client'
 import { ProductCoveragePanel } from './ProductCoveragePanel'
 import { BulkImportPanel } from './BulkImportPanel'
+import { TechEnrichmentPanel } from './TechEnrichmentPanel'
 
 const OWNERSHIP_LABEL: Record<string, string> = {
   owned:                'Owned',
@@ -16,7 +17,7 @@ const OWNERSHIP_LABEL: Record<string, string> = {
 const DEFAULT_ONNET = ['owned', 'consortium', 'iru']
 
 type DataTab = 'nodes' | 'segments' | 'systems' | 'capacity' | 'outages' | 'rules'
-type Tab = DataTab | 'checks' | 'config' | 'coverage' | 'bulk'
+type Tab = DataTab | 'checks' | 'config' | 'coverage' | 'bulk' | 'tech'
 
 interface CheckResult {
   name: string
@@ -1176,7 +1177,15 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           }}>
             🔄 Bulk Import
           </button>
-          {tab !== 'checks' && tab !== 'config' && tab !== 'coverage' && tab !== 'bulk' && (
+          <button onClick={() => switchTab('tech')} style={{
+            padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
+            fontSize: 12, fontWeight: tab === 'tech' ? 700 : 400,
+            color: tab === 'tech' ? '#a78bfa' : t.textFaint,
+            borderBottom: tab === 'tech' ? '2px solid #a78bfa' : '2px solid transparent',
+          }}>
+            🔧 Tech Enrichment
+          </button>
+          {tab !== 'checks' && tab !== 'config' && tab !== 'coverage' && tab !== 'bulk' && tab !== 'tech' && (
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
               <input
                 placeholder={`Filter ${tab}…`}
@@ -1205,6 +1214,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           {tab === 'checks'   && <ChecksTab />}
           {tab === 'config'   && <ConfigTab />}
           {tab === 'coverage' && <ProductCoveragePanel nodes={nodes} onDataChange={onDataChange} />}
+          {tab === 'tech'     && <TechEnrichmentPanel />}
           {tab === 'bulk' && (
             <BulkImportPanel
               counts={{

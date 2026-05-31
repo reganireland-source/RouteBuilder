@@ -229,6 +229,20 @@ class InterfaceType(BaseModel):
     description: Optional[str] = None
 
 
+# ── Technical Enrichment Lookups ──────────────────────────────────────────────
+
+class TechLookupItem(BaseModel):
+    id: str
+    label: str
+    order: int = 0
+    description: Optional[str] = None
+
+class TechLookupItemUpdate(BaseModel):
+    label: Optional[str] = None
+    order: Optional[int] = None
+    description: Optional[str] = None
+
+
 class InterfaceTypeUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None

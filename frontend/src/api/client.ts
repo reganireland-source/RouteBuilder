@@ -1,4 +1,4 @@
-import type { AppConfig, CableNode, CableSegment, CableSystem, CityInfo, CityPairResponse, InterfaceType, InterconnectRule, NlpParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig } from '../types'
+import type { AppConfig, CableNode, CableSegment, CableSystem, CityInfo, CityPairResponse, InterfaceType, InterconnectRule, NlpParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, TechLookupItem, TechLookupTable } from '../types'
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -139,4 +139,10 @@ export const api = {
   updateCircuit:    (projectId: string, circuitId: string, c: ProjectCircuit) => put<Project>(`/api/projects/${projectId}/circuits/${circuitId}`, c),
   removeCircuit:    (projectId: string, circuitId: string)                => delJson<Project>(`/api/projects/${projectId}/circuits/${circuitId}`),
   updateSldConfig:  (projectId: string, config: SldConfig)                => put<Project>(`/api/projects/${projectId}/sld-config`, config),
+
+  // Technical Enrichment Lookups
+  getTechLookup:    (table: TechLookupTable)                              => get<TechLookupItem[]>(`/api/tech-lookups/${table}`),
+  createTechItem:   (table: TechLookupTable, item: TechLookupItem)        => post<TechLookupItem>(`/api/tech-lookups/${table}`, item),
+  updateTechItem:   (table: TechLookupTable, id: string, data: Partial<TechLookupItem>) => put<TechLookupItem>(`/api/tech-lookups/${table}/${id}`, data),
+  deleteTechItem:   (table: TechLookupTable, id: string)                  => del(`/api/tech-lookups/${table}/${id}`),
 }

@@ -304,3 +304,30 @@ export interface NlpParseResponse {
   confidence: 'high' | 'medium' | 'low'
   ambiguities: string[]
 }
+
+// ── Technical Enrichment Lookups ─────────────────────────────────────────────
+export interface TechLookupItem {
+  id: string
+  label: string
+  order: number
+  description?: string
+}
+
+export type TechLookupTable =
+  | 'tech_service_types'
+  | 'tech_bandwidths'
+  | 'tech_protections'
+  | 'tech_frame_sizes'
+  | 'tech_access_types'
+  | 'tech_arranged_by'
+  | 'tech_l1_settings'
+
+export const TECH_LOOKUP_LABELS: Record<TechLookupTable, string> = {
+  tech_service_types: 'Service Types',
+  tech_bandwidths:    'Bandwidths',
+  tech_protections:   'Protection Modes',
+  tech_frame_sizes:   'Frame Sizes (MTU)',
+  tech_access_types:  'Access Types',
+  tech_arranged_by:   'Arranged By',
+  tech_l1_settings:   'L1 / Optical Settings',
+}
