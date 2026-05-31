@@ -1,6 +1,15 @@
 import { useState, useEffect } from 'react'
 import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, InterconnectRule, SegmentCapacity, SegmentOutage } from '../types'
 import { useTheme } from '../theme'
+function useIsMobile(): boolean {
+  const [mobile, setMobile] = useState(() => window.innerWidth < 768)
+  useEffect(() => {
+    const fn = () => setMobile(window.innerWidth < 768)
+    window.addEventListener('resize', fn)
+    return () => window.removeEventListener('resize', fn)
+  }, [])
+  return mobile
+}
 import { api } from '../api/client'
 import { ProductCoveragePanel } from './ProductCoveragePanel'
 import { BulkImportPanel } from './BulkImportPanel'
@@ -40,6 +49,7 @@ interface Props {
 
 export function RefDataModal({ nodes, segments, systems, capacity, outages, rules, config, onDataChange, onClose }: Props) {
   const t = useTheme()
+  const isMobile = useIsMobile()
   const [tab, setTab] = useState<Tab>('nodes')
   const [editId, setEditId] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<Record<string, unknown>>({})
@@ -111,7 +121,11 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
   }
 
-  const modalBox: React.CSSProperties = {
+  const modalBox: React.CSSProperties = isMobile ? {
+    position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column',
+    background: t.bgPanel, overflow: 'hidden',
+    fontFamily: 'system-ui, sans-serif',
+  } : {
     width: '92vw', height: '88vh', display: 'flex', flexDirection: 'column',
     background: t.bgPanel, borderRadius: 8, border: `1px solid ${t.border}`,
     boxShadow: '0 8px 40px rgba(0,0,0,0.5)', overflow: 'hidden',
@@ -156,6 +170,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   const editFormRow: React.CSSProperties = {
     display: 'grid', gap: 8, padding: '10px 12px',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
     borderBottom: `1px solid ${t.border}`, background: t.bgDeep,
   }
 
@@ -216,6 +231,61 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     )
   }
 
+  // ── Mobile card component ────────────────────────────────────────────────────
+
+  function MobileCard({ id, title, subtitle, fields, onEdit, onDelete, children }: {
+    id: string
+    title: React.ReactNode
+    subtitle?: React.ReactNode
+    fields?: { label: string; value: React.ReactNode }[]
+    onEdit: () => void
+    onDelete: () => void
+    children?: React.ReactNode
+  }) {
+    const isEditing = editId === id
+    return (
+      <div style={{
+        margin: '0 12px 8px', borderRadius: 8,
+        border: `1px solid ${isEditing ? t.blue : t.border}`,
+        background: isEditing ? `${t.blue}08` : t.bgCard,
+        overflow: 'hidden',
+      }}>
+        <div style={{ padding: '10px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: fields?.length ? 6 : 0 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: t.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
+              {subtitle && <div style={{ fontSize: 11, color: t.textMuted, marginTop: 1 }}>{subtitle}</div>}
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              {deleteConfirmId === id ? (
+                <>
+                  <button style={{ ...actionBtn('confirm'), padding: '5px 10px' }} disabled={saving} onClick={onDelete}>Delete?</button>
+                  <button style={{ ...actionBtn('cancel'), padding: '5px 10px' }} onClick={() => setDeleteConfirmId(null)}>Cancel</button>
+                </>
+              ) : (
+                <>
+                  <button style={{ ...actionBtn('edit'), padding: '5px 12px' }} onClick={onEdit}>{isEditing ? '✕' : 'Edit'}</button>
+                  {!isEditing && <button style={{ ...actionBtn('delete'), padding: '5px 10px' }} onClick={() => { setEditId(null); setDeleteConfirmId(id) }}>✕</button>}
+                </>
+              )}
+            </div>
+          </div>
+          {fields && fields.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 12px' }}>
+              {fields.map(f => (
+                <div key={f.label}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: t.textFaintest, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{f.label}</div>
+                  <div style={{ fontSize: 11, color: t.text }}>{f.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {children}
+      </div>
+    )
+  }
+
   const typeOpts    = [{ value: 'landing_station', label: 'CLS (Landing Station)' }, { value: 'terrestrial_pop', label: 'POP (Terrestrial)' }, { value: 'branching_unit', label: 'BU (Branching Unit)' }]
   const segTypeOpts = [{ value: 'wet', label: 'Wet' }, { value: 'terrestrial', label: 'Terrestrial' }]
   const ownerOpts   = [
@@ -233,10 +303,27 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     const filtered = nodes.filter(n =>
       !filter || n.name.toLowerCase().includes(filter.toLowerCase()) || n.id.toLowerCase().includes(filter.toLowerCase())
     )
+    const editForm = (n: CableNode) => (
+      <div style={{ ...editFormRow }}>
+        <Field label="Name"         k="name"         src={editValues} setSrc={setEditValues} />
+        <Field label="Country"      k="country"      src={editValues} setSrc={setEditValues} />
+        <Field label="Type"         k="type"         src={editValues} setSrc={setEditValues} options={typeOpts} />
+        <Field label="Owner"        k="owner"        src={editValues} setSrc={setEditValues} />
+        <Field label="Lat"          k="lat"          src={editValues} setSrc={setEditValues} type="number" />
+        <Field label="Lng"          k="lng"          src={editValues} setSrc={setEditValues} type="number" />
+        <Field label="Trading Name" k="trading_name" src={editValues} setSrc={setEditValues} />
+        <Field label="Description"  k="description"  src={editValues} setSrc={setEditValues} />
+        <SaveCancel
+          onSave={() => saveEdit(() => api.updateNode(n.id, editValues as Partial<CableNode>))}
+          onCancel={() => setEditId(null)}
+        />
+      </div>
+    )
+    const editDefaults = (n: CableNode) => ({ name: n.name, country: n.country, type: n.type, lat: n.lat, lng: n.lng, owner: n.owner ?? '', trading_name: n.trading_name ?? '', description: n.description ?? '' })
     return (
       <>
         {adding && (
-          <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(5, 1fr)' }}>
+          <div style={{ ...editFormRow, margin: isMobile ? '8px 12px' : undefined }}>
             <Field label="ID *"         k="id"           src={addValues} setSrc={setAddValues} />
             <Field label="Name *"       k="name"         src={addValues} setSrc={setAddValues} />
             <Field label="Country"      k="country"      src={addValues} setSrc={setAddValues} />
@@ -252,48 +339,57 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             />
           </div>
         )}
-        <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
-          <div style={colH(1.5)}>ID</div><div style={colH(2)}>Name</div><div style={colH(1)}>Country</div>
-          <div style={colH(1.5)}>Type</div><div style={colH(2)}>Owner</div>
-          <div style={colH(2)}>Trading Name</div><div style={colH(3)}>Description</div>
-          <div style={colH(1)}>Lat</div><div style={colH(1)}>Lng</div>
-          <div style={{ width: 140 }} />
-        </div>
-        {filtered.map(n => (
-          <div key={n.id} style={rowStyle(editId === n.id)}>
-            <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
-              <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{n.id}</code></div>
-              <div style={cell(2)}>{n.name}</div>
-              <div style={cell(1)}>{n.country}</div>
-              <div style={cell(1.5)}>{n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : 'POP'}</div>
-              <div style={cell(2)}>{n.owner ?? ''}</div>
-              <div style={cell(2)}>{n.trading_name ?? ''}</div>
-              <div style={cell(3)}>{n.description ?? ''}</div>
-              <div style={cell(1)}>{n.lat}</div>
-              <div style={cell(1)}>{n.lng}</div>
-              <ActionsCell id={n.id}
-                onEdit={() => startEdit(n.id, { name: n.name, country: n.country, type: n.type, lat: n.lat, lng: n.lng, owner: n.owner ?? '', trading_name: n.trading_name ?? '', description: n.description ?? '' })}
+        {isMobile ? (
+          <div style={{ padding: '8px 0 32px' }}>
+            {filtered.map(n => (
+              <MobileCard key={n.id}
+                id={n.id}
+                title={n.name}
+                subtitle={<><code style={{ fontSize: 10 }}>{n.id}</code> · {n.country} · {n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : 'POP'}</>}
+                fields={[
+                  { label: 'Owner', value: n.owner ?? '—' },
+                  { label: 'Trading Name', value: n.trading_name ?? '—' },
+                  { label: 'Lat', value: n.lat },
+                  { label: 'Lng', value: n.lng },
+                ]}
+                onEdit={() => editId === n.id ? setEditId(null) : startEdit(n.id, editDefaults(n))}
                 onDelete={() => confirmDelete(() => api.deleteNode(n.id))}
-              />
-            </div>
-            {editId === n.id && (
-              <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(4, 1fr)' }}>
-                <Field label="Name"         k="name"         src={editValues} setSrc={setEditValues} />
-                <Field label="Country"      k="country"      src={editValues} setSrc={setEditValues} />
-                <Field label="Type"         k="type"         src={editValues} setSrc={setEditValues} options={typeOpts} />
-                <Field label="Owner"        k="owner"        src={editValues} setSrc={setEditValues} />
-                <Field label="Lat"          k="lat"          src={editValues} setSrc={setEditValues} type="number" />
-                <Field label="Lng"          k="lng"          src={editValues} setSrc={setEditValues} type="number" />
-                <Field label="Trading Name" k="trading_name" src={editValues} setSrc={setEditValues} />
-                <Field label="Description"  k="description"  src={editValues} setSrc={setEditValues} />
-                <SaveCancel
-                  onSave={() => saveEdit(() => api.updateNode(n.id, editValues as Partial<CableNode>))}
-                  onCancel={() => setEditId(null)}
-                />
-              </div>
-            )}
+              >
+                {editId === n.id && editForm(n)}
+              </MobileCard>
+            ))}
           </div>
-        ))}
+        ) : (
+          <>
+            <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
+              <div style={colH(1.5)}>ID</div><div style={colH(2)}>Name</div><div style={colH(1)}>Country</div>
+              <div style={colH(1.5)}>Type</div><div style={colH(2)}>Owner</div>
+              <div style={colH(2)}>Trading Name</div><div style={colH(3)}>Description</div>
+              <div style={colH(1)}>Lat</div><div style={colH(1)}>Lng</div>
+              <div style={{ width: 140 }} />
+            </div>
+            {filtered.map(n => (
+              <div key={n.id} style={rowStyle(editId === n.id)}>
+                <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
+                  <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{n.id}</code></div>
+                  <div style={cell(2)}>{n.name}</div>
+                  <div style={cell(1)}>{n.country}</div>
+                  <div style={cell(1.5)}>{n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : 'POP'}</div>
+                  <div style={cell(2)}>{n.owner ?? ''}</div>
+                  <div style={cell(2)}>{n.trading_name ?? ''}</div>
+                  <div style={cell(3)}>{n.description ?? ''}</div>
+                  <div style={cell(1)}>{n.lat}</div>
+                  <div style={cell(1)}>{n.lng}</div>
+                  <ActionsCell id={n.id}
+                    onEdit={() => startEdit(n.id, editDefaults(n))}
+                    onDelete={() => confirmDelete(() => api.deleteNode(n.id))}
+                  />
+                </div>
+                {editId === n.id && editForm(n)}
+              </div>
+            ))}
+          </>
+        )}
       </>
     )
   }
@@ -306,11 +402,52 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       s.id.toLowerCase().includes(filter.toLowerCase()) || s.system_id.toLowerCase().includes(filter.toLowerCase())
     )
     const segDefaults = { id: '', name: '', system_id: '', start_node_id: '', end_node_id: '', type: 'wet', length_km: 0, latency: 0, cost_weight: 1, reliability: 0.9999, ownership: 'consortium' }
+    const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+
+    const segEditForm = (s: CableSegment) => (
+      <div style={{ ...editFormRow }}>
+        <Field label="Name"         k="name"          src={editValues} setSrc={setEditValues} />
+        <Field label="System"       k="system_id"     src={editValues} setSrc={setEditValues} options={systemOpts} />
+        <Field label="Start Node"   k="start_node_id" src={editValues} setSrc={setEditValues} />
+        <Field label="End Node"     k="end_node_id"   src={editValues} setSrc={setEditValues} />
+        <Field label="Type"         k="type"          src={editValues} setSrc={setEditValues} options={segTypeOpts} />
+        <Field label="Length (km)"  k="length_km"     src={editValues} setSrc={setEditValues} type="number" />
+        <Field label="Latency (ms)" k="latency"       src={editValues} setSrc={setEditValues} type="number" />
+        <Field label="Cost Weight"  k="cost_weight"   src={editValues} setSrc={setEditValues} type="number" />
+        <Field label="Reliability"  k="reliability"   src={editValues} setSrc={setEditValues} type="number" />
+        <Field label="Ownership"    k="ownership"     src={editValues} setSrc={setEditValues} options={ownerOpts} />
+        {/* Waypoints editor */}
+        <div style={{ gridColumn: '1 / -1', marginTop: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+            <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ocean Waypoints</label>
+            <span style={{ fontSize: 10, color: t.textFaintest }}>Intermediate lat/lng points from start to end node</span>
+          </div>
+          {((editValues.waypoints as [number, number][]) ?? []).map(([wlat, wlng], wi) => (
+            <div key={wi} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+              <span style={{ fontSize: 10, color: t.textFaint, width: 20, textAlign: 'right', flexShrink: 0 }}>{wi + 1}</span>
+              <input type="number" step="any" placeholder="Lat" value={wlat} style={{ ...inputStyle, width: 90 }}
+                onChange={e => { const wps = [...((editValues.waypoints as [number, number][]) ?? [])]; wps[wi] = [parseFloat(e.target.value) || 0, wps[wi][1]]; setEditValues({ ...editValues, waypoints: wps }) }} />
+              <input type="number" step="any" placeholder="Lng" value={wlng} style={{ ...inputStyle, width: 90 }}
+                onChange={e => { const wps = [...((editValues.waypoints as [number, number][]) ?? [])]; wps[wi] = [wps[wi][0], parseFloat(e.target.value) || 0]; setEditValues({ ...editValues, waypoints: wps }) }} />
+              <button disabled={wi === 0} onClick={() => { const wps = [...((editValues.waypoints as [number, number][]) ?? [])]; [wps[wi - 1], wps[wi]] = [wps[wi], wps[wi - 1]]; setEditValues({ ...editValues, waypoints: wps }) }} style={{ fontSize: 11, padding: '2px 6px', borderRadius: 3, border: `1px solid ${t.border}`, background: 'transparent', color: t.textFaint, cursor: wi === 0 ? 'not-allowed' : 'pointer', opacity: wi === 0 ? 0.3 : 1 }}>↑</button>
+              <button disabled={wi === ((editValues.waypoints as [number, number][]) ?? []).length - 1} onClick={() => { const wps = [...((editValues.waypoints as [number, number][]) ?? [])]; [wps[wi], wps[wi + 1]] = [wps[wi + 1], wps[wi]]; setEditValues({ ...editValues, waypoints: wps }) }} style={{ fontSize: 11, padding: '2px 6px', borderRadius: 3, border: `1px solid ${t.border}`, background: 'transparent', color: t.textFaint, cursor: wi === ((editValues.waypoints as [number, number][]) ?? []).length - 1 ? 'not-allowed' : 'pointer', opacity: wi === ((editValues.waypoints as [number, number][]) ?? []).length - 1 ? 0.3 : 1 }}>↓</button>
+              <button onClick={() => { const wps = ((editValues.waypoints as [number, number][]) ?? []).filter((_, j) => j !== wi); setEditValues({ ...editValues, waypoints: wps }) }} style={{ fontSize: 11, padding: '2px 7px', borderRadius: 3, border: `1px solid ${t.red}44`, background: 'transparent', color: t.red, cursor: 'pointer' }}>×</button>
+            </div>
+          ))}
+          <button onClick={() => { const wps = [...((editValues.waypoints as [number, number][]) ?? []), [0, 0] as [number, number]]; setEditValues({ ...editValues, waypoints: wps }) }} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 3, border: `1px solid ${t.blue}`, background: 'transparent', color: t.blue, cursor: 'pointer', marginTop: 2 }}>+ Add waypoint</button>
+        </div>
+        <SaveCancel
+          onSave={() => { const wps = (editValues.waypoints as [number, number][]) ?? []; saveEdit(() => api.updateSegment(s.id, { ...editValues, waypoints: wps.length > 0 ? wps : null } as Partial<CableSegment>)) }}
+          onCancel={() => setEditId(null)}
+        />
+      </div>
+    )
+    const segEditDefaults = (s: CableSegment) => ({ name: s.name, system_id: s.system_id, start_node_id: s.start_node_id, end_node_id: s.end_node_id, type: s.type, length_km: s.length_km, latency: s.latency, cost_weight: s.cost_weight, reliability: s.reliability, ownership: s.ownership, waypoints: s.waypoints ? JSON.parse(JSON.stringify(s.waypoints)) : [] })
 
     return (
       <>
         {adding && (
-          <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(6, 1fr)' }}>
+          <div style={{ ...editFormRow, margin: isMobile ? '8px 12px' : undefined }}>
             <Field label="ID *"         k="id"            src={addValues} setSrc={setAddValues} />
             <Field label="Name *"       k="name"          src={addValues} setSrc={setAddValues} />
             <Field label="System"       k="system_id"     src={addValues} setSrc={setAddValues} options={systemOpts} />
@@ -328,140 +465,65 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             />
           </div>
         )}
-        <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
-          <div style={colH(1.5)}>ID</div><div style={colH(2)}>Name</div><div style={colH(1)}>System</div>
-          <div style={colH(1.5)}>Start Node</div><div style={colH(1.5)}>End Node</div>
-          <div style={colH(0.8)}>Type</div><div style={colH(1)}>Length</div><div style={colH(0.8)}>Latency</div>
-          <div style={colH(0.7)}>Cost</div><div style={colH(1)}>Ownership</div><div style={colH(0.8)}>Network</div>
-          <div style={{ width: 140 }} />
-        </div>
-        {(() => {
-          const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
-          return filtered.map(s => (
-          <div key={s.id} style={rowStyle(editId === s.id)}>
-            <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
-              <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{s.id}</code></div>
-              <div style={cell(2)}>{s.name}</div>
-              <div style={cell(1)}>{s.system_id}</div>
-              <div style={cell(1.5)}>{nodesById[s.start_node_id]?.name ?? s.start_node_id}</div>
-              <div style={cell(1.5)}>{nodesById[s.end_node_id]?.name ?? s.end_node_id}</div>
-              <div style={cell(0.8)}>{s.type}</div>
-              <div style={cell(1)}>{s.length_km.toLocaleString()} km</div>
-              <div style={cell(0.8)}>{s.latency} ms</div>
-              <div style={cell(0.7)}>{s.cost_weight}</div>
-              <div style={cell(1)}>{OWNERSHIP_LABEL[s.ownership] ?? s.ownership}</div>
-              <div style={cell(0.8)}>
-                <span style={{
-                  fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
-                  letterSpacing: '0.04em',
-                  background: isOnNet(s.ownership) ? '#a6e3a122' : '#f9e2af22',
-                  color: isOnNet(s.ownership) ? '#a6e3a1' : '#f9e2af',
-                  border: `1px solid ${isOnNet(s.ownership) ? '#a6e3a144' : '#f9e2af44'}`,
-                }}>
-                  {isOnNet(s.ownership) ? 'ON-NET' : 'OFF-NET'}
-                </span>
-              </div>
-              <ActionsCell id={s.id}
-                onEdit={() => startEdit(s.id, { name: s.name, system_id: s.system_id, start_node_id: s.start_node_id, end_node_id: s.end_node_id, type: s.type, length_km: s.length_km, latency: s.latency, cost_weight: s.cost_weight, reliability: s.reliability, ownership: s.ownership, waypoints: s.waypoints ? JSON.parse(JSON.stringify(s.waypoints)) : [] })}
+        {isMobile ? (
+          <div style={{ padding: '8px 0 32px' }}>
+            {filtered.map(s => (
+              <MobileCard key={s.id}
+                id={s.id}
+                title={s.name}
+                subtitle={<><code style={{ fontSize: 10 }}>{s.id}</code> · {s.system_id} · {s.type}</>}
+                fields={[
+                  { label: 'From', value: nodesById[s.start_node_id]?.name ?? s.start_node_id },
+                  { label: 'To', value: nodesById[s.end_node_id]?.name ?? s.end_node_id },
+                  { label: 'Length', value: `${s.length_km.toLocaleString()} km` },
+                  { label: 'Latency', value: s.latency != null ? `${s.latency} ms` : '—' },
+                  { label: 'Ownership', value: OWNERSHIP_LABEL[s.ownership] ?? s.ownership },
+                  { label: 'Network', value: isOnNet(s.ownership) ? 'ON-NET' : 'OFF-NET' },
+                ]}
+                onEdit={() => editId === s.id ? setEditId(null) : startEdit(s.id, segEditDefaults(s))}
                 onDelete={() => confirmDelete(() => api.deleteSegment(s.id))}
-              />
+              >
+                {editId === s.id && segEditForm(s)}
+              </MobileCard>
+            ))}
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
+              <div style={colH(1.5)}>ID</div><div style={colH(2)}>Name</div><div style={colH(1)}>System</div>
+              <div style={colH(1.5)}>Start Node</div><div style={colH(1.5)}>End Node</div>
+              <div style={colH(0.8)}>Type</div><div style={colH(1)}>Length</div><div style={colH(0.8)}>Latency</div>
+              <div style={colH(0.7)}>Cost</div><div style={colH(1)}>Ownership</div><div style={colH(0.8)}>Network</div>
+              <div style={{ width: 140 }} />
             </div>
-            {editId === s.id && (
-              <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(5, 1fr)' }}>
-                <Field label="Name"         k="name"          src={editValues} setSrc={setEditValues} />
-                <Field label="System"       k="system_id"     src={editValues} setSrc={setEditValues} options={systemOpts} />
-                <Field label="Start Node"   k="start_node_id" src={editValues} setSrc={setEditValues} />
-                <Field label="End Node"     k="end_node_id"   src={editValues} setSrc={setEditValues} />
-                <Field label="Type"         k="type"          src={editValues} setSrc={setEditValues} options={segTypeOpts} />
-                <Field label="Length (km)"  k="length_km"     src={editValues} setSrc={setEditValues} type="number" />
-                <Field label="Latency (ms)" k="latency"       src={editValues} setSrc={setEditValues} type="number" />
-                <Field label="Cost Weight"  k="cost_weight"   src={editValues} setSrc={setEditValues} type="number" />
-                <Field label="Reliability"  k="reliability"   src={editValues} setSrc={setEditValues} type="number" />
-                <Field label="Ownership"    k="ownership"     src={editValues} setSrc={setEditValues} options={ownerOpts} />
-                {/* Waypoints editor */}
-                <div style={{ gridColumn: '1 / -1', marginTop: 6 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                    <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Ocean Waypoints
-                    </label>
-                    <span style={{ fontSize: 10, color: t.textFaintest }}>
-                      Intermediate lat/lng points that keep wet segments in the ocean — ordered from start to end node
-                    </span>
-                  </div>
-                  {((editValues.waypoints as [number, number][]) ?? []).map(([wlat, wlng], wi) => (
-                    <div key={wi} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
-                      <span style={{ fontSize: 10, color: t.textFaint, width: 20, textAlign: 'right', flexShrink: 0 }}>{wi + 1}</span>
-                      <input
-                        type="number" step="any" placeholder="Lat"
-                        value={wlat}
-                        style={{ ...inputStyle, width: 90 }}
-                        onChange={e => {
-                          const wps = [...((editValues.waypoints as [number, number][]) ?? [])]
-                          wps[wi] = [parseFloat(e.target.value) || 0, wps[wi][1]]
-                          setEditValues({ ...editValues, waypoints: wps })
-                        }}
-                      />
-                      <input
-                        type="number" step="any" placeholder="Lng"
-                        value={wlng}
-                        style={{ ...inputStyle, width: 90 }}
-                        onChange={e => {
-                          const wps = [...((editValues.waypoints as [number, number][]) ?? [])]
-                          wps[wi] = [wps[wi][0], parseFloat(e.target.value) || 0]
-                          setEditValues({ ...editValues, waypoints: wps })
-                        }}
-                      />
-                      <button
-                        title="Move up"
-                        disabled={wi === 0}
-                        onClick={() => {
-                          const wps = [...((editValues.waypoints as [number, number][]) ?? [])]
-                          ;[wps[wi - 1], wps[wi]] = [wps[wi], wps[wi - 1]]
-                          setEditValues({ ...editValues, waypoints: wps })
-                        }}
-                        style={{ fontSize: 11, padding: '2px 6px', borderRadius: 3, border: `1px solid ${t.border}`, background: 'transparent', color: t.textFaint, cursor: wi === 0 ? 'not-allowed' : 'pointer', opacity: wi === 0 ? 0.3 : 1 }}
-                      >↑</button>
-                      <button
-                        title="Move down"
-                        disabled={wi === ((editValues.waypoints as [number, number][]) ?? []).length - 1}
-                        onClick={() => {
-                          const wps = [...((editValues.waypoints as [number, number][]) ?? [])]
-                          ;[wps[wi], wps[wi + 1]] = [wps[wi + 1], wps[wi]]
-                          setEditValues({ ...editValues, waypoints: wps })
-                        }}
-                        style={{ fontSize: 11, padding: '2px 6px', borderRadius: 3, border: `1px solid ${t.border}`, background: 'transparent', color: t.textFaint, cursor: wi === ((editValues.waypoints as [number, number][]) ?? []).length - 1 ? 'not-allowed' : 'pointer', opacity: wi === ((editValues.waypoints as [number, number][]) ?? []).length - 1 ? 0.3 : 1 }}
-                      >↓</button>
-                      <button
-                        title="Remove waypoint"
-                        onClick={() => {
-                          const wps = ((editValues.waypoints as [number, number][]) ?? []).filter((_, j) => j !== wi)
-                          setEditValues({ ...editValues, waypoints: wps })
-                        }}
-                        style={{ fontSize: 11, padding: '2px 7px', borderRadius: 3, border: `1px solid ${t.red}44`, background: 'transparent', color: t.red, cursor: 'pointer' }}
-                      >×</button>
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => {
-                      const wps = [...((editValues.waypoints as [number, number][]) ?? []), [0, 0] as [number, number]]
-                      setEditValues({ ...editValues, waypoints: wps })
-                    }}
-                    style={{ fontSize: 11, padding: '3px 10px', borderRadius: 3, border: `1px solid ${t.blue}`, background: 'transparent', color: t.blue, cursor: 'pointer', marginTop: 2 }}
-                  >+ Add waypoint</button>
+            {filtered.map(s => (
+            <div key={s.id} style={rowStyle(editId === s.id)}>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
+                <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{s.id}</code></div>
+                <div style={cell(2)}>{s.name}</div>
+                <div style={cell(1)}>{s.system_id}</div>
+                <div style={cell(1.5)}>{nodesById[s.start_node_id]?.name ?? s.start_node_id}</div>
+                <div style={cell(1.5)}>{nodesById[s.end_node_id]?.name ?? s.end_node_id}</div>
+                <div style={cell(0.8)}>{s.type}</div>
+                <div style={cell(1)}>{s.length_km.toLocaleString()} km</div>
+                <div style={cell(0.8)}>{s.latency} ms</div>
+                <div style={cell(0.7)}>{s.cost_weight}</div>
+                <div style={cell(1)}>{OWNERSHIP_LABEL[s.ownership] ?? s.ownership}</div>
+                <div style={cell(0.8)}>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3, letterSpacing: '0.04em', background: isOnNet(s.ownership) ? '#a6e3a122' : '#f9e2af22', color: isOnNet(s.ownership) ? '#a6e3a1' : '#f9e2af', border: `1px solid ${isOnNet(s.ownership) ? '#a6e3a144' : '#f9e2af44'}` }}>
+                    {isOnNet(s.ownership) ? 'ON-NET' : 'OFF-NET'}
+                  </span>
                 </div>
-                <SaveCancel
-                  onSave={() => {
-                    const wps = (editValues.waypoints as [number, number][]) ?? []
-                    const payload = { ...editValues, waypoints: wps.length > 0 ? wps : null }
-                    saveEdit(() => api.updateSegment(s.id, payload as Partial<CableSegment>))
-                  }}
-                  onCancel={() => setEditId(null)}
+                <ActionsCell id={s.id}
+                  onEdit={() => startEdit(s.id, segEditDefaults(s))}
+                  onDelete={() => confirmDelete(() => api.deleteSegment(s.id))}
                 />
               </div>
-            )}
-          </div>
-        ))
-        })()}
+              {editId === s.id && segEditForm(s)}
+            </div>
+            ))}
+          </>
+        )}
       </>
     )
   }
@@ -472,54 +534,68 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     const filtered = systems.filter(s =>
       !filter || s.name.toLowerCase().includes(filter.toLowerCase()) || s.id.toLowerCase().includes(filter.toLowerCase())
     )
+    const sysEditForm = (s: CableSystem) => (
+      <div style={{ ...editFormRow }}>
+        <Field label="Name"          k="name"        src={editValues} setSrc={setEditValues} />
+        <Field label="Description"   k="description" src={editValues} setSrc={setEditValues} />
+        <Field label="Margin (1–10)" k="margin"      src={editValues} setSrc={setEditValues} type="number" />
+        <SaveCancel onSave={() => saveEdit(() => api.updateSystem(s.id, editValues as Partial<CableSystem>))} onCancel={() => setEditId(null)} />
+      </div>
+    )
     return (
       <>
         {adding && (
-          <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(4, 1fr)' }}>
+          <div style={{ ...editFormRow, margin: isMobile ? '8px 12px' : undefined }}>
             <Field label="ID *"          k="id"          src={addValues} setSrc={setAddValues} />
             <Field label="Name *"        k="name"        src={addValues} setSrc={setAddValues} />
             <Field label="Description"   k="description" src={addValues} setSrc={setAddValues} />
             <Field label="Margin (1–10)" k="margin"      src={addValues} setSrc={setAddValues} type="number" />
-            <SaveCancel
-              onSave={() => saveAdd(() => api.createSystem(addValues as unknown as CableSystem))}
-              onCancel={() => { setAdding(false); setAddValues({}) }}
-            />
+            <SaveCancel onSave={() => saveAdd(() => api.createSystem(addValues as unknown as CableSystem))} onCancel={() => { setAdding(false); setAddValues({}) }} />
           </div>
         )}
-        <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
-          <div style={colH(1.5)}>ID</div><div style={colH(3)}>Name</div><div style={colH(4)}>Description</div><div style={colH(1)}>Margin</div>
-          <div style={{ width: 140 }} />
-        </div>
-        {filtered.map(s => {
-          const mc = s.margin == null ? t.textFaint : s.margin >= 7.5 ? t.green : s.margin >= 4.5 ? t.orange : t.red
-          return (
-            <div key={s.id} style={rowStyle(editId === s.id)}>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
-                <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{s.id}</code></div>
-                <div style={cell(3)}>{s.name}</div>
-                <div style={cell(4)}>{s.description}</div>
-                <div style={{ ...cell(1), fontWeight: 700, color: mc }}>
-                  {s.margin != null ? s.margin.toFixed(1) : '—'}
-                </div>
-                <ActionsCell id={s.id}
-                  onEdit={() => startEdit(s.id, { name: s.name, description: s.description, margin: s.margin })}
+        {isMobile ? (
+          <div style={{ padding: '8px 0 32px' }}>
+            {filtered.map(s => {
+              const mc = s.margin == null ? t.textFaint : s.margin >= 7.5 ? t.green : s.margin >= 4.5 ? t.orange : t.red
+              return (
+                <MobileCard key={s.id} id={s.id}
+                  title={s.name}
+                  subtitle={<code style={{ fontSize: 10 }}>{s.id}</code>}
+                  fields={[
+                    { label: 'Description', value: s.description ?? '—' },
+                    { label: 'Margin', value: <span style={{ color: mc, fontWeight: 700 }}>{s.margin != null ? s.margin.toFixed(1) : '—'}</span> },
+                  ]}
+                  onEdit={() => editId === s.id ? setEditId(null) : startEdit(s.id, { name: s.name, description: s.description, margin: s.margin })}
                   onDelete={() => confirmDelete(() => api.deleteSystem(s.id))}
-                />
-              </div>
-              {editId === s.id && (
-                <div style={{ ...editFormRow, gridTemplateColumns: '1fr 2fr 1fr' }}>
-                  <Field label="Name"        k="name"        src={editValues} setSrc={setEditValues} />
-                  <Field label="Description" k="description" src={editValues} setSrc={setEditValues} />
-                  <Field label="Margin (1–10)" k="margin"    src={editValues} setSrc={setEditValues} type="number" />
-                  <SaveCancel
-                    onSave={() => saveEdit(() => api.updateSystem(s.id, editValues as Partial<CableSystem>))}
-                    onCancel={() => setEditId(null)}
-                  />
-                </div>
-              )}
+                >
+                  {editId === s.id && sysEditForm(s)}
+                </MobileCard>
+              )
+            })}
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
+              <div style={colH(1.5)}>ID</div><div style={colH(3)}>Name</div><div style={colH(4)}>Description</div><div style={colH(1)}>Margin</div>
+              <div style={{ width: 140 }} />
             </div>
-          )
-        })}
+            {filtered.map(s => {
+              const mc = s.margin == null ? t.textFaint : s.margin >= 7.5 ? t.green : s.margin >= 4.5 ? t.orange : t.red
+              return (
+                <div key={s.id} style={rowStyle(editId === s.id)}>
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
+                    <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{s.id}</code></div>
+                    <div style={cell(3)}>{s.name}</div>
+                    <div style={cell(4)}>{s.description}</div>
+                    <div style={{ ...cell(1), fontWeight: 700, color: mc }}>{s.margin != null ? s.margin.toFixed(1) : '—'}</div>
+                    <ActionsCell id={s.id} onEdit={() => startEdit(s.id, { name: s.name, description: s.description, margin: s.margin })} onDelete={() => confirmDelete(() => api.deleteSystem(s.id))} />
+                  </div>
+                  {editId === s.id && sysEditForm(s)}
+                </div>
+              )
+            })}
+          </>
+        )}
       </>
     )
   }
@@ -530,90 +606,105 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     const filtered = capacity.filter(c =>
       !filter || c.segment_id.toLowerCase().includes(filter.toLowerCase())
     )
+    const capSaveVals = (vals: Record<string, unknown>) => ({
+      total_capacity_t: parseFloat(String(vals.total_capacity_t)) || 0,
+      available_capacity_t: parseFloat(String(vals.available_capacity_t)) || 0,
+    })
+    const capEditForm = (segId: string) => (
+      <div style={{ ...editFormRow }}>
+        <Field label="Total (T)"     k="total_capacity_t"     src={editValues} setSrc={setEditValues} type="decimal" placeholder="e.g. 4.5" />
+        <Field label="Available (T)" k="available_capacity_t" src={editValues} setSrc={setEditValues} type="decimal" placeholder="e.g. 2.0" />
+        <SaveCancel onSave={() => saveEdit(() => api.updateCapacity(segId, capSaveVals(editValues) as Partial<SegmentCapacity>))} onCancel={() => setEditId(null)} />
+      </div>
+    )
+    const segSearchWidget = (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
+        <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Segment ID *</label>
+        <input style={inputStyle} placeholder="Type to filter segments…"
+          value={String(addValues.segment_id ?? '')}
+          onChange={e => { setAddValues({ ...addValues, segment_id: e.target.value }); setCapSegmentOpen(true) }}
+          onFocus={() => setCapSegmentOpen(true)}
+          onBlur={() => setTimeout(() => setCapSegmentOpen(false), 150)}
+        />
+        {capSegmentOpen && (() => {
+          const q = String(addValues.segment_id ?? '').toLowerCase()
+          const hits = q ? segments.filter(s => s.id.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)).slice(0, 12) : []
+          return hits.length > 0 ? (
+            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 300, background: t.bgDeep, border: `1px solid ${t.border}`, borderRadius: 4, maxHeight: 220, overflowY: 'auto', boxShadow: '0 6px 16px rgba(0,0,0,0.5)', marginTop: 2 }}>
+              {hits.map(s => (
+                <div key={s.id} onMouseDown={() => { setAddValues({ ...addValues, segment_id: s.id }); setCapSegmentOpen(false) }}
+                  style={{ padding: '6px 10px', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'baseline', borderBottom: `1px solid ${t.border}` }}>
+                  <code style={{ fontSize: 11, color: t.blue, flexShrink: 0 }}>{s.id}</code>
+                  <span style={{ fontSize: 11, color: t.textFaint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                </div>
+              ))}
+            </div>
+          ) : null
+        })()}
+      </div>
+    )
     return (
       <>
         {adding && (
-          <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(3, 1fr)' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
-              <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Segment ID *</label>
-              <input
-                style={inputStyle}
-                placeholder="Type to filter segments…"
-                value={String(addValues.segment_id ?? '')}
-                onChange={e => { setAddValues({ ...addValues, segment_id: e.target.value }); setCapSegmentOpen(true) }}
-                onFocus={() => setCapSegmentOpen(true)}
-                onBlur={() => setTimeout(() => setCapSegmentOpen(false), 150)}
-              />
-              {capSegmentOpen && (() => {
-                const q = String(addValues.segment_id ?? '').toLowerCase()
-                const hits = q ? segments.filter(s => s.id.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)).slice(0, 12) : []
-                return hits.length > 0 ? (
-                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 300, background: t.bgDeep, border: `1px solid ${t.border}`, borderRadius: 4, maxHeight: 220, overflowY: 'auto', boxShadow: '0 6px 16px rgba(0,0,0,0.5)', marginTop: 2 }}>
-                    {hits.map(s => (
-                      <div key={s.id} onMouseDown={() => { setAddValues({ ...addValues, segment_id: s.id }); setCapSegmentOpen(false) }}
-                        style={{ padding: '6px 10px', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'baseline', borderBottom: `1px solid ${t.border}` }}>
-                        <code style={{ fontSize: 11, color: t.blue, flexShrink: 0 }}>{s.id}</code>
-                        <span style={{ fontSize: 11, color: t.textFaint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : null
-              })()}
-            </div>
+          <div style={{ ...editFormRow, margin: isMobile ? '8px 12px' : undefined }}>
+            {segSearchWidget}
             <Field label="Total (T)"     k="total_capacity_t"    src={addValues} setSrc={setAddValues} type="decimal" placeholder="e.g. 4.5" />
             <Field label="Available (T)" k="available_capacity_t" src={addValues} setSrc={setAddValues} type="decimal" placeholder="e.g. 2.0" />
             <SaveCancel
-              onSave={() => {
-                const vals = {
-                  segment_id: String(addValues.segment_id ?? ''),
-                  total_capacity_t: parseFloat(String(addValues.total_capacity_t)) || 0,
-                  available_capacity_t: parseFloat(String(addValues.available_capacity_t)) || 0,
-                }
-                saveAdd(() => api.createCapacity(vals as unknown as SegmentCapacity))
-              }}
+              onSave={() => saveAdd(() => api.createCapacity({ segment_id: String(addValues.segment_id ?? ''), ...capSaveVals(addValues) } as unknown as SegmentCapacity))}
               onCancel={() => { setAdding(false); setAddValues({}) }}
             />
           </div>
         )}
-        <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
-          <div style={colH(3)}>Segment ID</div><div style={colH(1.5)}>Total (T)</div>
-          <div style={colH(1.5)}>Available (T)</div><div style={colH(1.5)}>% Free</div>
-          <div style={{ width: 140 }} />
-        </div>
-        {filtered.map(c => {
-          const pct = Math.round((c.available_capacity_t / c.total_capacity_t) * 100)
-          const pctColor = pct < 20 ? t.red : pct < 50 ? t.orange : t.green
-          return (
-            <div key={c.segment_id} style={rowStyle(editId === c.segment_id)}>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
-                <div style={cell(3)}><code style={{ fontSize: 11 }}>{c.segment_id}</code></div>
-                <div style={cell(1.5)}>{c.total_capacity_t}T</div>
-                <div style={cell(1.5)}>{c.available_capacity_t}T</div>
-                <div style={{ ...cell(1.5), color: pctColor, fontWeight: 600 }}>{pct}%</div>
-                <ActionsCell id={c.segment_id}
-                  onEdit={() => startEdit(c.segment_id, { total_capacity_t: c.total_capacity_t, available_capacity_t: c.available_capacity_t })}
+        {isMobile ? (
+          <div style={{ padding: '8px 0 32px' }}>
+            {filtered.map(c => {
+              const pct = Math.round((c.available_capacity_t / c.total_capacity_t) * 100)
+              const pctColor = pct < 20 ? t.red : pct < 50 ? t.orange : t.green
+              return (
+                <MobileCard key={c.segment_id} id={c.segment_id}
+                  title={<code style={{ fontSize: 12 }}>{c.segment_id}</code>}
+                  fields={[
+                    { label: 'Total', value: `${c.total_capacity_t}T` },
+                    { label: 'Available', value: `${c.available_capacity_t}T` },
+                    { label: '% Free', value: <span style={{ color: pctColor, fontWeight: 700 }}>{pct}%</span> },
+                  ]}
+                  onEdit={() => editId === c.segment_id ? setEditId(null) : startEdit(c.segment_id, { total_capacity_t: c.total_capacity_t, available_capacity_t: c.available_capacity_t })}
                   onDelete={() => confirmDelete(() => api.deleteCapacity(c.segment_id))}
-                />
-              </div>
-              {editId === c.segment_id && (
-                <div style={{ ...editFormRow, gridTemplateColumns: '1fr 1fr' }}>
-                  <Field label="Total (T)"     k="total_capacity_t"     src={editValues} setSrc={setEditValues} type="decimal" placeholder="e.g. 4.5" />
-                  <Field label="Available (T)" k="available_capacity_t" src={editValues} setSrc={setEditValues} type="decimal" placeholder="e.g. 2.0" />
-                  <SaveCancel
-                    onSave={() => {
-                      const vals = {
-                        total_capacity_t: parseFloat(String(editValues.total_capacity_t)) || 0,
-                        available_capacity_t: parseFloat(String(editValues.available_capacity_t)) || 0,
-                      }
-                      saveEdit(() => api.updateCapacity(c.segment_id, vals as Partial<SegmentCapacity>))
-                    }}
-                    onCancel={() => setEditId(null)}
-                  />
-                </div>
-              )}
+                >
+                  {editId === c.segment_id && capEditForm(c.segment_id)}
+                </MobileCard>
+              )
+            })}
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
+              <div style={colH(3)}>Segment ID</div><div style={colH(1.5)}>Total (T)</div>
+              <div style={colH(1.5)}>Available (T)</div><div style={colH(1.5)}>% Free</div>
+              <div style={{ width: 140 }} />
             </div>
-          )
-        })}
+            {filtered.map(c => {
+              const pct = Math.round((c.available_capacity_t / c.total_capacity_t) * 100)
+              const pctColor = pct < 20 ? t.red : pct < 50 ? t.orange : t.green
+              return (
+                <div key={c.segment_id} style={rowStyle(editId === c.segment_id)}>
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
+                    <div style={cell(3)}><code style={{ fontSize: 11 }}>{c.segment_id}</code></div>
+                    <div style={cell(1.5)}>{c.total_capacity_t}T</div>
+                    <div style={cell(1.5)}>{c.available_capacity_t}T</div>
+                    <div style={{ ...cell(1.5), color: pctColor, fontWeight: 600 }}>{pct}%</div>
+                    <ActionsCell id={c.segment_id}
+                      onEdit={() => startEdit(c.segment_id, { total_capacity_t: c.total_capacity_t, available_capacity_t: c.available_capacity_t })}
+                      onDelete={() => confirmDelete(() => api.deleteCapacity(c.segment_id))}
+                    />
+                  </div>
+                  {editId === c.segment_id && capEditForm(c.segment_id)}
+                </div>
+              )
+            })}
+          </>
+        )}
       </>
     )
   }
@@ -625,66 +716,71 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       !filter || o.segment_id.toLowerCase().includes(filter.toLowerCase()) ||
       o.fault_id.toLowerCase().includes(filter.toLowerCase())
     )
+    const outageEditDefaults = (o: SegmentOutage) => ({ fault_id: o.fault_id, fault_date: o.fault_date, repair_start: o.repair_start ?? '', estimated_repair_date: o.estimated_repair_date ?? '', description: o.description })
+    const outageEditForm = (o: SegmentOutage) => (
+      <div style={{ ...editFormRow }}>
+        <Field label="Fault ID"    k="fault_id"              src={editValues} setSrc={setEditValues} />
+        <Field label="Fault Date"  k="fault_date"            src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD" />
+        <Field label="Repair Start" k="repair_start"         src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD or TBC" />
+        <Field label="ETA Repair"  k="estimated_repair_date" src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD or TBC" />
+        <Field label="Description" k="description"           src={editValues} setSrc={setEditValues} />
+        <SaveCancel onSave={() => saveEdit(() => api.updateOutage(o.fault_id, editValues as Partial<SegmentOutage>))} onCancel={() => setEditId(null)} />
+      </div>
+    )
     return (
       <>
         {adding && (
-          <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(3, 1fr)' }}>
-            <Field label="Segment ID *"    k="segment_id"            src={addValues} setSrc={setAddValues} />
-            <Field label="Fault ID *"      k="fault_id"              src={addValues} setSrc={setAddValues} />
-            <Field label="Fault Date *"    k="fault_date"            src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD" />
-            <Field label="Repair Start"    k="repair_start"          src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD or TBC" />
-            <Field label="ETA Repair"      k="estimated_repair_date" src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD or TBC" />
-            <Field label="Description *"   k="description"           src={addValues} setSrc={setAddValues} />
-            <SaveCancel
-              onSave={() => saveAdd(() => api.createOutage(addValues as unknown as SegmentOutage))}
-              onCancel={() => { setAdding(false); setAddValues({}) }}
-            />
+          <div style={{ ...editFormRow, margin: isMobile ? '8px 12px' : undefined }}>
+            <Field label="Segment ID *"   k="segment_id"            src={addValues} setSrc={setAddValues} />
+            <Field label="Fault ID *"     k="fault_id"              src={addValues} setSrc={setAddValues} />
+            <Field label="Fault Date *"   k="fault_date"            src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD" />
+            <Field label="Repair Start"   k="repair_start"          src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD or TBC" />
+            <Field label="ETA Repair"     k="estimated_repair_date" src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD or TBC" />
+            <Field label="Description *"  k="description"           src={addValues} setSrc={setAddValues} />
+            <SaveCancel onSave={() => saveAdd(() => api.createOutage(addValues as unknown as SegmentOutage))} onCancel={() => { setAdding(false); setAddValues({}) }} />
           </div>
         )}
-        <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
-          <div style={colH(2)}>Segment</div>
-          <div style={colH(2)}>Fault ID</div>
-          <div style={colH(2)}>Fault Date</div>
-          <div style={colH(2)}>Repair Start</div>
-          <div style={colH(2)}>ETA</div>
-          <div style={colH(3)}>Description</div>
-          <div style={{ width: 140 }} />
-        </div>
-        {filtered.map(o => (
-          <div key={o.fault_id} style={rowStyle(editId === o.fault_id)}>
-            <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
-              <div style={cell(2)}><code style={{ fontSize: 11 }}>{o.segment_id}</code></div>
-              <div style={cell(2)}>{o.fault_id}</div>
-              <div style={cell(2)}>{o.fault_date}</div>
-              <div style={cell(2)}>{o.repair_start ?? '—'}</div>
-              <div style={{ ...cell(2), color: o.estimated_repair_date === 'TBC' ? t.orange : t.text }}>
-                {o.estimated_repair_date ?? '—'}
-              </div>
-              <div style={{ ...cell(3), fontSize: 11, color: t.textMuted }}>{o.description}</div>
-              <ActionsCell id={o.fault_id}
-                onEdit={() => startEdit(o.fault_id, {
-                  fault_id: o.fault_id, fault_date: o.fault_date,
-                  repair_start: o.repair_start ?? '', estimated_repair_date: o.estimated_repair_date ?? '',
-                  description: o.description,
-                })}
+        {isMobile ? (
+          <div style={{ padding: '8px 0 32px' }}>
+            {filtered.map(o => (
+              <MobileCard key={o.fault_id} id={o.fault_id}
+                title={o.fault_id}
+                subtitle={<><code style={{ fontSize: 10 }}>{o.segment_id}</code> · faulted {o.fault_date}</>}
+                fields={[
+                  { label: 'Repair Start', value: o.repair_start ?? '—' },
+                  { label: 'ETA', value: <span style={{ color: o.estimated_repair_date === 'TBC' ? t.orange : t.text }}>{o.estimated_repair_date ?? '—'}</span> },
+                  { label: 'Description', value: o.description },
+                ]}
+                onEdit={() => editId === o.fault_id ? setEditId(null) : startEdit(o.fault_id, outageEditDefaults(o))}
                 onDelete={() => confirmDelete(() => api.deleteOutage(o.fault_id))}
-              />
-            </div>
-            {editId === o.fault_id && (
-              <div style={{ ...editFormRow, gridTemplateColumns: 'repeat(3, 1fr)' }}>
-                <Field label="Fault ID"       k="fault_id"              src={editValues} setSrc={setEditValues} />
-                <Field label="Fault Date"     k="fault_date"            src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD" />
-                <Field label="Repair Start"   k="repair_start"          src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD or TBC" />
-                <Field label="ETA Repair"     k="estimated_repair_date" src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD or TBC" />
-                <Field label="Description"    k="description"           src={editValues} setSrc={setEditValues} />
-                <SaveCancel
-                  onSave={() => saveEdit(() => api.updateOutage(o.fault_id, editValues as Partial<SegmentOutage>))}
-                  onCancel={() => setEditId(null)}
-                />
-              </div>
-            )}
+              >
+                {editId === o.fault_id && outageEditForm(o)}
+              </MobileCard>
+            ))}
           </div>
-        ))}
+        ) : (
+          <>
+            <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
+              <div style={colH(2)}>Segment</div><div style={colH(2)}>Fault ID</div><div style={colH(2)}>Fault Date</div>
+              <div style={colH(2)}>Repair Start</div><div style={colH(2)}>ETA</div><div style={colH(3)}>Description</div>
+              <div style={{ width: 140 }} />
+            </div>
+            {filtered.map(o => (
+              <div key={o.fault_id} style={rowStyle(editId === o.fault_id)}>
+                <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
+                  <div style={cell(2)}><code style={{ fontSize: 11 }}>{o.segment_id}</code></div>
+                  <div style={cell(2)}>{o.fault_id}</div>
+                  <div style={cell(2)}>{o.fault_date}</div>
+                  <div style={cell(2)}>{o.repair_start ?? '—'}</div>
+                  <div style={{ ...cell(2), color: o.estimated_repair_date === 'TBC' ? t.orange : t.text }}>{o.estimated_repair_date ?? '—'}</div>
+                  <div style={{ ...cell(3), fontSize: 11, color: t.textMuted }}>{o.description}</div>
+                  <ActionsCell id={o.fault_id} onEdit={() => startEdit(o.fault_id, outageEditDefaults(o))} onDelete={() => confirmDelete(() => api.deleteOutage(o.fault_id))} />
+                </div>
+                {editId === o.fault_id && outageEditForm(o)}
+              </div>
+            ))}
+          </>
+        )}
       </>
     )
   }
@@ -828,7 +924,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           </div>
         )}
         {adding && (
-          <div style={{ ...editFormRow, gridTemplateColumns: '1fr 1.2fr 1fr 1fr 2fr' }}>
+          <div style={{ ...editFormRow, margin: isMobile ? '8px 12px' : undefined }}>
             <Field label="Node ID *"   k="node_id"   src={addValues} setSrc={setAddValues} />
             <Field label="Rule Type *" k="kind"      src={addValues} setSrc={setAddValues} options={kindOpts} />
             <Field label="System A *"  k="system_a"  src={addValues} setSrc={setAddValues} />
@@ -837,56 +933,71 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             <SaveCancel onSave={addPair} onCancel={() => { setAdding(false); setAddValues({}) }} />
           </div>
         )}
-        <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep, alignItems: 'center' }}>
-          <div style={colH(1)}>Type</div>
-          <div style={colH(1.5)}>Node</div>
-          <div style={colH(1.5)}>System A</div>
-          <div style={colH(1.5)}>System B</div>
-          <div style={colH(4)}>Reason</div>
-          <div style={{ width: 140, flexShrink: 0 }} />
-          <button
-            onClick={() => setShowRulesHelp(v => !v)}
-            title="How do Node Rules behave?"
-            style={{ background: 'none', border: `1px solid ${t.border}`, borderRadius: 3, cursor: 'pointer', color: showRulesHelp ? t.blue : t.textFaint, fontSize: 11, padding: '1px 7px', marginLeft: 4, flexShrink: 0 }}
-          >
-            ℹ
-          </button>
-        </div>
-        {filtered.length === 0 && (
-          <div style={{ padding: '20px 16px', color: t.textFaintest, fontSize: 13 }}>No rules defined.</div>
-        )}
-        {filtered.map(({ node_id, idx, pair, kind }) => {
-          const key = pairKey(node_id, kind, idx)
-          const isDefaultReason = pair.reason === 'Pair is not allowed' || pair.reason === 'Only this pair is allowed at this node'
-          return (
-            <div key={key} style={rowStyle(editId === key)}>
-              <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
-                <div style={cell(1)}>{typeBadge(kind)}</div>
-                <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{node_id}</code></div>
-                <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{pair.system_a}</code></div>
-                <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{pair.system_b}</code></div>
-                <div style={{ ...cell(4), color: t.textMuted, fontStyle: isDefaultReason ? 'italic' : 'normal' }}>{pair.reason}</div>
-                <ActionsCell
-                  id={key}
-                  onEdit={() => startEdit(key, { system_a: pair.system_a, system_b: pair.system_b, reason: pair.reason, kind })}
-                  onDelete={() => deletePair(node_id, idx, kind)}
-                />
-              </div>
-              {editId === key && (
-                <div style={{ ...editFormRow, gridTemplateColumns: '1.2fr 1fr 1fr 3fr' }}>
+        {isMobile ? (
+          <div style={{ padding: '8px 0 32px' }}>
+            {filtered.length === 0 && <div style={{ padding: '20px 16px', color: t.textFaintest, fontSize: 13 }}>No rules defined.</div>}
+            {filtered.map(({ node_id, idx, pair, kind }) => {
+              const key = pairKey(node_id, kind, idx)
+              const ruleEditForm = (
+                <div style={{ ...editFormRow }}>
                   <Field label="Rule Type" k="kind"     src={editValues} setSrc={setEditValues} options={kindOpts} />
                   <Field label="System A"  k="system_a" src={editValues} setSrc={setEditValues} />
                   <Field label="System B"  k="system_b" src={editValues} setSrc={setEditValues} />
                   <Field label="Reason"    k="reason"   src={editValues} setSrc={setEditValues} />
-                  <SaveCancel
-                    onSave={() => savePairEdit(node_id, idx, kind)}
-                    onCancel={() => setEditId(null)}
-                  />
+                  <SaveCancel onSave={() => savePairEdit(node_id, idx, kind)} onCancel={() => setEditId(null)} />
                 </div>
-              )}
+              )
+              return (
+                <MobileCard key={key} id={key}
+                  title={<>{typeBadge(kind)} <code style={{ fontSize: 11 }}>{node_id}</code></>}
+                  subtitle={<><code style={{ fontSize: 11 }}>{pair.system_a}</code> ↔ <code style={{ fontSize: 11 }}>{pair.system_b}</code></>}
+                  fields={[{ label: 'Reason', value: pair.reason }]}
+                  onEdit={() => editId === key ? setEditId(null) : startEdit(key, { system_a: pair.system_a, system_b: pair.system_b, reason: pair.reason, kind })}
+                  onDelete={() => deletePair(node_id, idx, kind)}
+                >
+                  {editId === key && ruleEditForm}
+                </MobileCard>
+              )
+            })}
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep, alignItems: 'center' }}>
+              <div style={colH(1)}>Type</div><div style={colH(1.5)}>Node</div>
+              <div style={colH(1.5)}>System A</div><div style={colH(1.5)}>System B</div>
+              <div style={colH(4)}>Reason</div>
+              <div style={{ width: 140, flexShrink: 0 }} />
+              <button onClick={() => setShowRulesHelp(v => !v)} title="How do Node Rules behave?"
+                style={{ background: 'none', border: `1px solid ${t.border}`, borderRadius: 3, cursor: 'pointer', color: showRulesHelp ? t.blue : t.textFaint, fontSize: 11, padding: '1px 7px', marginLeft: 4, flexShrink: 0 }}>ℹ</button>
             </div>
-          )
-        })}
+            {filtered.length === 0 && <div style={{ padding: '20px 16px', color: t.textFaintest, fontSize: 13 }}>No rules defined.</div>}
+            {filtered.map(({ node_id, idx, pair, kind }) => {
+              const key = pairKey(node_id, kind, idx)
+              const isDefaultReason = pair.reason === 'Pair is not allowed' || pair.reason === 'Only this pair is allowed at this node'
+              return (
+                <div key={key} style={rowStyle(editId === key)}>
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
+                    <div style={cell(1)}>{typeBadge(kind)}</div>
+                    <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{node_id}</code></div>
+                    <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{pair.system_a}</code></div>
+                    <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{pair.system_b}</code></div>
+                    <div style={{ ...cell(4), color: t.textMuted, fontStyle: isDefaultReason ? 'italic' : 'normal' }}>{pair.reason}</div>
+                    <ActionsCell id={key} onEdit={() => startEdit(key, { system_a: pair.system_a, system_b: pair.system_b, reason: pair.reason, kind })} onDelete={() => deletePair(node_id, idx, kind)} />
+                  </div>
+                  {editId === key && (
+                    <div style={{ ...editFormRow }}>
+                      <Field label="Rule Type" k="kind"     src={editValues} setSrc={setEditValues} options={kindOpts} />
+                      <Field label="System A"  k="system_a" src={editValues} setSrc={setEditValues} />
+                      <Field label="System B"  k="system_b" src={editValues} setSrc={setEditValues} />
+                      <Field label="Reason"    k="reason"   src={editValues} setSrc={setEditValues} />
+                      <SaveCancel onSave={() => savePairEdit(node_id, idx, kind)} onCancel={() => setEditId(null)} />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </>
+        )}
         {(blacklistCount + whitelistCount) > 0 && (
           <div style={{ padding: '8px 16px', fontSize: 11, color: t.textFaintest, borderTop: `1px solid ${t.borderSubtle}` }}>
             {rules.length} node rule{rules.length !== 1 ? 's' : ''} · {blacklistCount} blacklist pair{blacklistCount !== 1 ? 's' : ''} · {whitelistCount} whitelist pair{whitelistCount !== 1 ? 's' : ''}
@@ -1132,76 +1243,51 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: t.textFaint, fontSize: 20, lineHeight: 1, padding: '2px 6px' }}>×</button>
         </div>
 
-        {/* Tab bar + filter + add */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 20px', borderBottom: `1px solid ${t.border}`, flexShrink: 0, background: t.bgDeep }}>
-          {(['nodes', 'segments', 'systems', 'capacity', 'outages', 'rules'] as DataTab[]).map(tb => (
-            <button key={tb} onClick={() => switchTab(tb)} style={{
-              padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
-              fontSize: 12, fontWeight: tab === tb ? 700 : 400,
-              color: tab === tb ? t.blue : t.textFaint,
-              borderBottom: tab === tb ? `2px solid ${t.blue}` : '2px solid transparent',
-              textTransform: 'capitalize',
-            }}>
-              {tb} <span style={{ fontSize: 10, opacity: 0.7 }}>({counts[tb]})</span>
-            </button>
-          ))}
-          <button onClick={() => switchTab('checks')} style={{
-            padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
-            fontSize: 12, fontWeight: tab === 'checks' ? 700 : 400,
-            color: tab === 'checks' ? t.blue : t.textFaint,
-            borderBottom: tab === 'checks' ? `2px solid ${t.blue}` : '2px solid transparent',
-          }}>
-            ⚡ Checks
-          </button>
-          <button onClick={() => switchTab('config')} style={{
-            padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
-            fontSize: 12, fontWeight: tab === 'config' ? 700 : 400,
-            color: tab === 'config' ? t.blue : t.textFaint,
-            borderBottom: tab === 'config' ? `2px solid ${t.blue}` : '2px solid transparent',
-          }}>
-            ⚙ Config
-          </button>
-          <button onClick={() => switchTab('coverage')} style={{
-            padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
-            fontSize: 12, fontWeight: tab === 'coverage' ? 700 : 400,
-            color: tab === 'coverage' ? t.green : t.textFaint,
-            borderBottom: tab === 'coverage' ? `2px solid ${t.green}` : '2px solid transparent',
-          }}>
-            🟢 Product Coverage
-          </button>
-          <button onClick={() => switchTab('bulk')} style={{
-            padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
-            fontSize: 12, fontWeight: tab === 'bulk' ? 700 : 400,
-            color: tab === 'bulk' ? '#0ea5e9' : t.textFaint,
-            borderBottom: tab === 'bulk' ? '2px solid #0ea5e9' : '2px solid transparent',
-          }}>
-            🔄 Bulk Import
-          </button>
-          <button onClick={() => switchTab('tech')} style={{
-            padding: '10px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
-            fontSize: 12, fontWeight: tab === 'tech' ? 700 : 400,
-            color: tab === 'tech' ? '#a78bfa' : t.textFaint,
-            borderBottom: tab === 'tech' ? '2px solid #a78bfa' : '2px solid transparent',
-          }}>
-            🔧 Tech Enrichment
-          </button>
-          {tab !== 'checks' && tab !== 'config' && tab !== 'coverage' && tab !== 'bulk' && tab !== 'tech' && (
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input
-                placeholder={`Filter ${tab}…`}
-                value={filter}
-                onChange={e => setFilter(e.target.value)}
-                style={{ ...inputStyle, width: 180, padding: '5px 8px' }}
-              />
-              <button
-                onClick={() => startAdd(addDefaults[tab as DataTab])}
-                style={{ ...actionBtn('add'), padding: '5px 12px' }}
-              >
-                + Add {tab === 'rules' ? 'pair' : tab.slice(0, -1)}
+        {/* Scrollable tab bar */}
+        <div style={{ display: 'flex', overflowX: 'auto', borderBottom: `1px solid ${t.border}`, flexShrink: 0, background: t.bgDeep, scrollbarWidth: 'none' } as React.CSSProperties}>
+          {([
+            { id: 'nodes',    label: 'Nodes',    count: counts.nodes },
+            { id: 'segments', label: 'Segments', count: counts.segments },
+            { id: 'systems',  label: 'Systems',  count: counts.systems },
+            { id: 'capacity', label: 'Capacity', count: counts.capacity },
+            { id: 'outages',  label: 'Outages',  count: counts.outages },
+            { id: 'rules',    label: 'Rules',    count: counts.rules },
+            { id: 'checks',   label: '⚡ Checks',   count: null },
+            { id: 'config',   label: '⚙ Config',    count: null },
+            { id: 'coverage', label: '🟢 Coverage',  count: null },
+            { id: 'bulk',     label: '🔄 Bulk',      count: null },
+            { id: 'tech',     label: '🔧 Tech',      count: null },
+          ] as { id: Tab; label: string; count: number | null }[]).map(({ id: tb, label, count }) => {
+            const active = tab === tb
+            const color = tb === 'coverage' ? t.green : tb === 'bulk' ? '#0ea5e9' : tb === 'tech' ? '#a78bfa' : t.blue
+            return (
+              <button key={tb} onClick={() => switchTab(tb)} style={{
+                flexShrink: 0, padding: isMobile ? '9px 12px' : '10px 14px',
+                border: 'none', background: 'transparent', cursor: 'pointer',
+                fontSize: isMobile ? 11 : 12, fontWeight: active ? 700 : 400,
+                color: active ? color : t.textFaint, whiteSpace: 'nowrap',
+                borderBottom: active ? `2px solid ${color}` : '2px solid transparent',
+              }}>
+                {label}{count != null && <span style={{ fontSize: 10, opacity: 0.7 }}> ({count})</span>}
               </button>
-            </div>
-          )}
+            )
+          })}
         </div>
+
+        {/* Filter + add bar — only for data tabs */}
+        {tab !== 'checks' && tab !== 'config' && tab !== 'coverage' && tab !== 'bulk' && tab !== 'tech' && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: isMobile ? '8px 12px' : '6px 20px', borderBottom: `1px solid ${t.border}`, flexShrink: 0, background: t.bgPanel }}>
+            <input
+              placeholder={`Filter ${tab}…`}
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+              style={{ ...inputStyle, flex: 1, padding: '5px 8px' }}
+            />
+            <button onClick={() => startAdd(addDefaults[tab as DataTab])} style={{ ...actionBtn('add'), padding: '5px 12px', flexShrink: 0 }}>
+              + Add {tab === 'rules' ? 'pair' : tab.slice(0, -1)}
+            </button>
+          </div>
+        )}
 
         {/* Table body */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
