@@ -46,6 +46,53 @@ function MapResizer({ panelWidth }: { panelWidth?: number }) {
   return null
 }
 
+function ManualFitBounds({ manualState, manualCandidates, nodes }: {
+  manualState: ManualState | null | undefined
+  manualCandidates: NextHopCandidate[]
+  nodes: CableNode[]
+}) {
+  const map = useMap()
+  const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+
+  useEffect(() => {
+    if (!manualState) return
+
+    const pts: [number, number][] = []
+
+    // Origin + all stepped nodes
+    const allNodeIds = [manualState.originId, ...manualState.steps.map(s => s.nodeId)]
+    for (const id of allNodeIds) {
+      const n = nodesById[id]
+      if (n) pts.push([n.lat, normalizeLng(n.lng)])
+    }
+
+    // All candidate nodes
+    for (const c of manualCandidates) {
+      const n = nodesById[c.node.id]
+      if (n) pts.push([n.lat, normalizeLng(n.lng)])
+    }
+
+    if (pts.length < 1) return
+
+    const lats = pts.map(p => p[0])
+    const lngs = pts.map(p => p[1])
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats)
+    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs)
+
+    map.fitBounds([[minLat, minLng], [maxLat, maxLng]], {
+      padding: [60, 60], maxZoom: 8, animate: true,
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    manualState?.originId,
+    manualState?.steps.length,
+    manualCandidates.length,
+    map,
+  ])
+
+  return null
+}
+
 function MapFlyTo({ highlight }: { highlight: CountryHighlight | null | undefined }) {
   const map = useMap()
   useEffect(() => {
@@ -221,6 +268,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
 
       <MapResizer panelWidth={panelWidth} />
       <MapFlyTo highlight={countryHighlight} />
+      <ManualFitBounds manualState={manualState} manualCandidates={manualCandidates} nodes={nodes} />
 
       {segments.flatMap(seg => {
         const start = nodesById[seg.start_node_id]
