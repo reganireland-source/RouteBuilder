@@ -257,7 +257,9 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
       style={{ height: '100%', width: '100%', background: t.bgMap }}
       minZoom={2}
       maxZoom={18}
-      worldCopyJump={true}
+      worldCopyJump={false}
+      maxBounds={[[-75, -25], [80, 345]]}
+      maxBoundsViscosity={1.0}
     >
       <TileLayer
         key={t.mapTileUrl}
