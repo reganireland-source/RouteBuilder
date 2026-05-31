@@ -198,6 +198,7 @@ export default function App() {
   const [manualState,   setManualState]   = useState<import('./components/RouteManual').ManualState | null>(null)
   const [manualResults, setManualResults] = useState<Route[]>([])
   const [manualFinishConfirm, setManualFinishConfirm] = useState<Route | null>(null)
+  const [warnSwitchMode, setWarnSwitchMode]           = useState<AppMode | null>(null)
   const [leftOpen, setLeftOpen]                     = useState(true)
   const [middleOpen, setMiddleOpen]                 = useState(true)
   const [flippedPairIds, setFlippedPairIds]         = useState<Set<string>>(new Set())
@@ -232,6 +233,8 @@ export default function App() {
     api.getProjects().then(setCachedProjects).catch(() => {})
   }, [])
 
+  const manualBuilding = mode === 'routemanual' && !!manualState
+
   function switchMode(next: AppMode) {
     if (next === 'systemviewer') { setResponse(null); setSelectedRouteIds([]); setError(null) }
     if (next !== 'countryviewer') setCountryHighlight(null)
@@ -239,6 +242,11 @@ export default function App() {
     if (next !== 'routemanual') { setManualState(null); setManualFinishConfirm(null) }
     if (next === 'outageviewer') setShowAllOutages(true)
     setMode(next)
+  }
+
+  function safeSwitchMode(next: AppMode) {
+    if (manualBuilding && next !== 'routemanual') { setWarnSwitchMode(next); return }
+    switchMode(next)
   }
 
   // ── RouteManual handlers ─────────────────────────────────────────────────
@@ -899,11 +907,11 @@ export default function App() {
               <div style={{ flexShrink: 0 }}>
                 {/* Top-level tabs */}
                 <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}` }}>
-                  <button style={topTabStyle(isBuilder)} onClick={() => { if (!isBuilder) switchMode('routebuilder') }}>
+                  <button style={topTabStyle(isBuilder)} onClick={() => { if (!isBuilder) safeSwitchMode('routebuilder') }}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12h18M3 6l9-3 9 3M3 18l9 3 9-3"/></svg>
                     RouteBuilder
                   </button>
-                  <button style={topTabStyle(isExplorer)} onClick={() => { if (!isExplorer) switchMode('countryviewer') }}>
+                  <button style={topTabStyle(isExplorer)} onClick={() => { if (!isExplorer) safeSwitchMode('countryviewer') }}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                     NetworkExplorer
                   </button>
@@ -915,7 +923,7 @@ export default function App() {
                 <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, background: theme.bgDeep }}>
                   {isBuilder ? (
                     <>
-                      <button style={tabStyle(mode === 'routebuilder')} onClick={() => switchMode('routebuilder')}>
+                      <button style={tabStyle(mode === 'routebuilder')} onClick={() => safeSwitchMode('routebuilder')}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                         RouteFinder
                       </button>
@@ -1243,6 +1251,35 @@ export default function App() {
                 onClick={() => { setManualFinishConfirm(null); setManualState(null) }}
                 style={{ padding: '8px 16px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.red}44`, background: 'transparent', color: theme.red, fontFamily: 'inherit' }}
               >✕ Discard</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {warnSwitchMode !== null && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9600,
+          background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '0 24px',
+        }}>
+          <div style={{
+            background: theme.bgCard, border: `1px solid ${theme.border}`, borderRadius: 12,
+            padding: '28px 24px', width: '100%', maxWidth: 400, boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+          }}>
+            <div style={{ fontSize: 16, fontWeight: 700, color: theme.text, marginBottom: 10 }}>Discard route?</div>
+            <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 24, lineHeight: 1.6 }}>
+              You're mid-build in RouteManual. Switching tabs will discard the route in progress.
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => { const m = warnSwitchMode; setWarnSwitchMode(null); switchMode(m) }}
+                style={{ flex: 1, padding: '10px', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: 'none', background: theme.red, color: '#fff', fontFamily: 'inherit' }}
+              >Yes, discard route</button>
+              <button
+                onClick={() => setWarnSwitchMode(null)}
+                style={{ flex: 1, padding: '10px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.border}`, background: 'transparent', color: theme.textMuted, fontFamily: 'inherit' }}
+              >Keep building</button>
             </div>
           </div>
         </div>,

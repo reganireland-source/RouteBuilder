@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useRef, useEffect } from 'react'
+import { lazy, Suspense, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Map } from './Map'
 import { SearchForm } from './SearchForm'
@@ -29,32 +29,14 @@ const NlpChat = NLP_ENABLED
   : null
 
 // ── Sheet snap positions ────────────────────────────────────────────────────
-type SheetSnap = 'peek' | 'mid' | 'full'
+type SheetSnap = 'peek' | 'full'
 
 const PEEK_H = 76   // handle (28px) + tab bar (~48px)
-const MID_F  = 0.46
 const FULL_F = 0.91
 
 function snapPx(snap: SheetSnap): number {
-  const vh = window.innerHeight
   if (snap === 'peek') return PEEK_H
-  if (snap === 'mid')  return Math.round(vh * MID_F)
-  return Math.round(vh * FULL_F)
-}
-
-function nearestSnap(h: number, velocity: number): SheetSnap {
-  const vh = window.innerHeight
-  const opts: [SheetSnap, number][] = [
-    ['peek', PEEK_H],
-    ['mid',  vh * MID_F],
-    ['full', vh * FULL_F],
-  ]
-  // Fast flick up → go to full; fast flick down → go to peek
-  if (velocity < -0.6) return 'full'
-  if (velocity >  0.6) return 'peek'
-  return opts.reduce((best, cur) =>
-    Math.abs(cur[1] - h) < Math.abs(best[1] - h) ? cur : best
-  )[0]
+  return Math.round(window.innerHeight * FULL_F)
 }
 
 // ── Props ───────────────────────────────────────────────────────────────────
@@ -223,16 +205,10 @@ export function MobileLayout({
 }: MobileLayoutProps & { hideNonActive?: boolean; showSegmentLabels?: boolean; showAllOutages?: boolean }) {
   const t = useTheme()
 
-  const [sheetHeight, setSheetHeight] = useState(() => snapPx('mid'))
-  const [snap, setSnap]               = useState<SheetSnap>('mid')
+  const [sheetHeight, setSheetHeight] = useState(() => snapPx('full'))
+  const [snap, setSnap]               = useState<SheetSnap>('full')
   const [animating, setAnimating]     = useState(false)
-
-  const dragging    = useRef(false)
-  const startY      = useRef(0)
-  const startH      = useRef(0)
-  const lastY       = useRef(0)
-  const lastTime    = useRef(0)
-  const velocity    = useRef(0)  // px/ms, positive = downward
+  const [warnSwitchMode, setWarnSwitchMode] = useState<AppMode | null>(null)
 
   const [capDashOpen, setCapDashOpen]     = useState(false)
   const [drawerOpen, setDrawerOpen]       = useState(false)
@@ -245,7 +221,7 @@ export function MobileLayout({
 
   // Auto-expand when results arrive or search starts
   useEffect(() => {
-    if ((hasResults || loading) && snap === 'peek') doSnap('mid')
+    if ((hasResults || loading) && snap === 'peek') doSnap('full')
   }, [hasResults, loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-peek sheet when RouteManual is actively building so map is mostly visible
@@ -260,39 +236,17 @@ export function MobileLayout({
     setTimeout(() => setAnimating(false), 320)
   }
 
-  function onPointerDown(e: React.PointerEvent) {
-    dragging.current  = true
-    startY.current    = e.clientY
-    startH.current    = sheetHeight
-    lastY.current     = e.clientY
-    lastTime.current  = e.timeStamp
-    velocity.current  = 0
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-  }
-
-  function onPointerMove(e: React.PointerEvent) {
-    if (!dragging.current) return
-    // Track velocity (positive = moving down)
-    const dt = e.timeStamp - lastTime.current
-    if (dt > 0) velocity.current = (e.clientY - lastY.current) / dt
-    lastY.current  = e.clientY
-    lastTime.current = e.timeStamp
-    // Resize sheet
-    const delta = startY.current - e.clientY   // positive = dragging up
-    const maxH  = window.innerHeight * FULL_F
-    setSheetHeight(Math.max(PEEK_H, Math.min(startH.current + delta, maxH)))
-    if (animating) setAnimating(false)
-  }
-
-  function onPointerUp() {
-    if (!dragging.current) return
-    dragging.current = false
-    doSnap(nearestSnap(sheetHeight, velocity.current))
+  function toggleSheet() {
+    doSnap(snap === 'peek' ? 'full' : 'peek')
   }
 
   function tapTab(next: AppMode) {
+    if (manualBuilding && next !== 'routemanual') {
+      setWarnSwitchMode(next)
+      return
+    }
     switchMode(next)
-    if (snap === 'peek') doSnap('mid')
+    if (snap === 'peek') doSnap('full')
   }
 
   // ── Styles ────────────────────────────────────────────────────────────────
@@ -560,7 +514,7 @@ export function MobileLayout({
                   cursor: 'pointer', fontFamily: 'inherit',
                 }}>✓ Done</button>
               )}
-              <button onClick={() => doSnap('mid')} style={{
+              <button onClick={() => doSnap('full')} style={{
                 padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
                 border: `1px solid ${t.blue}66`, background: `${t.blue}18`, color: t.blue,
                 cursor: 'pointer', fontFamily: 'inherit',
@@ -584,21 +538,23 @@ export function MobileLayout({
           transition: animating ? 'height 0.3s cubic-bezier(0.4,0,0.2,1)' : 'none',
         }}
       >
-        {/* Drag handle */}
-        <div
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
+        {/* Sheet toggle button */}
+        <button
+          onClick={toggleSheet}
           style={{
-            flexShrink: 0, height: 28,
+            flexShrink: 0, height: 28, width: '100%',
             display: 'flex', justifyContent: 'center', alignItems: 'center',
-            cursor: 'ns-resize', touchAction: 'none',
+            cursor: 'pointer', background: 'transparent', border: 'none',
             userSelect: 'none',
           }}
         >
-          <div style={{ width: 40, height: 4, borderRadius: 2, background: t.borderSubtle }} />
-        </div>
+          <svg width="20" height="10" viewBox="0 0 20 10" fill="none" stroke={t.borderSubtle} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {snap === 'peek'
+              ? <polyline points="3,7 10,3 17,7"/>
+              : <polyline points="3,3 10,7 17,3"/>
+            }
+          </svg>
+        </button>
 
         {/* Mode banner */}
         <MobileModeBanner
@@ -848,6 +804,36 @@ export function MobileLayout({
           onDataChange={onDataChange}
           onClose={onCloseRefData}
         />
+      )}
+
+      {/* ── Route-switch warning ────────────────────────────────────────────── */}
+      {warnSwitchMode !== null && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9600,
+          background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '0 16px',
+        }}>
+          <div style={{
+            background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 12,
+            padding: '24px 20px', width: '100%', maxWidth: 360, boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 8 }}>Discard route?</div>
+            <div style={{ fontSize: 13, color: t.textMuted, marginBottom: 20, lineHeight: 1.5 }}>
+              You're mid-build in RouteManual. Switching tabs will discard the route in progress.
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => { const m = warnSwitchMode; setWarnSwitchMode(null); switchMode(m); doSnap('full') }}
+                style={{ flex: 1, padding: '10px', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: 'none', background: t.red, color: '#fff', fontFamily: 'inherit' }}
+              >Yes, discard route</button>
+              <button
+                onClick={() => setWarnSwitchMode(null)}
+                style={{ flex: 1, padding: '10px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted, fontFamily: 'inherit' }}
+              >Keep building</button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* ── SLD version prompt ──────────────────────────────────────────────── */}
