@@ -1250,12 +1250,12 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             { id: 'segments', label: 'Segments',   count: counts.segments },
             { id: 'systems',  label: 'Systems',    count: counts.systems },
             { id: 'capacity', label: 'Capacity',   count: counts.capacity },
+            { id: 'coverage', label: '🟢 Coverage', count: null },
             { id: 'outages',  label: 'Outages',    count: counts.outages },
             { id: 'rules',    label: 'Rules',      count: counts.rules },
             { id: 'tech',     label: '🔧 Tech',    count: null },
             { id: 'config',   label: '⚙ Config',   count: null },
             { id: 'checks',   label: '⚡ Checks',  count: null },
-            { id: 'coverage', label: '🟢 Coverage', count: null },
             { id: 'bulk',     label: '🔄 Bulk',    count: null },
           ] as { id: Tab; label: string; count: number | null }[]).map(({ id: tb, label, count }) => {
             const active = tab === tb
