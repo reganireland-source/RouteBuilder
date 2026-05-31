@@ -409,11 +409,11 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
         <div style={s.row}>
           <div>
             <div style={s.label}>Account Manager</div>
-            <input style={s.input} value={editDraft.account_manager ?? ''} onChange={e => set('account_manager', e.target.value)} placeholder="e.g. Emma May McGlone" />
+            <input style={s.input} value={editDraft.account_manager ?? ''} onChange={e => set('account_manager', e.target.value)} placeholder="e.g. Axl Rose" />
           </div>
           <div>
             <div style={s.label}>Solution Architect</div>
-            <input style={s.input} value={editDraft.solution_architect ?? ''} onChange={e => set('solution_architect', e.target.value)} placeholder="e.g. John Smith" />
+            <input style={s.input} value={editDraft.solution_architect ?? ''} onChange={e => set('solution_architect', e.target.value)} placeholder="e.g. Eddie Van Halen" />
           </div>
         </div>
         <div style={{ marginBottom: 20 }}>
