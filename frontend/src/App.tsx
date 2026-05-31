@@ -689,6 +689,45 @@ export default function App() {
           </div>,
           document.body
         )}
+        {manualFinishConfirm && createPortal(
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9500, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px' }}>
+            <div style={{ background: theme.bgCard, border: `1px solid ${theme.border}`, borderRadius: 14, padding: '24px 20px', width: '100%', maxWidth: 420, boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: theme.text, marginBottom: 4 }}>Route Complete</div>
+              <div style={{ fontSize: 12, color: theme.textMuted, marginBottom: 16 }}>Review stats then save or keep building.</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 }}>
+                {[
+                  { label: 'Hops', value: `${manualFinishConfirm.nodes.length - 1}` },
+                  { label: 'km',   value: manualFinishConfirm.total_length_km.toLocaleString() },
+                  { label: 'ms',   value: (manualFinishConfirm.total_latency ?? 0).toFixed(1) },
+                  { label: 'Avail', value: `${(manualFinishConfirm.end_to_end_reliability * 100).toFixed(2)}%` },
+                ].map(({ label, value }) => (
+                  <div key={label} style={{ background: theme.bgBase, borderRadius: 8, padding: '10px 8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: theme.text }}>{value}</div>
+                    <div style={{ fontSize: 9, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 10, color: theme.textMuted, marginBottom: 16 }}>
+                Systems: {[...new Set(manualFinishConfirm.segments.map(s => s.system_id))].join(' · ')}
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button onClick={() => { confirmManualRoute(manualFinishConfirm) }}
+                  style={{ flex: 1, padding: '10px 16px', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer', border: 'none', background: theme.blue, color: theme.bgCard, fontFamily: 'inherit' }}>
+                  ✓ Save Route
+                </button>
+                <button onClick={() => { setManualFinishConfirm(null) }}
+                  style={{ padding: '10px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.border}`, background: 'transparent', color: theme.textMuted, fontFamily: 'inherit' }}>
+                  ← Keep Building
+                </button>
+                <button onClick={() => { setManualFinishConfirm(null); setManualState(null) }}
+                  style={{ padding: '10px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.red}44`, background: 'transparent', color: theme.red, fontFamily: 'inherit' }}>
+                  ✕ Discard
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
       </ThemeContext.Provider>
     )
   }
