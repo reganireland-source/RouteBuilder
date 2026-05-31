@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf'
+import JSZip from 'jszip'
 import type { PinnedRoute, CableNode, Project, ProjectCircuit } from '../types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -762,4 +763,257 @@ export function generateDrawioXml(
     </mxGraphModel>
   </diagram>
 </mxfile>`
+}
+
+// ── Public: generate Visio .vsdx ─────────────────────────────────────────────
+
+// Visio uses EMU-like units: 1 inch = 914400 EMU, but Visio XML uses inches directly.
+// Shape coordinates are in inches (floating point).
+
+function escVml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+export async function generateVisioVsdx(
+  pinnedRoutes: PinnedRoute[],
+  nodes: CableNode[],
+  project?: Project,
+): Promise<void> {
+  const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+
+  // Page dimensions (landscape A4-ish, in inches)
+  const PAGE_W    = 16.54
+  const PAGE_H    = 11.69
+  const MARGIN    = 0.5
+  const LINE_Y    = 3.5      // Y of the cable path line
+  const NODE_W    = 1.2
+  const NODE_H    = 0.45
+  const USABLE_W  = PAGE_W - 2 * MARGIN - NODE_W
+
+  // Build one page per circuit
+  const pageXmls: string[] = []
+
+  pinnedRoutes.forEach((pin, pi) => {
+    const route   = pin.route
+    const circuit = project?.circuits.find(c => c.circuit_id === pin.circuitId)
+    const rv      = buildRouteView(route)
+    const label   = escVml(pin.circuitLabel ?? pin.searchLabel ?? `Circuit ${pi + 1}`)
+
+    let shapeId = 1
+    const shapes: string[] = []
+
+    const mkShape = (id: number, x: number, y: number, w: number, h: number,
+      style: string, text: string, extras = '') =>
+      `<Shape ID="${id}" Type="Shape" ${extras}>
+        <Cell N="PinX" V="${(x + w / 2).toFixed(4)}"/>
+        <Cell N="PinY" V="${(PAGE_H - y - h / 2).toFixed(4)}"/>
+        <Cell N="Width" V="${w.toFixed(4)}"/>
+        <Cell N="Height" V="${h.toFixed(4)}"/>
+        ${style}
+        <Text><cp IX="0"/>${escVml(text)}</Text>
+      </Shape>`
+
+    // Title banner
+    shapes.push(mkShape(shapeId++, MARGIN, 0.2, PAGE_W - 2 * MARGIN, 0.4,
+      `<Cell N="FillForegnd" V="RGB(0,154,176)"/>
+       <Cell N="FillBkgnd" V="RGB(0,154,176)"/>
+       <Cell N="LineColor" V="RGB(0,154,176)"/>
+       <Cell N="CharColor" V="RGB(255,255,255)"/>
+       <Cell N="CharSize" V="0.14"/>
+       <Cell N="CharStyle" V="1"/>`,
+      label))
+
+    // Node X positions (in inches from left margin)
+    interface VNode { x: number; nodeId: string }
+    const positions: VNode[] = []
+    positions.push({ x: MARGIN + NODE_W / 2, nodeId: route.nodes[0] })
+    let cum = 0
+    for (const seg of rv.segments) {
+      cum += seg.length_km
+      positions.push({
+        x: MARGIN + NODE_W / 2 + (cum / rv.totalKm) * USABLE_W,
+        nodeId: seg.end_node_id,
+      })
+    }
+
+    // Cable path polyline
+    shapes.push(
+      `<Shape ID="${shapeId++}" Type="Shape">
+        <Cell N="PinX" V="${((positions[0].x + positions[positions.length - 1].x) / 2).toFixed(4)}"/>
+        <Cell N="PinY" V="${(PAGE_H - LINE_Y).toFixed(4)}"/>
+        <Cell N="Width" V="${(positions[positions.length - 1].x - positions[0].x).toFixed(4)}"/>
+        <Cell N="Height" V="0"/>
+        <Cell N="LineColor" V="RGB(0,100,190)"/>
+        <Cell N="LineWeight" V="0.03"/>
+        <Geom IX="0">
+          ${positions.map((p, i) => i === 0
+            ? `<MoveTo IX="1"><Cell N="X" V="${p.x.toFixed(4)}"/><Cell N="Y" V="${(PAGE_H - LINE_Y).toFixed(4)}"/></MoveTo>`
+            : `<LineTo IX="${i + 1}"><Cell N="X" V="${p.x.toFixed(4)}"/><Cell N="Y" V="${(PAGE_H - LINE_Y).toFixed(4)}"/></LineTo>`
+          ).join('\n          ')}
+        </Geom>
+      </Shape>`)
+
+    // Segment labels above the line
+    rv.segments.forEach((seg, si) => {
+      const x1  = positions[si].x
+      const x2  = positions[si + 1].x
+      const mid = (x1 + x2) / 2
+      const w   = Math.max(x2 - x1 - 0.1, 0.6)
+      const txt = `${seg.system_id}\n${(seg.length_km ?? 0).toLocaleString()} km · ${seg.latency ?? '?'} ms`
+      shapes.push(mkShape(shapeId++, mid - w / 2, LINE_Y - 0.7, w, 0.55,
+        `<Cell N="FillPattern" V="0"/>
+         <Cell N="LinePattern" V="0"/>
+         <Cell N="CharSize" V="0.09"/>
+         <Cell N="CharColor" V="RGB(0,100,190)"/>
+         <Cell N="VerticalAlign" V="1"/>`,
+        txt))
+    })
+
+    // Node boxes
+    positions.forEach((np, ni) => {
+      const node    = nodesById[np.nodeId]
+      const isEnd   = ni === 0 || ni === positions.length - 1
+      const name    = node?.name ?? np.nodeId
+      const country = node?.country ?? ''
+      const fillR   = isEnd ? 'RGB(218,232,252)' : 'RGB(240,240,240)'
+      const lineR   = isEnd ? 'RGB(108,142,191)' : 'RGB(150,150,150)'
+      shapes.push(mkShape(shapeId++, np.x - NODE_W / 2, LINE_Y - NODE_H / 2, NODE_W, NODE_H,
+        `<Cell N="FillForegnd" V="${fillR}"/>
+         <Cell N="FillBkgnd" V="${fillR}"/>
+         <Cell N="LineColor" V="${lineR}"/>
+         <Cell N="LineWeight" V="${isEnd ? '0.02' : '0.01'}"/>
+         <Cell N="CharSize" V="0.1"/>
+         <Cell N="VerticalAlign" V="1"/>`,
+        `${name}\n${country}`))
+    })
+
+    // A-end / Z-end info boxes
+    const aEnd = circuit?.a_end
+    const zEnd = circuit?.z_end
+    const aNode = nodesById[route.nodes[0]]
+    const zNode = nodesById[route.nodes[route.nodes.length - 1]]
+    const aText = `A-End: ${aNode?.country ?? ''}\n${aEnd?.customer_site_name ?? aNode?.name ?? ''}\n${aEnd?.customer_site_address ?? ''}`
+    const zText = `Z-End: ${zNode?.country ?? ''}\n${zEnd?.customer_site_name ?? zNode?.name ?? ''}\n${zEnd?.customer_site_address ?? ''}`
+    shapes.push(mkShape(shapeId++, MARGIN, LINE_Y + 0.6, 2.0, 0.9,
+      `<Cell N="FillPattern" V="0"/><Cell N="LinePattern" V="0"/><Cell N="CharSize" V="0.1"/>`, aText))
+    shapes.push(mkShape(shapeId++, PAGE_W - MARGIN - 2.0, LINE_Y + 0.6, 2.0, 0.9,
+      `<Cell N="FillPattern" V="0"/><Cell N="LinePattern" V="0"/><Cell N="CharSize" V="0.1"/>`, zText))
+
+    // Service table
+    const svcRows: [string, string][] = [
+      ['SERVICE TYPE', circuit?.service_type ?? ''],
+      ['BANDWIDTH',    circuit?.bandwidth ?? ''],
+      ['PROTECTION',   circuit?.protection ?? ''],
+    ]
+    const tblX = PAGE_W / 2 - 1.5
+    svcRows.forEach(([k, v], ri) => {
+      shapes.push(mkShape(shapeId++, tblX, LINE_Y + 0.6 + ri * 0.28, 1.2, 0.26,
+        `<Cell N="FillForegnd" V="RGB(0,154,176)"/><Cell N="FillBkgnd" V="RGB(0,154,176)"/>
+         <Cell N="LineColor" V="RGB(0,154,176)"/><Cell N="CharColor" V="RGB(255,255,255)"/>
+         <Cell N="CharSize" V="0.09"/><Cell N="CharStyle" V="1"/>`, k))
+      shapes.push(mkShape(shapeId++, tblX + 1.2, LINE_Y + 0.6 + ri * 0.28, 1.8, 0.26,
+        `<Cell N="FillForegnd" V="RGB(238,238,238)"/><Cell N="FillBkgnd" V="RGB(238,238,238)"/>
+         <Cell N="LineColor" V="RGB(200,200,200)"/><Cell N="CharSize" V="0.09"/>`, v))
+    })
+
+    pageXmls.push(
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<PageContents xmlns="http://schemas.microsoft.com/office/visio/2012/main"
+              xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+              xml:space="preserve">
+  <Shapes>
+    ${shapes.join('\n    ')}
+  </Shapes>
+</PageContents>`)
+  })
+
+  // Assemble .vsdx ZIP
+  const zip = new JSZip()
+
+  zip.file('[Content_Types].xml',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/>
+  ${pageXmls.map((_, i) => `<Override PartName="/visio/pages/page${i + 1}.xml" ContentType="application/vnd.ms-visio.page+xml"/>`).join('\n  ')}
+  <Override PartName="/visio/pages/pages.xml" ContentType="application/vnd.ms-visio.pages+xml"/>
+</Types>`)
+
+  zip.file('_rels/.rels',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.microsoft.com/visio/2010/relationships/document" Target="visio/document.xml"/>
+</Relationships>`)
+
+  zip.file('visio/document.xml',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<VisioDocument xmlns="http://schemas.microsoft.com/office/visio/2012/main"
+               xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+               xml:space="preserve">
+  <DocumentProperties>
+    <Subject>Subsea Circuit SLD</Subject>
+    <Creator>RouteBuilder</Creator>
+  </DocumentProperties>
+  <DocumentSheet/>
+  <Pages r:id="rId1"/>
+</VisioDocument>`)
+
+  zip.file('visio/_rels/document.xml.rels',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.microsoft.com/visio/2010/relationships/pages" Target="pages/pages.xml"/>
+</Relationships>`)
+
+  const pagesIndex = pageXmls.map((_, i) =>
+    `<Page ID="${i}" NameU="Page-${i + 1}" Name="${escVml(pinnedRoutes[i]?.circuitLabel ?? pinnedRoutes[i]?.searchLabel ?? `Page ${i + 1}`)}" ViewScale="1" ViewCenterX="8.27" ViewCenterY="5.845">
+      <PageSheet/>
+      <PageProps>
+        <Cell N="PageWidth" V="${PAGE_W}"/>
+        <Cell N="PageHeight" V="${PAGE_H}"/>
+        <Cell N="PageScale" V="1"/>
+        <Cell N="DrawingScale" V="1"/>
+        <Cell N="DrawingSizeType" V="0"/>
+        <Cell N="DrawingScaleType" V="0"/>
+        <Cell N="InhibitSnap" V="0"/>
+        <Cell N="PageLockReplace" V="0" F="0"/>
+        <Cell N="PageLockDuplicate" V="0" F="0"/>
+        <Cell N="UIVisibility" V="0"/>
+        <Cell N="ShdwType" V="0"/>
+        <Cell N="ShdwOffsetX" V="0.1181102362204724"/>
+        <Cell N="ShdwOffsetY" V="-0.1181102362204724"/>
+        <Cell N="PageShapeSplit" V="1"/>
+        <Cell N="PrintPageOrientation" V="2"/>
+      </PageProps>
+      <Rel r:id="rId${i + 1}"/>
+    </Page>`).join('\n    ')
+
+  zip.file('visio/pages/pages.xml',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Pages xmlns="http://schemas.microsoft.com/office/visio/2012/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+       xml:space="preserve">
+    ${pagesIndex}
+</Pages>`)
+
+  zip.file('visio/pages/_rels/pages.xml.rels',
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  ${pageXmls.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.microsoft.com/visio/2010/relationships/page" Target="page${i + 1}.xml"/>`).join('\n  ')}
+</Relationships>`)
+
+  pageXmls.forEach((xml, i) => {
+    zip.file(`visio/pages/page${i + 1}.xml`, xml)
+    zip.file(`visio/pages/_rels/page${i + 1}.xml.rels`,
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>`)
+  })
+
+  const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.ms-visio.drawing' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = `SLD-${new Date().toISOString().slice(0, 10)}.vsdx`
+  a.click()
+  URL.revokeObjectURL(url)
 }

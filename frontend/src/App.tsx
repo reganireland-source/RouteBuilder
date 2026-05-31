@@ -14,7 +14,7 @@ import { HealthBar } from './components/HealthBar'
 import { MobileLayout } from './components/MobileLayout'
 import { CapacityDashboard } from './components/CapacityDashboard'
 import { UserGuide } from './components/UserGuide'
-import { generateStraightLineDiagram, generateSldFromProject, generateDrawioXml } from './utils/generateDiagram'
+import { generateStraightLineDiagram, generateSldFromProject, generateDrawioXml, generateVisioVsdx } from './utils/generateDiagram'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, type Theme, type ThemeMode } from './theme'
 import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem } from './types'
@@ -1277,6 +1277,13 @@ export default function App() {
                 }}
                 style={{ padding: '8px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.blue}`, background: 'transparent', color: theme.blue, fontFamily: 'inherit' }}
               >Export DrawIO</button>
+              <button
+                onClick={() => {
+                  generateVisioVsdx(pinnedRoutes, nodes, activeProject ?? undefined)
+                  setSldVersionPrompt(false)
+                }}
+                style={{ padding: '8px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.blue}`, background: 'transparent', color: theme.blue, fontFamily: 'inherit' }}
+              >Export Visio</button>
               <button
                 onClick={() => setSldVersionPrompt(false)}
                 style={{ padding: '8px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.border}`, background: 'transparent', color: theme.textMuted, fontFamily: 'inherit' }}
