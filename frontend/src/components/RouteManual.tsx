@@ -73,7 +73,7 @@ export function computeCandidates(
     const ownA = a.segment.ownership === 'owned' ? 0 : 1
     const ownB = b.segment.ownership === 'owned' ? 0 : 1
     if (ownA !== ownB) return ownA - ownB
-    return a.segment.latency - b.segment.latency
+    return (a.segment.latency ?? Infinity) - (b.segment.latency ?? Infinity)
   })
 }
 
