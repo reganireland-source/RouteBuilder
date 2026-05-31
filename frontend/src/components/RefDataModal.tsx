@@ -1246,17 +1246,17 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         {/* Scrollable tab bar */}
         <div style={{ display: 'flex', overflowX: 'auto', borderBottom: `1px solid ${t.border}`, flexShrink: 0, background: t.bgDeep, scrollbarWidth: 'none' } as React.CSSProperties}>
           {([
-            { id: 'nodes',    label: 'Nodes',    count: counts.nodes },
-            { id: 'segments', label: 'Segments', count: counts.segments },
-            { id: 'systems',  label: 'Systems',  count: counts.systems },
-            { id: 'capacity', label: 'Capacity', count: counts.capacity },
-            { id: 'outages',  label: 'Outages',  count: counts.outages },
-            { id: 'rules',    label: 'Rules',    count: counts.rules },
-            { id: 'checks',   label: '⚡ Checks',   count: null },
-            { id: 'config',   label: '⚙ Config',    count: null },
-            { id: 'coverage', label: '🟢 Coverage',  count: null },
-            { id: 'bulk',     label: '🔄 Bulk',      count: null },
-            { id: 'tech',     label: '🔧 Tech',      count: null },
+            { id: 'nodes',    label: 'Nodes',      count: counts.nodes },
+            { id: 'segments', label: 'Segments',   count: counts.segments },
+            { id: 'systems',  label: 'Systems',    count: counts.systems },
+            { id: 'capacity', label: 'Capacity',   count: counts.capacity },
+            { id: 'outages',  label: 'Outages',    count: counts.outages },
+            { id: 'rules',    label: 'Rules',      count: counts.rules },
+            { id: 'tech',     label: '🔧 Tech',    count: null },
+            { id: 'config',   label: '⚙ Config',   count: null },
+            { id: 'checks',   label: '⚡ Checks',  count: null },
+            { id: 'coverage', label: '🟢 Coverage', count: null },
+            { id: 'bulk',     label: '🔄 Bulk',    count: null },
           ] as { id: Tab; label: string; count: number | null }[]).map(({ id: tb, label, count }) => {
             const active = tab === tb
             const color = tb === 'coverage' ? t.green : tb === 'bulk' ? '#0ea5e9' : tb === 'tech' ? '#a78bfa' : t.blue
