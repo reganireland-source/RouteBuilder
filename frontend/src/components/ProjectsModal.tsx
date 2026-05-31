@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTheme } from '../theme'
 import { api } from '../api/client'
-import type { CableNode, EndpointConfig, InterfaceType, Project, ProjectCircuit, Route, SldConfig } from '../types'
+import type { CableNode, EndpointConfig, InterfaceType, Project, ProjectCircuit, Route, SldConfig, TechLookupItem } from '../types'
 import { DEFAULT_SLD_CONFIG } from '../types'
 
 interface Props {
@@ -20,11 +20,6 @@ interface Props {
 type ModalTab = 'list' | 'detail'
 type DetailTab = 'info' | 'circuits' | 'sld'
 
-const ACCESS_TYPES = ['X-Connect', 'Local Loop', 'Direct']
-const ARRANGED_BY = ['Customer', 'Telstra']
-const LL_ARRANGED_BY = ['Customer', 'Service Provider']
-const SERVICE_TYPES = ['EPL', 'EVPL', 'IPT', 'IPVPN', 'GID', 'Wavelength', 'Dark Fibre']
-const PROTECTION_TYPES = ['Unprotected (1+0)', 'Protected (1+1)', 'Dual (1+1 Shared)']
 
 function newProject(): Project {
   return {
@@ -42,6 +37,13 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
   const [detailTab, setDetailTab] = useState<DetailTab>('info')
   const [projects, setProjects] = useState<Project[]>(initialProjects ?? [])
   const [interfaces, setInterfaces] = useState<InterfaceType[]>([])
+  const [techAccessTypes, setTechAccessTypes]   = useState<TechLookupItem[]>([])
+  const [techArrangedBy, setTechArrangedBy]     = useState<TechLookupItem[]>([])
+  const [techServiceTypes, setTechServiceTypes] = useState<TechLookupItem[]>([])
+  const [techBandwidths, setTechBandwidths]     = useState<TechLookupItem[]>([])
+  const [techProtections, setTechProtections]   = useState<TechLookupItem[]>([])
+  const [techFrameSizes, setTechFrameSizes]     = useState<TechLookupItem[]>([])
+  const [techL1Settings, setTechL1Settings]     = useState<TechLookupItem[]>([])
   const [selected, setSelected] = useState<Project | null>(null)
   const [editDraft, setEditDraft] = useState<Project | null>(null)
   const [saving, setSaving] = useState(false)
@@ -55,9 +57,26 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
 
   useEffect(() => {
     const projectsPromise = initialProjects != null ? Promise.resolve(initialProjects) : api.getProjects()
-    Promise.all([projectsPromise, api.getInterfaces()]).then(([p, i]) => {
+    Promise.all([
+      projectsPromise,
+      api.getInterfaces(),
+      api.getTechLookup('tech_access_types'),
+      api.getTechLookup('tech_arranged_by'),
+      api.getTechLookup('tech_service_types'),
+      api.getTechLookup('tech_bandwidths'),
+      api.getTechLookup('tech_protections'),
+      api.getTechLookup('tech_frame_sizes'),
+      api.getTechLookup('tech_l1_settings'),
+    ]).then(([p, i, accessTypes, arrangedBy, serviceTypes, bandwidths, protections, frameSizes, l1Settings]) => {
       setProjects(p)
       setInterfaces(i)
+      setTechAccessTypes(accessTypes)
+      setTechArrangedBy(arrangedBy)
+      setTechServiceTypes(serviceTypes)
+      setTechBandwidths(bandwidths)
+      setTechProtections(protections)
+      setTechFrameSizes(frameSizes)
+      setTechL1Settings(l1Settings)
       if (initialProject) {
         const found = p.find(pr => pr.id === initialProject)
         if (found) {
@@ -498,7 +517,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
             <div style={s.label}>Access Type</div>
             <select style={s.select} value={end.access_type ?? ''} onChange={e => setter('access_type', e.target.value)}>
               <option value="">— Select —</option>
-              {ACCESS_TYPES.map(a => <option key={a} value={a}>{a}</option>)}
+              {techAccessTypes.map(a => <option key={a.id} value={a.label}>{a.label}</option>)}
             </select>
           </div>
           {(end.access_type === 'X-Connect' || !end.access_type) && (
@@ -511,7 +530,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
                 <div style={s.label}>Arranged By</div>
                 <select style={s.select} value={end.cc_arranged_by ?? ''} onChange={e => setter('cc_arranged_by', e.target.value)}>
                   <option value="">— Select —</option>
-                  {ARRANGED_BY.map(a => <option key={a} value={a}>{a}</option>)}
+                  {techArrangedBy.map(a => <option key={a.id} value={a.label}>{a.label}</option>)}
                 </select>
               </div>
             </>
@@ -526,7 +545,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
                 <div style={s.label}>Arranged By</div>
                 <select style={s.select} value={end.ll_arranged_by ?? ''} onChange={e => setter('ll_arranged_by', e.target.value)}>
                   <option value="">— Select —</option>
-                  {LL_ARRANGED_BY.map(a => <option key={a} value={a}>{a}</option>)}
+                  {techArrangedBy.map(a => <option key={a.id} value={a.label}>{a.label}</option>)}
                 </select>
               </div>
             </>
@@ -540,13 +559,16 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
           </div>
           <div style={{ marginBottom: 12 }}>
             <div style={s.label}>Bandwidth</div>
-            <input style={s.input} value={end.bandwidth ?? ''} onChange={e => setter('bandwidth', e.target.value)} placeholder="e.g. 100G LAN PHY (OTU4)" />
+            <select style={s.select} value={end.bandwidth ?? ''} onChange={e => setter('bandwidth', e.target.value)}>
+              <option value="">— Select —</option>
+              {techBandwidths.map(b => <option key={b.id} value={b.label}>{b.label}</option>)}
+            </select>
           </div>
           <div style={{ marginBottom: 12 }}>
             <div style={s.label}>Protection</div>
             <select style={s.select} value={end.protection ?? ''} onChange={e => setter('protection', e.target.value)}>
               <option value="">— Select —</option>
-              {PROTECTION_TYPES.map(p => <option key={p} value={p}>{p}</option>)}
+              {techProtections.map(p => <option key={p.id} value={p.label}>{p.label}</option>)}
             </select>
           </div>
         </div>
@@ -572,30 +594,39 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
             <div style={s.label}>Service Type</div>
             <select style={s.select} value={circuitDraft.service_type ?? ''} onChange={e => setC('service_type', e.target.value || undefined)}>
               <option value="">— Select —</option>
-              {SERVICE_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
+              {techServiceTypes.map(s => <option key={s.id} value={s.label}>{s.label}</option>)}
             </select>
           </div>
         </div>
         <div style={s.row3}>
           <div>
             <div style={s.label}>Bandwidth</div>
-            <input style={s.input} value={circuitDraft.bandwidth ?? ''} onChange={e => setC('bandwidth', e.target.value || undefined)} placeholder="e.g. 100G" />
+            <select style={s.select} value={circuitDraft.bandwidth ?? ''} onChange={e => setC('bandwidth', e.target.value || undefined)}>
+              <option value="">— Select —</option>
+              {techBandwidths.map(b => <option key={b.id} value={b.label}>{b.label}</option>)}
+            </select>
           </div>
           <div>
             <div style={s.label}>Protection</div>
             <select style={s.select} value={circuitDraft.protection ?? ''} onChange={e => setC('protection', e.target.value || undefined)}>
               <option value="">— Select —</option>
-              {PROTECTION_TYPES.map(p => <option key={p} value={p}>{p}</option>)}
+              {techProtections.map(p => <option key={p.id} value={p.label}>{p.label}</option>)}
             </select>
           </div>
           <div>
             <div style={s.label}>Frame Size</div>
-            <input style={s.input} value={circuitDraft.frame_size ?? ''} onChange={e => setC('frame_size', e.target.value || undefined)} placeholder="e.g. 9200 bytes" />
+            <select style={s.select} value={circuitDraft.frame_size ?? ''} onChange={e => setC('frame_size', e.target.value || undefined)}>
+              <option value="">— Select —</option>
+              {techFrameSizes.map(f => <option key={f.id} value={f.label}>{f.label}</option>)}
+            </select>
           </div>
         </div>
         <div style={{ marginBottom: 20 }}>
           <div style={s.label}>L1 Settings</div>
-          <input style={s.input} value={circuitDraft.l1_settings ?? ''} onChange={e => setC('l1_settings', e.target.value || undefined)} placeholder="e.g. MACSec Transparent LLF Enable" />
+          <select style={s.select} value={circuitDraft.l1_settings ?? ''} onChange={e => setC('l1_settings', e.target.value || undefined)}>
+            <option value="">— Select —</option>
+            {techL1Settings.map(l => <option key={l.id} value={l.label}>{l.label}</option>)}
+          </select>
         </div>
 
         {/* Route info */}
