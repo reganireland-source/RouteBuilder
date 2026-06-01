@@ -230,9 +230,9 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     setAdding(true); setAddValues({ ...defaults })
   }
 
-  async function saveEdit(saveCall: () => Promise<unknown>) {
+  async function saveEdit(saveCall: () => Promise<unknown>, skipRefresh = false) {
     setSaving(true); setError(null)
-    try { await saveCall(); onDataChange(); setEditId(null) }
+    try { await saveCall(); if (!skipRefresh) onDataChange(); setEditId(null) }
     catch (e) { setError(String(e)) }
     finally { setSaving(false) }
   }
@@ -480,7 +480,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   function NodeTab() {
     const q = filter.toLowerCase()
     const filtered = nodes.filter(n =>
-      !filter || [n.id, n.name, n.country, n.type, n.owner ?? '', n.trading_name ?? '', n.street_address ?? '', n.description ?? ''].some(v => v.toLowerCase().includes(q))
+      !filter || [n.id, n.name, n.country, n.type, n.owner ?? '', n.trading_name ?? '', n.city ?? '', n.street_address ?? '', n.description ?? ''].some(v => v.toLowerCase().includes(q))
     )
     const editForm = (n: CableNode) => (
       <div style={{ ...editFormRow }}>
@@ -491,15 +491,16 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         <Field label="Lat"          k="lat"          src={editValues} setSrc={setEditValues} type="number" />
         <Field label="Lng"          k="lng"          src={editValues} setSrc={setEditValues} type="number" />
         <Field label="Trading Name"   k="trading_name"   src={editValues} setSrc={setEditValues} />
+        <Field label="City"           k="city"           src={editValues} setSrc={setEditValues} />
         <Field label="Street Address" k="street_address" src={editValues} setSrc={setEditValues} />
         <Field label="Description"    k="description"    src={editValues} setSrc={setEditValues} />
         <SaveCancel
-          onSave={async () => { await saveEdit(() => api.updateNode(n.id, editValues as Partial<CableNode>)); setNodeVerifPending(n.id) }}
+          onSave={async () => { await saveEdit(() => api.updateNode(n.id, editValues as Partial<CableNode>), true); setNodeVerifPending(n.id) }}
           onCancel={() => setEditId(null)}
         />
       </div>
     )
-    const editDefaults = (n: CableNode) => ({ name: n.name, country: n.country, type: n.type, lat: n.lat, lng: n.lng, owner: n.owner ?? '', trading_name: n.trading_name ?? '', street_address: n.street_address ?? '', description: n.description ?? '' })
+    const editDefaults = (n: CableNode) => ({ name: n.name, country: n.country, type: n.type, lat: n.lat, lng: n.lng, owner: n.owner ?? '', trading_name: n.trading_name ?? '', city: n.city ?? '', street_address: n.street_address ?? '', description: n.description ?? '' })
     return (
       <>
         {adding && (
@@ -512,6 +513,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             <Field label="Lat"          k="lat"          src={addValues} setSrc={setAddValues} type="number" />
             <Field label="Lng"          k="lng"          src={addValues} setSrc={setAddValues} type="number" />
             <Field label="Trading Name"   k="trading_name"   src={addValues} setSrc={setAddValues} />
+            <Field label="City"           k="city"           src={addValues} setSrc={setAddValues} />
             <Field label="Street Address" k="street_address" src={addValues} setSrc={setAddValues} />
             <Field label="Description"    k="description"    src={addValues} setSrc={setAddValues} />
             <SaveCancel
@@ -528,6 +530,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                 title={n.name}
                 subtitle={<><code style={{ fontSize: 10 }}>{n.id}</code> · {n.country} · {n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : n.type === 'primary_pop' ? '1°PoP' : n.type === 'secondary_pop' ? '2°PoP' : 'ExtPoP'}</>}
                 fields={[
+                  { label: 'City', value: n.city ?? '—' },
                   { label: 'Owner', value: n.owner ?? '—' },
                   { label: 'Trading Name', value: n.trading_name ?? '—' },
                   { label: 'Address', value: n.street_address ?? '—' },
@@ -546,8 +549,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           <>
             <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
               <div style={colH(1.5)}>ID</div><div style={colH(2)}>Name</div><div style={colH(1)}>Country</div>
-              <div style={colH(1.5)}>Type</div><div style={colH(2)}>Owner</div>
-              <div style={colH(2)}>Trading Name</div><div style={colH(3)}>Description</div>
+              <div style={colH(1.5)}>City</div><div style={colH(1.5)}>Type</div><div style={colH(2)}>Owner</div>
+              <div style={colH(2)}>Trading Name</div><div style={colH(2)}>Description</div>
               <div style={colH(1)}>Lat</div><div style={colH(1)}>Lng</div>
               <div style={colH(1.5)}>Status</div>
               <div style={{ width: 140 }} />
@@ -558,10 +561,11 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                   <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{n.id}</code></div>
                   <div style={cell(2)}>{n.name}</div>
                   <div style={cell(1)}>{n.country}</div>
+                  <div style={cell(1.5)}>{n.city ?? ''}</div>
                   <div style={cell(1.5)}>{n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : n.type === 'primary_pop' ? '1°PoP' : n.type === 'secondary_pop' ? '2°PoP' : 'ExtPoP'}</div>
                   <div style={cell(2)}>{n.owner ?? ''}</div>
                   <div style={cell(2)}>{n.trading_name ?? ''}</div>
-                  <div style={cell(3)}>{n.description ?? ''}</div>
+                  <div style={cell(2)}>{n.description ?? ''}</div>
                   <div style={cell(1)}>{n.lat}</div>
                   <div style={cell(1)}>{n.lng}</div>
                   <div style={cell(1.5)}><VerifBadge status={n.verification_status} /></div>
@@ -632,7 +636,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           <button onClick={() => { const wps = [...((editValues.waypoints as [number, number][]) ?? []), [0, 0] as [number, number]]; setEditValues({ ...editValues, waypoints: wps }) }} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 3, border: `1px solid ${t.blue}`, background: 'transparent', color: t.blue, cursor: 'pointer', marginTop: 2 }}>+ Add waypoint</button>
         </div>
         <SaveCancel
-          onSave={async () => { const wps = (editValues.waypoints as [number, number][]) ?? []; await saveEdit(() => api.updateSegment(s.id, { ...editValues, waypoints: wps.length > 0 ? wps : null } as Partial<CableSegment>)); setSegVerifPending(s.id) }}
+          onSave={async () => { const wps = (editValues.waypoints as [number, number][]) ?? []; await saveEdit(() => api.updateSegment(s.id, { ...editValues, waypoints: wps.length > 0 ? wps : null } as Partial<CableSegment>), true); setSegVerifPending(s.id) }}
           onCancel={() => setEditId(null)}
           disabled={!nodesById[String(editValues.start_node_id ?? '')] || !nodesById[String(editValues.end_node_id ?? '')]}
           disabledReason="Select valid start and end nodes before saving"

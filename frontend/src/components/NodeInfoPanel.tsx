@@ -201,6 +201,7 @@ export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onC
     ['ID',           node.id],
     ['Type',         typeLabel],
     ['Country',      node.country],
+    ['City',         node.city],
     ['Lat / Lng',    `${node.lat}, ${node.lng}`],
     ['Owner',          node.owner],
     ['Trading Name',   node.trading_name],

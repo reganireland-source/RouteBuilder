@@ -70,6 +70,8 @@ class Node(BaseModel):
     country: str
     owner: str = "Telstra"
     trading_name: Optional[str] = None
+    city: Optional[str] = None
+    street_address: Optional[str] = None
     description: Optional[str] = None
     capabilities: Optional[NodeCapabilities] = None
     verification_status: VerificationStatus = VerificationStatus.draft
@@ -190,6 +192,8 @@ class NodeUpdate(BaseModel):
     country: Optional[str] = None
     owner: Optional[str] = None
     trading_name: Optional[str] = None
+    city: Optional[str] = None
+    street_address: Optional[str] = None
     description: Optional[str] = None
     capabilities: Optional[NodeCapabilities] = None
     verification_status: Optional[VerificationStatus] = None
