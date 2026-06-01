@@ -15,6 +15,143 @@ import { ProductCoveragePanel } from './ProductCoveragePanel'
 import { BulkImportPanel } from './BulkImportPanel'
 import { TechEnrichmentPanel } from './TechEnrichmentPanel'
 
+// ── Stable module-level form components ──────────────────────────────────────
+// These MUST live outside RefDataModal so React sees a stable component type
+// on every render. Defining them inside the parent causes remount on each
+// keystroke, which kills input focus.
+
+function Field({ label, val, k, src, setSrc, readOnly = false, type = 'text', options, placeholder }: {
+  label: string; val?: unknown; k: string
+  src: Record<string, unknown>; setSrc: (v: Record<string, unknown>) => void
+  readOnly?: boolean; type?: string; options?: { value: string; label: string }[]; placeholder?: string
+}) {
+  const t = useTheme()
+  const inputStyle: React.CSSProperties = {
+    background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 3,
+    color: t.text, fontSize: 12, padding: '3px 6px', width: '100%', boxSizing: 'border-box',
+    fontFamily: 'inherit',
+  }
+  const roStyle: React.CSSProperties = { ...inputStyle, opacity: 0.45, cursor: 'not-allowed' }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+      {readOnly ? (
+        <input style={roStyle} value={String(val ?? '')} readOnly />
+      ) : options ? (
+        <select style={inputStyle} value={String(src[k] ?? '')} onChange={e => setSrc({ ...src, [k]: e.target.value })}>
+          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      ) : (
+        <input
+          style={inputStyle}
+          type={type === 'decimal' ? 'text' : type}
+          inputMode={type === 'decimal' ? 'decimal' : undefined}
+          step={type === 'number' ? 'any' : undefined}
+          placeholder={placeholder}
+          value={String(src[k] ?? '')}
+          onChange={e => setSrc({ ...src, [k]: type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value })}
+        />
+      )}
+    </div>
+  )
+}
+
+function NodeSearchField({ label, k, src, setSrc, nodes }: {
+  label: string; k: string
+  src: Record<string, unknown>; setSrc: (v: Record<string, unknown>) => void
+  nodes: CableNode[]
+}) {
+  const t = useTheme()
+  const inputStyle: React.CSSProperties = {
+    background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 3,
+    color: t.text, fontSize: 12, padding: '3px 6px', width: '100%', boxSizing: 'border-box',
+    fontFamily: 'inherit',
+  }
+  const currentId = String(src[k] ?? '')
+  const currentNode = nodes.find(n => n.id === currentId)
+  const [query, setQuery] = useState(currentId)
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => { setQuery(currentId) }, [currentId])
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const hits = query.trim().length === 0 ? [] : nodes.filter(n => {
+    const q = query.toLowerCase()
+    return n.id.toLowerCase().includes(q) || n.name.toLowerCase().includes(q)
+  }).slice(0, 20)
+
+  const isValid = !!currentNode
+  const isEmpty = currentId === ''
+  const borderColor = isEmpty ? t.border : isValid ? t.green : t.red
+
+  return (
+    <div ref={wrapRef} style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
+      <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+      <input
+        style={{ ...inputStyle, borderColor, paddingRight: isValid ? 22 : undefined }}
+        value={query}
+        placeholder="Search node ID or name…"
+        autoComplete="off"
+        onChange={e => {
+          setQuery(e.target.value)
+          setOpen(true)
+          if (e.target.value !== currentId) setSrc({ ...src, [k]: '' })
+        }}
+        onFocus={() => { if (query.trim().length > 0) setOpen(true) }}
+      />
+      {isValid && (
+        <span style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(25%)', fontSize: 10, color: t.green, pointerEvents: 'none' }}>✓</span>
+      )}
+      {open && hits.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999,
+          background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 4,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.4)', maxHeight: 220, overflowY: 'auto',
+        }}>
+          {hits.map(n => (
+            <div
+              key={n.id}
+              onMouseDown={e => {
+                e.preventDefault()
+                setSrc({ ...src, [k]: n.id })
+                setQuery(n.id)
+                setOpen(false)
+              }}
+              style={{
+                padding: '5px 9px', cursor: 'pointer', fontSize: 12,
+                borderBottom: `1px solid ${t.border}`,
+                background: n.id === currentId ? `${t.blue}22` : 'transparent',
+                display: 'flex', gap: 8, alignItems: 'baseline',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = `${t.blue}33`)}
+              onMouseLeave={e => (e.currentTarget.style.background = n.id === currentId ? `${t.blue}22` : 'transparent')}
+            >
+              <code style={{ fontSize: 11, color: t.blue, flexShrink: 0 }}>{n.id}</code>
+              <span style={{ color: t.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.name}</span>
+              <span style={{ color: t.textFaint, fontSize: 10, flexShrink: 0 }}>{n.country}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {!isEmpty && !isValid && (
+        <span style={{ fontSize: 10, color: t.red, marginTop: 1 }}>No node with ID "{currentId || query}" found</span>
+      )}
+      {isValid && currentNode && (
+        <span style={{ fontSize: 10, color: t.textFaint, marginTop: 1 }}>{currentNode.name} · {currentNode.country}</span>
+      )}
+    </div>
+  )
+}
+
 const OWNERSHIP_LABEL: Record<string, string> = {
   owned:                'Owned',
   consortium:           'Consortium',
@@ -148,10 +285,6 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     fontFamily: 'inherit',
   }
 
-  const selectStyle: React.CSSProperties = { ...inputStyle }
-
-  const roStyle: React.CSSProperties = { ...inputStyle, opacity: 0.45, cursor: 'not-allowed' }
-
   const actionBtn = (variant: 'edit' | 'delete' | 'confirm' | 'save' | 'cancel' | 'add'): React.CSSProperties => {
     const colors: Record<string, string> = {
       edit: t.blue, delete: t.textFaint, confirm: t.red, save: t.green, cancel: t.textFaint, add: t.blue,
@@ -172,129 +305,6 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     display: 'grid', gap: 8, padding: '10px 12px',
     gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
     borderBottom: `1px solid ${t.border}`, background: t.bgDeep,
-  }
-
-  function Field({ label, val, k, src, setSrc, readOnly = false, type = 'text', options, placeholder }: {
-    label: string; val?: unknown; k: string
-    src: Record<string, unknown>; setSrc: (v: Record<string, unknown>) => void
-    readOnly?: boolean; type?: string; options?: { value: string; label: string }[]; placeholder?: string
-  }) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
-        {readOnly ? (
-          <input style={roStyle} value={String(val ?? '')} readOnly />
-        ) : options ? (
-          <select style={selectStyle} value={String(src[k] ?? '')} onChange={e => setSrc({ ...src, [k]: e.target.value })}>
-            {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        ) : (
-          <input
-            style={inputStyle}
-            type={type === 'decimal' ? 'text' : type}
-            inputMode={type === 'decimal' ? 'decimal' : undefined}
-            step={type === 'number' ? 'any' : undefined}
-            placeholder={placeholder}
-            value={String(src[k] ?? '')}
-            onChange={e => setSrc({ ...src, [k]: type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value })}
-          />
-        )}
-      </div>
-    )
-  }
-
-  // Searchable node picker — validates that the chosen ID exists in the nodes list
-  function NodeSearchField({ label, k, src, setSrc }: {
-    label: string; k: string
-    src: Record<string, unknown>; setSrc: (v: Record<string, unknown>) => void
-  }) {
-    const currentId = String(src[k] ?? '')
-    const currentNode = nodes.find(n => n.id === currentId)
-    const [query, setQuery] = useState(currentId)
-    const [open, setOpen] = useState(false)
-    const wrapRef = useRef<HTMLDivElement>(null)
-
-    // Keep local query in sync when external value changes (e.g. form reset)
-    useEffect(() => { setQuery(currentId) }, [currentId])
-
-    // Close dropdown when clicking outside
-    useEffect(() => {
-      if (!open) return
-      const handler = (e: MouseEvent) => {
-        if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
-      }
-      document.addEventListener('mousedown', handler)
-      return () => document.removeEventListener('mousedown', handler)
-    }, [open])
-
-    const hits = query.trim().length === 0 ? [] : nodes.filter(n => {
-      const q = query.toLowerCase()
-      return n.id.toLowerCase().includes(q) || n.name.toLowerCase().includes(q)
-    }).slice(0, 20)
-
-    const isValid = !!currentNode
-    const isEmpty = currentId === ''
-
-    const borderColor = isEmpty ? t.border : isValid ? t.green : t.red
-
-    return (
-      <div ref={wrapRef} style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
-        <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
-        <input
-          style={{ ...inputStyle, borderColor, paddingRight: isValid ? 22 : undefined }}
-          value={query}
-          placeholder="Search node ID or name…"
-          autoComplete="off"
-          onChange={e => {
-            setQuery(e.target.value)
-            setOpen(true)
-            // Clear the committed value if the user edits away from it
-            if (e.target.value !== currentId) setSrc({ ...src, [k]: '' })
-          }}
-          onFocus={() => { if (query.trim().length > 0) setOpen(true) }}
-        />
-        {isValid && (
-          <span style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(25%)', fontSize: 10, color: t.green, pointerEvents: 'none' }}>✓</span>
-        )}
-        {open && hits.length > 0 && (
-          <div style={{
-            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999,
-            background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 4,
-            boxShadow: '0 4px 16px rgba(0,0,0,0.4)', maxHeight: 220, overflowY: 'auto',
-          }}>
-            {hits.map(n => (
-              <div
-                key={n.id}
-                onMouseDown={e => {
-                  e.preventDefault()
-                  setSrc({ ...src, [k]: n.id })
-                  setQuery(n.id)
-                  setOpen(false)
-                }}
-                style={{
-                  padding: '5px 9px', cursor: 'pointer', fontSize: 12,
-                  borderBottom: `1px solid ${t.border}`,
-                  background: n.id === currentId ? `${t.blue}22` : 'transparent',
-                  display: 'flex', gap: 8, alignItems: 'baseline',
-                }}
-                onMouseEnter={e => (e.currentTarget.style.background = `${t.blue}33`)}
-                onMouseLeave={e => (e.currentTarget.style.background = n.id === currentId ? `${t.blue}22` : 'transparent')}
-              >
-                <code style={{ fontSize: 11, color: t.blue, flexShrink: 0 }}>{n.id}</code>
-                <span style={{ color: t.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.name}</span>
-                <span style={{ color: t.textFaint, fontSize: 10, flexShrink: 0 }}>{n.country}</span>
-              </div>
-            ))}
-          </div>
-        )}
-        {!isEmpty && !isValid && (
-          <span style={{ fontSize: 10, color: t.red, marginTop: 1 }}>No node with ID "{currentId || query}" found</span>
-        )}
-        {isValid && currentNode && (
-          <span style={{ fontSize: 10, color: t.textFaint, marginTop: 1 }}>{currentNode.name} · {currentNode.country}</span>
-        )}
-      </div>
-    )
   }
 
   function ActionsCell({ id, onEdit, onDelete }: { id: string; onEdit: () => void; onDelete: () => void }) {
@@ -468,8 +478,9 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   }
 
   function NodeTab() {
+    const q = filter.toLowerCase()
     const filtered = nodes.filter(n =>
-      !filter || n.name.toLowerCase().includes(filter.toLowerCase()) || n.id.toLowerCase().includes(filter.toLowerCase())
+      !filter || [n.id, n.name, n.country, n.type, n.owner ?? '', n.trading_name ?? '', n.street_address ?? '', n.description ?? ''].some(v => v.toLowerCase().includes(q))
     )
     const editForm = (n: CableNode) => (
       <div style={{ ...editFormRow }}>
@@ -581,9 +592,9 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   }
 
   function SegmentTab() {
+    const sq = filter.toLowerCase()
     const filtered = segments.filter(s =>
-      !filter || s.name.toLowerCase().includes(filter.toLowerCase()) ||
-      s.id.toLowerCase().includes(filter.toLowerCase()) || s.system_id.toLowerCase().includes(filter.toLowerCase())
+      !filter || [s.id, s.name, s.system_id, s.start_node_id, s.end_node_id, s.type, s.ownership].some(v => (v ?? '').toLowerCase().includes(sq))
     )
     const segDefaults = { id: '', name: '', system_id: '', start_node_id: '', end_node_id: '', type: 'wet', length_km: 0, latency: 0, cost_weight: 1, reliability: 0.9999, ownership: 'consortium' }
     const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
@@ -592,8 +603,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       <div style={{ ...editFormRow }}>
         <Field label="Name"         k="name"          src={editValues} setSrc={setEditValues} />
         <Field label="System"       k="system_id"     src={editValues} setSrc={setEditValues} options={systemOpts} />
-        <NodeSearchField label="Start Node" k="start_node_id" src={editValues} setSrc={setEditValues} />
-        <NodeSearchField label="End Node"   k="end_node_id"   src={editValues} setSrc={setEditValues} />
+        <NodeSearchField label="Start Node" k="start_node_id" src={editValues} setSrc={setEditValues} nodes={nodes} />
+        <NodeSearchField label="End Node"   k="end_node_id"   src={editValues} setSrc={setEditValues} nodes={nodes} />
         <Field label="Type"         k="type"          src={editValues} setSrc={setEditValues} options={segTypeOpts} />
         <Field label="Length (km)"  k="length_km"     src={editValues} setSrc={setEditValues} type="number" />
         <Field label="Latency (ms)" k="latency"       src={editValues} setSrc={setEditValues} type="number" />
@@ -637,8 +648,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             <Field label="ID *"         k="id"            src={addValues} setSrc={setAddValues} />
             <Field label="Name *"       k="name"          src={addValues} setSrc={setAddValues} />
             <Field label="System"       k="system_id"     src={addValues} setSrc={setAddValues} options={systemOpts} />
-            <NodeSearchField label="Start Node" k="start_node_id" src={addValues} setSrc={setAddValues} />
-            <NodeSearchField label="End Node"   k="end_node_id"   src={addValues} setSrc={setAddValues} />
+            <NodeSearchField label="Start Node" k="start_node_id" src={addValues} setSrc={setAddValues} nodes={nodes} />
+            <NodeSearchField label="End Node"   k="end_node_id"   src={addValues} setSrc={setAddValues} nodes={nodes} />
             <Field label="Type"         k="type"          src={addValues} setSrc={setAddValues} options={segTypeOpts} />
             <Field label="Length (km)"  k="length_km"     src={addValues} setSrc={setAddValues} type="number" />
             <Field label="Latency (ms)" k="latency"       src={addValues} setSrc={setAddValues} type="number" />
@@ -1483,14 +1494,14 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
         {/* Table body */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {tab === 'nodes'    && <NodeTab />}
-          {tab === 'segments' && <SegmentTab />}
-          {tab === 'systems'  && <SystemTab />}
+          {tab === 'nodes'    && NodeTab()}
+          {tab === 'segments' && SegmentTab()}
+          {tab === 'systems'  && SystemTab()}
           {tab === 'capacity' && CapacityTab()}
-          {tab === 'outages'  && <OutagesTab />}
-          {tab === 'rules'    && <RulesTab />}
-          {tab === 'checks'   && <ChecksTab />}
-          {tab === 'config'   && <ConfigTab />}
+          {tab === 'outages'  && OutagesTab()}
+          {tab === 'rules'    && RulesTab()}
+          {tab === 'checks'   && ChecksTab()}
+          {tab === 'config'   && ConfigTab()}
           {tab === 'coverage' && <ProductCoveragePanel nodes={nodes} onDataChange={onDataChange} />}
           {tab === 'tech'     && <TechEnrichmentPanel />}
           {tab === 'bulk' && (
