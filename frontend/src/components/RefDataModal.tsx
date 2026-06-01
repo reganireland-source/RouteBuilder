@@ -20,10 +20,13 @@ import { TechEnrichmentPanel } from './TechEnrichmentPanel'
 // on every render. Defining them inside the parent causes remount on each
 // keystroke, which kills input focus.
 
-function Field({ label, val, k, src, setSrc, readOnly = false, type = 'text', options, placeholder }: {
+function Field({ label, val, k, src, setSrc, readOnly = false, type = 'text', options, placeholder, pairedKey, pairedFirst }: {
   label: string; val?: unknown; k: string
   src: Record<string, unknown>; setSrc: (v: Record<string, unknown>) => void
-  readOnly?: boolean; type?: string; options?: { value: string; label: string }[]; placeholder?: string
+  readOnly?: boolean; type?: string; options?: { value: string; label: string }[]
+  placeholder?: string
+  pairedKey?: string    // sibling field key for lat/lng pair paste
+  pairedFirst?: boolean // true if this field holds the first value (lat) in the pair
 }) {
   const t = useTheme()
   const inputStyle: React.CSSProperties = {
@@ -32,11 +35,39 @@ function Field({ label, val, k, src, setSrc, readOnly = false, type = 'text', op
     fontFamily: 'inherit',
   }
   const roStyle: React.CSSProperties = { ...inputStyle, opacity: 0.45, cursor: 'not-allowed' }
+
+  // Keep the raw string while the user is mid-typing (e.g. "-", "3.", "-0.")
+  // Only store a parsed float once the string is unambiguously a complete number.
+  const parseNum = (raw: string): string | number => {
+    if (raw === '' || raw === '-' || raw === '.' || raw === '-.') return raw
+    const f = parseFloat(raw)
+    return isNaN(f) ? (src[k] as number ?? 0) : f
+  }
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    if (type !== 'number' || !pairedKey) return
+    const text = e.clipboardData.getData('text').trim()
+    // Detect "lat, lng" or "lat lng" pair (e.g. copied from Google Maps)
+    const parts = text.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean)
+    if (parts.length >= 2) {
+      const first = parseFloat(parts[0])
+      const second = parseFloat(parts[1])
+      if (!isNaN(first) && !isNaN(second)) {
+        e.preventDefault()
+        setSrc({
+          ...src,
+          [k]:         pairedFirst ? first  : second,
+          [pairedKey]: pairedFirst ? second : first,
+        })
+      }
+    }
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
       {readOnly ? (
-        <input style={roStyle} value={String(val ?? '')} readOnly />
+        <input style={roStyle} value={String(val ?? '')} readOnly autoComplete="off" />
       ) : options ? (
         <select style={inputStyle} value={String(src[k] ?? '')} onChange={e => setSrc({ ...src, [k]: e.target.value })}>
           {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -44,12 +75,13 @@ function Field({ label, val, k, src, setSrc, readOnly = false, type = 'text', op
       ) : (
         <input
           style={inputStyle}
-          type={type === 'decimal' ? 'text' : type}
-          inputMode={type === 'decimal' ? 'decimal' : undefined}
-          step={type === 'number' ? 'any' : undefined}
+          type={type === 'number' ? 'text' : type}
+          inputMode={type === 'number' ? 'decimal' : undefined}
+          autoComplete="off"
           placeholder={placeholder}
           value={String(src[k] ?? '')}
-          onChange={e => setSrc({ ...src, [k]: type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value })}
+          onChange={e => setSrc({ ...src, [k]: type === 'number' ? parseNum(e.target.value) : e.target.value })}
+          onPaste={handlePaste}
         />
       )}
     </div>
@@ -488,8 +520,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         <Field label="Country"      k="country"      src={editValues} setSrc={setEditValues} />
         <Field label="Type"         k="type"         src={editValues} setSrc={setEditValues} options={typeOpts} />
         <Field label="Owner"        k="owner"        src={editValues} setSrc={setEditValues} />
-        <Field label="Lat"          k="lat"          src={editValues} setSrc={setEditValues} type="number" />
-        <Field label="Lng"          k="lng"          src={editValues} setSrc={setEditValues} type="number" />
+        <Field label="Lat"          k="lat"          src={editValues} setSrc={setEditValues} type="number" pairedKey="lng" pairedFirst={true} />
+        <Field label="Lng"          k="lng"          src={editValues} setSrc={setEditValues} type="number" pairedKey="lat" pairedFirst={false} />
         <Field label="Trading Name"   k="trading_name"   src={editValues} setSrc={setEditValues} />
         <Field label="City"           k="city"           src={editValues} setSrc={setEditValues} />
         <Field label="Street Address" k="street_address" src={editValues} setSrc={setEditValues} />
@@ -510,8 +542,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             <Field label="Country"      k="country"      src={addValues} setSrc={setAddValues} />
             <Field label="Type"         k="type"         src={addValues} setSrc={setAddValues} options={typeOpts} />
             <Field label="Owner"        k="owner"        src={addValues} setSrc={setAddValues} />
-            <Field label="Lat"          k="lat"          src={addValues} setSrc={setAddValues} type="number" />
-            <Field label="Lng"          k="lng"          src={addValues} setSrc={setAddValues} type="number" />
+            <Field label="Lat"          k="lat"          src={addValues} setSrc={setAddValues} type="number" pairedKey="lng" pairedFirst={true} />
+            <Field label="Lng"          k="lng"          src={addValues} setSrc={setAddValues} type="number" pairedKey="lat" pairedFirst={false} />
             <Field label="Trading Name"   k="trading_name"   src={addValues} setSrc={setAddValues} />
             <Field label="City"           k="city"           src={addValues} setSrc={setAddValues} />
             <Field label="Street Address" k="street_address" src={addValues} setSrc={setAddValues} />
@@ -624,10 +656,15 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           {((editValues.waypoints as [number, number][]) ?? []).map(([wlat, wlng], wi) => (
             <div key={wi} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
               <span style={{ fontSize: 10, color: t.textFaint, width: 20, textAlign: 'right', flexShrink: 0 }}>{wi + 1}</span>
-              <input type="number" step="any" placeholder="Lat" value={wlat} style={{ ...inputStyle, width: 90 }}
-                onChange={e => { const wps = [...((editValues.waypoints as [number, number][]) ?? [])]; wps[wi] = [parseFloat(e.target.value) || 0, wps[wi][1]]; setEditValues({ ...editValues, waypoints: wps }) }} />
-              <input type="number" step="any" placeholder="Lng" value={wlng} style={{ ...inputStyle, width: 90 }}
-                onChange={e => { const wps = [...((editValues.waypoints as [number, number][]) ?? [])]; wps[wi] = [wps[wi][0], parseFloat(e.target.value) || 0]; setEditValues({ ...editValues, waypoints: wps }) }} />
+              <input type="text" inputMode="decimal" placeholder="Lat" value={String(wlat)} autoComplete="off" style={{ ...inputStyle, width: 90 }}
+                onChange={e => { const wps = [...((editValues.waypoints as [number, number][]) ?? [])]; const v = parseFloat(e.target.value); if (!isNaN(v)) { wps[wi] = [v, wps[wi][1]]; setEditValues({ ...editValues, waypoints: wps }) } }}
+                onPaste={e => {
+                  const text = e.clipboardData.getData('text').trim()
+                  const parts = text.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean)
+                  if (parts.length >= 2) { const a = parseFloat(parts[0]); const b = parseFloat(parts[1]); if (!isNaN(a) && !isNaN(b)) { e.preventDefault(); const wps = [...((editValues.waypoints as [number, number][]) ?? [])]; wps[wi] = [a, b]; setEditValues({ ...editValues, waypoints: wps }) } }
+                }} />
+              <input type="text" inputMode="decimal" placeholder="Lng" value={String(wlng)} autoComplete="off" style={{ ...inputStyle, width: 90 }}
+                onChange={e => { const wps = [...((editValues.waypoints as [number, number][]) ?? [])]; const v = parseFloat(e.target.value); if (!isNaN(v)) { wps[wi] = [wps[wi][0], v]; setEditValues({ ...editValues, waypoints: wps }) } }} />
               <button disabled={wi === 0} onClick={() => { const wps = [...((editValues.waypoints as [number, number][]) ?? [])]; [wps[wi - 1], wps[wi]] = [wps[wi], wps[wi - 1]]; setEditValues({ ...editValues, waypoints: wps }) }} style={{ fontSize: 11, padding: '2px 6px', borderRadius: 3, border: `1px solid ${t.border}`, background: 'transparent', color: t.textFaint, cursor: wi === 0 ? 'not-allowed' : 'pointer', opacity: wi === 0 ? 0.3 : 1 }}>↑</button>
               <button disabled={wi === ((editValues.waypoints as [number, number][]) ?? []).length - 1} onClick={() => { const wps = [...((editValues.waypoints as [number, number][]) ?? [])]; [wps[wi], wps[wi + 1]] = [wps[wi + 1], wps[wi]]; setEditValues({ ...editValues, waypoints: wps }) }} style={{ fontSize: 11, padding: '2px 6px', borderRadius: 3, border: `1px solid ${t.border}`, background: 'transparent', color: t.textFaint, cursor: wi === ((editValues.waypoints as [number, number][]) ?? []).length - 1 ? 'not-allowed' : 'pointer', opacity: wi === ((editValues.waypoints as [number, number][]) ?? []).length - 1 ? 0.3 : 1 }}>↓</button>
               <button onClick={() => { const wps = ((editValues.waypoints as [number, number][]) ?? []).filter((_, j) => j !== wi); setEditValues({ ...editValues, waypoints: wps }) }} style={{ fontSize: 11, padding: '2px 7px', borderRadius: 3, border: `1px solid ${t.red}44`, background: 'transparent', color: t.red, cursor: 'pointer' }}>×</button>
