@@ -85,6 +85,7 @@ export interface MobileLayoutProps {
   cycleTheme:                    () => void
   onToggleHideNonActive:         () => void
   onToggleShowSegmentLabels:     () => void
+  onToggleShowNodeLabels:        () => void
   onToggleShowAllOutages:        () => void
   onApplySort?:                  (mode: NlpSortMode) => void
   nlpSortKey?:                   SortKey
@@ -196,13 +197,13 @@ export function MobileLayout({
   onSearch, onToggleRoute, onPin, onUnpin, onPinPair, onToggleSystem,
   onSetOrigin, onSetDest, onSetPair, onNodeClick, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
-  switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowAllOutages,
+  switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowNodeLabels, onToggleShowAllOutages,
   onApplySort, nlpSortKey, nlpPushOutages, optimiseFor, flippedPairIds, onFlipPair,
   onAddToProject, onEnrichCircuit, onOpenProjects, activeProject, onExitProjectMode, onSwitchProject, onOpenGuide,
   manualState, manualCandidates = [], manualResults = [], onManualNodeClick,
   onManualPickHop, onManualUndo, onManualFinish, onManualDiscard,
-  hideNonActive = false, showSegmentLabels = false, showAllOutages = false,
-}: MobileLayoutProps & { hideNonActive?: boolean; showSegmentLabels?: boolean; showAllOutages?: boolean }) {
+  hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false,
+}: MobileLayoutProps & { hideNonActive?: boolean; showSegmentLabels?: boolean; showNodeLabels?: boolean; showAllOutages?: boolean }) {
   const t = useTheme()
 
   const [sheetHeight, setSheetHeight] = useState(() => snapPx('full'))
@@ -286,6 +287,7 @@ export function MobileLayout({
             nearestNodeIds={nearestNodeIds}
             hideNonActive={hideNonActive}
             showSegmentLabels={showSegmentLabels}
+            showNodeLabels={showNodeLabels}
             showAllOutages={showAllOutages}
             outages={outages}
             manualState={manualState}
@@ -374,6 +376,13 @@ export function MobileLayout({
                   active: showSegmentLabels,
                   color: t.blue,
                   onClick: () => { onToggleShowSegmentLabels(); setDrawerOpen(false) },
+                },
+                {
+                  label: 'Node Labels',
+                  icon: showNodeLabels ? '◉' : '◎',
+                  active: showNodeLabels,
+                  color: t.blue,
+                  onClick: () => { onToggleShowNodeLabels(); setDrawerOpen(false) },
                 },
                 {
                   label: 'Hide Non-Active',

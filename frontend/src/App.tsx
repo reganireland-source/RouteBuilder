@@ -187,6 +187,7 @@ export default function App() {
   const [ctrlMenuOpen, setCtrlMenuOpen]             = useState(false)
   const [hideNonActive, setHideNonActive]           = useState(false)
   const [showSegmentLabels, setShowSegmentLabels]   = useState(false)
+  const [showNodeLabels,    setShowNodeLabels]       = useState(false)
   const [showAllOutages, setShowAllOutages]         = useState(false)
   const [subseaOnly, setSubseaOnly]                 = useState(false)
   const [backhaulOnly, setBackhaulOnly]             = useState(false)
@@ -570,6 +571,8 @@ export default function App() {
           onToggleHideNonActive={() => setHideNonActive(v => !v)}
           showSegmentLabels={showSegmentLabels}
           onToggleShowSegmentLabels={() => setShowSegmentLabels(v => !v)}
+          showNodeLabels={showNodeLabels}
+          onToggleShowNodeLabels={() => setShowNodeLabels(v => !v)}
           showAllOutages={showAllOutages}
           onToggleShowAllOutages={() => setShowAllOutages(v => !v)}
           onApplySort={handleApplySort}
@@ -759,7 +762,7 @@ export default function App() {
 
         {/* Top-right control menu */}
         {(() => {
-          const activeToggles = [showAllOutages, hideNonActive, showSegmentLabels, subseaOnly, backhaulOnly].filter(Boolean).length
+          const activeToggles = [showAllOutages, hideNonActive, showSegmentLabels, showNodeLabels, subseaOnly, backhaulOnly].filter(Boolean).length
           return (
             <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 1000 }}>
               <button
@@ -802,6 +805,7 @@ export default function App() {
                       { label: 'Show All Outages', icon: '🚢', active: showAllOutages, color: theme.red,  onClick: () => setShowAllOutages(v => !v) },
                       { label: 'Hide Inactive',    icon: hideNonActive      ? '◉' : '◎', active: hideNonActive,      color: theme.blue, onClick: () => setHideNonActive(v => !v) },
                       { label: 'Seg Labels',       icon: showSegmentLabels  ? '◉' : '◎', active: showSegmentLabels,  color: theme.blue, onClick: () => setShowSegmentLabels(v => !v) },
+                      { label: 'Node Labels',      icon: showNodeLabels     ? '◉' : '◎', active: showNodeLabels,     color: theme.blue, onClick: () => setShowNodeLabels(v => !v) },
                       { label: 'Subsea Only',      icon: '🌊', active: subseaOnly,   color: theme.blue, onClick: () => { setSubseaOnly(v => !v);   if (!subseaOnly)   setBackhaulOnly(false) } },
                       { label: 'Backhaul Only',    icon: '🗺',  active: backhaulOnly, color: theme.blue, onClick: () => { setBackhaulOnly(v => !v); if (!backhaulOnly) setSubseaOnly(false)  } },
                     ].map(item => (
@@ -1141,6 +1145,7 @@ export default function App() {
               nearestNodeIds={nearestNodeIds}
               hideNonActive={hideNonActive}
               showSegmentLabels={showSegmentLabels}
+              showNodeLabels={showNodeLabels}
               showAllOutages={showAllOutages}
               subseaOnly={subseaOnly}
               backhaulOnly={backhaulOnly}
