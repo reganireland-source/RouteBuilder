@@ -80,7 +80,7 @@ Return ONLY a JSON object — no prose, no markdown fences — with these exact 
 
 RULES:
 - Map city, country, or location names to the best-matching node ID.
-  Prefer type=landing_station over terrestrial_pop when a city has multiple nodes.
+  Prefer type=landing_station over any pop type (primary_pop/secondary_pop/extension_pop) when a city has multiple nodes.
 - Node IDs look like SIN3, HKG1, TKO1. Segment IDs look like EAC-2B2, C2C-S3C. System IDs like EAC, AAG, C2C.
 - "diversity" or "diverse route" alone → "full"; "wet diversity" → "wet".
 - "must include system X" or "must use X" or "via X" (system name) → must_include_systems.

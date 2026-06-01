@@ -741,7 +741,7 @@ function drawDataModel(doc: jsPDF, nodeCount: number, segmentCount: number, syst
         { field: 'id',           type: 'string',  desc: 'Unique identifier (e.g. SIN3, HKG1). Used in route paths and all constraints.' },
         { field: 'name',         type: 'string',  desc: 'Human-readable name of the landing station or PoP.' },
         { field: 'country',      type: 'ISO-2',   desc: 'Country code — used for country-level hard constraints (must_avoid / must_include).' },
-        { field: 'type',         type: 'enum',    desc: 'landing_station | terrestrial_pop | branching_unit. BUs are traversed but never shown as endpoints.' },
+        { field: 'type',         type: 'enum',    desc: 'landing_station | primary_pop | secondary_pop | extension_pop | branching_unit. BUs are traversed but never shown as endpoints.' },
         { field: 'lat / lng',    type: 'float',   desc: 'Geographic coordinates for map rendering and nearest-node lookups.' },
       ],
     },

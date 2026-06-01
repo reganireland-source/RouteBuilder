@@ -4,6 +4,8 @@ Wet-only city-pair routing.
 Finds multi-hop submarine cable system combinations connecting two cities.
 System handoffs are only permitted at landing_station (CLS) nodes;
 branching units must maintain the same system on both sides.
+PoP types (primary_pop, secondary_pop, extension_pop) are terrestrial only
+and are not included in the wet graph.
 """
 from __future__ import annotations
 import itertools

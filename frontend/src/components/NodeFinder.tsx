@@ -26,13 +26,17 @@ const OWNER_LOGOS: Record<string, string> = {
 
 const TYPE_LABEL: Record<CableNode['type'], string> = {
   landing_station: 'Landing Station',
-  terrestrial_pop: 'Terrestrial PoP',
+  primary_pop:     'Primary PoP',
+  secondary_pop:   'Secondary PoP',
+  extension_pop:   'Extension PoP',
   branching_unit:  'Branching Unit',
 }
 
 const TYPE_SHORT: Record<CableNode['type'], string> = {
   landing_station: 'CLS',
-  terrestrial_pop: 'POP',
+  primary_pop:     '1°PoP',
+  secondary_pop:   '2°PoP',
+  extension_pop:   'ExtPoP',
   branching_unit:  'BU',
 }
 

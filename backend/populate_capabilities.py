@@ -66,7 +66,7 @@ for node in nodes:
     import copy
     if ntype == "landing_station":
         caps = copy.deepcopy(CLS_CAPS)
-    elif ntype == "terrestrial_pop":
+    elif ntype in ("primary_pop", "secondary_pop", "extension_pop"):
         caps = copy.deepcopy(POP_CAPS)
     else:
         skip += 1

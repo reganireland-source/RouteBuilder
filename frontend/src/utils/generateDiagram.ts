@@ -90,6 +90,7 @@ function iconTypeForNode(node: CableNode | undefined): IconType {
   if (!node) return 'pop'
   if (node.type === 'landing_station') return 'cls'
   if (node.type === 'branching_unit')  return 'mmr'
+  // primary_pop / secondary_pop / extension_pop all use the pop icon
   return 'pop'
 }
 

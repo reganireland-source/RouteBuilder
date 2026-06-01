@@ -267,7 +267,7 @@ function FilteredNodeMulti({ nodes, exclude, selected, onToggle, listHeight = 13
   const t = useTheme()
   const [query, setQuery] = useState('')
 
-  const typeTag = (n: CableNode) => n.type === 'landing_station' ? 'CLS' : 'POP'
+  const typeTag = (n: CableNode) => n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : n.type === 'primary_pop' ? '1°PoP' : n.type === 'secondary_pop' ? '2°PoP' : 'ExtPoP'
 
   const pool = nodes.filter(n => n.type !== 'branching_unit' && !exclude.includes(n.id))
 
@@ -492,7 +492,7 @@ function NodeCombobox({ nodes, value, onChange, placeholder }: {
   }
 
   const typeTag = (n: CableNode) =>
-    n.type === 'landing_station' ? 'CLS' : n.type === 'terrestrial_pop' ? 'POP' : 'BU'
+    n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : n.type === 'primary_pop' ? '1°PoP' : n.type === 'secondary_pop' ? '2°PoP' : 'ExtPoP'
 
   const inputBase: React.CSSProperties = {
     width: '100%', padding: '6px 8px', borderRadius: 4,

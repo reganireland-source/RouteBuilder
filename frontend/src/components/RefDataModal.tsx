@@ -439,7 +439,13 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     )
   }
 
-  const typeOpts    = [{ value: 'landing_station', label: 'CLS (Landing Station)' }, { value: 'terrestrial_pop', label: 'POP (Terrestrial)' }, { value: 'branching_unit', label: 'BU (Branching Unit)' }]
+  const typeOpts    = [
+    { value: 'landing_station', label: 'CLS (Landing Station)' },
+    { value: 'primary_pop',     label: 'Primary PoP' },
+    { value: 'secondary_pop',   label: 'Secondary PoP' },
+    { value: 'extension_pop',   label: 'Extension PoP' },
+    { value: 'branching_unit',  label: 'BU (Branching Unit)' },
+  ]
   const segTypeOpts = [{ value: 'wet', label: 'Wet' }, { value: 'terrestrial', label: 'Terrestrial' }]
   const ownerOpts   = [
     { value: 'owned',                label: 'Owned' },
@@ -507,7 +513,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
               <MobileCard key={n.id}
                 id={n.id}
                 title={n.name}
-                subtitle={<><code style={{ fontSize: 10 }}>{n.id}</code> · {n.country} · {n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : 'POP'}</>}
+                subtitle={<><code style={{ fontSize: 10 }}>{n.id}</code> · {n.country} · {n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : n.type === 'primary_pop' ? '1°PoP' : n.type === 'secondary_pop' ? '2°PoP' : 'ExtPoP'}</>}
                 fields={[
                   { label: 'Owner', value: n.owner ?? '—' },
                   { label: 'Trading Name', value: n.trading_name ?? '—' },
@@ -538,7 +544,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                   <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{n.id}</code></div>
                   <div style={cell(2)}>{n.name}</div>
                   <div style={cell(1)}>{n.country}</div>
-                  <div style={cell(1.5)}>{n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : 'POP'}</div>
+                  <div style={cell(1.5)}>{n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : n.type === 'primary_pop' ? '1°PoP' : n.type === 'secondary_pop' ? '2°PoP' : 'ExtPoP'}</div>
                   <div style={cell(2)}>{n.owner ?? ''}</div>
                   <div style={cell(2)}>{n.trading_name ?? ''}</div>
                   <div style={cell(3)}>{n.description ?? ''}</div>

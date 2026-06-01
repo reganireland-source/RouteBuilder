@@ -188,7 +188,10 @@ export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onC
 
   const typeLabel = node.type === 'landing_station' ? 'CLS (Landing Station)'
     : node.type === 'branching_unit' ? 'BU (Branching Unit)'
-    : 'POP (Terrestrial)'
+    : node.type === 'primary_pop' ? 'Primary PoP'
+    : node.type === 'secondary_pop' ? 'Secondary PoP'
+    : node.type === 'extension_pop' ? 'Extension PoP'
+    : node.type
 
   const delta = 0.01
   const bbox = `${node.lng - delta},${node.lat - delta},${node.lng + delta},${node.lat + delta}`

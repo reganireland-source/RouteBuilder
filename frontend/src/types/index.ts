@@ -1,4 +1,4 @@
-export type NodeType = 'landing_station' | 'terrestrial_pop' | 'branching_unit'
+export type NodeType = 'landing_station' | 'primary_pop' | 'secondary_pop' | 'extension_pop' | 'branching_unit'
 export type VerificationStatus = 'draft' | 'under_verification' | 'verified'
 export type SegmentType = 'wet' | 'terrestrial'
 export type Ownership = 'owned' | 'iru' | 'consortium' | 'integrated_lit_lease' | 'offnet_resell'

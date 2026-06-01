@@ -83,7 +83,7 @@ export function ProductCoveragePanel({ nodes, onDataChange }: Props) {
   const eligibleNodes = nodes
     .filter(n => n.type !== 'branching_unit')
     .sort((a, b) => {
-      if (a.type !== b.type) return a.type === 'landing_station' ? -1 : 1
+      if (a.type !== b.type) return a.type === 'landing_station' ? -1 : a.type === 'primary_pop' ? -0.5 : 1
       return a.id.localeCompare(b.id)
     })
 
@@ -198,7 +198,7 @@ export function ProductCoveragePanel({ nodes, onDataChange }: Props) {
         {filtered.map(node => {
           const isEditing = editId === node.id
           const dots = quickDots(node.capabilities)
-          const typeLabel = node.type === 'landing_station' ? 'CLS' : 'POP'
+          const typeLabel = node.type === 'landing_station' ? 'CLS' : node.type === 'primary_pop' ? '1°PoP' : node.type === 'secondary_pop' ? '2°PoP' : node.type === 'extension_pop' ? 'ExtPoP' : 'PoP'
 
           return (
             <div key={node.id} style={{ borderBottom: `1px solid ${t.border}` }}>

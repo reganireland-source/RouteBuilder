@@ -49,7 +49,7 @@ COVERAGE_COLS = [
     "gid_speeds", "ipvpn_speeds", "colocation_category",
 ]
 
-VALID_NODE_TYPES = {"landing_station", "terrestrial_pop", "branching_unit"}
+VALID_NODE_TYPES = {"landing_station", "primary_pop", "secondary_pop", "extension_pop", "branching_unit"}
 VALID_SEG_TYPES  = {"wet", "terrestrial"}
 VALID_OWNERSHIPS = {"owned", "iru", "consortium", "integrated_lit_lease", "offnet_resell"}
 VALID_BB_SPEEDS  = {"1G", "10G", "100G", "400G"}

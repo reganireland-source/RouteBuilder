@@ -152,10 +152,58 @@ def init_db() -> None:
             "UPDATE segments SET data = data || '{\"verification_status\": \"draft\"}'::jsonb "
             "WHERE data->>'verification_status' IS NULL"
         )
+        # Migration 002: rename terrestrial_pop → primary/secondary/extension_pop
+        _run_migration_002(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
         conn.close()
+
+
+_POP_TYPE_MAP = {
+    'AKL2': 'primary_pop',   'AUH1': 'primary_pop',   'BLR1': 'secondary_pop',
+    'BOM2': 'primary_pop',   'BRI2': 'primary_pop',   'CBR1': 'primary_pop',
+    'CHI1': 'secondary_pop', 'DAL1': 'primary_pop',   'DAR2': 'primary_pop',
+    'DEL1': 'extension_pop', 'DJI2': 'primary_pop',   'DXB2': 'primary_pop',
+    'EQ-BQ1': 'secondary_pop', 'EQ-BS1': 'secondary_pop', 'EQ-CH1': 'secondary_pop',
+    'EQ-CH2': 'secondary_pop', 'EQ-DA1': 'secondary_pop', 'EQ-DA2': 'extension_pop',
+    'EQ-LA1': 'secondary_pop', 'EQ-LA2': 'secondary_pop', 'EQ-ME1': 'secondary_pop',
+    'EQ-ME2': 'secondary_pop', 'EQ-MI1': 'secondary_pop', 'EQ-MI3': 'secondary_pop',
+    'EQ-NG1': 'secondary_pop', 'EQ-NY1': 'extension_pop', 'EQ-NY5': 'secondary_pop',
+    'EQ-NY9': 'extension_pop', 'EQ-OS1': 'extension_pop', 'EQ-OS2': 'secondary_pop',
+    'EQ-PE1': 'secondary_pop', 'EQ-SE2': 'extension_pop', 'EQ-SE3': 'extension_pop',
+    'EQ-SL1': 'extension_pop', 'EQ-SY1': 'secondary_pop', 'EQ-SY3': 'secondary_pop',
+    'EQ-SY4': 'extension_pop', 'EQ-TY1': 'secondary_pop', 'EQ-TY2': 'secondary_pop',
+    'EQ-TY3': 'extension_pop', 'FRA1': 'secondary_pop',
+    'GUM2': 'primary_pop',   'HAW2': 'primary_pop',   'HKG2': 'primary_pop',
+    'ICN2': 'primary_pop',   'JAK2': 'primary_pop',   'KHH1': 'extension_pop',
+    'KUL2': 'primary_pop',   'LAX2': 'primary_pop',   'LON2': 'primary_pop',
+    'MAA2': 'primary_pop',   'MAN1': 'primary_pop',   'MEL2': 'primary_pop',
+    'MIA1': 'extension_pop', 'MNL2': 'primary_pop',   'MNL3': 'primary_pop',
+    'NGO1': 'extension_pop', 'NYC1': 'primary_pop',   'OSA2': 'primary_pop',
+    'PEN1': 'secondary_pop', 'PER2': 'primary_pop',   'PUS1': 'extension_pop',
+    'SEA2': 'primary_pop',   'SHA1': 'secondary_pop', 'SIN2': 'primary_pop',
+    'SUB1': 'primary_pop',   'SYD2': 'primary_pop',   'TPE2': 'primary_pop',
+    'TYO2': 'primary_pop',   'WLG1': 'primary_pop',
+}
+
+
+def _run_migration_002(cur) -> None:
+    """Rename terrestrial_pop rows to primary/secondary/extension_pop."""
+    cur.execute("SELECT COUNT(*) AS n FROM nodes WHERE data->>'type' = 'terrestrial_pop'")
+    if cur.fetchone()["n"] == 0:
+        return
+    for node_id, new_type in _POP_TYPE_MAP.items():
+        cur.execute(
+            "UPDATE nodes SET data = jsonb_set(data, '{type}', %s::jsonb) "
+            "WHERE data->>'id' = %s AND data->>'type' = 'terrestrial_pop'",
+            (f'"{new_type}"', node_id),
+        )
+    # Catch any remaining terrestrial_pop not in the map → secondary_pop
+    cur.execute(
+        "UPDATE nodes SET data = jsonb_set(data, '{type}', '\"secondary_pop\"'::jsonb) "
+        "WHERE data->>'type' = 'terrestrial_pop'"
+    )
 
 
 def _seed_if_empty(conn) -> None:

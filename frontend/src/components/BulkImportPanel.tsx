@@ -53,7 +53,7 @@ const TABLE_META: Record<BulkTable, { label: string; icon: string; pk: string; c
   nodes: {
     label: 'Nodes', icon: '📍', pk: 'id',
     cols: ['id', 'name', 'lat', 'lng', 'type', 'country', 'owner', 'trading_name', 'description'],
-    notes: 'type: landing_station | terrestrial_pop | branching_unit  ·  lat/lng: decimal degrees  ·  Note: capabilities managed via Coverage tab',
+    notes: 'type: landing_station | primary_pop | secondary_pop | extension_pop | branching_unit  ·  lat/lng: decimal degrees  ·  Note: capabilities managed via Coverage tab',
   },
   segments: {
     label: 'Segments', icon: '🔗', pk: 'id',

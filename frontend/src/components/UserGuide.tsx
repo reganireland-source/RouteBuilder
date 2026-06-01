@@ -777,7 +777,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               { field: 'id',        type: 'string',    desc: 'Unique identifier (e.g. SIN3, HKG1). Used in route paths and all node-level constraints.' },
               { field: 'name',      type: 'string',    desc: 'Human-readable name of the landing station or PoP.' },
               { field: 'country',   type: 'ISO-2',     desc: 'Country code — used for country-level hard constraints (must_avoid / must_include).' },
-              { field: 'type',      type: 'enum',      desc: 'landing_station | terrestrial_pop | branching_unit. BUs are graph-traversed but never shown as endpoints.' },
+              { field: 'type',      type: 'enum',      desc: 'landing_station | primary_pop | secondary_pop | extension_pop | branching_unit. BUs are graph-traversed but never shown as endpoints.' },
               { field: 'lat / lng', type: 'float',     desc: 'Coordinates for map rendering and nearest-node distance lookups.' },
             ])}
             {entityCard('🔗', 'Segment', '#8b5cf6', [
