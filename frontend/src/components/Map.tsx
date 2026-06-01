@@ -12,6 +12,23 @@ const OWNERSHIP_LABEL: Record<string, string> = {
   offnet_resell:        'Offnet Resell',
 }
 
+// Visual hierarchy for node types: size + colour scale from most to least significant
+const NODE_STYLE: Record<string, { color: string; fill: string; radius: number; weight: number; opacity: number }> = {
+  landing_station: { color: '#ea580c', fill: '#f97316', radius: 8,   weight: 2.5, opacity: 1    },
+  primary_pop:     { color: '#1d4ed8', fill: '#3b82f6', radius: 6,   weight: 2,   opacity: 1    },
+  secondary_pop:   { color: '#7c3aed', fill: '#a855f7', radius: 4,   weight: 1.5, opacity: 1    },
+  extension_pop:   { color: '#475569', fill: '#64748b', radius: 3,   weight: 1,   opacity: 0.85 },
+  branching_unit:  { color: '#92400e', fill: '#d97706', radius: 2,   weight: 1,   opacity: 0.75 },
+}
+
+const NODE_TYPE_LABEL: Record<string, string> = {
+  landing_station: 'CLS (Landing Station)',
+  primary_pop:     'Primary PoP',
+  secondary_pop:   'Secondary PoP',
+  extension_pop:   'Extension PoP',
+  branching_unit:  'Branching Unit',
+}
+
 interface Props {
   nodes: CableNode[]
   segments: CableSegment[]
@@ -252,6 +269,36 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
   }
 
   return (
+    <div style={{ position: 'relative', height: '100%', width: '100%' }}>
+    {/* Node type legend */}
+    <div style={{
+      position: 'absolute', bottom: 28, left: 8, zIndex: 1000,
+      background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(4px)',
+      border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7,
+      padding: '7px 10px', display: 'flex', flexDirection: 'column', gap: 4,
+      pointerEvents: 'none', userSelect: 'none',
+    }}>
+      {([
+        ['landing_station', 'CLS'],
+        ['primary_pop',     'Primary PoP'],
+        ['secondary_pop',   'Secondary PoP'],
+        ['extension_pop',   'Extension PoP'],
+        ['branching_unit',  'Branching Unit'],
+      ] as [string, string][]).map(([type, label]) => {
+        const ns = NODE_STYLE[type]
+        const sz = Math.round(ns.radius * 1.5)
+        return (
+          <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+            <div style={{
+              width: sz, height: sz, borderRadius: '50%', flexShrink: 0,
+              background: ns.fill, border: `${ns.weight}px solid ${ns.color}`,
+              opacity: ns.opacity,
+            }} />
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.82)', whiteSpace: 'nowrap', fontFamily: 'system-ui, sans-serif' }}>{label}</span>
+          </div>
+        )
+      })}
+    </div>
     <MapContainer
       center={[10, 130]}
       zoom={3}
@@ -397,6 +444,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         if (showAllOutages) {
           if (!outageNodeIds?.has(node.id)) return null
         } else if (hideNonActive && !isRouteNode && !isSystemNode) return null
+        const ns            = NODE_STYLE[node.type] ?? NODE_STYLE.extension_pop
         const isBU          = node.type === 'branching_unit'
         const isNearest     = nearestNodeIds?.includes(node.id) ?? false
 
@@ -405,20 +453,20 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
 
         if (countryActive) {
           if (isCountryNode) {
-            color = '#ffffff'; fillColor = '#ffd166'; radius = 8; weight = 2.5
+            color = '#ffffff'; fillColor = '#ffd166'; radius = Math.max(ns.radius, 6); weight = 2.5
             fillOpacity = 1; nodeOpacity = 1
           } else {
             color = t.borderSubtle; fillColor = t.border
-            radius = isBU ? 2 : 3; weight = 1
+            radius = ns.radius; weight = 1
             fillOpacity = 0.06; nodeOpacity = 0.06
           }
         } else {
-          color     = isNearest ? '#f9a825' : isRouteNode ? t.pink : isSystemNode ? sysColor : isBU ? '#e5a045' : t.borderSubtle
-          fillColor = isNearest ? '#ffd54f' : isRouteNode ? t.pink : isSystemNode ? sysColor : isBU ? '#e5a045' : t.border
-          radius    = isNearest ? 7 : isRouteNode || isSystemNode ? 6 : isBU ? 3 : 4
-          weight    = isNearest ? 2.5 : isRouteNode || isSystemNode ? 2 : 1
-          fillOpacity = isDimmed ? 0.15 : isBU ? 0.7 : 1
-          nodeOpacity = isDimmed ? 0.15 : isBU ? 0.7 : 1
+          color     = isNearest ? '#f9a825' : isRouteNode ? t.pink : isSystemNode ? sysColor : ns.color
+          fillColor = isNearest ? '#ffd54f' : isRouteNode ? t.pink : isSystemNode ? sysColor : ns.fill
+          radius    = isNearest ? Math.max(ns.radius + 2, 8) : isRouteNode || isSystemNode ? Math.max(ns.radius, 5) : ns.radius
+          weight    = isNearest ? 2.5 : isRouteNode || isSystemNode ? Math.max(ns.weight, 2) : ns.weight
+          fillOpacity = isDimmed ? 0.12 : ns.opacity
+          nodeOpacity = isDimmed ? 0.12 : ns.opacity
         }
 
         return (
@@ -431,8 +479,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
           >
             <Tooltip>
               <strong>{node.name}</strong> ({node.id})
-              {!isBU && <><br />{node.country} · {node.type.replace('_', ' ')}</>}
-              {isBU && <><br />Branching Unit</>}
+              <br />{node.country} · {NODE_TYPE_LABEL[node.type] ?? node.type}
               {node.owner && <><br />Owner: {node.owner}</>}
             </Tooltip>
             {showNodeLabels && !isBU && (
@@ -535,5 +582,6 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         />
       ))}
     </MapContainer>
+    </div>
   )
 }
