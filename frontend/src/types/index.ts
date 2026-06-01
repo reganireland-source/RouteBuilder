@@ -35,6 +35,7 @@ export interface CableNode {
   country: string
   owner?: string
   trading_name?: string
+  street_address?: string
   description?: string
   capabilities?: NodeCapabilities
   verification_status?: VerificationStatus

@@ -202,9 +202,10 @@ export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onC
     ['Type',         typeLabel],
     ['Country',      node.country],
     ['Lat / Lng',    `${node.lat}, ${node.lng}`],
-    ['Owner',        node.owner],
-    ['Trading Name', node.trading_name],
-    ['Description',  node.description],
+    ['Owner',          node.owner],
+    ['Trading Name',   node.trading_name],
+    ['Street Address', node.street_address],
+    ['Description',    node.description],
   ]
 
   return (

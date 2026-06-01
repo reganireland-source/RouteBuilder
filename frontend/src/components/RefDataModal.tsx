@@ -479,15 +479,16 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         <Field label="Owner"        k="owner"        src={editValues} setSrc={setEditValues} />
         <Field label="Lat"          k="lat"          src={editValues} setSrc={setEditValues} type="number" />
         <Field label="Lng"          k="lng"          src={editValues} setSrc={setEditValues} type="number" />
-        <Field label="Trading Name" k="trading_name" src={editValues} setSrc={setEditValues} />
-        <Field label="Description"  k="description"  src={editValues} setSrc={setEditValues} />
+        <Field label="Trading Name"   k="trading_name"   src={editValues} setSrc={setEditValues} />
+        <Field label="Street Address" k="street_address" src={editValues} setSrc={setEditValues} />
+        <Field label="Description"    k="description"    src={editValues} setSrc={setEditValues} />
         <SaveCancel
           onSave={async () => { await saveEdit(() => api.updateNode(n.id, editValues as Partial<CableNode>)); setNodeVerifPending(n.id) }}
           onCancel={() => setEditId(null)}
         />
       </div>
     )
-    const editDefaults = (n: CableNode) => ({ name: n.name, country: n.country, type: n.type, lat: n.lat, lng: n.lng, owner: n.owner ?? '', trading_name: n.trading_name ?? '', description: n.description ?? '' })
+    const editDefaults = (n: CableNode) => ({ name: n.name, country: n.country, type: n.type, lat: n.lat, lng: n.lng, owner: n.owner ?? '', trading_name: n.trading_name ?? '', street_address: n.street_address ?? '', description: n.description ?? '' })
     return (
       <>
         {adding && (
@@ -499,8 +500,9 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             <Field label="Owner"        k="owner"        src={addValues} setSrc={setAddValues} />
             <Field label="Lat"          k="lat"          src={addValues} setSrc={setAddValues} type="number" />
             <Field label="Lng"          k="lng"          src={addValues} setSrc={setAddValues} type="number" />
-            <Field label="Trading Name" k="trading_name" src={addValues} setSrc={setAddValues} />
-            <Field label="Description"  k="description"  src={addValues} setSrc={setAddValues} />
+            <Field label="Trading Name"   k="trading_name"   src={addValues} setSrc={setAddValues} />
+            <Field label="Street Address" k="street_address" src={addValues} setSrc={setAddValues} />
+            <Field label="Description"    k="description"    src={addValues} setSrc={setAddValues} />
             <SaveCancel
               onSave={() => saveAdd(() => api.createNode(addValues as unknown as CableNode))}
               onCancel={() => { setAdding(false); setAddValues({}) }}
@@ -517,6 +519,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                 fields={[
                   { label: 'Owner', value: n.owner ?? '—' },
                   { label: 'Trading Name', value: n.trading_name ?? '—' },
+                  { label: 'Address', value: n.street_address ?? '—' },
                   { label: 'Lat', value: n.lat },
                   { label: 'Lng', value: n.lng },
                   { label: 'Status', value: <VerifBadge status={n.verification_status} /> },
