@@ -1,4 +1,5 @@
 export type NodeType = 'landing_station' | 'terrestrial_pop' | 'branching_unit'
+export type VerificationStatus = 'draft' | 'under_verification' | 'verified'
 export type SegmentType = 'wet' | 'terrestrial'
 export type Ownership = 'owned' | 'iru' | 'consortium' | 'integrated_lit_lease' | 'offnet_resell'
 export type DiversityType = 'none' | 'terrestrial_origin' | 'terrestrial_destination' | 'terrestrial_both' | 'wet' | 'full' | 'full_nodes'
@@ -36,6 +37,8 @@ export interface CableNode {
   trading_name?: string
   description?: string
   capabilities?: NodeCapabilities
+  verification_status?: VerificationStatus
+  last_verified_date?: string
 }
 
 export interface CableSystem {
@@ -58,6 +61,8 @@ export interface CableSegment {
   ownership: Ownership
   latency: number
   waypoints?: [number, number][]
+  verification_status?: VerificationStatus
+  last_verified_date?: string
 }
 
 export interface RouteSegmentDetail {

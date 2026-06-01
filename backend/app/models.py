@@ -32,6 +32,12 @@ class DiversityType(str, Enum):
     full_nodes = "full_nodes"
 
 
+class VerificationStatus(str, Enum):
+    draft = "draft"
+    under_verification = "under_verification"
+    verified = "verified"
+
+
 class BackboneCapabilities(BaseModel):
     ipt:  Optional[list[str]] = None
     epl:  Optional[list[str]] = None
@@ -64,6 +70,8 @@ class Node(BaseModel):
     trading_name: Optional[str] = None
     description: Optional[str] = None
     capabilities: Optional[NodeCapabilities] = None
+    verification_status: VerificationStatus = VerificationStatus.draft
+    last_verified_date: Optional[str] = None
 
 
 class CableSystem(BaseModel):
@@ -86,6 +94,8 @@ class CableSegment(BaseModel):
     ownership: Ownership
     latency: Optional[float] = None
     waypoints: Optional[list[list[float]]] = None
+    verification_status: VerificationStatus = VerificationStatus.draft
+    last_verified_date: Optional[str] = None
 
 
 class DisallowedPair(BaseModel):
@@ -180,6 +190,8 @@ class NodeUpdate(BaseModel):
     trading_name: Optional[str] = None
     description: Optional[str] = None
     capabilities: Optional[NodeCapabilities] = None
+    verification_status: Optional[VerificationStatus] = None
+    last_verified_date: Optional[str] = None
 
 class CableSegmentUpdate(BaseModel):
     name: Optional[str] = None
@@ -193,6 +205,8 @@ class CableSegmentUpdate(BaseModel):
     ownership: Optional[Ownership] = None
     latency: Optional[float] = None
     waypoints: Optional[list[list[float]]] = None
+    verification_status: Optional[VerificationStatus] = None
+    last_verified_date: Optional[str] = None
 
 class CableSystemUpdate(BaseModel):
     name: Optional[str] = None

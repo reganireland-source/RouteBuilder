@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, InterconnectRule, SegmentCapacity, SegmentOutage } from '../types'
+import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, InterconnectRule, SegmentCapacity, SegmentOutage, VerificationStatus } from '../types'
 import { useTheme } from '../theme'
 function useIsMobile(): boolean {
   const [mobile, setMobile] = useState(() => window.innerWidth < 768)
@@ -286,6 +286,64 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     )
   }
 
+  function VerifBadge({ status }: { status?: VerificationStatus }) {
+    const colours: Record<string, string> = {
+      draft: '#ef4444',
+      under_verification: '#f59e0b',
+      verified: '#22c55e',
+    }
+    const labels: Record<string, string> = {
+      draft: 'Draft',
+      under_verification: 'Under Verification',
+      verified: 'Verified',
+    }
+    const s = status ?? 'draft'
+    return (
+      <span style={{
+        display: 'inline-block', padding: '2px 7px', borderRadius: 10,
+        fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
+        background: colours[s] + '22', color: colours[s],
+        border: `1px solid ${colours[s]}55`,
+        whiteSpace: 'nowrap',
+      }}>
+        {labels[s]}
+      </span>
+    )
+  }
+
+  function VerifPrompt({ onChoice }: { onChoice: (status: VerificationStatus) => void }) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 11000,
+        background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <div style={{
+          background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 12,
+          padding: 28, width: 'min(94vw,380px)', boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 8 }}>Update verification status?</div>
+          <div style={{ fontSize: 13, color: t.textMuted, marginBottom: 20 }}>
+            Now that you've saved this record, what's its verification state?
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button onClick={() => onChoice('verified')} style={{
+              padding: '9px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
+              background: '#22c55e22', color: '#22c55e', fontWeight: 700, fontSize: 13, fontFamily: 'inherit', textAlign: 'left',
+            }}>✓ Verified — data confirmed correct</button>
+            <button onClick={() => onChoice('under_verification')} style={{
+              padding: '9px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
+              background: '#f59e0b22', color: '#f59e0b', fontWeight: 700, fontSize: 13, fontFamily: 'inherit', textAlign: 'left',
+            }}>⏳ Under Verification — still being checked</button>
+            <button onClick={() => onChoice('draft')} style={{
+              padding: '9px 14px', borderRadius: 7, border: `1px solid ${t.border}`, cursor: 'pointer',
+              background: 'transparent', color: t.textMuted, fontSize: 13, fontFamily: 'inherit', textAlign: 'left',
+            }}>Keep as Draft</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const typeOpts    = [{ value: 'landing_station', label: 'CLS (Landing Station)' }, { value: 'terrestrial_pop', label: 'POP (Terrestrial)' }, { value: 'branching_unit', label: 'BU (Branching Unit)' }]
   const segTypeOpts = [{ value: 'wet', label: 'Wet' }, { value: 'terrestrial', label: 'Terrestrial' }]
   const ownerOpts   = [
@@ -298,6 +356,15 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   const systemOpts  = systems.map(s => ({ value: s.id, label: `${s.id} — ${s.name}` }))
 
   // ── Nodes tab ───────────────────────────────────────────────────────────────
+
+  const [nodeVerifPending, setNodeVerifPending] = useState<string | null>(null)
+
+  async function applyNodeVerif(id: string, status: VerificationStatus) {
+    const date = status === 'verified' ? new Date().toISOString().slice(0, 10) : undefined
+    await api.updateNode(id, { verification_status: status, last_verified_date: date })
+    onDataChange()
+    setNodeVerifPending(null)
+  }
 
   function NodeTab() {
     const filtered = nodes.filter(n =>
@@ -314,7 +381,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         <Field label="Trading Name" k="trading_name" src={editValues} setSrc={setEditValues} />
         <Field label="Description"  k="description"  src={editValues} setSrc={setEditValues} />
         <SaveCancel
-          onSave={() => saveEdit(() => api.updateNode(n.id, editValues as Partial<CableNode>))}
+          onSave={async () => { await saveEdit(() => api.updateNode(n.id, editValues as Partial<CableNode>)); setNodeVerifPending(n.id) }}
           onCancel={() => setEditId(null)}
         />
       </div>
@@ -351,6 +418,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                   { label: 'Trading Name', value: n.trading_name ?? '—' },
                   { label: 'Lat', value: n.lat },
                   { label: 'Lng', value: n.lng },
+                  { label: 'Status', value: <VerifBadge status={n.verification_status} /> },
                 ]}
                 onEdit={() => editId === n.id ? setEditId(null) : startEdit(n.id, editDefaults(n))}
                 onDelete={() => confirmDelete(() => api.deleteNode(n.id))}
@@ -366,6 +434,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
               <div style={colH(1.5)}>Type</div><div style={colH(2)}>Owner</div>
               <div style={colH(2)}>Trading Name</div><div style={colH(3)}>Description</div>
               <div style={colH(1)}>Lat</div><div style={colH(1)}>Lng</div>
+              <div style={colH(1.5)}>Status</div>
               <div style={{ width: 140 }} />
             </div>
             {filtered.map(n => (
@@ -380,6 +449,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                   <div style={cell(3)}>{n.description ?? ''}</div>
                   <div style={cell(1)}>{n.lat}</div>
                   <div style={cell(1)}>{n.lng}</div>
+                  <div style={cell(1.5)}><VerifBadge status={n.verification_status} /></div>
                   <ActionsCell id={n.id}
                     onEdit={() => startEdit(n.id, editDefaults(n))}
                     onDelete={() => confirmDelete(() => api.deleteNode(n.id))}
@@ -390,11 +460,21 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             ))}
           </>
         )}
+        {nodeVerifPending && <VerifPrompt onChoice={status => applyNodeVerif(nodeVerifPending, status)} />}
       </>
     )
   }
 
   // ── Segments tab ─────────────────────────────────────────────────────────────
+
+  const [segVerifPending, setSegVerifPending] = useState<string | null>(null)
+
+  async function applySegVerif(id: string, status: VerificationStatus) {
+    const date = status === 'verified' ? new Date().toISOString().slice(0, 10) : undefined
+    await api.updateSegment(id, { verification_status: status, last_verified_date: date })
+    onDataChange()
+    setSegVerifPending(null)
+  }
 
   function SegmentTab() {
     const filtered = segments.filter(s =>
@@ -437,7 +517,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           <button onClick={() => { const wps = [...((editValues.waypoints as [number, number][]) ?? []), [0, 0] as [number, number]]; setEditValues({ ...editValues, waypoints: wps }) }} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 3, border: `1px solid ${t.blue}`, background: 'transparent', color: t.blue, cursor: 'pointer', marginTop: 2 }}>+ Add waypoint</button>
         </div>
         <SaveCancel
-          onSave={() => { const wps = (editValues.waypoints as [number, number][]) ?? []; saveEdit(() => api.updateSegment(s.id, { ...editValues, waypoints: wps.length > 0 ? wps : null } as Partial<CableSegment>)) }}
+          onSave={async () => { const wps = (editValues.waypoints as [number, number][]) ?? []; await saveEdit(() => api.updateSegment(s.id, { ...editValues, waypoints: wps.length > 0 ? wps : null } as Partial<CableSegment>)); setSegVerifPending(s.id) }}
           onCancel={() => setEditId(null)}
         />
       </div>
@@ -479,6 +559,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                   { label: 'Latency', value: s.latency != null ? `${s.latency} ms` : '—' },
                   { label: 'Ownership', value: OWNERSHIP_LABEL[s.ownership] ?? s.ownership },
                   { label: 'Network', value: isOnNet(s.ownership) ? 'ON-NET' : 'OFF-NET' },
+                  { label: 'Status', value: <VerifBadge status={s.verification_status} /> },
                 ]}
                 onEdit={() => editId === s.id ? setEditId(null) : startEdit(s.id, segEditDefaults(s))}
                 onDelete={() => confirmDelete(() => api.deleteSegment(s.id))}
@@ -494,6 +575,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
               <div style={colH(1.5)}>Start Node</div><div style={colH(1.5)}>End Node</div>
               <div style={colH(0.8)}>Type</div><div style={colH(1)}>Length</div><div style={colH(0.8)}>Latency</div>
               <div style={colH(0.7)}>Cost</div><div style={colH(1)}>Ownership</div><div style={colH(0.8)}>Network</div>
+              <div style={colH(1.5)}>Status</div>
               <div style={{ width: 140 }} />
             </div>
             {filtered.map(s => (
@@ -514,6 +596,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                     {isOnNet(s.ownership) ? 'ON-NET' : 'OFF-NET'}
                   </span>
                 </div>
+                <div style={cell(1.5)}><VerifBadge status={s.verification_status} /></div>
                 <ActionsCell id={s.id}
                   onEdit={() => startEdit(s.id, segEditDefaults(s))}
                   onDelete={() => confirmDelete(() => api.deleteSegment(s.id))}
@@ -524,6 +607,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             ))}
           </>
         )}
+        {segVerifPending && <VerifPrompt onChoice={status => applySegVerif(segVerifPending, status)} />}
       </>
     )
   }

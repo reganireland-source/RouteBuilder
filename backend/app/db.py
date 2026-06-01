@@ -143,6 +143,15 @@ def init_db() -> None:
     try:
         with conn.cursor() as cur:
             cur.execute(_CREATE_SQL)
+        # Migration: backfill verification_status for existing rows
+        cur.execute(
+            "UPDATE nodes SET data = data || '{\"verification_status\": \"draft\"}'::jsonb "
+            "WHERE data->>'verification_status' IS NULL"
+        )
+        cur.execute(
+            "UPDATE segments SET data = data || '{\"verification_status\": \"draft\"}'::jsonb "
+            "WHERE data->>'verification_status' IS NULL"
+        )
         conn.commit()
         _seed_if_empty(conn)
     finally:
