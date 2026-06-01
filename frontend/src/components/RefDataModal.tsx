@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, InterconnectRule, SegmentCapacity, SegmentOutage, VerificationStatus } from '../types'
 import { useTheme } from '../theme'
 function useIsMobile(): boolean {
@@ -203,6 +203,100 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     )
   }
 
+  // Searchable node picker — validates that the chosen ID exists in the nodes list
+  function NodeSearchField({ label, k, src, setSrc }: {
+    label: string; k: string
+    src: Record<string, unknown>; setSrc: (v: Record<string, unknown>) => void
+  }) {
+    const currentId = String(src[k] ?? '')
+    const currentNode = nodes.find(n => n.id === currentId)
+    const [query, setQuery] = useState(currentId)
+    const [open, setOpen] = useState(false)
+    const wrapRef = useRef<HTMLDivElement>(null)
+
+    // Keep local query in sync when external value changes (e.g. form reset)
+    useEffect(() => { setQuery(currentId) }, [currentId])
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+      if (!open) return
+      const handler = (e: MouseEvent) => {
+        if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
+      }
+      document.addEventListener('mousedown', handler)
+      return () => document.removeEventListener('mousedown', handler)
+    }, [open])
+
+    const hits = query.trim().length === 0 ? [] : nodes.filter(n => {
+      const q = query.toLowerCase()
+      return n.id.toLowerCase().includes(q) || n.name.toLowerCase().includes(q)
+    }).slice(0, 20)
+
+    const isValid = !!currentNode
+    const isEmpty = currentId === ''
+
+    const borderColor = isEmpty ? t.border : isValid ? t.green : t.red
+
+    return (
+      <div ref={wrapRef} style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
+        <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+        <input
+          style={{ ...inputStyle, borderColor, paddingRight: isValid ? 22 : undefined }}
+          value={query}
+          placeholder="Search node ID or name…"
+          autoComplete="off"
+          onChange={e => {
+            setQuery(e.target.value)
+            setOpen(true)
+            // Clear the committed value if the user edits away from it
+            if (e.target.value !== currentId) setSrc({ ...src, [k]: '' })
+          }}
+          onFocus={() => { if (query.trim().length > 0) setOpen(true) }}
+        />
+        {isValid && (
+          <span style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(25%)', fontSize: 10, color: t.green, pointerEvents: 'none' }}>✓</span>
+        )}
+        {open && hits.length > 0 && (
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999,
+            background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 4,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.4)', maxHeight: 220, overflowY: 'auto',
+          }}>
+            {hits.map(n => (
+              <div
+                key={n.id}
+                onMouseDown={e => {
+                  e.preventDefault()
+                  setSrc({ ...src, [k]: n.id })
+                  setQuery(n.id)
+                  setOpen(false)
+                }}
+                style={{
+                  padding: '5px 9px', cursor: 'pointer', fontSize: 12,
+                  borderBottom: `1px solid ${t.border}`,
+                  background: n.id === currentId ? `${t.blue}22` : 'transparent',
+                  display: 'flex', gap: 8, alignItems: 'baseline',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = `${t.blue}33`)}
+                onMouseLeave={e => (e.currentTarget.style.background = n.id === currentId ? `${t.blue}22` : 'transparent')}
+              >
+                <code style={{ fontSize: 11, color: t.blue, flexShrink: 0 }}>{n.id}</code>
+                <span style={{ color: t.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.name}</span>
+                <span style={{ color: t.textFaint, fontSize: 10, flexShrink: 0 }}>{n.country}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {!isEmpty && !isValid && (
+          <span style={{ fontSize: 10, color: t.red, marginTop: 1 }}>No node with ID "{currentId || query}" found</span>
+        )}
+        {isValid && currentNode && (
+          <span style={{ fontSize: 10, color: t.textFaint, marginTop: 1 }}>{currentNode.name} · {currentNode.country}</span>
+        )}
+      </div>
+    )
+  }
+
   function ActionsCell({ id, onEdit, onDelete }: { id: string; onEdit: () => void; onDelete: () => void }) {
     return (
       <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', padding: '0 6px', flexShrink: 0 }}>
@@ -221,11 +315,12 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     )
   }
 
-  function SaveCancel({ onSave, onCancel }: { onSave: () => void; onCancel: () => void }) {
+  function SaveCancel({ onSave, onCancel, disabled, disabledReason }: { onSave: () => void; onCancel: () => void; disabled?: boolean; disabledReason?: string }) {
     return (
-      <div style={{ display: 'flex', gap: 6, gridColumn: '1 / -1', marginTop: 4 }}>
-        <button style={actionBtn('save')} disabled={saving} onClick={onSave}>{saving ? 'Saving…' : 'Save'}</button>
+      <div style={{ display: 'flex', gap: 6, gridColumn: '1 / -1', marginTop: 4, alignItems: 'center' }}>
+        <button style={{ ...actionBtn('save'), opacity: (saving || disabled) ? 0.45 : 1, cursor: (saving || disabled) ? 'not-allowed' : 'pointer' }} disabled={saving || disabled} onClick={onSave}>{saving ? 'Saving…' : 'Save'}</button>
         <button style={actionBtn('cancel')} onClick={onCancel}>Cancel</button>
+        {disabled && disabledReason && <span style={{ fontSize: 11, color: t.red, marginLeft: 8 }}>{disabledReason}</span>}
         {error && <span style={{ fontSize: 11, color: t.red, marginLeft: 8 }}>{error}</span>}
       </div>
     )
@@ -488,8 +583,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       <div style={{ ...editFormRow }}>
         <Field label="Name"         k="name"          src={editValues} setSrc={setEditValues} />
         <Field label="System"       k="system_id"     src={editValues} setSrc={setEditValues} options={systemOpts} />
-        <Field label="Start Node"   k="start_node_id" src={editValues} setSrc={setEditValues} />
-        <Field label="End Node"     k="end_node_id"   src={editValues} setSrc={setEditValues} />
+        <NodeSearchField label="Start Node" k="start_node_id" src={editValues} setSrc={setEditValues} />
+        <NodeSearchField label="End Node"   k="end_node_id"   src={editValues} setSrc={setEditValues} />
         <Field label="Type"         k="type"          src={editValues} setSrc={setEditValues} options={segTypeOpts} />
         <Field label="Length (km)"  k="length_km"     src={editValues} setSrc={setEditValues} type="number" />
         <Field label="Latency (ms)" k="latency"       src={editValues} setSrc={setEditValues} type="number" />
@@ -519,6 +614,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         <SaveCancel
           onSave={async () => { const wps = (editValues.waypoints as [number, number][]) ?? []; await saveEdit(() => api.updateSegment(s.id, { ...editValues, waypoints: wps.length > 0 ? wps : null } as Partial<CableSegment>)); setSegVerifPending(s.id) }}
           onCancel={() => setEditId(null)}
+          disabled={!nodesById[String(editValues.start_node_id ?? '')] || !nodesById[String(editValues.end_node_id ?? '')]}
+          disabledReason="Select valid start and end nodes before saving"
         />
       </div>
     )
@@ -531,8 +628,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             <Field label="ID *"         k="id"            src={addValues} setSrc={setAddValues} />
             <Field label="Name *"       k="name"          src={addValues} setSrc={setAddValues} />
             <Field label="System"       k="system_id"     src={addValues} setSrc={setAddValues} options={systemOpts} />
-            <Field label="Start Node"   k="start_node_id" src={addValues} setSrc={setAddValues} />
-            <Field label="End Node"     k="end_node_id"   src={addValues} setSrc={setAddValues} />
+            <NodeSearchField label="Start Node" k="start_node_id" src={addValues} setSrc={setAddValues} />
+            <NodeSearchField label="End Node"   k="end_node_id"   src={addValues} setSrc={setAddValues} />
             <Field label="Type"         k="type"          src={addValues} setSrc={setAddValues} options={segTypeOpts} />
             <Field label="Length (km)"  k="length_km"     src={addValues} setSrc={setAddValues} type="number" />
             <Field label="Latency (ms)" k="latency"       src={addValues} setSrc={setAddValues} type="number" />
@@ -542,6 +639,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             <SaveCancel
               onSave={() => saveAdd(() => api.createSegment({ ...segDefaults, ...addValues } as CableSegment))}
               onCancel={() => { setAdding(false); setAddValues({}) }}
+              disabled={!nodesById[String(addValues.start_node_id ?? '')] || !nodesById[String(addValues.end_node_id ?? '')]}
+              disabledReason="Select valid start and end nodes before saving"
             />
           </div>
         )}
