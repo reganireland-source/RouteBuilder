@@ -453,8 +453,8 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
 
         if (countryActive) {
           if (isCountryNode) {
-            color = '#ffffff'; fillColor = '#ffd166'; radius = Math.max(ns.radius, 6); weight = 2.5
-            fillOpacity = 1; nodeOpacity = 1
+            color = ns.color; fillColor = ns.fill; radius = ns.radius; weight = ns.weight
+            fillOpacity = ns.opacity; nodeOpacity = 1
           } else {
             color = t.borderSubtle; fillColor = t.border
             radius = ns.radius; weight = 1
