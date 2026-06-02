@@ -1,0 +1,1184 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800">
+  <defs>
+    <!-- Sky gradient: deep midnight blue (lighter than before) -->
+    <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0d1830"/>
+      <stop offset="40%" stop-color="#132040"/>
+      <stop offset="100%" stop-color="#1e3f70"/>
+    </linearGradient>
+    <!-- Ocean surface gradient -->
+    <linearGradient id="oceanSurface" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0e4f6e"/>
+      <stop offset="40%" stop-color="#0a3550"/>
+      <stop offset="100%" stop-color="#051520"/>
+    </linearGradient>
+    <!-- Deep ocean gradient (lightened) -->
+    <linearGradient id="deepOcean" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#071e30"/>
+      <stop offset="60%" stop-color="#051828"/>
+      <stop offset="100%" stop-color="#040f1e"/>
+    </linearGradient>
+    <!-- Cable glow gradient -->
+    <linearGradient id="cableGlow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fcd34d"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#92400e"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ============================================================ -->
+  <!-- SKY BACKGROUND -->
+  <!-- ============================================================ -->
+  <rect x="0" y="0" width="1200" height="320" fill="url(#skyGrad)"/>
+
+  <!-- ============================================================ -->
+  <!-- STARS -->
+  <!-- ============================================================ -->
+  <!-- Row 1 -->
+  <rect x="24" y="8" width="4" height="4" fill="#ffffff"><animate attributeName="fill" values="#ffffff;#ccddff;#aabbff;#ccddff;#ffffff;#ffffff;#eeeeff;#ffffff" dur="2s" calcMode="discrete" repeatCount="indefinite" begin="0s"/></rect>
+  <rect x="72" y="16" width="4" height="4" fill="#ccddff"/>
+  <rect x="136" y="4" width="4" height="4" fill="#ffffff"/>
+  <rect x="200" y="20" width="4" height="4" fill="#ffffff"><animate attributeName="fill" values="#ffffff;#ccddff;#aabbff;#ccddff;#ffffff;#ffffff;#eeeeff;#ffffff" dur="2s" calcMode="discrete" repeatCount="indefinite" begin="0.2s"/></rect>
+  <rect x="264" y="8" width="4" height="4" fill="#aabbff"/>
+  <rect x="328" y="16" width="4" height="4" fill="#ffffff"/>
+  <rect x="400" y="4" width="4" height="4" fill="#ffffff"><animate attributeName="fill" values="#ffffff;#ccddff;#aabbff;#ccddff;#ffffff;#ffffff;#eeeeff;#ffffff" dur="2s" calcMode="discrete" repeatCount="indefinite" begin="0.4s"/></rect>
+  <rect x="464" y="12" width="4" height="4" fill="#ccddff"/>
+  <rect x="520" y="24" width="4" height="4" fill="#ffffff"/>
+  <rect x="600" y="8" width="4" height="4" fill="#ffffff"><animate attributeName="fill" values="#ffffff;#ccddff;#aabbff;#ccddff;#ffffff;#ffffff;#eeeeff;#ffffff" dur="2s" calcMode="discrete" repeatCount="indefinite" begin="0.6s"/></rect>
+  <rect x="648" y="20" width="4" height="4" fill="#aabbff"/>
+  <rect x="712" y="4" width="4" height="4" fill="#ffffff"/>
+  <rect x="776" y="16" width="4" height="4" fill="#ffffff"><animate attributeName="fill" values="#ffffff;#ccddff;#aabbff;#ccddff;#ffffff;#ffffff;#eeeeff;#ffffff" dur="2s" calcMode="discrete" repeatCount="indefinite" begin="0.8s"/></rect>
+  <rect x="840" y="8" width="4" height="4" fill="#ccddff"/>
+  <rect x="904" y="24" width="4" height="4" fill="#ffffff"/>
+  <rect x="960" y="12" width="4" height="4" fill="#ffffff"><animate attributeName="fill" values="#ffffff;#ccddff;#aabbff;#ccddff;#ffffff;#ffffff;#eeeeff;#ffffff" dur="2s" calcMode="discrete" repeatCount="indefinite" begin="0.1s"/></rect>
+  <rect x="1016" y="4" width="4" height="4" fill="#aabbff"/>
+  <rect x="1080" y="20" width="4" height="4" fill="#ffffff"><animate attributeName="fill" values="#ffffff;#ccddff;#aabbff;#ccddff;#ffffff;#ffffff;#eeeeff;#ffffff" dur="2s" calcMode="discrete" repeatCount="indefinite" begin="0.5s"/></rect>
+  <rect x="1136" y="8" width="4" height="4" fill="#ffffff"/>
+  <rect x="1176" y="16" width="4" height="4" fill="#ccddff"/>
+  <!-- Row 2 -->
+  <rect x="48" y="36" width="4" height="4" fill="#ffffff"><animate attributeName="fill" values="#ffffff;#ccddff;#aabbff;#ccddff;#ffffff;#ffffff;#eeeeff;#ffffff" dur="2s" calcMode="discrete" repeatCount="indefinite" begin="0.7s"/></rect>
+  <rect x="96" y="44" width="4" height="4" fill="#ffffff"/>
+  <rect x="160" y="32" width="4" height="4" fill="#ccddff"/>
+  <rect x="232" y="48" width="4" height="4" fill="#ffffff"/>
+  <rect x="296" y="36" width="4" height="4" fill="#ffffff"/>
+  <rect x="352" y="52" width="4" height="4" fill="#aabbff"/>
+  <rect x="432" y="28" width="4" height="4" fill="#ffffff"/>
+  <rect x="488" y="40" width="4" height="4" fill="#ffffff"/>
+  <rect x="560" y="52" width="4" height="4" fill="#ccddff"/>
+  <rect x="624" y="36" width="4" height="4" fill="#ffffff"/>
+  <rect x="688" y="48" width="4" height="4" fill="#ffffff"/>
+  <rect x="744" y="28" width="4" height="4" fill="#aabbff"/>
+  <rect x="808" y="44" width="4" height="4" fill="#ffffff"/>
+  <rect x="872" y="32" width="4" height="4" fill="#ffffff"/>
+  <rect x="936" y="52" width="4" height="4" fill="#ccddff"/>
+  <rect x="992" y="36" width="4" height="4" fill="#ffffff"/>
+  <rect x="1048" y="44" width="4" height="4" fill="#ffffff"/>
+  <rect x="1112" y="28" width="4" height="4" fill="#aabbff"/>
+  <rect x="1160" y="48" width="4" height="4" fill="#ffffff"/>
+  <!-- Row 3 -->
+  <rect x="16" y="60" width="4" height="4" fill="#ccddff"/>
+  <rect x="80" y="72" width="4" height="4" fill="#ffffff"/>
+  <rect x="148" y="64" width="4" height="4" fill="#ffffff"/>
+  <rect x="216" y="76" width="4" height="4" fill="#aabbff"/>
+  <rect x="280" y="60" width="4" height="4" fill="#ffffff"/>
+  <rect x="376" y="68" width="4" height="4" fill="#ffffff"/>
+  <rect x="440" y="76" width="4" height="4" fill="#ccddff"/>
+  <rect x="504" y="60" width="4" height="4" fill="#ffffff"/>
+  <rect x="576" y="72" width="4" height="4" fill="#ffffff"/>
+  <rect x="640" y="64" width="4" height="4" fill="#aabbff"/>
+  <rect x="704" y="76" width="4" height="4" fill="#ffffff"/>
+  <rect x="760" y="60" width="4" height="4" fill="#ffffff"/>
+  <rect x="824" y="68" width="4" height="4" fill="#ccddff"/>
+  <rect x="888" y="76" width="4" height="4" fill="#ffffff"/>
+  <rect x="952" y="64" width="4" height="4" fill="#ffffff"/>
+  <rect x="1008" y="72" width="4" height="4" fill="#aabbff"/>
+  <rect x="1072" y="60" width="4" height="4" fill="#ffffff"/>
+  <rect x="1128" y="76" width="4" height="4" fill="#ffffff"/>
+  <rect x="1188" y="64" width="4" height="4" fill="#ccddff"/>
+  <!-- Row 4 -->
+  <rect x="40" y="88" width="4" height="4" fill="#ffffff"/>
+  <rect x="112" y="96" width="4" height="4" fill="#ffffff"/>
+  <rect x="176" y="84" width="4" height="4" fill="#ccddff"/>
+  <rect x="248" y="100" width="4" height="4" fill="#ffffff"/>
+  <rect x="312" y="88" width="4" height="4" fill="#aabbff"/>
+  <rect x="416" y="92" width="4" height="4" fill="#ffffff"/>
+  <rect x="472" y="100" width="4" height="4" fill="#ffffff"/>
+  <rect x="544" y="84" width="4" height="4" fill="#ccddff"/>
+  <rect x="608" y="96" width="4" height="4" fill="#ffffff"/>
+  <rect x="672" y="88" width="4" height="4" fill="#ffffff"/>
+  <rect x="728" y="100" width="4" height="4" fill="#aabbff"/>
+  <rect x="792" y="84" width="4" height="4" fill="#ffffff"/>
+  <rect x="856" y="96" width="4" height="4" fill="#ffffff"/>
+  <rect x="920" y="88" width="4" height="4" fill="#ccddff"/>
+  <rect x="984" y="100" width="4" height="4" fill="#ffffff"/>
+  <rect x="1040" y="84" width="4" height="4" fill="#aabbff"/>
+  <rect x="1096" y="92" width="4" height="4" fill="#ffffff"/>
+  <rect x="1152" y="100" width="4" height="4" fill="#ffffff"/>
+
+  <!-- ============================================================ -->
+  <!-- LEFT COASTLINE / CLIFF (left side, ~x=0-180) -->
+  <!-- ============================================================ -->
+  <!-- Rocky cliff silhouette -->
+  <rect x="0" y="220" width="24" height="100" fill="#2d3748"/>
+  <rect x="0" y="200" width="32" height="120" fill="#2d3748"/>
+  <rect x="16" y="188" width="40" height="132" fill="#2d3748"/>
+  <rect x="32" y="196" width="48" height="124" fill="#374151"/>
+  <rect x="48" y="204" width="32" height="116" fill="#2d3748"/>
+  <rect x="64" y="212" width="40" height="108" fill="#374151"/>
+  <rect x="80" y="200" width="36" height="120" fill="#2d3748"/>
+  <rect x="96" y="208" width="44" height="112" fill="#4a5568"/>
+  <rect x="112" y="216" width="40" height="104" fill="#374151"/>
+  <rect x="128" y="224" width="56" height="96" fill="#2d3748"/>
+  <!-- Cliff top ledge -->
+  <rect x="0" y="184" width="64" height="8" fill="#4a5568"/>
+  <rect x="64" y="196" width="80" height="8" fill="#4a5568"/>
+  <rect x="144" y="212" width="48" height="8" fill="#4a5568"/>
+
+  <!-- LEFT CABLE LANDING STATION -->
+  <!-- Main building -->
+  <rect x="20" y="144" width="80" height="52" fill="#4a5568"/>
+  <rect x="20" y="144" width="80" height="4" fill="#1c1917"/>
+  <rect x="20" y="192" width="80" height="4" fill="#1c1917"/>
+  <rect x="20" y="144" width="4" height="52" fill="#1c1917"/>
+  <rect x="96" y="144" width="4" height="52" fill="#1c1917"/>
+  <!-- Roof detail -->
+  <rect x="16" y="140" width="88" height="8" fill="#6b7280"/>
+  <rect x="16" y="140" width="88" height="4" fill="#9ca3af"/>
+  <!-- Windows lit green -->
+  <rect x="28" y="152" width="12" height="10" fill="#22c55e"/>
+  <rect x="28" y="152" width="12" height="4" fill="#4ade80"><animate attributeName="fill" values="#4ade80;#86efac;#bbf7d0;#4ade80;#22c55e;#4ade80" dur="0.75s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="44" y="152" width="12" height="10" fill="#22c55e"/>
+  <rect x="44" y="152" width="12" height="4" fill="#4ade80"><animate attributeName="fill" values="#4ade80;#86efac;#bbf7d0;#4ade80;#22c55e;#4ade80" dur="0.75s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="60" y="152" width="12" height="10" fill="#3b82f6"/>
+  <rect x="60" y="152" width="12" height="4" fill="#60a5fa"><animate attributeName="fill" values="#60a5fa;#93c5fd;#bfdbfe;#60a5fa;#3b82f6;#60a5fa" dur="0.75s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="76" y="152" width="12" height="10" fill="#22c55e"/>
+  <rect x="76" y="152" width="12" height="4" fill="#4ade80"><animate attributeName="fill" values="#4ade80;#86efac;#bbf7d0;#4ade80;#22c55e;#4ade80" dur="0.75s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <!-- Lower windows -->
+  <rect x="28" y="168" width="12" height="10" fill="#3b82f6"/>
+  <rect x="44" y="168" width="12" height="10" fill="#22c55e"/>
+  <rect x="60" y="168" width="12" height="10" fill="#3b82f6"/>
+  <rect x="76" y="168" width="12" height="10" fill="#22c55e"/>
+  <!-- Door -->
+  <rect x="52" y="180" width="16" height="16" fill="#1c1917"/>
+  <!-- Antenna/dish on roof -->
+  <rect x="60" y="128" width="4" height="16" fill="#9ca3af"/>
+  <rect x="52" y="120" width="20" height="4" fill="#d1d5db"/>
+  <rect x="52" y="124" width="4" height="4" fill="#9ca3af"/>
+  <rect x="68" y="124" width="4" height="4" fill="#9ca3af"/>
+  <!-- Satellite dish -->
+  <rect x="28" y="132" width="4" height="12" fill="#9ca3af"/>
+  <rect x="24" y="126" width="12" height="8" fill="#6b7280"/>
+  <rect x="24" y="126" width="12" height="4" fill="#9ca3af"/>
+  <!-- Blinking light on antenna -->
+  <rect x="60" y="124" width="4" height="4" fill="#ef4444"><animate attributeName="fill" values="#ef4444;#1c1917;#ef4444" dur="1s" calcMode="discrete" repeatCount="indefinite" begin="0s"/></rect>
+
+  <!-- ============================================================ -->
+  <!-- RIGHT COASTLINE / CLIFF (right side, ~x=1000-1200) -->
+  <!-- ============================================================ -->
+  <rect x="1176" y="220" width="24" height="100" fill="#2d3748"/>
+  <rect x="1168" y="200" width="32" height="120" fill="#2d3748"/>
+  <rect x="1144" y="188" width="40" height="132" fill="#2d3748"/>
+  <rect x="1120" y="196" width="48" height="124" fill="#374151"/>
+  <rect x="1120" y="204" width="32" height="116" fill="#2d3748"/>
+  <rect x="1096" y="212" width="40" height="108" fill="#374151"/>
+  <rect x="1080" y="200" width="36" height="120" fill="#2d3748"/>
+  <rect x="1060" y="208" width="44" height="112" fill="#4a5568"/>
+  <rect x="1048" y="216" width="40" height="104" fill="#374151"/>
+  <rect x="1016" y="224" width="56" height="96" fill="#2d3748"/>
+  <!-- Cliff top ledge -->
+  <rect x="1136" y="184" width="64" height="8" fill="#4a5568"/>
+  <rect x="1056" y="196" width="80" height="8" fill="#4a5568"/>
+  <rect x="1008" y="212" width="48" height="8" fill="#4a5568"/>
+
+  <!-- RIGHT CABLE LANDING STATION -->
+  <rect x="1100" y="144" width="80" height="52" fill="#4a5568"/>
+  <rect x="1100" y="144" width="80" height="4" fill="#1c1917"/>
+  <rect x="1100" y="192" width="80" height="4" fill="#1c1917"/>
+  <rect x="1100" y="144" width="4" height="52" fill="#1c1917"/>
+  <rect x="1176" y="144" width="4" height="52" fill="#1c1917"/>
+  <!-- Roof -->
+  <rect x="1096" y="140" width="88" height="8" fill="#6b7280"/>
+  <rect x="1096" y="140" width="88" height="4" fill="#9ca3af"/>
+  <!-- Windows -->
+  <rect x="1108" y="152" width="12" height="10" fill="#22c55e"/>
+  <rect x="1108" y="152" width="12" height="4" fill="#4ade80"><animate attributeName="fill" values="#4ade80;#86efac;#bbf7d0;#4ade80;#22c55e;#4ade80" dur="0.75s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="1124" y="152" width="12" height="10" fill="#3b82f6"/>
+  <rect x="1124" y="152" width="12" height="4" fill="#60a5fa"><animate attributeName="fill" values="#60a5fa;#93c5fd;#bfdbfe;#60a5fa;#3b82f6;#60a5fa" dur="0.75s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="1140" y="152" width="12" height="10" fill="#22c55e"/>
+  <rect x="1140" y="152" width="12" height="4" fill="#4ade80"><animate attributeName="fill" values="#4ade80;#86efac;#bbf7d0;#4ade80;#22c55e;#4ade80" dur="0.75s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="1156" y="152" width="12" height="10" fill="#3b82f6"/>
+  <rect x="1156" y="152" width="12" height="4" fill="#60a5fa"><animate attributeName="fill" values="#60a5fa;#93c5fd;#bfdbfe;#60a5fa;#3b82f6;#60a5fa" dur="0.75s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="1108" y="168" width="12" height="10" fill="#3b82f6"/>
+  <rect x="1124" y="168" width="12" height="10" fill="#22c55e"/>
+  <rect x="1140" y="168" width="12" height="10" fill="#3b82f6"/>
+  <rect x="1156" y="168" width="12" height="10" fill="#22c55e"/>
+  <!-- Door -->
+  <rect x="1132" y="180" width="16" height="16" fill="#1c1917"/>
+  <!-- Antenna -->
+  <rect x="1136" y="128" width="4" height="16" fill="#9ca3af"/>
+  <rect x="1128" y="120" width="20" height="4" fill="#d1d5db"/>
+  <rect x="1128" y="124" width="4" height="4" fill="#9ca3af"/>
+  <rect x="1144" y="124" width="4" height="4" fill="#9ca3af"/>
+  <rect x="1136" y="124" width="4" height="4" fill="#ef4444"><animate attributeName="fill" values="#ef4444;#1c1917;#ef4444" dur="1s" calcMode="discrete" repeatCount="indefinite" begin="0.5s"/></rect>
+  <!-- Dish -->
+  <rect x="1168" y="132" width="4" height="12" fill="#9ca3af"/>
+  <rect x="1164" y="126" width="12" height="8" fill="#6b7280"/>
+  <rect x="1164" y="126" width="12" height="4" fill="#9ca3af"/>
+
+  <!-- ============================================================ -->
+  <!-- CITY SKYLINE LEFT (x=192-332, behind left landing area) -->
+  <!-- ============================================================ -->
+  <!-- Building L1 wide -->
+  <rect x="192" y="200" width="28" height="96" fill="#2d3748"/>
+  <rect x="192" y="200" width="28" height="4" fill="#374151"/>
+  <rect x="196" y="208" width="8" height="6" fill="#fef3c7"><animate attributeName="fill" values="#fef3c7;#fffef0;#e8d5a0;#1c1917;#1c1917;#e8d5a0;#fef3c7" dur="1.5s" calcMode="discrete" repeatCount="indefinite" begin="0.1s"/></rect>
+  <rect x="208" y="208" width="8" height="6" fill="#93c5fd"/>
+  <rect x="196" y="220" width="8" height="6" fill="#93c5fd"/>
+  <rect x="208" y="220" width="8" height="6" fill="#fef3c7"><animate attributeName="fill" values="#fef3c7;#fffef0;#e8d5a0;#1c1917;#1c1917;#e8d5a0;#fef3c7" dur="1.5s" calcMode="discrete" repeatCount="indefinite" begin="0.35s"/></rect>
+  <rect x="196" y="232" width="8" height="6" fill="#fef3c7"><animate attributeName="fill" values="#93c5fd;#bfdbfe;#dbeafe;#93c5fd;#fef3c7;#93c5fd" dur="2s" calcMode="discrete" repeatCount="indefinite" begin="0.2s"/></rect>
+  <rect x="208" y="232" width="8" height="6" fill="#1c1917"/>
+  <rect x="196" y="244" width="8" height="6" fill="#1c1917"/>
+  <rect x="208" y="244" width="8" height="6" fill="#93c5fd"/>
+  <rect x="196" y="256" width="8" height="6" fill="#fef3c7"><animate attributeName="fill" values="#fef3c7;#fffef0;#e8d5a0;#1c1917;#1c1917;#e8d5a0;#fef3c7" dur="1.5s" calcMode="discrete" repeatCount="indefinite" begin="0.45s"/></rect>
+  <rect x="208" y="256" width="8" height="6" fill="#fef3c7"/>
+  <rect x="196" y="268" width="8" height="6" fill="#93c5fd"/>
+  <rect x="208" y="268" width="8" height="6" fill="#1c1917"/>
+  <rect x="203" y="192" width="4" height="12" fill="#9ca3af"/>
+  <rect x="203" y="188" width="4" height="4" fill="#ef4444"><animate attributeName="fill" values="#ef4444;#1c1917;#ef4444" dur="1s" calcMode="discrete" repeatCount="indefinite" begin="0s"/></rect>
+  <!-- Building L2 narrow -->
+  <rect x="228" y="222" width="24" height="74" fill="#374151"/>
+  <rect x="228" y="222" width="24" height="4" fill="#4a5568"/>
+  <rect x="232" y="230" width="7" height="6" fill="#93c5fd"/>
+  <rect x="243" y="230" width="5" height="6" fill="#fef3c7"><animate attributeName="fill" values="#fef3c7;#fffef0;#e8d5a0;#1c1917;#1c1917;#e8d5a0;#fef3c7" dur="1.5s" calcMode="discrete" repeatCount="indefinite" begin="0.25s"/></rect>
+  <rect x="232" y="242" width="7" height="6" fill="#fef3c7"/>
+  <rect x="243" y="242" width="5" height="6" fill="#1c1917"/>
+  <rect x="232" y="254" width="7" height="6" fill="#1c1917"/>
+  <rect x="243" y="254" width="5" height="6" fill="#93c5fd"/>
+  <rect x="232" y="266" width="7" height="6" fill="#fef3c7"><animate attributeName="fill" values="#93c5fd;#bfdbfe;#dbeafe;#93c5fd;#fef3c7;#93c5fd" dur="2s" calcMode="discrete" repeatCount="indefinite" begin="0.4s"/></rect>
+  <rect x="243" y="266" width="5" height="6" fill="#fef3c7"/>
+  <!-- Building L3 tallest -->
+  <rect x="260" y="184" width="36" height="112" fill="#1f2937"/>
+  <rect x="260" y="184" width="36" height="4" fill="#2d3748"/>
+  <rect x="264" y="192" width="9" height="6" fill="#fef3c7"><animate attributeName="fill" values="#fef3c7;#fffef0;#e8d5a0;#1c1917;#1c1917;#e8d5a0;#fef3c7" dur="1.5s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="277" y="192" width="9" height="6" fill="#93c5fd"/>
+  <rect x="264" y="204" width="9" height="6" fill="#93c5fd"/>
+  <rect x="277" y="204" width="9" height="6" fill="#fef3c7"/>
+  <rect x="264" y="216" width="9" height="6" fill="#fef3c7"><animate attributeName="fill" values="#93c5fd;#bfdbfe;#dbeafe;#93c5fd;#fef3c7;#93c5fd" dur="2s" calcMode="discrete" repeatCount="indefinite" begin="0.3s"/></rect>
+  <rect x="277" y="216" width="9" height="6" fill="#1c1917"/>
+  <rect x="264" y="228" width="9" height="6" fill="#1c1917"/>
+  <rect x="277" y="228" width="9" height="6" fill="#fef3c7"><animate attributeName="fill" values="#fef3c7;#fffef0;#e8d5a0;#1c1917;#1c1917;#e8d5a0;#fef3c7" dur="1.5s" calcMode="discrete" repeatCount="indefinite" begin="0.4s"/></rect>
+  <rect x="264" y="240" width="9" height="6" fill="#93c5fd"/>
+  <rect x="277" y="240" width="9" height="6" fill="#93c5fd"/>
+  <rect x="264" y="252" width="9" height="6" fill="#fef3c7"/>
+  <rect x="277" y="252" width="9" height="6" fill="#fef3c7"><animate attributeName="fill" values="#fef3c7;#fffef0;#e8d5a0;#1c1917;#1c1917;#e8d5a0;#fef3c7" dur="1.5s" calcMode="discrete" repeatCount="indefinite" begin="0.05s"/></rect>
+  <rect x="264" y="264" width="9" height="6" fill="#1c1917"/>
+  <rect x="277" y="264" width="9" height="6" fill="#93c5fd"/>
+  <rect x="275" y="172" width="4" height="16" fill="#9ca3af"/>
+  <rect x="273" y="168" width="8" height="4" fill="#6b7280"/>
+  <rect x="275" y="164" width="4" height="4" fill="#ef4444"><animate attributeName="fill" values="#ef4444;#1c1917;#ef4444" dur="1s" calcMode="discrete" repeatCount="indefinite" begin="0.5s"/></rect>
+  <!-- Building L4 -->
+  <rect x="304" y="218" width="28" height="78" fill="#374151"/>
+  <rect x="304" y="218" width="28" height="4" fill="#4a5568"/>
+  <rect x="308" y="226" width="7" height="6" fill="#fef3c7"/>
+  <rect x="319" y="226" width="7" height="6" fill="#93c5fd"/>
+  <rect x="308" y="238" width="7" height="6" fill="#1c1917"/>
+  <rect x="319" y="238" width="7" height="6" fill="#fef3c7"><animate attributeName="fill" values="#fef3c7;#fffef0;#e8d5a0;#1c1917;#1c1917;#e8d5a0;#fef3c7" dur="1.5s" calcMode="discrete" repeatCount="indefinite" begin="0.3s"/></rect>
+  <rect x="308" y="250" width="7" height="6" fill="#93c5fd"/>
+  <rect x="319" y="250" width="7" height="6" fill="#1c1917"/>
+  <rect x="308" y="262" width="7" height="6" fill="#fef3c7"><animate attributeName="fill" values="#93c5fd;#bfdbfe;#dbeafe;#93c5fd;#fef3c7;#93c5fd" dur="2s" calcMode="discrete" repeatCount="indefinite" begin="0.55s"/></rect>
+  <rect x="319" y="262" width="7" height="6" fill="#93c5fd"/>
+
+  <!-- ============================================================ -->
+  <!-- CITY SKYLINE RIGHT (x=872-1010, flanking right coast) -->
+  <!-- ============================================================ -->
+  <!-- Building R1 -->
+  <rect x="872" y="222" width="28" height="74" fill="#374151"/>
+  <rect x="872" y="222" width="28" height="4" fill="#4a5568"/>
+  <rect x="876" y="230" width="7" height="6" fill="#fef3c7"><animate attributeName="fill" values="#fef3c7;#fffef0;#e8d5a0;#1c1917;#1c1917;#e8d5a0;#fef3c7" dur="1.5s" calcMode="discrete" repeatCount="indefinite" begin="0.2s"/></rect>
+  <rect x="887" y="230" width="7" height="6" fill="#93c5fd"/>
+  <rect x="876" y="242" width="7" height="6" fill="#93c5fd"/>
+  <rect x="887" y="242" width="7" height="6" fill="#fef3c7"/>
+  <rect x="876" y="254" width="7" height="6" fill="#fef3c7"><animate attributeName="fill" values="#93c5fd;#bfdbfe;#dbeafe;#93c5fd;#fef3c7;#93c5fd" dur="2s" calcMode="discrete" repeatCount="indefinite" begin="0.45s"/></rect>
+  <rect x="887" y="254" width="7" height="6" fill="#1c1917"/>
+  <rect x="876" y="266" width="7" height="6" fill="#93c5fd"/>
+  <rect x="887" y="266" width="7" height="6" fill="#fef3c7"><animate attributeName="fill" values="#fef3c7;#fffef0;#e8d5a0;#1c1917;#1c1917;#e8d5a0;#fef3c7" dur="1.5s" calcMode="discrete" repeatCount="indefinite" begin="0.1s"/></rect>
+  <!-- Building R2 tallest -->
+  <rect x="908" y="184" width="36" height="112" fill="#1f2937"/>
+  <rect x="908" y="184" width="36" height="4" fill="#2d3748"/>
+  <rect x="912" y="192" width="9" height="6" fill="#93c5fd"/>
+  <rect x="925" y="192" width="9" height="6" fill="#fef3c7"><animate attributeName="fill" values="#fef3c7;#fffef0;#e8d5a0;#1c1917;#1c1917;#e8d5a0;#fef3c7" dur="1.5s" calcMode="discrete" repeatCount="indefinite" begin="0.35s"/></rect>
+  <rect x="912" y="204" width="9" height="6" fill="#fef3c7"/>
+  <rect x="925" y="204" width="9" height="6" fill="#1c1917"/>
+  <rect x="912" y="216" width="9" height="6" fill="#1c1917"/>
+  <rect x="925" y="216" width="9" height="6" fill="#93c5fd"/>
+  <rect x="912" y="228" width="9" height="6" fill="#fef3c7"><animate attributeName="fill" values="#fef3c7;#fffef0;#e8d5a0;#1c1917;#1c1917;#e8d5a0;#fef3c7" dur="1.5s" calcMode="discrete" repeatCount="indefinite" begin="0.05s"/></rect>
+  <rect x="925" y="228" width="9" height="6" fill="#fef3c7"/>
+  <rect x="912" y="240" width="9" height="6" fill="#93c5fd"/>
+  <rect x="925" y="240" width="9" height="6" fill="#1c1917"/>
+  <rect x="912" y="252" width="9" height="6" fill="#fef3c7"/>
+  <rect x="925" y="252" width="9" height="6" fill="#93c5fd"/>
+  <rect x="912" y="264" width="9" height="6" fill="#1c1917"/>
+  <rect x="925" y="264" width="9" height="6" fill="#fef3c7"><animate attributeName="fill" values="#93c5fd;#bfdbfe;#dbeafe;#93c5fd;#fef3c7;#93c5fd" dur="2s" calcMode="discrete" repeatCount="indefinite" begin="0.6s"/></rect>
+  <rect x="923" y="172" width="4" height="16" fill="#9ca3af"/>
+  <rect x="921" y="168" width="8" height="4" fill="#6b7280"/>
+  <rect x="923" y="164" width="4" height="4" fill="#ef4444"><animate attributeName="fill" values="#ef4444;#1c1917;#ef4444" dur="1s" calcMode="discrete" repeatCount="indefinite" begin="0.5s"/></rect>
+  <!-- Building R3 -->
+  <rect x="952" y="200" width="28" height="96" fill="#2d3748"/>
+  <rect x="952" y="200" width="28" height="4" fill="#374151"/>
+  <rect x="956" y="208" width="8" height="6" fill="#fef3c7"><animate attributeName="fill" values="#fef3c7;#fffef0;#e8d5a0;#1c1917;#1c1917;#e8d5a0;#fef3c7" dur="1.5s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="968" y="208" width="8" height="6" fill="#93c5fd"/>
+  <rect x="956" y="220" width="8" height="6" fill="#1c1917"/>
+  <rect x="968" y="220" width="8" height="6" fill="#fef3c7"/>
+  <rect x="956" y="232" width="8" height="6" fill="#fef3c7"><animate attributeName="fill" values="#93c5fd;#bfdbfe;#dbeafe;#93c5fd;#fef3c7;#93c5fd" dur="2s" calcMode="discrete" repeatCount="indefinite" begin="0.3s"/></rect>
+  <rect x="968" y="232" width="8" height="6" fill="#93c5fd"/>
+  <rect x="956" y="244" width="8" height="6" fill="#93c5fd"/>
+  <rect x="968" y="244" width="8" height="6" fill="#1c1917"/>
+  <rect x="956" y="256" width="8" height="6" fill="#fef3c7"/>
+  <rect x="968" y="256" width="8" height="6" fill="#fef3c7"><animate attributeName="fill" values="#fef3c7;#fffef0;#e8d5a0;#1c1917;#1c1917;#e8d5a0;#fef3c7" dur="1.5s" calcMode="discrete" repeatCount="indefinite" begin="0.5s"/></rect>
+  <rect x="956" y="268" width="8" height="6" fill="#1c1917"/>
+  <rect x="968" y="268" width="8" height="6" fill="#93c5fd"/>
+  <rect x="963" y="192" width="4" height="12" fill="#9ca3af"/>
+  <rect x="963" y="188" width="4" height="4" fill="#ef4444"><animate attributeName="fill" values="#ef4444;#1c1917;#ef4444" dur="1s" calcMode="discrete" repeatCount="indefinite" begin="0s"/></rect>
+  <!-- Building R4 -->
+  <rect x="988" y="218" width="24" height="78" fill="#374151"/>
+  <rect x="988" y="218" width="24" height="4" fill="#4a5568"/>
+  <rect x="992" y="226" width="7" height="6" fill="#93c5fd"/>
+  <rect x="1003" y="226" width="5" height="6" fill="#fef3c7"><animate attributeName="fill" values="#fef3c7;#fffef0;#e8d5a0;#1c1917;#1c1917;#e8d5a0;#fef3c7" dur="1.5s" calcMode="discrete" repeatCount="indefinite" begin="0.4s"/></rect>
+  <rect x="992" y="238" width="7" height="6" fill="#fef3c7"/>
+  <rect x="1003" y="238" width="5" height="6" fill="#93c5fd"/>
+  <rect x="992" y="250" width="7" height="6" fill="#1c1917"/>
+  <rect x="1003" y="250" width="5" height="6" fill="#fef3c7"><animate attributeName="fill" values="#93c5fd;#bfdbfe;#dbeafe;#93c5fd;#fef3c7;#93c5fd" dur="2s" calcMode="discrete" repeatCount="indefinite" begin="0.2s"/></rect>
+  <rect x="992" y="262" width="7" height="6" fill="#fef3c7"><animate attributeName="fill" values="#fef3c7;#fffef0;#e8d5a0;#1c1917;#1c1917;#e8d5a0;#fef3c7" dur="1.5s" calcMode="discrete" repeatCount="indefinite" begin="0.6s"/></rect>
+  <rect x="1003" y="262" width="5" height="6" fill="#1c1917"/>
+
+  <!-- ============================================================ -->
+  <!-- BEACH STRIPS (sandy coast between cliffs and ocean) -->
+  <!-- ============================================================ -->
+  <!-- Left beach base (x=140-340, y=290-320) -->
+  <rect x="140" y="294" width="200" height="26" fill="#c4934a"/>
+  <rect x="140" y="294" width="200" height="6" fill="#d4a55a"/>
+  <rect x="140" y="312" width="200" height="8" fill="#a07838"/>
+  <!-- Left beach dunes -->
+  <rect x="152" y="288" width="28" height="8" fill="#c4934a"/>
+  <rect x="156" y="283" width="20" height="6" fill="#d4a55a"/>
+  <rect x="210" y="286" width="36" height="10" fill="#c4934a"/>
+  <rect x="214" y="281" width="28" height="6" fill="#d4a55a"/>
+  <rect x="270" y="290" width="28" height="8" fill="#c4934a"/>
+  <rect x="274" y="285" width="20" height="6" fill="#d4a55a"/>
+  <!-- Beach shells -->
+  <rect x="184" y="316" width="8" height="4" fill="#e8d5b0"/>
+  <rect x="222" y="318" width="6" height="4" fill="#d4c4a0"/>
+  <rect x="250" y="315" width="10" height="4" fill="#e8d5b0"/>
+  <rect x="308" y="317" width="8" height="4" fill="#d4c4a0"/>
+  <!-- Left palm 1 (x=196) — fronds sway in breeze -->
+  <rect x="196" y="270" width="4" height="26" fill="#78350f"/>
+  <rect x="196" y="267" width="4" height="4" fill="#92400e"/>
+  <rect x="180" y="263" width="16" height="4" fill="#15803d"><animate attributeName="x" values="180;178;180;182;180;178;180" dur="2.4s" calcMode="discrete" repeatCount="indefinite" begin="0s"/><animate attributeName="y" values="263;264;263;262;263" dur="2.4s" calcMode="discrete" repeatCount="indefinite" begin="0s"/></rect>
+  <rect x="176" y="259" width="20" height="4" fill="#166534"><animate attributeName="x" values="176;174;176;178;176;174;176" dur="2.4s" calcMode="discrete" repeatCount="indefinite" begin="0.3s"/></rect>
+  <rect x="188" y="255" width="8" height="8" fill="#166534"><animate attributeName="x" values="188;187;188;189;188" dur="2.4s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="196" y="259" width="4" height="12" fill="#15803d"/>
+  <rect x="200" y="259" width="12" height="4" fill="#15803d"><animate attributeName="x" values="200;202;200;198;200;202;200" dur="2.4s" calcMode="discrete" repeatCount="indefinite" begin="0.2s"/></rect>
+  <rect x="208" y="263" width="8" height="4" fill="#166534"><animate attributeName="x" values="208;210;208;206;208;210;208" dur="2.4s" calcMode="discrete" repeatCount="indefinite" begin="0s"/><animate attributeName="y" values="263;264;263;262;263" dur="2.4s" calcMode="discrete" repeatCount="indefinite" begin="0s"/></rect>
+  <rect x="204" y="255" width="8" height="8" fill="#166534"><animate attributeName="x" values="204;206;204;202;204" dur="2.4s" calcMode="discrete" repeatCount="indefinite" begin="0.1s"/></rect>
+  <!-- Left palm 2 (x=276) — sway offset from palm 1 -->
+  <rect x="276" y="268" width="4" height="28" fill="#78350f"/>
+  <rect x="276" y="265" width="4" height="4" fill="#92400e"/>
+  <rect x="260" y="261" width="16" height="4" fill="#15803d"><animate attributeName="x" values="260;258;260;262;260;258;260" dur="2.8s" calcMode="discrete" repeatCount="indefinite" begin="0.5s"/><animate attributeName="y" values="261;262;261;260;261" dur="2.8s" calcMode="discrete" repeatCount="indefinite" begin="0.5s"/></rect>
+  <rect x="256" y="257" width="20" height="4" fill="#166534"><animate attributeName="x" values="256;254;256;258;256;254;256" dur="2.8s" calcMode="discrete" repeatCount="indefinite" begin="0.8s"/></rect>
+  <rect x="268" y="253" width="8" height="8" fill="#166534"><animate attributeName="x" values="268;267;268;269;268" dur="2.8s" calcMode="discrete" repeatCount="indefinite" begin="0.65s"/></rect>
+  <rect x="276" y="257" width="4" height="12" fill="#15803d"/>
+  <rect x="280" y="257" width="12" height="4" fill="#15803d"><animate attributeName="x" values="280;282;280;278;280;282;280" dur="2.8s" calcMode="discrete" repeatCount="indefinite" begin="0.7s"/></rect>
+  <rect x="288" y="261" width="8" height="4" fill="#166534"><animate attributeName="x" values="288;290;288;286;288;290;288" dur="2.8s" calcMode="discrete" repeatCount="indefinite" begin="0.5s"/><animate attributeName="y" values="261;262;261;260;261" dur="2.8s" calcMode="discrete" repeatCount="indefinite" begin="0.5s"/></rect>
+  <rect x="284" y="253" width="8" height="8" fill="#166534"><animate attributeName="x" values="284;286;284;282;284" dur="2.8s" calcMode="discrete" repeatCount="indefinite" begin="0.6s"/></rect>
+
+  <!-- Right beach base (x=860-1016, y=290-320) -->
+  <rect x="860" y="294" width="156" height="26" fill="#c4934a"/>
+  <rect x="860" y="294" width="156" height="6" fill="#d4a55a"/>
+  <rect x="860" y="312" width="156" height="8" fill="#a07838"/>
+  <!-- Right beach dunes -->
+  <rect x="868" y="288" width="28" height="8" fill="#c4934a"/>
+  <rect x="872" y="283" width="20" height="6" fill="#d4a55a"/>
+  <rect x="926" y="286" width="36" height="10" fill="#c4934a"/>
+  <rect x="930" y="281" width="28" height="6" fill="#d4a55a"/>
+  <rect x="976" y="290" width="28" height="8" fill="#c4934a"/>
+  <rect x="980" y="285" width="20" height="6" fill="#d4a55a"/>
+  <!-- Right beach shells -->
+  <rect x="888" y="316" width="8" height="4" fill="#e8d5b0"/>
+  <rect x="926" y="318" width="6" height="4" fill="#d4c4a0"/>
+  <rect x="954" y="315" width="10" height="4" fill="#e8d5b0"/>
+  <rect x="1002" y="317" width="8" height="4" fill="#d4c4a0"/>
+  <!-- Right palm 1 (x=896) — sway opposite phase to left palms -->
+  <rect x="896" y="270" width="4" height="26" fill="#78350f"/>
+  <rect x="896" y="267" width="4" height="4" fill="#92400e"/>
+  <rect x="880" y="263" width="16" height="4" fill="#15803d"><animate attributeName="x" values="880;882;880;878;880;882;880" dur="2.4s" calcMode="discrete" repeatCount="indefinite" begin="1.2s"/><animate attributeName="y" values="263;262;263;264;263" dur="2.4s" calcMode="discrete" repeatCount="indefinite" begin="1.2s"/></rect>
+  <rect x="876" y="259" width="20" height="4" fill="#166534"><animate attributeName="x" values="876;878;876;874;876;878;876" dur="2.4s" calcMode="discrete" repeatCount="indefinite" begin="1.5s"/></rect>
+  <rect x="888" y="255" width="8" height="8" fill="#166534"><animate attributeName="x" values="888;889;888;887;888" dur="2.4s" calcMode="discrete" repeatCount="indefinite" begin="1.35s"/></rect>
+  <rect x="896" y="259" width="4" height="12" fill="#15803d"/>
+  <rect x="900" y="259" width="12" height="4" fill="#15803d"><animate attributeName="x" values="900;898;900;902;900;898;900" dur="2.4s" calcMode="discrete" repeatCount="indefinite" begin="1.2s"/></rect>
+  <rect x="908" y="263" width="8" height="4" fill="#166534"><animate attributeName="x" values="908;906;908;910;908;906;908" dur="2.4s" calcMode="discrete" repeatCount="indefinite" begin="1.2s"/><animate attributeName="y" values="263;262;263;264;263" dur="2.4s" calcMode="discrete" repeatCount="indefinite" begin="1.2s"/></rect>
+  <rect x="904" y="255" width="8" height="8" fill="#166534"><animate attributeName="x" values="904;902;904;906;904" dur="2.4s" calcMode="discrete" repeatCount="indefinite" begin="1.3s"/></rect>
+  <!-- Right palm 2 (x=972) -->
+  <rect x="972" y="268" width="4" height="28" fill="#78350f"/>
+  <rect x="972" y="265" width="4" height="4" fill="#92400e"/>
+  <rect x="956" y="261" width="16" height="4" fill="#15803d"><animate attributeName="x" values="956;958;956;954;956;958;956" dur="2.8s" calcMode="discrete" repeatCount="indefinite" begin="1.7s"/><animate attributeName="y" values="261;260;261;262;261" dur="2.8s" calcMode="discrete" repeatCount="indefinite" begin="1.7s"/></rect>
+  <rect x="952" y="257" width="20" height="4" fill="#166534"><animate attributeName="x" values="952;954;952;950;952;954;952" dur="2.8s" calcMode="discrete" repeatCount="indefinite" begin="2.0s"/></rect>
+  <rect x="964" y="253" width="8" height="8" fill="#166534"><animate attributeName="x" values="964;965;964;963;964" dur="2.8s" calcMode="discrete" repeatCount="indefinite" begin="1.85s"/></rect>
+  <rect x="972" y="257" width="4" height="12" fill="#15803d"/>
+  <rect x="976" y="257" width="12" height="4" fill="#15803d"><animate attributeName="x" values="976;974;976;978;976;974;976" dur="2.8s" calcMode="discrete" repeatCount="indefinite" begin="1.7s"/></rect>
+  <rect x="984" y="261" width="8" height="4" fill="#166534"><animate attributeName="x" values="984;986;984;982;984;986;984" dur="2.8s" calcMode="discrete" repeatCount="indefinite" begin="1.7s"/><animate attributeName="y" values="261;260;261;262;261" dur="2.8s" calcMode="discrete" repeatCount="indefinite" begin="1.7s"/></rect>
+  <rect x="980" y="253" width="8" height="8" fill="#166534"><animate attributeName="x" values="980;982;980;978;980" dur="2.8s" calcMode="discrete" repeatCount="indefinite" begin="1.8s"/></rect>
+
+  <!-- ============================================================ -->
+  <!-- MID-OCEAN SMALL LANDING STATION (center-left coast bump) -->
+  <!-- ============================================================ -->
+  <!-- Small rocky outcrop -->
+  <rect x="340" y="256" width="80" height="64" fill="#374151"/>
+  <rect x="340" y="248" width="80" height="12" fill="#4a5568"/>
+  <rect x="348" y="240" width="64" height="12" fill="#4a5568"/>
+  <rect x="356" y="232" width="48" height="12" fill="#4a5568"/>
+  <!-- Small station building -->
+  <rect x="352" y="208" width="56" height="36" fill="#4a5568"/>
+  <rect x="352" y="208" width="56" height="4" fill="#1c1917"/>
+  <rect x="352" y="240" width="56" height="4" fill="#1c1917"/>
+  <!-- Roof -->
+  <rect x="348" y="204" width="64" height="8" fill="#6b7280"/>
+  <rect x="348" y="204" width="64" height="4" fill="#9ca3af"/>
+  <!-- Windows -->
+  <rect x="360" y="216" width="10" height="8" fill="#22c55e"/>
+  <rect x="360" y="216" width="10" height="4" fill="#4ade80"><animate attributeName="fill" values="#4ade80;#86efac;#bbf7d0;#4ade80;#22c55e;#4ade80" dur="0.75s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="376" y="216" width="10" height="8" fill="#3b82f6"/>
+  <rect x="376" y="216" width="10" height="4" fill="#60a5fa"><animate attributeName="fill" values="#60a5fa;#93c5fd;#bfdbfe;#60a5fa;#3b82f6;#60a5fa" dur="0.75s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="392" y="216" width="10" height="8" fill="#22c55e"/>
+  <rect x="392" y="216" width="10" height="4" fill="#4ade80"><animate attributeName="fill" values="#4ade80;#86efac;#bbf7d0;#4ade80;#22c55e;#4ade80" dur="0.75s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <!-- Door -->
+  <rect x="376" y="228" width="8" height="12" fill="#1c1917"/>
+  <!-- Antenna -->
+  <rect x="384" y="192" width="4" height="16" fill="#9ca3af"/>
+  <rect x="380" y="188" width="12" height="4" fill="#d1d5db"/>
+  <rect x="384" y="188" width="4" height="4" fill="#ef4444"><animate attributeName="fill" values="#ef4444;#1c1917;#ef4444" dur="1s" calcMode="discrete" repeatCount="indefinite" begin="0.5s"/></rect>
+
+  <!-- ============================================================ -->
+  <!-- DATA CENTRE BUILDING (right of centre, above waterline) -->
+  <!-- ============================================================ -->
+  <!-- Main structure -->
+  <rect x="700" y="160" width="120" height="160" fill="#374151"/>
+  <rect x="700" y="160" width="120" height="4" fill="#1c1917"/>
+  <rect x="700" y="316" width="120" height="4" fill="#1c1917"/>
+  <rect x="700" y="160" width="4" height="160" fill="#1c1917"/>
+  <rect x="816" y="160" width="4" height="160" fill="#1c1917"/>
+  <!-- Roof structure -->
+  <rect x="696" y="152" width="128" height="12" fill="#4a5568"/>
+  <rect x="696" y="152" width="128" height="4" fill="#6b7280"/>
+  <!-- AC units on roof -->
+  <rect x="704" y="140" width="24" height="16" fill="#6b7280"/>
+  <rect x="704" y="140" width="24" height="4" fill="#9ca3af"/>
+  <rect x="736" y="140" width="24" height="16" fill="#6b7280"/>
+  <rect x="736" y="140" width="24" height="4" fill="#9ca3af"/>
+  <rect x="768" y="140" width="24" height="16" fill="#6b7280"/>
+  <rect x="768" y="140" width="24" height="4" fill="#9ca3af"/>
+  <rect x="800" y="140" width="12" height="16" fill="#6b7280"/>
+  <!-- Comms tower -->
+  <rect x="752" y="112" width="8" height="44" fill="#9ca3af"/>
+  <rect x="744" y="112" width="24" height="4" fill="#d1d5db"/>
+  <rect x="748" y="104" width="16" height="8" fill="#9ca3af"/>
+  <rect x="752" y="100" width="8" height="4" fill="#ef4444"><animate attributeName="fill" values="#ef4444;#1c1917;#ef4444" dur="1s" calcMode="discrete" repeatCount="indefinite" begin="0s"/></rect>
+  <!-- Dish on tower -->
+  <rect x="812" y="120" width="4" height="24" fill="#9ca3af"/>
+  <rect x="808" y="114" width="16" height="12" fill="#6b7280"/>
+  <rect x="808" y="114" width="16" height="4" fill="#9ca3af"/>
+  <!-- SERVER RACK WINDOWS (rows of green/blue lit windows) -->
+  <!-- Row 1 -->
+  <rect x="708" y="168" width="16" height="12" fill="#22c55e"/>
+  <rect x="708" y="168" width="16" height="4" fill="#4ade80"><animate attributeName="fill" values="#4ade80;#86efac;#bbf7d0;#4ade80;#22c55e;#4ade80" dur="0.75s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="728" y="168" width="16" height="12" fill="#3b82f6"/>
+  <rect x="728" y="168" width="16" height="4" fill="#60a5fa"><animate attributeName="fill" values="#60a5fa;#93c5fd;#bfdbfe;#60a5fa;#3b82f6;#60a5fa" dur="0.75s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="748" y="168" width="16" height="12" fill="#22c55e"/>
+  <rect x="748" y="168" width="16" height="4" fill="#4ade80"/>
+  <rect x="768" y="168" width="16" height="12" fill="#22c55e"/>
+  <rect x="768" y="168" width="16" height="4" fill="#4ade80"><animate attributeName="fill" values="#4ade80;#86efac;#bbf7d0;#4ade80;#22c55e;#4ade80" dur="0.75s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="788" y="168" width="16" height="12" fill="#3b82f6"/>
+  <rect x="788" y="168" width="16" height="4" fill="#60a5fa"/>
+  <rect x="808" y="168" width="4" height="12" fill="#22c55e"/>
+  <!-- Row 2 -->
+  <rect x="708" y="184" width="16" height="12" fill="#3b82f6"/>
+  <rect x="708" y="184" width="16" height="4" fill="#60a5fa"/>
+  <rect x="728" y="184" width="16" height="12" fill="#22c55e"/>
+  <rect x="728" y="184" width="16" height="4" fill="#4ade80"><animate attributeName="fill" values="#4ade80;#86efac;#bbf7d0;#4ade80;#22c55e;#4ade80" dur="0.75s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="748" y="184" width="16" height="12" fill="#3b82f6"/>
+  <rect x="748" y="184" width="16" height="4" fill="#60a5fa"><animate attributeName="fill" values="#60a5fa;#93c5fd;#bfdbfe;#60a5fa;#3b82f6;#60a5fa" dur="0.75s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="768" y="184" width="16" height="12" fill="#22c55e"/>
+  <rect x="768" y="184" width="16" height="4" fill="#4ade80"/>
+  <rect x="788" y="184" width="16" height="12" fill="#22c55e"/>
+  <rect x="788" y="184" width="16" height="4" fill="#4ade80"/>
+  <rect x="808" y="184" width="4" height="12" fill="#3b82f6"/>
+  <!-- Row 3 -->
+  <rect x="708" y="200" width="16" height="12" fill="#22c55e"/>
+  <rect x="728" y="200" width="16" height="12" fill="#3b82f6"/>
+  <rect x="748" y="200" width="16" height="12" fill="#22c55e"/>
+  <rect x="768" y="200" width="16" height="12" fill="#3b82f6"/>
+  <rect x="788" y="200" width="16" height="12" fill="#22c55e"/>
+  <rect x="808" y="200" width="4" height="12" fill="#3b82f6"/>
+  <!-- Row 4 -->
+  <rect x="708" y="216" width="16" height="12" fill="#3b82f6"/>
+  <rect x="708" y="216" width="16" height="4" fill="#60a5fa"><animate attributeName="fill" values="#60a5fa;#93c5fd;#bfdbfe;#60a5fa;#3b82f6;#60a5fa" dur="0.75s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="728" y="216" width="16" height="12" fill="#22c55e"/>
+  <rect x="728" y="216" width="16" height="4" fill="#4ade80"/>
+  <rect x="748" y="216" width="16" height="12" fill="#22c55e"/>
+  <rect x="748" y="216" width="16" height="4" fill="#4ade80"><animate attributeName="fill" values="#4ade80;#86efac;#bbf7d0;#4ade80;#22c55e;#4ade80" dur="0.75s" calcMode="discrete" repeatCount="indefinite" begin="0.15s"/></rect>
+  <rect x="768" y="216" width="16" height="12" fill="#3b82f6"/>
+  <rect x="768" y="216" width="16" height="4" fill="#60a5fa"/>
+  <rect x="788" y="216" width="16" height="12" fill="#22c55e"/>
+  <rect x="808" y="216" width="4" height="12" fill="#22c55e"/>
+  <!-- Row 5 -->
+  <rect x="708" y="232" width="16" height="12" fill="#22c55e"/>
+  <rect x="728" y="232" width="16" height="12" fill="#3b82f6"/>
+  <rect x="748" y="232" width="16" height="12" fill="#22c55e"/>
+  <rect x="768" y="232" width="16" height="12" fill="#22c55e"/>
+  <rect x="788" y="232" width="16" height="12" fill="#3b82f6"/>
+  <rect x="808" y="232" width="4" height="12" fill="#22c55e"/>
+  <!-- Row 6 -->
+  <rect x="708" y="248" width="16" height="12" fill="#3b82f6"/>
+  <rect x="728" y="248" width="16" height="12" fill="#22c55e"/>
+  <rect x="748" y="248" width="16" height="12" fill="#3b82f6"/>
+  <rect x="768" y="248" width="16" height="12" fill="#22c55e"/>
+  <rect x="788" y="248" width="16" height="12" fill="#22c55e"/>
+  <rect x="808" y="248" width="4" height="12" fill="#3b82f6"/>
+  <!-- Row 7 -->
+  <rect x="708" y="264" width="16" height="12" fill="#22c55e"/>
+  <rect x="728" y="264" width="16" height="12" fill="#22c55e"/>
+  <rect x="748" y="264" width="16" height="12" fill="#3b82f6"/>
+  <rect x="768" y="264" width="16" height="12" fill="#22c55e"/>
+  <rect x="788" y="264" width="16" height="12" fill="#3b82f6"/>
+  <!-- Row 8 -->
+  <rect x="708" y="280" width="16" height="12" fill="#3b82f6"/>
+  <rect x="728" y="280" width="16" height="12" fill="#22c55e"/>
+  <rect x="748" y="280" width="16" height="12" fill="#22c55e"/>
+  <rect x="768" y="280" width="16" height="12" fill="#3b82f6"/>
+  <rect x="788" y="280" width="16" height="12" fill="#22c55e"/>
+  <!-- Security door -->
+  <rect x="740" y="296" width="28" height="24" fill="#1c1917"/>
+  <rect x="740" y="296" width="28" height="4" fill="#374151"/>
+  <rect x="744" y="300" width="8" height="20" fill="#1c1917"/>
+  <rect x="756" y="300" width="8" height="20" fill="#1c1917"/>
+
+  <!-- ============================================================ -->
+  <!-- OCEAN SURFACE BAND -->
+  <!-- ============================================================ -->
+  <rect x="0" y="316" width="1200" height="8" fill="#1a7a9e"/>
+  <rect x="0" y="320" width="1200" height="4" fill="#0e4f6e"/>
+
+  <!-- ============================================================ -->
+  <!-- PIXEL WAVES (ocean surface) -->
+  <!-- ============================================================ -->
+  <!-- Wave row 1 -->
+  <rect x="0" y="316" width="32" height="8" fill="#1a7a9e"/>
+  <rect x="40" y="312" width="24" height="8" fill="#1a7a9e"/>
+  <rect x="40" y="308" width="24" height="4" fill="#2596be"><animate attributeName="fill" values="#0e6a8a;#1a7a9e;#2596be;#44c4e0;#5dcfe8;#44c4e0;#2596be;#1a7a9e" dur="0.8s" calcMode="discrete" repeatCount="indefinite" begin="0s"/></rect>
+  <rect x="72" y="316" width="32" height="8" fill="#1a7a9e"/>
+  <rect x="112" y="312" width="24" height="8" fill="#1a7a9e"/>
+  <rect x="112" y="308" width="24" height="4" fill="#2596be"><animate attributeName="fill" values="#0e6a8a;#1a7a9e;#2596be;#44c4e0;#5dcfe8;#44c4e0;#2596be;#1a7a9e" dur="0.8s" calcMode="discrete" repeatCount="indefinite" begin="0.0625s"/></rect>
+  <rect x="144" y="316" width="32" height="8" fill="#1a7a9e"/>
+  <rect x="184" y="312" width="24" height="8" fill="#1a7a9e"/>
+  <rect x="184" y="308" width="24" height="4" fill="#2596be"><animate attributeName="fill" values="#0e6a8a;#1a7a9e;#2596be;#44c4e0;#5dcfe8;#44c4e0;#2596be;#1a7a9e" dur="0.8s" calcMode="discrete" repeatCount="indefinite" begin="0.125s"/></rect>
+  <rect x="216" y="316" width="32" height="8" fill="#1a7a9e"/>
+  <rect x="256" y="312" width="24" height="8" fill="#1a7a9e"/>
+  <rect x="256" y="308" width="24" height="4" fill="#2596be"><animate attributeName="fill" values="#0e6a8a;#1a7a9e;#2596be;#44c4e0;#5dcfe8;#44c4e0;#2596be;#1a7a9e" dur="0.8s" calcMode="discrete" repeatCount="indefinite" begin="0.1875s"/></rect>
+  <rect x="288" y="316" width="32" height="8" fill="#1a7a9e"/>
+  <rect x="496" y="312" width="24" height="8" fill="#1a7a9e"/>
+  <rect x="496" y="308" width="24" height="4" fill="#2596be"><animate attributeName="fill" values="#0e6a8a;#1a7a9e;#2596be;#44c4e0;#5dcfe8;#44c4e0;#2596be;#1a7a9e" dur="0.8s" calcMode="discrete" repeatCount="indefinite" begin="0s"/></rect>
+  <rect x="528" y="316" width="32" height="8" fill="#1a7a9e"/>
+  <rect x="568" y="312" width="24" height="8" fill="#1a7a9e"/>
+  <rect x="568" y="308" width="24" height="4" fill="#2596be"><animate attributeName="fill" values="#0e6a8a;#1a7a9e;#2596be;#44c4e0;#5dcfe8;#44c4e0;#2596be;#1a7a9e" dur="0.8s" calcMode="discrete" repeatCount="indefinite" begin="0.0625s"/></rect>
+  <rect x="600" y="316" width="32" height="8" fill="#1a7a9e"/>
+  <rect x="640" y="312" width="24" height="8" fill="#1a7a9e"/>
+  <rect x="640" y="308" width="24" height="4" fill="#2596be"><animate attributeName="fill" values="#0e6a8a;#1a7a9e;#2596be;#44c4e0;#5dcfe8;#44c4e0;#2596be;#1a7a9e" dur="0.8s" calcMode="discrete" repeatCount="indefinite" begin="0.125s"/></rect>
+  <rect x="672" y="316" width="24" height="8" fill="#1a7a9e"/>
+  <rect x="820" y="312" width="24" height="8" fill="#1a7a9e"/>
+  <rect x="820" y="308" width="24" height="4" fill="#2596be"><animate attributeName="fill" values="#0e6a8a;#1a7a9e;#2596be;#44c4e0;#5dcfe8;#44c4e0;#2596be;#1a7a9e" dur="0.8s" calcMode="discrete" repeatCount="indefinite" begin="0.1875s"/></rect>
+  <rect x="852" y="316" width="32" height="8" fill="#1a7a9e"/>
+  <rect x="892" y="312" width="24" height="8" fill="#1a7a9e"/>
+  <rect x="892" y="308" width="24" height="4" fill="#2596be"><animate attributeName="fill" values="#0e6a8a;#1a7a9e;#2596be;#44c4e0;#5dcfe8;#44c4e0;#2596be;#1a7a9e" dur="0.8s" calcMode="discrete" repeatCount="indefinite" begin="0s"/></rect>
+  <rect x="924" y="316" width="32" height="8" fill="#1a7a9e"/>
+  <rect x="964" y="312" width="24" height="8" fill="#1a7a9e"/>
+  <rect x="964" y="308" width="24" height="4" fill="#2596be"><animate attributeName="fill" values="#0e6a8a;#1a7a9e;#2596be;#44c4e0;#5dcfe8;#44c4e0;#2596be;#1a7a9e" dur="0.8s" calcMode="discrete" repeatCount="indefinite" begin="0.0625s"/></rect>
+  <rect x="996" y="316" width="32" height="8" fill="#1a7a9e"/>
+  <rect x="1036" y="312" width="24" height="8" fill="#1a7a9e"/>
+  <rect x="1036" y="308" width="24" height="4" fill="#2596be"><animate attributeName="fill" values="#0e6a8a;#1a7a9e;#2596be;#44c4e0;#5dcfe8;#44c4e0;#2596be;#1a7a9e" dur="0.8s" calcMode="discrete" repeatCount="indefinite" begin="0.125s"/></rect>
+  <rect x="1068" y="316" width="32" height="8" fill="#1a7a9e"/>
+
+  <!-- ============================================================ -->
+  <!-- OCEAN BODY (underwater) -->
+  <!-- ============================================================ -->
+  <rect x="0" y="324" width="1200" height="476" fill="url(#deepOcean)"/>
+  <!-- Mid ocean shading bands (reduced darkness) -->
+  <rect x="0" y="324" width="1200" height="48" fill="#071c2c" opacity="0.2"/>
+  <rect x="0" y="372" width="1200" height="80" fill="#051520" opacity="0.15"/>
+  <rect x="0" y="452" width="1200" height="120" fill="#03101a" opacity="0.2"/>
+  <!-- Underwater light shafts (brighter) -->
+  <rect x="200" y="324" width="16" height="200" fill="#0e4f6e" opacity="0.18"/>
+  <rect x="400" y="324" width="12" height="160" fill="#0e4f6e" opacity="0.15"/>
+  <rect x="600" y="324" width="20" height="240" fill="#1a7a9e" opacity="0.17"/>
+  <rect x="850" y="324" width="16" height="180" fill="#0e4f6e" opacity="0.15"/>
+  <rect x="1050" y="324" width="12" height="200" fill="#0e4f6e" opacity="0.17"/>
+
+  <!-- ============================================================ -->
+  <!-- CABLE SHIP (on ocean surface, centre) -->
+  <!-- ============================================================ -->
+  <!-- Hull -->
+  <rect x="456" y="292" width="180" height="36" fill="#374151"/>
+  <rect x="456" y="292" width="180" height="4" fill="#1c1917"/>
+  <!-- Hull waterline -->
+  <rect x="456" y="320" width="180" height="8" fill="#1c1917"/>
+  <!-- Hull bow (left) -->
+  <rect x="448" y="296" width="12" height="28" fill="#374151"/>
+  <rect x="440" y="300" width="12" height="24" fill="#374151"/>
+  <rect x="432" y="304" width="12" height="20" fill="#374151"/>
+  <rect x="432" y="304" width="4" height="20" fill="#1c1917"/>
+  <!-- Hull stern (right) -->
+  <rect x="632" y="296" width="12" height="28" fill="#374151"/>
+  <rect x="640" y="300" width="8" height="24" fill="#374151"/>
+  <!-- Main superstructure (bridge) -->
+  <rect x="520" y="248" width="96" height="48" fill="#6b7280"/>
+  <rect x="520" y="248" width="96" height="4" fill="#1c1917"/>
+  <rect x="520" y="292" width="96" height="4" fill="#1c1917"/>
+  <rect x="520" y="248" width="4" height="48" fill="#1c1917"/>
+  <rect x="612" y="248" width="4" height="48" fill="#1c1917"/>
+  <!-- Bridge windows -->
+  <rect x="528" y="256" width="16" height="12" fill="#bfdbfe"/>
+  <rect x="528" y="256" width="16" height="4" fill="#dbeafe"/>
+  <rect x="548" y="256" width="16" height="12" fill="#bfdbfe"/>
+  <rect x="548" y="256" width="16" height="4" fill="#dbeafe"/>
+  <rect x="568" y="256" width="16" height="12" fill="#bfdbfe"/>
+  <rect x="568" y="256" width="16" height="4" fill="#dbeafe"/>
+  <rect x="588" y="256" width="16" height="12" fill="#bfdbfe"/>
+  <rect x="588" y="256" width="16" height="4" fill="#dbeafe"/>
+  <!-- Smaller windows on lower bridge -->
+  <rect x="528" y="276" width="10" height="8" fill="#fef3c7"/>
+  <rect x="542" y="276" width="10" height="8" fill="#fef3c7"/>
+  <rect x="556" y="276" width="10" height="8" fill="#fef3c7"/>
+  <rect x="570" y="276" width="10" height="8" fill="#fef3c7"/>
+  <rect x="584" y="276" width="10" height="8" fill="#fef3c7"/>
+  <rect x="598" y="276" width="8" height="8" fill="#fef3c7"/>
+  <!-- Bridge roof / funnel area -->
+  <rect x="524" y="240" width="88" height="12" fill="#9ca3af"/>
+  <rect x="524" y="240" width="88" height="4" fill="#d1d5db"/>
+  <!-- Ship's funnel/mast -->
+  <rect x="560" y="216" width="16" height="28" fill="#4b5563"/>
+  <rect x="560" y="216" width="16" height="4" fill="#6b7280"/>
+  <rect x="556" y="212" width="24" height="8" fill="#374151"/>
+  <!-- Radar mast -->
+  <rect x="580" y="200" width="4" height="44" fill="#9ca3af"/>
+  <rect x="572" y="200" width="20" height="4" fill="#d1d5db"/>
+  <!-- Cable reel / stern equipment -->
+  <rect x="464" y="268" width="48" height="28" fill="#4a5568"/>
+  <rect x="464" y="268" width="48" height="4" fill="#6b7280"/>
+  <!-- Cable drum on deck -->
+  <rect x="468" y="272" width="16" height="20" fill="#92400e"/>
+  <rect x="472" y="276" width="8" height="12" fill="#f59e0b"/>
+  <rect x="488" y="272" width="16" height="20" fill="#92400e"/>
+  <rect x="492" y="276" width="8" height="12" fill="#f59e0b"/>
+  <!-- Cargo area / cable storage -->
+  <rect x="620" y="268" width="28" height="28" fill="#4a5568"/>
+  <rect x="624" y="272" width="20" height="20" fill="#6b7280"/>
+  <!-- Ship running lights -->
+  <rect x="432" y="300" width="8" height="8" fill="#22c55e"/>
+  <rect x="636" y="300" width="8" height="8" fill="#ef4444"/>
+  <!-- Deck crane/gantry for cable laying -->
+  <rect x="468" y="248" width="4" height="24" fill="#9ca3af"/>
+  <rect x="468" y="248" width="24" height="4" fill="#9ca3af"/>
+  <rect x="488" y="248" width="4" height="24" fill="#9ca3af"/>
+
+  <!-- ============================================================ -->
+  <!-- CABLE FROM SHIP INTO WATER (vertical drop) -->
+  <!-- ============================================================ -->
+  <!-- Cable entering water from ship stern -->
+  <rect x="476" y="320" width="8" height="8" fill="#f59e0b"/>
+  <rect x="476" y="328" width="8" height="8" fill="#f59e0b"/>
+  <rect x="476" y="336" width="8" height="8" fill="#d97706"/>
+  <rect x="476" y="344" width="8" height="8" fill="#d97706"/>
+  <rect x="476" y="352" width="8" height="8" fill="#b45309"/>
+  <rect x="476" y="360" width="8" height="8" fill="#b45309"/>
+  <rect x="476" y="368" width="8" height="8" fill="#92400e"/>
+  <rect x="476" y="376" width="8" height="8" fill="#92400e"/>
+  <!-- Cable curves to horizontal on ocean floor -->
+  <rect x="472" y="384" width="12" height="8" fill="#92400e"/>
+  <rect x="468" y="392" width="16" height="8" fill="#92400e"/>
+  <rect x="460" y="400" width="16" height="8" fill="#92400e"/>
+  <rect x="448" y="404" width="20" height="8" fill="#92400e"/>
+  <rect x="432" y="408" width="24" height="8" fill="#92400e"/>
+
+  <!-- ============================================================ -->
+  <!-- SUBMARINE CABLE - VISIBLE DESCENT THROUGH WATER COLUMN -->
+  <!-- Runs from y=416 down to ocean floor at y=692 -->
+  <!-- ============================================================ -->
+  <!-- Wide amber glow halo -->
+  <rect x="424" y="416" width="24" height="280" fill="#78350f" opacity="0.55"/>
+  <!-- Cable body (amber) -->
+  <rect x="432" y="416" width="8" height="276" fill="#f59e0b"/>
+  <!-- Bright core highlight -->
+  <rect x="434" y="416" width="4" height="276" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+  <!-- Repeater housing at mid-depth (~y=540) -->
+  <rect x="424" y="538" width="24" height="20" fill="#d97706"/>
+  <rect x="426" y="540" width="20" height="16" fill="#f59e0b"/>
+  <rect x="428" y="542" width="16" height="12" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+  <!-- Second repeater at ~y=630 -->
+  <rect x="424" y="628" width="24" height="20" fill="#d97706"/>
+  <rect x="426" y="630" width="20" height="16" fill="#f59e0b"/>
+  <rect x="428" y="632" width="16" height="12" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+
+  <!-- ============================================================ -->
+  <!-- OCEAN FLOOR -->
+  <!-- ============================================================ -->
+  <!-- Sand/rock ocean floor -->
+  <rect x="0" y="700" width="1200" height="100" fill="#1a2e3d"/>
+  <rect x="0" y="700" width="1200" height="8" fill="#253347"/>
+  <!-- Sandy patches -->
+  <rect x="0" y="708" width="80" height="8" fill="#2d4a5e"/>
+  <rect x="120" y="708" width="120" height="8" fill="#2d4a5e"/>
+  <rect x="280" y="708" width="200" height="8" fill="#2d4a5e"/>
+  <rect x="520" y="708" width="160" height="8" fill="#2d4a5e"/>
+  <rect x="720" y="708" width="240" height="8" fill="#2d4a5e"/>
+  <rect x="1000" y="708" width="200" height="8" fill="#2d4a5e"/>
+  <!-- Rocky outcrops on floor -->
+  <rect x="80" y="692" width="40" height="16" fill="#1a2e3d"/>
+  <rect x="88" y="684" width="24" height="12" fill="#253347"/>
+  <rect x="240" y="688" width="32" height="20" fill="#1a2e3d"/>
+  <rect x="248" y="680" width="16" height="12" fill="#253347"/>
+  <rect x="480" y="692" width="28" height="16" fill="#1a2e3d"/>
+  <rect x="488" y="684" width="12" height="12" fill="#253347"/>
+  <rect x="680" y="688" width="36" height="20" fill="#1a2e3d"/>
+  <rect x="688" y="680" width="20" height="12" fill="#253347"/>
+  <rect x="900" y="692" width="40" height="16" fill="#1a2e3d"/>
+  <rect x="908" y="684" width="24" height="12" fill="#253347"/>
+  <rect x="1120" y="688" width="32" height="20" fill="#1a2e3d"/>
+  <!-- Small rocks scattered -->
+  <rect x="160" y="700" width="12" height="8" fill="#253347"/>
+  <rect x="360" y="700" width="16" height="8" fill="#1a2e3d"/>
+  <rect x="560" y="700" width="8" height="8" fill="#253347"/>
+  <rect x="760" y="700" width="20" height="8" fill="#1a2e3d"/>
+  <rect x="960" y="700" width="12" height="8" fill="#253347"/>
+
+  <!-- ============================================================ -->
+  <!-- SUBMARINE CABLE ALONG OCEAN FLOOR -->
+  <!-- Glowing amber/orange cable stretching left to right -->
+  <!-- ============================================================ -->
+  <!-- Glow layer (wider, darker amber behind) -->
+  <rect x="0" y="694" width="184" height="12" fill="#78350f" opacity="0.7"/>
+  <rect x="184" y="690" width="120" height="12" fill="#78350f" opacity="0.7"/>
+  <rect x="304" y="686" width="160" height="12" fill="#78350f" opacity="0.7"/>
+  <rect x="464" y="690" width="200" height="12" fill="#78350f" opacity="0.7"/>
+  <rect x="664" y="686" width="160" height="12" fill="#78350f" opacity="0.7"/>
+  <rect x="824" y="690" width="200" height="12" fill="#78350f" opacity="0.7"/>
+  <rect x="1024" y="686" width="176" height="12" fill="#78350f" opacity="0.7"/>
+
+  <!-- Main cable segments (amber core) -->
+  <!-- Left stretch to first bend -->
+  <rect x="0" y="696" width="180" height="8" fill="#f59e0b"/>
+  <rect x="0" y="696" width="180" height="4" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+  <!-- Slight undulation to go over/around rocks -->
+  <rect x="180" y="692" width="40" height="8" fill="#f59e0b"/>
+  <rect x="180" y="692" width="40" height="4" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+  <rect x="220" y="694" width="80" height="8" fill="#f59e0b"/>
+  <rect x="220" y="694" width="80" height="4" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+  <rect x="300" y="690" width="60" height="8" fill="#f59e0b"/>
+  <rect x="300" y="690" width="60" height="4" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+  <rect x="360" y="692" width="100" height="8" fill="#f59e0b"/>
+  <rect x="360" y="692" width="100" height="4" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+  <!-- Goes up to join ship cable -->
+  <rect x="432" y="692" width="48" height="8" fill="#f59e0b"/>
+  <rect x="432" y="692" width="48" height="4" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+  <!-- Continue right after ship -->
+  <rect x="520" y="692" width="140" height="8" fill="#f59e0b"/>
+  <rect x="520" y="692" width="140" height="4" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+  <rect x="660" y="688" width="80" height="8" fill="#f59e0b"/>
+  <rect x="660" y="688" width="80" height="4" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+  <rect x="740" y="690" width="80" height="8" fill="#f59e0b"/>
+  <rect x="740" y="690" width="80" height="4" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+  <rect x="820" y="694" width="100" height="8" fill="#f59e0b"/>
+  <rect x="820" y="694" width="100" height="4" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+  <rect x="920" y="690" width="80" height="8" fill="#f59e0b"/>
+  <rect x="920" y="690" width="80" height="4" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+  <rect x="1000" y="692" width="80" height="8" fill="#f59e0b"/>
+  <rect x="1000" y="692" width="80" height="4" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+  <rect x="1080" y="694" width="120" height="8" fill="#f59e0b"/>
+  <rect x="1080" y="694" width="120" height="4" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+
+  <!-- Cable connector nodes / repeater housings -->
+  <rect x="180" y="688" width="16" height="16" fill="#d97706"/>
+  <rect x="182" y="690" width="12" height="12" fill="#f59e0b"/>
+  <rect x="184" y="692" width="8" height="8" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+
+  <rect x="440" y="688" width="16" height="16" fill="#d97706"/>
+  <rect x="442" y="690" width="12" height="12" fill="#f59e0b"/>
+  <rect x="444" y="692" width="8" height="8" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+
+  <rect x="700" y="684" width="16" height="16" fill="#d97706"/>
+  <rect x="702" y="686" width="12" height="12" fill="#f59e0b"/>
+  <rect x="704" y="688" width="8" height="8" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+
+  <rect x="940" y="686" width="16" height="16" fill="#d97706"/>
+  <rect x="942" y="688" width="12" height="12" fill="#f59e0b"/>
+  <rect x="944" y="690" width="8" height="8" fill="#fcd34d"><animate attributeName="fill" values="#d97706;#f59e0b;#fcd34d;#fffacd;#ffffff;#fffacd;#fcd34d;#f59e0b" dur="0.6s" calcMode="discrete" repeatCount="indefinite" begin="0.08s"/></rect>
+
+  <!-- ============================================================ -->
+  <!-- UNDERWATER CORAL / SEAWEED DETAILS -->
+  <!-- ============================================================ -->
+  <!-- Seaweed stems -->
+  <rect x="100" y="664" width="4" height="40" fill="#065f46"/>
+  <rect x="104" y="652" width="4" height="16" fill="#047857"/>
+  <rect x="96" y="660" width="4" height="44" fill="#065f46"/>
+  <!-- Seaweed fronds left -->
+  <rect x="88" y="660" width="12" height="4" fill="#059669"/>
+  <rect x="84" y="652" width="16" height="4" fill="#059669"/>
+  <rect x="88" y="644" width="12" height="4" fill="#065f46"/>
+  <!-- Right seaweed -->
+  <rect x="320" y="668" width="4" height="36" fill="#065f46"/>
+  <rect x="316" y="664" width="4" height="40" fill="#047857"/>
+  <rect x="308" y="656" width="12" height="4" fill="#059669"/>
+  <rect x="312" y="648" width="12" height="4" fill="#059669"/>
+  <!-- Centre-right seaweed -->
+  <rect x="820" y="660" width="4" height="44" fill="#065f46"/>
+  <rect x="824" y="656" width="4" height="48" fill="#047857"/>
+  <rect x="812" y="652" width="16" height="4" fill="#059669"/>
+  <rect x="808" y="644" width="16" height="4" fill="#047857"/>
+  <!-- Right side seaweed -->
+  <rect x="1060" y="664" width="4" height="40" fill="#065f46"/>
+  <rect x="1056" y="660" width="4" height="44" fill="#047857"/>
+  <rect x="1048" y="656" width="12" height="4" fill="#059669"/>
+  <!-- Small coral formations -->
+  <rect x="200" y="700" width="8" height="4" fill="#be185d"/>
+  <rect x="204" y="696" width="4" height="8" fill="#be185d"/>
+  <rect x="200" y="696" width="4" height="4" fill="#db2777"/>
+  <rect x="580" y="700" width="8" height="4" fill="#be185d"/>
+  <rect x="584" y="696" width="4" height="8" fill="#be185d"/>
+  <rect x="580" y="696" width="4" height="4" fill="#db2777"/>
+  <rect x="900" y="700" width="8" height="4" fill="#be185d"/>
+  <rect x="904" y="696" width="4" height="8" fill="#be185d"/>
+  <rect x="900" y="696" width="4" height="4" fill="#db2777"/>
+
+  <!-- Fish 1 (small pixel fish, left ocean) -->
+  <rect x="150" y="420" width="16" height="8" fill="#0891b2"/>
+  <rect x="162" y="416" width="8" height="4" fill="#0891b2"/>
+  <rect x="146" y="420" width="8" height="8" fill="#0e7490"/>
+  <rect x="158" y="418" width="4" height="4" fill="#ffffff"/>
+
+  <!-- Fish 2 -->
+  <rect x="880" y="500" width="16" height="8" fill="#7c3aed"/>
+  <rect x="892" y="496" width="8" height="4" fill="#7c3aed"/>
+  <rect x="876" y="500" width="8" height="8" fill="#6d28d9"/>
+  <rect x="888" y="498" width="4" height="4" fill="#ffffff"/>
+
+  <!-- Fish 3 (near cable) -->
+  <rect x="540" y="640" width="12" height="8" fill="#0891b2"/>
+  <rect x="548" y="636" width="8" height="4" fill="#0891b2"/>
+  <rect x="536" y="640" width="8" height="8" fill="#0e7490"/>
+  <rect x="546" y="638" width="4" height="4" fill="#ffffff"/>
+
+  <!-- ============================================================ -->
+  <!-- OCEAN SURFACE WATER DETAILS -->
+  <!-- Reflections and additional waves -->
+  <!-- ============================================================ -->
+  <!-- Wave row 2 (slightly different offset) -->
+  <rect x="20" y="328" width="28" height="4" fill="#0e4f6e" opacity="0.8"/>
+  <rect x="56" y="332" width="20" height="4" fill="#1a7a9e" opacity="0.6"/>
+  <rect x="84" y="328" width="28" height="4" fill="#0e4f6e" opacity="0.8"/>
+  <rect x="120" y="332" width="20" height="4" fill="#1a7a9e" opacity="0.6"/>
+  <rect x="148" y="328" width="28" height="4" fill="#0e4f6e" opacity="0.8"/>
+  <rect x="184" y="332" width="20" height="4" fill="#1a7a9e" opacity="0.6"/>
+  <rect x="212" y="328" width="28" height="4" fill="#0e4f6e" opacity="0.8"/>
+  <rect x="248" y="332" width="20" height="4" fill="#1a7a9e" opacity="0.6"/>
+  <rect x="532" y="328" width="28" height="4" fill="#0e4f6e" opacity="0.8"/>
+  <rect x="568" y="332" width="20" height="4" fill="#1a7a9e" opacity="0.6"/>
+  <rect x="596" y="328" width="28" height="4" fill="#0e4f6e" opacity="0.8"/>
+  <rect x="632" y="332" width="20" height="4" fill="#1a7a9e" opacity="0.6"/>
+  <rect x="660" y="328" width="28" height="4" fill="#0e4f6e" opacity="0.8"/>
+  <rect x="856" y="328" width="28" height="4" fill="#0e4f6e" opacity="0.8"/>
+  <rect x="892" y="332" width="20" height="4" fill="#1a7a9e" opacity="0.6"/>
+  <rect x="920" y="328" width="28" height="4" fill="#0e4f6e" opacity="0.8"/>
+  <rect x="956" y="332" width="20" height="4" fill="#1a7a9e" opacity="0.6"/>
+  <rect x="984" y="328" width="28" height="4" fill="#0e4f6e" opacity="0.8"/>
+  <rect x="1020" y="332" width="20" height="4" fill="#1a7a9e" opacity="0.6"/>
+  <rect x="1048" y="328" width="28" height="4" fill="#0e4f6e" opacity="0.8"/>
+  <rect x="1084" y="332" width="20" height="4" fill="#1a7a9e" opacity="0.6"/>
+  <rect x="1112" y="328" width="28" height="4" fill="#0e4f6e" opacity="0.8"/>
+  <rect x="1148" y="332" width="20" height="4" fill="#1a7a9e" opacity="0.6"/>
+
+  <!-- ============================================================ -->
+  <!-- MOON (top right) -->
+  <!-- ============================================================ -->
+  <rect x="1080" y="20" width="48" height="48" fill="#fef9c3"/>
+  <rect x="1080" y="20" width="48" height="4" fill="#fef3c7"/>
+  <!-- Moon craters (pixel style) -->
+  <rect x="1088" y="32" width="8" height="8" fill="#fde68a"/>
+  <rect x="1104" y="44" width="12" height="12" fill="#fde68a"/>
+  <rect x="1116" y="28" width="8" height="8" fill="#fde68a"/>
+  <!-- Moon glow -->
+  <rect x="1076" y="16" width="56" height="4" fill="#fef9c3" opacity="0.4"/>
+  <rect x="1076" y="64" width="56" height="4" fill="#fef9c3" opacity="0.4"/>
+  <rect x="1072" y="20" width="8" height="48" fill="#fef9c3" opacity="0.3"/>
+  <rect x="1128" y="20" width="8" height="48" fill="#fef9c3" opacity="0.3"/>
+  <!-- Moon reflection on water -->
+  <rect x="1092" y="316" width="32" height="4" fill="#fef3c7" opacity="0.25"><animate attributeName="opacity" values="0.25;0.4;0.25" dur="0.5s" calcMode="discrete" repeatCount="indefinite" begin="0.1s"/></rect>
+  <rect x="1096" y="320" width="24" height="4" fill="#fef3c7" opacity="0.15"><animate attributeName="opacity" values="0.15;0.28;0.15" dur="0.5s" calcMode="discrete" repeatCount="indefinite" begin="0.1s"/></rect>
+  <rect x="1100" y="324" width="16" height="4" fill="#fef3c7" opacity="0.1"><animate attributeName="opacity" values="0.1;0.2;0.1" dur="0.5s" calcMode="discrete" repeatCount="indefinite" begin="0.1s"/></rect>
+
+  <!-- ============================================================ -->
+  <!-- HORIZON GLOW (light pollution from cities) -->
+  <!-- ============================================================ -->
+  <rect x="0" y="290" width="200" height="30" fill="#22c55e" opacity="0.04"/>
+  <rect x="680" y="290" width="180" height="30" fill="#3b82f6" opacity="0.05"/>
+  <rect x="1050" y="290" width="150" height="30" fill="#22c55e" opacity="0.04"/>
+
+  <!-- ============================================================ -->
+  <!-- TITLE PANEL BACKGROUND (bottom portion) -->
+  <!-- Dark banner for title text -->
+  <!-- ============================================================ -->
+  <rect x="0" y="744" width="1200" height="56" fill="#0a0a14" opacity="0.92"/>
+  <rect x="0" y="744" width="1200" height="4" fill="#f59e0b" opacity="0.8"/>
+  <rect x="0" y="796" width="1200" height="4" fill="#f59e0b" opacity="0.5"/>
+
+  <!-- ============================================================ -->
+  <!-- "ROUTEBUILDER" PIXEL ART TITLE -->
+  <!-- Chunky pixel letter approach — each letter hand-crafted in rects -->
+  <!-- Starting at x=60, y=750, letter height=36px, each pixel=8x8 -->
+  <!-- ============================================================ -->
+  <!-- === R === (x=60) -->
+  <!-- Dark outline rects behind -->
+  <rect x="56" y="746" width="56" height="48" fill="#1c1917"/>
+  <!-- R body -->
+  <rect x="60" y="750" width="8" height="40" fill="#fbbf24"/>
+  <rect x="68" y="750" width="32" height="8" fill="#fbbf24"/>
+  <rect x="100" y="758" width="8" height="8" fill="#fbbf24"/>
+  <rect x="100" y="766" width="8" height="8" fill="#fbbf24"/>
+  <rect x="68" y="774" width="32" height="8" fill="#fbbf24"/>
+  <rect x="84" y="782" width="8" height="8" fill="#fbbf24"/>
+  <rect x="92" y="782" width="16" height="8" fill="#fbbf24"/>
+  <!-- R highlight -->
+  <rect x="60" y="750" width="8" height="8" fill="#fcd34d"/>
+  <rect x="68" y="750" width="32" height="4" fill="#fcd34d"/>
+
+  <!-- === O === (x=120) -->
+  <rect x="116" y="746" width="56" height="48" fill="#1c1917"/>
+  <rect x="128" y="750" width="24" height="8" fill="#fbbf24"/>
+  <rect x="120" y="758" width="8" height="24" fill="#fbbf24"/>
+  <rect x="144" y="758" width="8" height="24" fill="#fbbf24"/>
+  <rect x="128" y="782" width="24" height="8" fill="#fbbf24"/>
+  <!-- O highlight -->
+  <rect x="128" y="750" width="24" height="4" fill="#fcd34d"/>
+  <rect x="120" y="758" width="8" height="8" fill="#fcd34d"/>
+
+  <!-- === U === (x=180) -->
+  <rect x="176" y="746" width="56" height="48" fill="#1c1917"/>
+  <rect x="180" y="750" width="8" height="32" fill="#fbbf24"/>
+  <rect x="220" y="750" width="8" height="32" fill="#fbbf24"/>
+  <rect x="188" y="782" width="32" height="8" fill="#fbbf24"/>
+  <!-- U highlight -->
+  <rect x="180" y="750" width="8" height="8" fill="#fcd34d"/>
+  <rect x="220" y="750" width="8" height="8" fill="#fcd34d"/>
+
+  <!-- === T === (x=240) -->
+  <rect x="236" y="746" width="56" height="48" fill="#1c1917"/>
+  <rect x="240" y="750" width="48" height="8" fill="#fbbf24"/>
+  <rect x="260" y="758" width="8" height="32" fill="#fbbf24"/>
+  <!-- T highlight -->
+  <rect x="240" y="750" width="48" height="4" fill="#fcd34d"/>
+
+  <!-- === E === (x=300) -->
+  <rect x="296" y="746" width="56" height="48" fill="#1c1917"/>
+  <rect x="300" y="750" width="8" height="40" fill="#fbbf24"/>
+  <rect x="308" y="750" width="36" height="8" fill="#fbbf24"/>
+  <rect x="308" y="770" width="28" height="8" fill="#fbbf24"/>
+  <rect x="308" y="782" width="36" height="8" fill="#fbbf24"/>
+  <!-- E highlight -->
+  <rect x="300" y="750" width="8" height="8" fill="#fcd34d"/>
+  <rect x="308" y="750" width="36" height="4" fill="#fcd34d"/>
+
+  <!-- === B === (x=360) -->
+  <rect x="356" y="746" width="56" height="48" fill="#1c1917"/>
+  <rect x="360" y="750" width="8" height="40" fill="#fbbf24"/>
+  <rect x="368" y="750" width="24" height="8" fill="#fbbf24"/>
+  <rect x="392" y="758" width="8" height="8" fill="#fbbf24"/>
+  <rect x="368" y="766" width="24" height="8" fill="#fbbf24"/>
+  <rect x="392" y="774" width="8" height="8" fill="#fbbf24"/>
+  <rect x="368" y="782" width="24" height="8" fill="#fbbf24"/>
+  <!-- B highlight -->
+  <rect x="360" y="750" width="8" height="8" fill="#fcd34d"/>
+  <rect x="368" y="750" width="24" height="4" fill="#fcd34d"/>
+
+  <!-- === U === (x=420) -->
+  <rect x="416" y="746" width="56" height="48" fill="#1c1917"/>
+  <rect x="420" y="750" width="8" height="32" fill="#fbbf24"/>
+  <rect x="460" y="750" width="8" height="32" fill="#fbbf24"/>
+  <rect x="428" y="782" width="32" height="8" fill="#fbbf24"/>
+  <!-- U highlight -->
+  <rect x="420" y="750" width="8" height="8" fill="#fcd34d"/>
+  <rect x="460" y="750" width="8" height="8" fill="#fcd34d"/>
+
+  <!-- === I === (x=480) -->
+  <rect x="476" y="746" width="48" height="48" fill="#1c1917"/>
+  <rect x="480" y="750" width="40" height="8" fill="#fbbf24"/>
+  <rect x="496" y="758" width="8" height="24" fill="#fbbf24"/>
+  <rect x="480" y="782" width="40" height="8" fill="#fbbf24"/>
+  <!-- I highlight -->
+  <rect x="480" y="750" width="40" height="4" fill="#fcd34d"/>
+
+  <!-- === L === (x=532) -->
+  <rect x="528" y="746" width="56" height="48" fill="#1c1917"/>
+  <rect x="532" y="750" width="8" height="40" fill="#fbbf24"/>
+  <rect x="540" y="782" width="36" height="8" fill="#fbbf24"/>
+  <!-- L highlight -->
+  <rect x="532" y="750" width="8" height="8" fill="#fcd34d"/>
+
+  <!-- === D === (x=592) -->
+  <rect x="588" y="746" width="56" height="48" fill="#1c1917"/>
+  <rect x="592" y="750" width="8" height="40" fill="#fbbf24"/>
+  <rect x="600" y="750" width="20" height="8" fill="#fbbf24"/>
+  <rect x="620" y="758" width="8" height="24" fill="#fbbf24"/>
+  <rect x="600" y="782" width="20" height="8" fill="#fbbf24"/>
+  <!-- D highlight -->
+  <rect x="592" y="750" width="8" height="8" fill="#fcd34d"/>
+  <rect x="600" y="750" width="20" height="4" fill="#fcd34d"/>
+
+  <!-- === E === (x=652) -->
+  <rect x="648" y="746" width="56" height="48" fill="#1c1917"/>
+  <rect x="652" y="750" width="8" height="40" fill="#fbbf24"/>
+  <rect x="660" y="750" width="36" height="8" fill="#fbbf24"/>
+  <rect x="660" y="770" width="28" height="8" fill="#fbbf24"/>
+  <rect x="660" y="782" width="36" height="8" fill="#fbbf24"/>
+  <!-- E highlight -->
+  <rect x="652" y="750" width="8" height="8" fill="#fcd34d"/>
+  <rect x="660" y="750" width="36" height="4" fill="#fcd34d"/>
+
+  <!-- === R === (x=712) -->
+  <rect x="708" y="746" width="56" height="48" fill="#1c1917"/>
+  <rect x="712" y="750" width="8" height="40" fill="#fbbf24"/>
+  <rect x="720" y="750" width="32" height="8" fill="#fbbf24"/>
+  <rect x="752" y="758" width="8" height="8" fill="#fbbf24"/>
+  <rect x="752" y="766" width="8" height="8" fill="#fbbf24"/>
+  <rect x="720" y="774" width="32" height="8" fill="#fbbf24"/>
+  <rect x="736" y="782" width="8" height="8" fill="#fbbf24"/>
+  <rect x="744" y="782" width="16" height="8" fill="#fbbf24"/>
+  <!-- R highlight -->
+  <rect x="712" y="750" width="8" height="8" fill="#fcd34d"/>
+  <rect x="720" y="750" width="32" height="4" fill="#fcd34d"/>
+
+  <!-- ============================================================ -->
+  <!-- SUBTITLE TEXT (below title, smaller) -->
+  <!-- "International Telco Network Design" -->
+  <!-- Using SVG text with pixel-ish font -->
+  <!-- ============================================================ -->
+  <rect x="0" y="796" width="1200" height="4" fill="#92400e" opacity="0.6"/>
+
+  <!-- Subtitle text block (pixel style approximation with rects for key letters, but using text for density) -->
+  <!-- We'll do a styled text element since doing full pixel letters for subtitle would be 200+ more rects -->
+  <!-- The title itself is pixel-art rects; subtitle uses retro-styled text -->
+  <text x="600" y="724"
+        font-family="monospace, 'Courier New', Courier"
+        font-size="18"
+        font-weight="bold"
+        letter-spacing="6"
+        text-anchor="middle"
+        fill="#d97706"
+        stroke="#1c1917"
+        stroke-width="2"
+        paint-order="stroke">INTERNATIONAL TELCO NETWORK DESIGN</text>
+
+  <!-- ============================================================ -->
+  <!-- DECORATIVE PIXEL BORDER ELEMENTS -->
+  <!-- CPS2-style corner ornaments and scanline feel -->
+  <!-- ============================================================ -->
+  <!-- Top-left corner ornament -->
+  <rect x="0" y="0" width="16" height="320" fill="#1c1917" opacity="0.3"/>
+  <rect x="0" y="0" width="4" height="320" fill="#f59e0b" opacity="0.4"/>
+  <!-- Top-right corner ornament -->
+  <rect x="1196" y="0" width="4" height="320" fill="#f59e0b" opacity="0.4"/>
+  <!-- Bottom border strip -->
+  <rect x="0" y="796" width="1200" height="4" fill="#f59e0b" opacity="0.6"/>
+
+  <!-- Circuit-line decorations in sky (network topology suggestion) -->
+  <!-- Horizontal circuit traces -->
+  <rect x="0" y="116" width="160" height="4" fill="#1a3a5c" opacity="0.6"/>
+  <rect x="160" y="112" width="4" height="8" fill="#1a3a5c" opacity="0.6"/>
+  <rect x="164" y="108" width="4" height="8" fill="#1a3a5c" opacity="0.6"/>
+  <rect x="168" y="108" width="80" height="4" fill="#1a3a5c" opacity="0.6"/>
+  <rect x="1040" y="116" width="160" height="4" fill="#1a3a5c" opacity="0.6"/>
+  <rect x="1036" y="112" width="4" height="8" fill="#1a3a5c" opacity="0.6"/>
+  <rect x="1032" y="108" width="4" height="8" fill="#1a3a5c" opacity="0.6"/>
+  <rect x="952" y="108" width="80" height="4" fill="#1a3a5c" opacity="0.6"/>
+  <!-- Vertical circuit traces -->
+  <rect x="248" y="108" width="4" height="80" fill="#1a3a5c" opacity="0.6"/>
+  <rect x="948" y="108" width="4" height="80" fill="#1a3a5c" opacity="0.6"/>
+  <!-- Dot nodes on circuit -->
+  <rect x="244" y="104" width="12" height="12" fill="#22c55e" opacity="0.5"/>
+  <rect x="944" y="104" width="12" height="12" fill="#22c55e" opacity="0.5"/>
+  <rect x="164" y="104" width="12" height="12" fill="#3b82f6" opacity="0.5"/>
+  <rect x="1028" y="104" width="12" height="12" fill="#3b82f6" opacity="0.5"/>
+
+  <!-- ============================================================ -->
+  <!-- ADDITIONAL UNDERWATER DETAIL -->
+  <!-- Mid-depth debris / cable protection weights -->
+  <!-- ============================================================ -->
+  <!-- Cable weights (armor sections) -->
+  <rect x="280" y="688" width="12" height="12" fill="#374151"/>
+  <rect x="282" y="690" width="8" height="8" fill="#4a5568"/>
+  <rect x="560" y="688" width="12" height="12" fill="#374151"/>
+  <rect x="562" y="690" width="8" height="8" fill="#4a5568"/>
+  <rect x="840" y="688" width="12" height="12" fill="#374151"/>
+  <rect x="842" y="690" width="8" height="8" fill="#4a5568"/>
+
+  <!-- Bubbles rising from cable -->
+  <rect x="200" y="660" width="4" height="4" fill="#1a7a9e" opacity="0.5"/>
+  <rect x="204" y="648" width="4" height="4" fill="#1a7a9e" opacity="0.4"/>
+  <rect x="196" y="636" width="4" height="4" fill="#1a7a9e" opacity="0.3"/>
+  <rect x="600" y="660" width="4" height="4" fill="#1a7a9e" opacity="0.5"/>
+  <rect x="604" y="648" width="4" height="4" fill="#1a7a9e" opacity="0.4"/>
+  <rect x="596" y="636" width="4" height="4" fill="#1a7a9e" opacity="0.3"/>
+  <rect x="1000" y="660" width="4" height="4" fill="#1a7a9e" opacity="0.5"/>
+  <rect x="1004" y="648" width="4" height="4" fill="#1a7a9e" opacity="0.4"/>
+
+  <!-- Deep water bioluminescence flecks — pulse in and out -->
+  <rect x="80" y="540" width="4" height="4" fill="#22c55e" opacity="0.15"><animate attributeName="opacity" values="0.15;0.5;0.8;0.5;0.15;0.05;0.15" dur="3s" calcMode="discrete" repeatCount="indefinite" begin="0s"/></rect>
+  <rect x="240" y="580" width="4" height="4" fill="#06b6d4" opacity="0.12"><animate attributeName="opacity" values="0.12;0.05;0.12;0.6;0.9;0.6;0.12" dur="3.5s" calcMode="discrete" repeatCount="indefinite" begin="0.7s"/></rect>
+  <rect x="400" y="520" width="4" height="4" fill="#22c55e" opacity="0.1"><animate attributeName="opacity" values="0.1;0.4;0.7;0.4;0.1;0.05;0.1" dur="2.8s" calcMode="discrete" repeatCount="indefinite" begin="1.4s"/></rect>
+  <rect x="560" y="560" width="4" height="4" fill="#06b6d4" opacity="0.15"><animate attributeName="opacity" values="0.15;0.7;0.9;0.7;0.15;0.05;0.15" dur="3.2s" calcMode="discrete" repeatCount="indefinite" begin="0.3s"/></rect>
+  <rect x="720" y="540" width="4" height="4" fill="#22c55e" opacity="0.12"><animate attributeName="opacity" values="0.12;0.05;0.3;0.7;0.3;0.05;0.12" dur="3s" calcMode="discrete" repeatCount="indefinite" begin="1.8s"/></rect>
+  <rect x="880" y="580" width="4" height="4" fill="#06b6d4" opacity="0.1"><animate attributeName="opacity" values="0.1;0.5;0.8;0.5;0.1;0.05;0.1" dur="3.6s" calcMode="discrete" repeatCount="indefinite" begin="0.9s"/></rect>
+  <rect x="1040" y="520" width="4" height="4" fill="#22c55e" opacity="0.15"><animate attributeName="opacity" values="0.15;0.6;0.9;0.6;0.15;0.05;0.15" dur="2.6s" calcMode="discrete" repeatCount="indefinite" begin="2.1s"/></rect>
+  <rect x="1160" y="560" width="4" height="4" fill="#06b6d4" opacity="0.12"><animate attributeName="opacity" values="0.12;0.05;0.4;0.8;0.4;0.05;0.12" dur="3.4s" calcMode="discrete" repeatCount="indefinite" begin="1.1s"/></rect>
+
+  <!-- ============================================================ -->
+  <!-- PIXEL SCAN LINES (subtle CRT feel over full scene) -->
+  <!-- Very faint horizontal bands every 8 pixels to suggest CRT -->
+  <!-- Applied sparingly to avoid obscuring content -->
+  <!-- ============================================================ -->
+  <!-- Only doing a few to hint at the effect without overwhelming -->
+  <rect x="0" y="124" width="1200" height="2" fill="#000000" opacity="0.06"/>
+  <rect x="0" y="132" width="1200" height="2" fill="#000000" opacity="0.06"/>
+  <rect x="0" y="140" width="1200" height="2" fill="#000000" opacity="0.06"/>
+  <rect x="0" y="148" width="1200" height="2" fill="#000000" opacity="0.06"/>
+  <rect x="0" y="156" width="1200" height="2" fill="#000000" opacity="0.06"/>
+  <rect x="0" y="164" width="1200" height="2" fill="#000000" opacity="0.06"/>
+  <rect x="0" y="172" width="1200" height="2" fill="#000000" opacity="0.06"/>
+  <rect x="0" y="180" width="1200" height="2" fill="#000000" opacity="0.06"/>
+  <rect x="0" y="188" width="1200" height="2" fill="#000000" opacity="0.06"/>
+  <rect x="0" y="196" width="1200" height="2" fill="#000000" opacity="0.06"/>
+  <rect x="0" y="204" width="1200" height="2" fill="#000000" opacity="0.06"/>
+  <rect x="0" y="212" width="1200" height="2" fill="#000000" opacity="0.06"/>
+
+  <!-- ============================================================ -->
+  <!-- TITLE AREA DECORATIVE LINES (flank the title text) -->
+  <!-- ============================================================ -->
+  <!-- Left of title -->
+  <rect x="0" y="757" width="48" height="4" fill="#f59e0b" opacity="0.7"/>
+  <rect x="0" y="765" width="40" height="4" fill="#d97706" opacity="0.5"/>
+  <rect x="0" y="773" width="32" height="4" fill="#92400e" opacity="0.4"/>
+  <!-- Right of title -->
+  <rect x="780" y="757" width="420" height="4" fill="#f59e0b" opacity="0.7"/>
+  <rect x="800" y="765" width="400" height="4" fill="#d97706" opacity="0.5"/>
+  <rect x="820" y="773" width="380" height="4" fill="#92400e" opacity="0.4"/>
+  <!-- Version indicator dots (game-style) -->
+  <rect x="1168" y="757" width="8" height="8" fill="#22c55e"/>
+  <rect x="1180" y="757" width="8" height="8" fill="#22c55e"/>
+  <rect x="1192" y="757" width="8" height="8" fill="#22c55e"/>
+
+</svg>
