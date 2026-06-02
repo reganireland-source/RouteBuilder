@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800">
   <defs>
-    <!-- Sky gradient: black at top to deep midnight blue -->
+    <!-- Sky gradient: deep midnight blue (lighter than before) -->
     <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#000008"/>
-      <stop offset="40%" stop-color="#050520"/>
-      <stop offset="100%" stop-color="#0a1a3a"/>
+      <stop offset="0%" stop-color="#0d1830"/>
+      <stop offset="40%" stop-color="#132040"/>
+      <stop offset="100%" stop-color="#1e3f70"/>
     </linearGradient>
     <!-- Ocean surface gradient -->
     <linearGradient id="oceanSurface" x1="0" y1="0" x2="0" y2="1">
@@ -12,11 +12,11 @@
       <stop offset="40%" stop-color="#0a3550"/>
       <stop offset="100%" stop-color="#051520"/>
     </linearGradient>
-    <!-- Deep ocean gradient -->
+    <!-- Deep ocean gradient (lightened) -->
     <linearGradient id="deepOcean" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#051520"/>
-      <stop offset="60%" stop-color="#030e18"/>
-      <stop offset="100%" stop-color="#020a10"/>
+      <stop offset="0%" stop-color="#071e30"/>
+      <stop offset="60%" stop-color="#051828"/>
+      <stop offset="100%" stop-color="#040f1e"/>
     </linearGradient>
     <!-- Cable glow gradient -->
     <linearGradient id="cableGlow" x1="0" y1="0" x2="0" y2="1">
@@ -226,6 +226,209 @@
   <rect x="1164" y="126" width="12" height="4" fill="#9ca3af"/>
 
   <!-- ============================================================ -->
+  <!-- CITY SKYLINE LEFT (x=192-332, behind left landing area) -->
+  <!-- ============================================================ -->
+  <!-- Building L1 wide -->
+  <rect x="192" y="200" width="28" height="96" fill="#2d3748"/>
+  <rect x="192" y="200" width="28" height="4" fill="#374151"/>
+  <rect x="196" y="208" width="8" height="6" fill="#fef3c7"/>
+  <rect x="208" y="208" width="8" height="6" fill="#93c5fd"/>
+  <rect x="196" y="220" width="8" height="6" fill="#93c5fd"/>
+  <rect x="208" y="220" width="8" height="6" fill="#fef3c7"/>
+  <rect x="196" y="232" width="8" height="6" fill="#fef3c7"/>
+  <rect x="208" y="232" width="8" height="6" fill="#1c1917"/>
+  <rect x="196" y="244" width="8" height="6" fill="#1c1917"/>
+  <rect x="208" y="244" width="8" height="6" fill="#93c5fd"/>
+  <rect x="196" y="256" width="8" height="6" fill="#fef3c7"/>
+  <rect x="208" y="256" width="8" height="6" fill="#fef3c7"/>
+  <rect x="196" y="268" width="8" height="6" fill="#93c5fd"/>
+  <rect x="208" y="268" width="8" height="6" fill="#1c1917"/>
+  <rect x="203" y="192" width="4" height="12" fill="#9ca3af"/>
+  <rect x="203" y="188" width="4" height="4" fill="#ef4444"/>
+  <!-- Building L2 narrow -->
+  <rect x="228" y="222" width="24" height="74" fill="#374151"/>
+  <rect x="228" y="222" width="24" height="4" fill="#4a5568"/>
+  <rect x="232" y="230" width="7" height="6" fill="#93c5fd"/>
+  <rect x="243" y="230" width="5" height="6" fill="#fef3c7"/>
+  <rect x="232" y="242" width="7" height="6" fill="#fef3c7"/>
+  <rect x="243" y="242" width="5" height="6" fill="#1c1917"/>
+  <rect x="232" y="254" width="7" height="6" fill="#1c1917"/>
+  <rect x="243" y="254" width="5" height="6" fill="#93c5fd"/>
+  <rect x="232" y="266" width="7" height="6" fill="#fef3c7"/>
+  <rect x="243" y="266" width="5" height="6" fill="#fef3c7"/>
+  <!-- Building L3 tallest -->
+  <rect x="260" y="184" width="36" height="112" fill="#1f2937"/>
+  <rect x="260" y="184" width="36" height="4" fill="#2d3748"/>
+  <rect x="264" y="192" width="9" height="6" fill="#fef3c7"/>
+  <rect x="277" y="192" width="9" height="6" fill="#93c5fd"/>
+  <rect x="264" y="204" width="9" height="6" fill="#93c5fd"/>
+  <rect x="277" y="204" width="9" height="6" fill="#fef3c7"/>
+  <rect x="264" y="216" width="9" height="6" fill="#fef3c7"/>
+  <rect x="277" y="216" width="9" height="6" fill="#1c1917"/>
+  <rect x="264" y="228" width="9" height="6" fill="#1c1917"/>
+  <rect x="277" y="228" width="9" height="6" fill="#fef3c7"/>
+  <rect x="264" y="240" width="9" height="6" fill="#93c5fd"/>
+  <rect x="277" y="240" width="9" height="6" fill="#93c5fd"/>
+  <rect x="264" y="252" width="9" height="6" fill="#fef3c7"/>
+  <rect x="277" y="252" width="9" height="6" fill="#fef3c7"/>
+  <rect x="264" y="264" width="9" height="6" fill="#1c1917"/>
+  <rect x="277" y="264" width="9" height="6" fill="#93c5fd"/>
+  <rect x="275" y="172" width="4" height="16" fill="#9ca3af"/>
+  <rect x="273" y="168" width="8" height="4" fill="#6b7280"/>
+  <rect x="275" y="164" width="4" height="4" fill="#ef4444"/>
+  <!-- Building L4 -->
+  <rect x="304" y="218" width="28" height="78" fill="#374151"/>
+  <rect x="304" y="218" width="28" height="4" fill="#4a5568"/>
+  <rect x="308" y="226" width="7" height="6" fill="#fef3c7"/>
+  <rect x="319" y="226" width="7" height="6" fill="#93c5fd"/>
+  <rect x="308" y="238" width="7" height="6" fill="#1c1917"/>
+  <rect x="319" y="238" width="7" height="6" fill="#fef3c7"/>
+  <rect x="308" y="250" width="7" height="6" fill="#93c5fd"/>
+  <rect x="319" y="250" width="7" height="6" fill="#1c1917"/>
+  <rect x="308" y="262" width="7" height="6" fill="#fef3c7"/>
+  <rect x="319" y="262" width="7" height="6" fill="#93c5fd"/>
+
+  <!-- ============================================================ -->
+  <!-- CITY SKYLINE RIGHT (x=872-1010, flanking right coast) -->
+  <!-- ============================================================ -->
+  <!-- Building R1 -->
+  <rect x="872" y="222" width="28" height="74" fill="#374151"/>
+  <rect x="872" y="222" width="28" height="4" fill="#4a5568"/>
+  <rect x="876" y="230" width="7" height="6" fill="#fef3c7"/>
+  <rect x="887" y="230" width="7" height="6" fill="#93c5fd"/>
+  <rect x="876" y="242" width="7" height="6" fill="#93c5fd"/>
+  <rect x="887" y="242" width="7" height="6" fill="#fef3c7"/>
+  <rect x="876" y="254" width="7" height="6" fill="#fef3c7"/>
+  <rect x="887" y="254" width="7" height="6" fill="#1c1917"/>
+  <rect x="876" y="266" width="7" height="6" fill="#93c5fd"/>
+  <rect x="887" y="266" width="7" height="6" fill="#fef3c7"/>
+  <!-- Building R2 tallest -->
+  <rect x="908" y="184" width="36" height="112" fill="#1f2937"/>
+  <rect x="908" y="184" width="36" height="4" fill="#2d3748"/>
+  <rect x="912" y="192" width="9" height="6" fill="#93c5fd"/>
+  <rect x="925" y="192" width="9" height="6" fill="#fef3c7"/>
+  <rect x="912" y="204" width="9" height="6" fill="#fef3c7"/>
+  <rect x="925" y="204" width="9" height="6" fill="#1c1917"/>
+  <rect x="912" y="216" width="9" height="6" fill="#1c1917"/>
+  <rect x="925" y="216" width="9" height="6" fill="#93c5fd"/>
+  <rect x="912" y="228" width="9" height="6" fill="#fef3c7"/>
+  <rect x="925" y="228" width="9" height="6" fill="#fef3c7"/>
+  <rect x="912" y="240" width="9" height="6" fill="#93c5fd"/>
+  <rect x="925" y="240" width="9" height="6" fill="#1c1917"/>
+  <rect x="912" y="252" width="9" height="6" fill="#fef3c7"/>
+  <rect x="925" y="252" width="9" height="6" fill="#93c5fd"/>
+  <rect x="912" y="264" width="9" height="6" fill="#1c1917"/>
+  <rect x="925" y="264" width="9" height="6" fill="#fef3c7"/>
+  <rect x="923" y="172" width="4" height="16" fill="#9ca3af"/>
+  <rect x="921" y="168" width="8" height="4" fill="#6b7280"/>
+  <rect x="923" y="164" width="4" height="4" fill="#ef4444"/>
+  <!-- Building R3 -->
+  <rect x="952" y="200" width="28" height="96" fill="#2d3748"/>
+  <rect x="952" y="200" width="28" height="4" fill="#374151"/>
+  <rect x="956" y="208" width="8" height="6" fill="#fef3c7"/>
+  <rect x="968" y="208" width="8" height="6" fill="#93c5fd"/>
+  <rect x="956" y="220" width="8" height="6" fill="#1c1917"/>
+  <rect x="968" y="220" width="8" height="6" fill="#fef3c7"/>
+  <rect x="956" y="232" width="8" height="6" fill="#fef3c7"/>
+  <rect x="968" y="232" width="8" height="6" fill="#93c5fd"/>
+  <rect x="956" y="244" width="8" height="6" fill="#93c5fd"/>
+  <rect x="968" y="244" width="8" height="6" fill="#1c1917"/>
+  <rect x="956" y="256" width="8" height="6" fill="#fef3c7"/>
+  <rect x="968" y="256" width="8" height="6" fill="#fef3c7"/>
+  <rect x="956" y="268" width="8" height="6" fill="#1c1917"/>
+  <rect x="968" y="268" width="8" height="6" fill="#93c5fd"/>
+  <rect x="963" y="192" width="4" height="12" fill="#9ca3af"/>
+  <rect x="963" y="188" width="4" height="4" fill="#ef4444"/>
+  <!-- Building R4 -->
+  <rect x="988" y="218" width="24" height="78" fill="#374151"/>
+  <rect x="988" y="218" width="24" height="4" fill="#4a5568"/>
+  <rect x="992" y="226" width="7" height="6" fill="#93c5fd"/>
+  <rect x="1003" y="226" width="5" height="6" fill="#fef3c7"/>
+  <rect x="992" y="238" width="7" height="6" fill="#fef3c7"/>
+  <rect x="1003" y="238" width="5" height="6" fill="#93c5fd"/>
+  <rect x="992" y="250" width="7" height="6" fill="#1c1917"/>
+  <rect x="1003" y="250" width="5" height="6" fill="#fef3c7"/>
+  <rect x="992" y="262" width="7" height="6" fill="#fef3c7"/>
+  <rect x="1003" y="262" width="5" height="6" fill="#1c1917"/>
+
+  <!-- ============================================================ -->
+  <!-- BEACH STRIPS (sandy coast between cliffs and ocean) -->
+  <!-- ============================================================ -->
+  <!-- Left beach base (x=140-340, y=290-320) -->
+  <rect x="140" y="294" width="200" height="26" fill="#c4934a"/>
+  <rect x="140" y="294" width="200" height="6" fill="#d4a55a"/>
+  <rect x="140" y="312" width="200" height="8" fill="#a07838"/>
+  <!-- Left beach dunes -->
+  <rect x="152" y="288" width="28" height="8" fill="#c4934a"/>
+  <rect x="156" y="283" width="20" height="6" fill="#d4a55a"/>
+  <rect x="210" y="286" width="36" height="10" fill="#c4934a"/>
+  <rect x="214" y="281" width="28" height="6" fill="#d4a55a"/>
+  <rect x="270" y="290" width="28" height="8" fill="#c4934a"/>
+  <rect x="274" y="285" width="20" height="6" fill="#d4a55a"/>
+  <!-- Beach shells -->
+  <rect x="184" y="316" width="8" height="4" fill="#e8d5b0"/>
+  <rect x="222" y="318" width="6" height="4" fill="#d4c4a0"/>
+  <rect x="250" y="315" width="10" height="4" fill="#e8d5b0"/>
+  <rect x="308" y="317" width="8" height="4" fill="#d4c4a0"/>
+  <!-- Left palm 1 (x=196) -->
+  <rect x="196" y="270" width="4" height="26" fill="#78350f"/>
+  <rect x="196" y="267" width="4" height="4" fill="#92400e"/>
+  <rect x="180" y="263" width="16" height="4" fill="#15803d"/>
+  <rect x="176" y="259" width="20" height="4" fill="#166534"/>
+  <rect x="188" y="255" width="8" height="8" fill="#166534"/>
+  <rect x="196" y="259" width="4" height="12" fill="#15803d"/>
+  <rect x="200" y="259" width="12" height="4" fill="#15803d"/>
+  <rect x="208" y="263" width="8" height="4" fill="#166534"/>
+  <rect x="204" y="255" width="8" height="8" fill="#166534"/>
+  <!-- Left palm 2 (x=276) -->
+  <rect x="276" y="268" width="4" height="28" fill="#78350f"/>
+  <rect x="276" y="265" width="4" height="4" fill="#92400e"/>
+  <rect x="260" y="261" width="16" height="4" fill="#15803d"/>
+  <rect x="256" y="257" width="20" height="4" fill="#166534"/>
+  <rect x="268" y="253" width="8" height="8" fill="#166534"/>
+  <rect x="276" y="257" width="4" height="12" fill="#15803d"/>
+  <rect x="280" y="257" width="12" height="4" fill="#15803d"/>
+  <rect x="288" y="261" width="8" height="4" fill="#166534"/>
+  <rect x="284" y="253" width="8" height="8" fill="#166534"/>
+
+  <!-- Right beach base (x=860-1016, y=290-320) -->
+  <rect x="860" y="294" width="156" height="26" fill="#c4934a"/>
+  <rect x="860" y="294" width="156" height="6" fill="#d4a55a"/>
+  <rect x="860" y="312" width="156" height="8" fill="#a07838"/>
+  <!-- Right beach dunes -->
+  <rect x="868" y="288" width="28" height="8" fill="#c4934a"/>
+  <rect x="872" y="283" width="20" height="6" fill="#d4a55a"/>
+  <rect x="926" y="286" width="36" height="10" fill="#c4934a"/>
+  <rect x="930" y="281" width="28" height="6" fill="#d4a55a"/>
+  <rect x="976" y="290" width="28" height="8" fill="#c4934a"/>
+  <rect x="980" y="285" width="20" height="6" fill="#d4a55a"/>
+  <!-- Right beach shells -->
+  <rect x="888" y="316" width="8" height="4" fill="#e8d5b0"/>
+  <rect x="926" y="318" width="6" height="4" fill="#d4c4a0"/>
+  <rect x="954" y="315" width="10" height="4" fill="#e8d5b0"/>
+  <rect x="1002" y="317" width="8" height="4" fill="#d4c4a0"/>
+  <!-- Right palm 1 (x=896) -->
+  <rect x="896" y="270" width="4" height="26" fill="#78350f"/>
+  <rect x="896" y="267" width="4" height="4" fill="#92400e"/>
+  <rect x="880" y="263" width="16" height="4" fill="#15803d"/>
+  <rect x="876" y="259" width="20" height="4" fill="#166534"/>
+  <rect x="888" y="255" width="8" height="8" fill="#166534"/>
+  <rect x="896" y="259" width="4" height="12" fill="#15803d"/>
+  <rect x="900" y="259" width="12" height="4" fill="#15803d"/>
+  <rect x="908" y="263" width="8" height="4" fill="#166534"/>
+  <rect x="904" y="255" width="8" height="8" fill="#166534"/>
+  <!-- Right palm 2 (x=972) -->
+  <rect x="972" y="268" width="4" height="28" fill="#78350f"/>
+  <rect x="972" y="265" width="4" height="4" fill="#92400e"/>
+  <rect x="956" y="261" width="16" height="4" fill="#15803d"/>
+  <rect x="952" y="257" width="20" height="4" fill="#166534"/>
+  <rect x="964" y="253" width="8" height="8" fill="#166534"/>
+  <rect x="972" y="257" width="4" height="12" fill="#15803d"/>
+  <rect x="976" y="257" width="12" height="4" fill="#15803d"/>
+  <rect x="984" y="261" width="8" height="4" fill="#166534"/>
+  <rect x="980" y="253" width="8" height="8" fill="#166534"/>
+
+  <!-- ============================================================ -->
   <!-- MID-OCEAN SMALL LANDING STATION (center-left coast bump) -->
   <!-- ============================================================ -->
   <!-- Small rocky outcrop -->
@@ -407,16 +610,16 @@
   <!-- OCEAN BODY (underwater) -->
   <!-- ============================================================ -->
   <rect x="0" y="324" width="1200" height="476" fill="url(#deepOcean)"/>
-  <!-- Mid ocean shading bands -->
-  <rect x="0" y="324" width="1200" height="48" fill="#071c2c" opacity="0.5"/>
-  <rect x="0" y="372" width="1200" height="80" fill="#051520" opacity="0.4"/>
-  <rect x="0" y="452" width="1200" height="120" fill="#03101a" opacity="0.5"/>
-  <!-- Underwater light shafts -->
-  <rect x="200" y="324" width="16" height="200" fill="#0e4f6e" opacity="0.08"/>
-  <rect x="400" y="324" width="12" height="160" fill="#0e4f6e" opacity="0.06"/>
-  <rect x="600" y="324" width="20" height="240" fill="#1a7a9e" opacity="0.07"/>
-  <rect x="850" y="324" width="16" height="180" fill="#0e4f6e" opacity="0.06"/>
-  <rect x="1050" y="324" width="12" height="200" fill="#0e4f6e" opacity="0.07"/>
+  <!-- Mid ocean shading bands (reduced darkness) -->
+  <rect x="0" y="324" width="1200" height="48" fill="#071c2c" opacity="0.2"/>
+  <rect x="0" y="372" width="1200" height="80" fill="#051520" opacity="0.15"/>
+  <rect x="0" y="452" width="1200" height="120" fill="#03101a" opacity="0.2"/>
+  <!-- Underwater light shafts (brighter) -->
+  <rect x="200" y="324" width="16" height="200" fill="#0e4f6e" opacity="0.18"/>
+  <rect x="400" y="324" width="12" height="160" fill="#0e4f6e" opacity="0.15"/>
+  <rect x="600" y="324" width="20" height="240" fill="#1a7a9e" opacity="0.17"/>
+  <rect x="850" y="324" width="16" height="180" fill="#0e4f6e" opacity="0.15"/>
+  <rect x="1050" y="324" width="12" height="200" fill="#0e4f6e" opacity="0.17"/>
 
   <!-- ============================================================ -->
   <!-- CABLE SHIP (on ocean surface, centre) -->
@@ -503,6 +706,25 @@
   <rect x="460" y="400" width="16" height="8" fill="#92400e"/>
   <rect x="448" y="404" width="20" height="8" fill="#92400e"/>
   <rect x="432" y="408" width="24" height="8" fill="#92400e"/>
+
+  <!-- ============================================================ -->
+  <!-- SUBMARINE CABLE - VISIBLE DESCENT THROUGH WATER COLUMN -->
+  <!-- Runs from y=416 down to ocean floor at y=692 -->
+  <!-- ============================================================ -->
+  <!-- Wide amber glow halo -->
+  <rect x="424" y="416" width="24" height="280" fill="#78350f" opacity="0.55"/>
+  <!-- Cable body (amber) -->
+  <rect x="432" y="416" width="8" height="276" fill="#f59e0b"/>
+  <!-- Bright core highlight -->
+  <rect x="434" y="416" width="4" height="276" fill="#fcd34d"/>
+  <!-- Repeater housing at mid-depth (~y=540) -->
+  <rect x="424" y="538" width="24" height="20" fill="#d97706"/>
+  <rect x="426" y="540" width="20" height="16" fill="#f59e0b"/>
+  <rect x="428" y="542" width="16" height="12" fill="#fcd34d"/>
+  <!-- Second repeater at ~y=630 -->
+  <rect x="424" y="628" width="24" height="20" fill="#d97706"/>
+  <rect x="426" y="630" width="20" height="16" fill="#f59e0b"/>
+  <rect x="428" y="632" width="16" height="12" fill="#fcd34d"/>
 
   <!-- ============================================================ -->
   <!-- OCEAN FLOOR -->
