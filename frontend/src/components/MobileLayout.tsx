@@ -10,6 +10,7 @@ import { CityPairPanel } from './CityPairPanel'
 import { RouteManual } from './RouteManual'
 import type { ManualState, NextHopCandidate } from './RouteManual'
 import { OutagePanel } from './OutagePanel'
+import { CountryViewer } from './CountryViewer'
 import { NodeInfoPanel } from './NodeInfoPanel'
 import { RefDataModal } from './RefDataModal'
 import { HealthBar } from './HealthBar'
@@ -18,7 +19,7 @@ import { generateStraightLineDiagram } from '../utils/generateDiagram'
 import { useTheme } from '../theme'
 import type { ThemeMode } from '../theme'
 import type {
-  AppConfig, AppMode, CableNode, CableSegment, CableSystem, InterconnectRule,
+  AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule,
   NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage,
   SelectedSystem, DiversityType,
 } from '../types'
@@ -109,6 +110,8 @@ export interface MobileLayoutProps {
   onManualUndo?:                 () => void
   onManualFinish?:               () => void
   onManualDiscard?:              () => void
+  countryHighlight?:             CountryHighlight | null
+  onCountrySelect?:              (h: CountryHighlight | null) => void
 }
 
 function MobileModeBanner({ activeProject, onSwitch, onExit, t }: {
@@ -202,6 +205,7 @@ export function MobileLayout({
   onAddToProject, onEnrichCircuit, onOpenProjects, activeProject, onExitProjectMode, onSwitchProject, onOpenGuide,
   manualState, manualCandidates = [], manualResults = [], onManualNodeClick,
   onManualPickHop, onManualUndo, onManualFinish, onManualDiscard,
+  countryHighlight, onCountrySelect,
   hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false,
 }: MobileLayoutProps & { hideNonActive?: boolean; showSegmentLabels?: boolean; showNodeLabels?: boolean; showAllOutages?: boolean }) {
   const t = useTheme()
@@ -294,6 +298,7 @@ export function MobileLayout({
             manualCandidates={manualCandidates}
             onManualNodeClick={onManualNodeClick}
             manualMobileMode={manualBuilding}
+            countryHighlight={countryHighlight ?? undefined}
           />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: t.textFaint, background: t.bgMap }}>
@@ -615,6 +620,7 @@ export function MobileLayout({
             <button style={tabBtn(mode === 'citypair')}      onClick={() => tapTab('citypair')}>City Pairs</button>
             <button style={tabBtn(mode === 'systemviewer')}  onClick={() => tapTab('systemviewer')}>Cables</button>
             <button style={tabBtn(mode === 'nodefinder')}    onClick={() => tapTab('nodefinder')}>Nodes</button>
+            <button style={tabBtn(mode === 'countryviewer')} onClick={() => tapTab('countryviewer')}>Country</button>
             <button style={tabBtn(mode === 'outageviewer')}  onClick={() => tapTab('outageviewer')}>Outages</button>
           </div>
         )}
@@ -774,6 +780,12 @@ export function MobileLayout({
                 onSetOrigin={onSetOrigin}
                 onSetDest={onSetDest}
               />
+            </div>
+          )}
+
+          {mode === 'countryviewer' && (
+            <div style={{ padding: '14px 16px 32px' }}>
+              <CountryViewer nodes={nodes} segments={segments} systems={systems} onSelect={h => onCountrySelect?.(h)} />
             </div>
           )}
 

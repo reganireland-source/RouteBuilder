@@ -448,7 +448,16 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       : <span style={style}>{labels[s]}</span>
   }
 
-  function VerifPrompt({ onChoice }: { onChoice: (status: VerificationStatus) => void }) {
+  function VerifPrompt({ onChoice, onDismiss }: { onChoice: (status: VerificationStatus) => Promise<void>; onDismiss: () => void }) {
+    const [busy, setBusy] = useState(false)
+    const [promptError, setPromptError] = useState<string | null>(null)
+
+    async function pick(status: VerificationStatus) {
+      setBusy(true); setPromptError(null)
+      try { await onChoice(status) }
+      catch (e) { setPromptError(String(e)); setBusy(false) }
+    }
+
     return (
       <div style={{
         position: 'fixed', inset: 0, zIndex: 11000,
@@ -460,21 +469,33 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 8 }}>Update verification status?</div>
           <div style={{ fontSize: 13, color: t.textMuted, marginBottom: 20 }}>
-            Now that you've saved this record, what's its verification state?
+            What's this record's verification state?
           </div>
+          {promptError && (
+            <div style={{ fontSize: 12, color: '#ef4444', background: '#ef444422', border: '1px solid #ef444444', borderRadius: 6, padding: '8px 10px', marginBottom: 14 }}>
+              Save failed: {promptError}
+            </div>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <button onClick={() => onChoice('verified')} style={{
-              padding: '9px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
-              background: '#22c55e22', color: '#22c55e', fontWeight: 700, fontSize: 13, fontFamily: 'inherit', textAlign: 'left',
-            }}>✓ Verified — data confirmed correct</button>
-            <button onClick={() => onChoice('under_verification')} style={{
-              padding: '9px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
-              background: '#f59e0b22', color: '#f59e0b', fontWeight: 700, fontSize: 13, fontFamily: 'inherit', textAlign: 'left',
-            }}>⏳ Under Verification — still being checked</button>
-            <button onClick={() => onChoice('draft')} style={{
-              padding: '9px 14px', borderRadius: 7, border: `1px solid ${t.border}`, cursor: 'pointer',
-              background: 'transparent', color: t.textMuted, fontSize: 13, fontFamily: 'inherit', textAlign: 'left',
-            }}>Keep as Draft</button>
+            {([
+              { status: 'verified'           as VerificationStatus, label: '✓ Verified — data confirmed correct',    bg: '#22c55e22', color: '#22c55e' },
+              { status: 'under_verification' as VerificationStatus, label: '⏳ Under Verification — still being checked', bg: '#f59e0b22', color: '#f59e0b' },
+              { status: 'draft'              as VerificationStatus, label: 'Keep as Draft',                           bg: 'transparent', color: t.textMuted },
+            ] as const).map(({ status, label, bg, color }) => (
+              <button key={status} disabled={busy} onClick={() => pick(status)} style={{
+                padding: '9px 14px', borderRadius: 7,
+                border: status === 'draft' ? `1px solid ${t.border}` : 'none',
+                cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1,
+                background: bg, color, fontWeight: 700, fontSize: 13, fontFamily: 'inherit', textAlign: 'left',
+              }}>{busy ? '…' : label}</button>
+            ))}
+            {promptError && (
+              <button onClick={onDismiss} style={{
+                marginTop: 4, padding: '7px 14px', borderRadius: 7,
+                border: `1px solid ${t.border}`, cursor: 'pointer',
+                background: 'transparent', color: t.textFaint, fontSize: 12, fontFamily: 'inherit',
+              }}>Dismiss</button>
+            )}
           </div>
         </div>
       </div>
@@ -504,12 +525,9 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   async function applyNodeVerif(id: string, status: VerificationStatus) {
     const date = status === 'verified' ? new Date().toISOString().slice(0, 10) : undefined
-    setSaving(true); setError(null)
-    try {
-      await api.updateNode(id, { verification_status: status, last_verified_date: date })
-      onDataChange()
-    } catch (e) { setError(String(e)) }
-    finally { setSaving(false); setNodeVerifPending(null) }
+    await api.updateNode(id, { verification_status: status, last_verified_date: date })
+    await onDataChange()
+    setNodeVerifPending(null)
   }
 
   function NodeTab() {
@@ -614,7 +632,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             ))}
           </>
         )}
-        {nodeVerifPending && <VerifPrompt onChoice={status => applyNodeVerif(nodeVerifPending, status)} />}
+        {nodeVerifPending && <VerifPrompt onChoice={status => applyNodeVerif(nodeVerifPending, status)} onDismiss={() => setNodeVerifPending(null)} />}
       </>
     )
   }
@@ -625,12 +643,9 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   async function applySegVerif(id: string, status: VerificationStatus) {
     const date = status === 'verified' ? new Date().toISOString().slice(0, 10) : undefined
-    setSaving(true); setError(null)
-    try {
-      await api.updateSegment(id, { verification_status: status, last_verified_date: date })
-      onDataChange()
-    } catch (e) { setError(String(e)) }
-    finally { setSaving(false); setSegVerifPending(null) }
+    await api.updateSegment(id, { verification_status: status, last_verified_date: date })
+    await onDataChange()
+    setSegVerifPending(null)
   }
 
   function SegmentTab() {
@@ -773,7 +788,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             ))}
           </>
         )}
-        {segVerifPending && <VerifPrompt onChoice={status => applySegVerif(segVerifPending, status)} />}
+        {segVerifPending && <VerifPrompt onChoice={status => applySegVerif(segVerifPending, status)} onDismiss={() => setSegVerifPending(null)} />}
       </>
     )
   }

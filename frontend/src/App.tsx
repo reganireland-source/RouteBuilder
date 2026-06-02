@@ -607,6 +607,8 @@ export default function App() {
           onManualUndo={handleManualUndo}
           onManualFinish={handleManualFinish}
           onManualDiscard={() => { setManualState(null); setManualResults([]) }}
+          countryHighlight={countryHighlight}
+          onCountrySelect={setCountryHighlight}
         />
         {projectsOpen && (
           <ProjectsModal
