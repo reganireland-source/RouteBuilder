@@ -285,19 +285,19 @@
     "owner": "GTA",
     "trading_name": "Guam GTA",
     "description": "A CLS location in Guam owned by GTA (Guam Telephone Authority)",
-    "city": "Hagåtña"
+    "city": "Hag\u00e5t\u00f1a"
   },
   {
     "id": "GUM2",
-    "name": "Hagåtña",
+    "name": "Hag\u00e5t\u00f1a",
     "lat": 13.4745,
     "lng": 144.7504,
     "type": "primary_pop",
     "country": "GU",
     "owner": "GTA",
-    "trading_name": "Hagåtña GTA",
-    "description": "A terrestrial POP in Hagåtña, Guam, owned by GTA",
-    "city": "Hagåtña"
+    "trading_name": "Hag\u00e5t\u00f1a GTA",
+    "description": "A terrestrial POP in Hag\u00e5t\u00f1a, Guam, owned by GTA",
+    "city": "Hag\u00e5t\u00f1a"
   },
   {
     "id": "HAW1",
@@ -1006,7 +1006,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix SY1 – Mascot",
+    "description": "Equinix SY1 \u2013 Mascot",
     "city": "Sydney"
   },
   {
@@ -1017,7 +1017,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix SY3 – Sydney Olympic Park",
+    "description": "Equinix SY3 \u2013 Sydney Olympic Park",
     "city": "Sydney"
   },
   {
@@ -1028,7 +1028,7 @@
     "type": "extension_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix SY4 – Alexandria",
+    "description": "Equinix SY4 \u2013 Alexandria",
     "city": "Sydney"
   },
   {
@@ -1039,7 +1039,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix ME1 – Port Melbourne",
+    "description": "Equinix ME1 \u2013 Port Melbourne",
     "city": "Melbourne"
   },
   {
@@ -1050,7 +1050,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix ME2 – Tullamarine",
+    "description": "Equinix ME2 \u2013 Tullamarine",
     "city": "Melbourne"
   },
   {
@@ -1061,7 +1061,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix BQ1 – Eagle Farm",
+    "description": "Equinix BQ1 \u2013 Eagle Farm",
     "city": "Brisbane"
   },
   {
@@ -1072,7 +1072,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix PE1 – East Perth",
+    "description": "Equinix PE1 \u2013 East Perth",
     "city": "Perth"
   },
   {
@@ -1083,7 +1083,7 @@
     "type": "secondary_pop",
     "country": "JP",
     "owner": "Equinix",
-    "description": "Equinix TY1 – Shibaura, Minato",
+    "description": "Equinix TY1 \u2013 Shibaura, Minato",
     "city": "Tokyo"
   },
   {
@@ -1094,7 +1094,7 @@
     "type": "secondary_pop",
     "country": "JP",
     "owner": "Equinix",
-    "description": "Equinix TY2 – Shinjuku",
+    "description": "Equinix TY2 \u2013 Shinjuku",
     "city": "Tokyo"
   },
   {
@@ -1105,7 +1105,7 @@
     "type": "extension_pop",
     "country": "JP",
     "owner": "Equinix",
-    "description": "Equinix TY3 – Otemachi",
+    "description": "Equinix TY3 \u2013 Otemachi",
     "city": "Tokyo"
   },
   {
@@ -1116,7 +1116,7 @@
     "type": "extension_pop",
     "country": "JP",
     "owner": "Equinix",
-    "description": "Equinix OS1 – Hommachi",
+    "description": "Equinix OS1 \u2013 Hommachi",
     "city": "Osaka"
   },
   {
@@ -1127,7 +1127,7 @@
     "type": "secondary_pop",
     "country": "JP",
     "owner": "Equinix",
-    "description": "Equinix OS2 – Sakai",
+    "description": "Equinix OS2 \u2013 Sakai",
     "city": "Osaka"
   },
   {
@@ -1138,7 +1138,7 @@
     "type": "secondary_pop",
     "country": "JP",
     "owner": "Equinix",
-    "description": "Equinix NG1 – Nagoya",
+    "description": "Equinix NG1 \u2013 Nagoya",
     "city": "Nagoya"
   },
   {
@@ -1149,7 +1149,7 @@
     "type": "extension_pop",
     "country": "KR",
     "owner": "Equinix",
-    "description": "Equinix SL1 – Mapo-gu",
+    "description": "Equinix SL1 \u2013 Mapo-gu",
     "city": "Seoul"
   },
   {
@@ -1160,7 +1160,7 @@
     "type": "secondary_pop",
     "country": "KR",
     "owner": "Equinix",
-    "description": "Equinix BS1 – Busan",
+    "description": "Equinix BS1 \u2013 Busan",
     "city": "Busan"
   },
   {
@@ -1201,7 +1201,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix LA1 – El Segundo",
+    "description": "Equinix LA1 \u2013 El Segundo",
     "city": "Los Angeles"
   },
   {
@@ -1212,7 +1212,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix LA2 – Downtown Los Angeles",
+    "description": "Equinix LA2 \u2013 Downtown Los Angeles",
     "city": "Los Angeles"
   },
   {
@@ -1223,7 +1223,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix SE2 – Seattle",
+    "description": "Equinix SE2 \u2013 Seattle",
     "city": "Seattle"
   },
   {
@@ -1234,7 +1234,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix SE3 – Bellevue",
+    "description": "Equinix SE3 \u2013 Bellevue",
     "city": "Bellevue"
   },
   {
@@ -1245,7 +1245,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix CH1 – Chicago",
+    "description": "Equinix CH1 \u2013 Chicago",
     "city": "Chicago"
   },
   {
@@ -1256,7 +1256,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix CH2 – Elk Grove Village",
+    "description": "Equinix CH2 \u2013 Elk Grove Village",
     "city": "Chicago"
   },
   {
@@ -1267,7 +1267,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix NY1 – Secaucus, NJ",
+    "description": "Equinix NY1 \u2013 Secaucus, NJ",
     "city": "New York"
   },
   {
@@ -1278,7 +1278,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix NY5 – New York City",
+    "description": "Equinix NY5 \u2013 New York City",
     "city": "New York"
   },
   {
@@ -1289,7 +1289,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix NY9 – New York City",
+    "description": "Equinix NY9 \u2013 New York City",
     "city": "New York"
   },
   {
@@ -1300,7 +1300,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix DA1 – Carrollton, TX",
+    "description": "Equinix DA1 \u2013 Carrollton, TX",
     "city": "Dallas"
   },
   {
@@ -1311,7 +1311,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix DA2 – Carrollton, TX",
+    "description": "Equinix DA2 \u2013 Carrollton, TX",
     "city": "Dallas"
   },
   {
@@ -1322,7 +1322,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix MI1 – Miami, FL",
+    "description": "Equinix MI1 \u2013 Miami, FL",
     "city": "Miami"
   },
   {
@@ -1333,7 +1333,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix MI3 – Miami, FL",
+    "description": "Equinix MI3 \u2013 Miami, FL",
     "city": "Miami"
   },
   {
@@ -1542,5 +1542,117 @@
     "type": "landing_station",
     "country": "FR",
     "city": "Marseille"
+  },
+  {
+    "id": "PCRS",
+    "name": "Aguinaldo Highway Cavite",
+    "lat": 14.29623,
+    "lng": 120.9564,
+    "type": "extension_pop",
+    "country": "PH",
+    "owner": "Telstra",
+    "trading_name": null,
+    "city": "Cavite",
+    "street_address": null,
+    "description": "Extension PoP on Aguinaldo Highway in Cavite, Philippines",
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "PCIN",
+    "name": "Innove Data Centre Cebu",
+    "lat": 12.87972,
+    "lng": 121.774,
+    "type": "secondary_pop",
+    "country": "PH",
+    "owner": "Telstra",
+    "trading_name": null,
+    "city": "Cebu",
+    "street_address": null,
+    "description": "Secondary PoP co-located in Innove Data Centre, Cebu, Philippines",
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "PHPN",
+    "name": "RCBC Tower 2 Makati",
+    "lat": 14.56077,
+    "lng": 121.0169,
+    "type": "primary_pop",
+    "country": "PH",
+    "owner": "Telstra",
+    "trading_name": null,
+    "city": "Makati",
+    "street_address": "RCBC Tower 2, Ayala Avenue, Makati",
+    "description": "Primary PoP co-located in RCBC Tower 2, Makati, Metro Manila",
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "PMRS",
+    "name": "Robinsons Summit",
+    "lat": 14.55754,
+    "lng": 121.0206,
+    "type": "primary_pop",
+    "country": "PH",
+    "owner": "Telstra",
+    "trading_name": null,
+    "city": "Makati",
+    "street_address": "Robinsons Summit Center, Ayala Avenue, Makati",
+    "description": "Primary PoP co-located in Robinsons Summit Center, Makati, Metro Manila",
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "PMVR",
+    "name": "EPLDT Vitro Data Centre Makati",
+    "lat": 14.56453,
+    "lng": 121.0219,
+    "type": "secondary_pop",
+    "country": "PH",
+    "owner": "Telstra",
+    "trading_name": null,
+    "city": "Makati",
+    "street_address": null,
+    "description": "Secondary PoP co-located in EPLDT Vitro data centre, Makati",
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "PMPC",
+    "name": "Reliance Centre Building Pasig",
+    "lat": 14.57772,
+    "lng": 121.0741,
+    "type": "primary_pop",
+    "country": "PH",
+    "owner": "Telstra",
+    "trading_name": null,
+    "city": "Pasig",
+    "street_address": "Reliance Centre, Pasig, Metro Manila",
+    "description": "Primary PoP co-located in Reliance Centre, Pasig, Metro Manila",
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "PMPI",
+    "name": "EPLDT Vitro Data Centre Pasig",
+    "lat": 14.58457,
+    "lng": 121.0708,
+    "type": "extension_pop",
+    "country": "PH",
+    "owner": "Telstra",
+    "trading_name": null,
+    "city": "Pasig",
+    "street_address": null,
+    "description": "Extension PoP co-located in EPLDT Vitro data centre, Pasig, Metro Manila",
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
   }
 ]
