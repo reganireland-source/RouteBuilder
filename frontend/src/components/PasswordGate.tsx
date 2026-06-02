@@ -28,41 +28,37 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
 
   return (
     <div style={{
-      position: 'relative',
-      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
-      paddingBottom: 'max(5vh, 32px)',
-      height: '100vh', fontFamily: 'system-ui, sans-serif',
-      overflow: 'hidden', background: '#0d1830',
-      boxSizing: 'border-box',
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      minHeight: '100vh', background: '#0d1830', fontFamily: 'system-ui, sans-serif',
     }}>
-      {/* Animated pixel art splash — fills viewport, scene visible above card */}
-      <img
-        src="/splash-animated.svg"
-        alt=""
-        style={{
-          position: 'absolute', inset: 0,
-          width: '100%', height: '100%',
-          objectFit: 'cover', objectPosition: 'center top',
-        }}
-      />
-      {/* Very light veil — just enough for text legibility */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        background: 'rgba(6, 8, 18, 0.22)',
-      }}/>
+      {/* Animated scene — full screen width at natural 3:2 ratio.
+          maxHeight caps it on wide desktop screens so the card stays visible
+          without scrolling; overflow:hidden clips the ocean-floor title strip. */}
+      <div style={{ position: 'relative', width: '100%', maxHeight: '62vh', overflow: 'hidden', flexShrink: 0 }}>
+        <img
+          src="/splash-animated.svg"
+          alt=""
+          style={{ display: 'block', width: '100%', height: 'auto' }}
+        />
+        {/* Gradient dissolve into the page background */}
+        <div style={{
+          position: 'absolute', bottom: 0, left: 0, right: 0, height: 64,
+          background: 'linear-gradient(transparent, #0d1830)',
+          pointerEvents: 'none',
+        }}/>
+      </div>
 
-      {/* Login card — frosted glass over the scene */}
+      {/* Login card */}
       <div style={{
-        position: 'relative', zIndex: 1,
         width: 340, maxWidth: 'calc(100vw - 40px)',
+        margin: '16px 0 max(4vh, 24px)',
         padding: '36px 32px',
-        background: 'rgba(20, 22, 42, 0.90)',
-        backdropFilter: 'blur(18px)',
-        WebkitBackdropFilter: 'blur(18px)',
-        border: '1px solid rgba(89, 104, 165, 0.4)',
+        background: '#1a1a2e',
+        border: '1px solid rgba(89, 104, 165, 0.45)',
         borderRadius: 16,
-        boxShadow: '0 20px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06)',
+        boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
         animation: shake ? 'shake 0.45s ease' : 'none',
+        flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
           <img src="/favicon.svg" alt="" style={{ width: 28, height: 28 }} />
@@ -85,7 +81,7 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
           style={{
             width: '100%', padding: '10px 12px', borderRadius: 8,
             border: `1px solid ${wrong ? '#f38ba8' : '#45475a'}`,
-            background: 'rgba(14, 15, 30, 0.8)', color: '#cdd6f4',
+            background: '#0f0f1e', color: '#cdd6f4',
             fontSize: 14, outline: 'none',
             boxSizing: 'border-box',
             transition: 'border-color 0.15s',
