@@ -14,8 +14,8 @@ const OWNERSHIP_LABEL: Record<string, string> = {
 
 // Visual hierarchy for node types: size + colour scale from most to least significant
 const NODE_STYLE: Record<string, { color: string; fill: string; radius: number; weight: number; opacity: number }> = {
-  landing_station: { color: '#ea580c', fill: '#f97316', radius: 10,  weight: 2.5, opacity: 1    },
-  primary_pop:     { color: '#1d4ed8', fill: '#3b82f6', radius: 8,   weight: 2,   opacity: 1    },
+  landing_station: { color: '#ea580c', fill: '#f97316', radius: 8,   weight: 2.5, opacity: 1    },
+  primary_pop:     { color: '#1d4ed8', fill: '#3b82f6', radius: 7,   weight: 2,   opacity: 1    },
   secondary_pop:   { color: '#7c3aed', fill: '#a855f7', radius: 6,   weight: 1.5, opacity: 1    },
   extension_pop:   { color: '#475569', fill: '#64748b', radius: 5,   weight: 1,   opacity: 0.85 },
   branching_unit:  { color: '#92400e', fill: '#d97706', radius: 3,   weight: 1,   opacity: 0.75 },
