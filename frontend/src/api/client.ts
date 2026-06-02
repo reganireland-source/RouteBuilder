@@ -1,4 +1,4 @@
-import type { AppConfig, CableNode, CableSegment, CableSystem, CityInfo, CityPairResponse, InterconnectRule, NlpParseResponse, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage } from '../types'
+import type { AppConfig, CableNode, CableSegment, CableSystem, CityInfo, CityPairResponse, InterfaceType, InterconnectRule, NlpParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, TechLookupItem, TechLookupTable } from '../types'
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -40,6 +40,24 @@ async function put<T>(path: string, body: unknown): Promise<T> {
 async function del(path: string): Promise<void> {
   const res = await fetch(`${BASE_URL}${path}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(`DELETE ${path} failed: ${res.status}`)
+}
+
+async function delJson<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`DELETE ${path} failed: ${res.status}`)
+  return res.json()
+}
+
+async function uploadFile<T>(path: string, file: File): Promise<T> {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', body: form })
+  if (!res.ok) {
+    let detail = ''
+    try { detail = (await res.json()).detail ?? '' } catch { /* ignore */ }
+    throw new Error(`${res.status}${detail ? `: ${detail}` : ''}`)
+  }
+  return res.json()
 }
 
 export const api = {
@@ -93,9 +111,38 @@ export const api = {
   // NLP
   parseNlp: (text: string) => post<NlpParseResponse>('/api/nlp/parse', { text }),
 
+  // Bulk import / export
+  bulkExportUrl: (table: string) => `${BASE_URL}/api/bulk/export/${table}`,
+  bulkValidate: <T>(table: string, file: File, mode: string) =>
+    uploadFile<T>(`/api/bulk/validate/${table}?mode=${mode}`, file),
+  bulkImport: <T>(table: string, file: File, mode: string) =>
+    uploadFile<T>(`/api/bulk/import/${table}?mode=${mode}`, file),
+
   // Rules
   getRules:     ()                                                  => get<InterconnectRule[]>('/api/rules'),
   createRule:   (data: InterconnectRule)                            => post<InterconnectRule>('/api/rules', data),
   updateRule:   (nodeId: string, data: Partial<InterconnectRule>)   => put<InterconnectRule>(`/api/rules/${nodeId}`, data),
   deleteRule:   (nodeId: string)                                    => del(`/api/rules/${nodeId}`),
+
+  // Interface Types
+  getInterfaces:    ()                                                    => get<InterfaceType[]>('/api/interfaces'),
+  createInterface:  (data: InterfaceType)                                 => post<InterfaceType>('/api/interfaces', data),
+  updateInterface:  (id: string, data: Partial<InterfaceType>)            => put<InterfaceType>(`/api/interfaces/${id}`, data),
+  deleteInterface:  (id: string)                                          => del(`/api/interfaces/${id}`),
+
+  // Projects
+  getProjects:      ()                                                    => get<Project[]>('/api/projects'),
+  createProject:    (data: Project)                                       => post<Project>('/api/projects', data),
+  updateProject:    (id: string, data: Partial<Project>)                  => put<Project>(`/api/projects/${id}`, data),
+  deleteProject:    (id: string)                                          => del(`/api/projects/${id}`),
+  addCircuit:       (projectId: string, circuit: ProjectCircuit)          => post<Project>(`/api/projects/${projectId}/circuits`, circuit),
+  updateCircuit:    (projectId: string, circuitId: string, c: ProjectCircuit) => put<Project>(`/api/projects/${projectId}/circuits/${circuitId}`, c),
+  removeCircuit:    (projectId: string, circuitId: string)                => delJson<Project>(`/api/projects/${projectId}/circuits/${circuitId}`),
+  updateSldConfig:  (projectId: string, config: SldConfig)                => put<Project>(`/api/projects/${projectId}/sld-config`, config),
+
+  // Technical Enrichment Lookups
+  getTechLookup:    (table: TechLookupTable)                              => get<TechLookupItem[]>(`/api/tech-lookups/${table}`),
+  createTechItem:   (table: TechLookupTable, item: TechLookupItem)        => post<TechLookupItem>(`/api/tech-lookups/${table}`, item),
+  updateTechItem:   (table: TechLookupTable, id: string, data: Partial<TechLookupItem>) => put<TechLookupItem>(`/api/tech-lookups/${table}/${id}`, data),
+  deleteTechItem:   (table: TechLookupTable, id: string)                  => del(`/api/tech-lookups/${table}/${id}`),
 }

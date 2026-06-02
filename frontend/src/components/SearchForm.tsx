@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import type { CableNode, CableSegment, CableSystem, DiversityType, RouteRequest } from '../types'
 import { useTheme } from '../theme'
 
@@ -16,33 +17,168 @@ interface Props {
 const COUNTRY_NAMES: Record<string, string> = {
   AE: 'United Arab Emirates',
   AU: 'Australia',
+  CN: 'China',
   DE: 'Germany',
   DJ: 'Djibouti',
+  EG: 'Egypt',
+  FJ: 'Fiji',
+  FR: 'France',
   GB: 'United Kingdom',
+  GR: 'Greece',
   GU: 'Guam',
   HK: 'Hong Kong',
   ID: 'Indonesia',
   IN: 'India',
+  IT: 'Italy',
   JP: 'Japan',
+  KH: 'Cambodia',
   KR: 'South Korea',
+  LK: 'Sri Lanka',
+  MM: 'Myanmar',
+  MP: 'Northern Mariana Islands',
   MY: 'Malaysia',
   NZ: 'New Zealand',
+  OM: 'Oman',
   PH: 'Philippines',
+  PK: 'Pakistan',
+  QA: 'Qatar',
+  SA: 'Saudi Arabia',
   SG: 'Singapore',
+  TH: 'Thailand',
   TW: 'Taiwan',
   US: 'United States',
+  VN: 'Vietnam',
+  VU: 'Vanuatu',
+  YE: 'Yemen',
 }
 
 function countryName(code: string) {
   return COUNTRY_NAMES[code] ?? code
 }
 
+function toggleMulti(id: string, list: string[], setter: (v: string[]) => void) {
+  setter(list.includes(id) ? list.filter(x => x !== id) : [...list, id])
+}
 
-function FilteredMulti({ items, selected, onToggle, placeholder }: {
+const CONSTRAINT_DEFS = [
+  {
+    id: 'optimise_for',
+    label: 'Optimise For',
+    icon: '🎯',
+    description: 'Controls which 30 routes are kept in the search pool. Auto (default) draws from multiple dimensions — picking the best routes for hops, distance, latency, margin, capacity, and on-net ownership. Setting a specific dimension fills all 30 slots with the best routes for that single metric.',
+  },
+  {
+    id: 'max_hops',
+    label: 'Max Hops',
+    icon: '⬡',
+    description: 'Limits how many cable segments the route may traverse. Each segment counts as one hop — so a route through 4 nodes has 3 hops. Wet hops cross ocean; terrestrial hops cross land. Leave a field blank to apply no limit for that type.',
+  },
+  {
+    id: 'must_include_systems',
+    label: 'Must Include Systems',
+    icon: '📡',
+    description: 'At least one segment from every selected cable system must appear on the route. Use this to ensure the path rides a particular submarine cable system.',
+  },
+  {
+    id: 'must_avoid_systems',
+    label: 'Must Avoid Systems',
+    icon: '🛑',
+    description: 'No segments from any selected system will be used. Use this to route entirely clear of a cable system — for example, one affected by an outage or excluded by commercial policy.',
+  },
+  {
+    id: 'must_include_countries',
+    label: 'Must Include Countries',
+    icon: '🌍',
+    description: 'The route must transit at least one non-BU landing node in each selected country. Use to enforce geographic landing requirements — for example, a circuit that must land in Japan.',
+  },
+  {
+    id: 'must_avoid_countries',
+    label: 'Must Avoid Countries',
+    icon: '🌐',
+    description: 'The route will not transit any landing node in selected countries. Use to enforce geopolitical, licensing, security, or operational constraints — for example, avoiding a country for information-security reasons.',
+  },
+  {
+    id: 'must_include_segments',
+    label: 'Must Include Segments',
+    icon: '🔗',
+    description: 'The route must traverse every segment selected here. Use this to lock in a specific cable section — for example, a preferred submarine segment that must carry the traffic.',
+  },
+  {
+    id: 'must_avoid_segments',
+    label: 'Must Avoid Segments',
+    icon: '✂️',
+    description: 'The route will not traverse any selected segment. Use this to exclude a cable section that is under maintenance, congested, or otherwise at risk.',
+  },
+  {
+    id: 'must_include_nodes',
+    label: 'Must Include Nodes',
+    icon: '📍',
+    description: 'The route must pass through every node selected here. Use this to ensure traffic visits a specific landing station or PoP on the way between origin and destination.',
+  },
+  {
+    id: 'must_avoid_nodes',
+    label: 'Must Avoid Nodes',
+    icon: '🚫',
+    description: 'The route will not pass through any selected node. Use this to exclude a facility that is unavailable, restricted, or otherwise not suitable for the route.',
+  },
+]
+
+interface OptimiseOption {
+  value: string; label: string; icon: string
+  explain?: string; better?: string; worse?: string
+}
+const OPTIMISE_OPTIONS: OptimiseOption[] = [
+  { value: '', label: 'Auto', icon: '✦' },
+  {
+    value: 'hops', label: 'Hops', icon: '○',
+    explain: 'Fills the pool with the 30 routes that cross the fewest cable segments end-to-end. Each segment — submarine or terrestrial — counts as one hop regardless of its length.',
+    better: 'Fewer hops → simpler, more direct path with fewer points of failure and less exposure to faults',
+    worse: 'More hops → greater complexity, more physical infrastructure in the path, higher cumulative failure risk',
+  },
+  {
+    value: 'distance', label: 'Distance', icon: '↔',
+    explain: 'Fills the pool with the 30 shortest routes by total cable kilometres. Shorter routes are usually faster and less expensive to operate.',
+    better: 'Fewer km → more direct path, lower propagation delay, often lower cost',
+    worse: 'More km → longer geographic detour, higher latency, more cable to maintain',
+  },
+  {
+    value: 'latency', label: 'Latency', icon: '⚡',
+    explain: 'Fills the pool with the 30 routes that have the lowest end-to-end round-trip propagation delay — the time it takes for a signal to travel the full route and back.',
+    better: 'Lower ms → faster signal, better for trading, real-time applications and latency-sensitive enterprise customers',
+    worse: 'Higher ms → more delay, impacts interactive applications and time-critical workloads',
+  },
+  {
+    value: 'margin', label: 'Margin', icon: '$',
+    explain: 'Fills the pool with the 30 routes that carry the best commercial margin. Margin is calculated from the ownership type of each cable system, weighted by segment length. Owned and IRU capacity score highest.',
+    better: 'Higher margin → more owned/IRU/consortium segments, stronger commercial return on every circuit sold',
+    worse: 'Lower margin → more resell or off-net segments, lower return, more dependency on third-party pricing',
+  },
+  {
+    value: 'capacity', label: 'Capacity', icon: '◈',
+    explain: 'Fills the pool with the 30 routes that have the most available bandwidth at the bottleneck — the segment with the least free capacity on the path. More available capacity means more inventory to sell.',
+    better: 'Higher available Tbps → more room to commit circuits, lower congestion risk, greater commercial headroom',
+    worse: 'Lower available Tbps → congested or nearly full segments, limited ability to place new services',
+  },
+  {
+    value: 'ownership', label: 'Ownership', icon: '◉',
+    explain: 'Fills the pool with the 30 routes where the highest proportion of segments are on-net — owned, IRU or consortium. Routes with resell or off-net segments score lower even if they are shorter or cheaper.',
+    better: 'More on-net → owned infrastructure, full commercial control, higher margins, no third-party dependency',
+    worse: 'More off-net → reliance on third parties, lower margins, less pricing control, resale exposure',
+  },
+  {
+    value: 'outages', label: 'No Outages', icon: '🚢',
+    explain: 'Filters the pool to only include routes where no segment has a current active outage. If no outage-free routes exist, falls back to cost-ordered routes so results are never empty.',
+    better: 'All segments healthy → no disruption risk, full operational capacity available on every hop',
+    worse: 'If outages are widespread, the qualifying pool may be smaller than 30 routes',
+  },
+]
+
+function FilteredMulti({ items, selected, onToggle, placeholder, listHeight = 130 }: {
   items: { id: string; primary: string; secondary?: string }[]
   selected: string[]
   onToggle: (id: string) => void
   placeholder: string
+  listHeight?: number
 }) {
   const t = useTheme()
   const [query, setQuery] = useState('')
@@ -91,7 +227,7 @@ function FilteredMulti({ items, selected, onToggle, placeholder }: {
           color: t.text, fontSize: 12, boxSizing: 'border-box', outline: 'none',
         }}
       />
-      <div style={{ maxHeight: 130, overflowY: 'auto' }}>
+      <div style={{ maxHeight: listHeight, overflowY: 'auto' }}>
         {visible.length === 0
           ? <div style={{ padding: '8px 10px', fontSize: 12, color: t.textFaintest }}>No matches</div>
           : visible.map(it => {
@@ -121,16 +257,17 @@ function FilteredMulti({ items, selected, onToggle, placeholder }: {
   )
 }
 
-function FilteredNodeMulti({ nodes, exclude, selected, onToggle }: {
+function FilteredNodeMulti({ nodes, exclude, selected, onToggle, listHeight = 130 }: {
   nodes: CableNode[]
   exclude: string[]
   selected: string[]
   onToggle: (id: string) => void
+  listHeight?: number
 }) {
   const t = useTheme()
   const [query, setQuery] = useState('')
 
-  const typeTag = (n: CableNode) => n.type === 'landing_station' ? 'CLS' : 'POP'
+  const typeTag = (n: CableNode) => n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : n.type === 'primary_pop' ? '1°PoP' : n.type === 'secondary_pop' ? '2°PoP' : 'ExtPoP'
 
   const pool = nodes.filter(n => n.type !== 'branching_unit' && !exclude.includes(n.id))
 
@@ -180,7 +317,7 @@ function FilteredNodeMulti({ nodes, exclude, selected, onToggle }: {
           color: t.text, fontSize: 12, boxSizing: 'border-box', outline: 'none',
         }}
       />
-      <div style={{ maxHeight: 130, overflowY: 'auto' }}>
+      <div style={{ maxHeight: listHeight, overflowY: 'auto' }}>
         {visible.length === 0
           ? <div style={{ padding: '8px 10px', fontSize: 12, color: t.textFaintest }}>No nodes match</div>
           : visible.map(n => {
@@ -208,6 +345,73 @@ function FilteredNodeMulti({ nodes, exclude, selected, onToggle }: {
               )
             })
         }
+      </div>
+    </div>
+  )
+}
+
+function HopStepper({ label, icon, value, onChange }: {
+  label: string
+  icon: string
+  value: number | ''
+  onChange: (v: number | '') => void
+}) {
+  const t = useTheme()
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20 }}>
+      <div style={{ fontSize: 36, lineHeight: 1, marginTop: 4 }}>{icon}</div>
+      <div>
+        <div style={{
+          fontSize: 11, fontWeight: 700, color: t.textMuted,
+          textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12,
+        }}>{label}</div>
+        <div style={{
+          display: 'flex', alignItems: 'center',
+          border: `1px solid ${t.border}`, borderRadius: 6, overflow: 'hidden',
+          width: 'fit-content',
+        }}>
+          <button
+            type="button"
+            onClick={() => onChange(value === '' || (value as number) <= 1 ? '' : (value as number) - 1)}
+            style={{
+              width: 38, height: 38, background: t.bgDeep, border: 'none',
+              cursor: 'pointer', color: t.text, fontSize: 22,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >−</button>
+          <div style={{ width: 1, height: 38, background: t.border, flexShrink: 0 }} />
+          <input
+            type="number"
+            min={1}
+            value={value}
+            onChange={e => {
+              const raw = e.target.value
+              if (raw === '') { onChange(''); return }
+              const n = parseInt(raw, 10)
+              if (!isNaN(n) && n >= 1) onChange(n)
+            }}
+            placeholder="∞"
+            style={{
+              width: 80, height: 38, textAlign: 'center',
+              background: t.bgInput, border: 'none',
+              color: value === '' ? t.textFaint : t.text,
+              fontSize: 18, fontWeight: 700, outline: 'none', padding: 0,
+            }}
+          />
+          <div style={{ width: 1, height: 38, background: t.border, flexShrink: 0 }} />
+          <button
+            type="button"
+            onClick={() => onChange(value === '' ? 1 : (value as number) + 1)}
+            style={{
+              width: 38, height: 38, background: t.bgDeep, border: 'none',
+              cursor: 'pointer', color: t.text, fontSize: 22,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >+</button>
+        </div>
+        <div style={{ marginTop: 8, fontSize: 12, color: t.textFaint }}>
+          {value === '' ? 'No limit applied' : `Maximum ${value} hop${value === 1 ? '' : 's'}`}
+        </div>
       </div>
     </div>
   )
@@ -288,7 +492,7 @@ function NodeCombobox({ nodes, value, onChange, placeholder }: {
   }
 
   const typeTag = (n: CableNode) =>
-    n.type === 'landing_station' ? 'CLS' : n.type === 'terrestrial_pop' ? 'POP' : 'BU'
+    n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : n.type === 'primary_pop' ? '1°PoP' : n.type === 'secondary_pop' ? '2°PoP' : 'ExtPoP'
 
   const inputBase: React.CSSProperties = {
     width: '100%', padding: '6px 8px', borderRadius: 4,
@@ -380,6 +584,404 @@ function NodeCombobox({ nodes, value, onChange, placeholder }: {
   )
 }
 
+function AdvancedConstraintsModal({
+  open, onClose,
+  nodes, segments, systemOptions,
+  startNode, endNode,
+  mustIncludeNodes, setMustIncludeNodes,
+  mustAvoidNodes, setMustAvoidNodes,
+  mustAvoidSegs, setMustAvoidSegs,
+  mustIncludeSegs, setMustIncludeSegs,
+  mustIncludeSystems, setMustIncludeSystems,
+  mustAvoidSystems, setMustAvoidSystems,
+  mustIncludeCountries, setMustIncludeCountries,
+  mustAvoidCountries, setMustAvoidCountries,
+  countryOptions,
+  maxWetHops, setMaxWetHops,
+  maxTerrestrialHops, setMaxTerrestrialHops,
+  optimiseFor, setOptimiseFor,
+  activeTab, setActiveTab,
+  onClearAll,
+}: {
+  open: boolean
+  onClose: () => void
+  nodes: CableNode[]
+  segments: CableSegment[]
+  systemOptions: { id: string; name: string }[]
+  startNode: string
+  endNode: string
+  mustIncludeNodes: string[]
+  setMustIncludeNodes: (v: string[]) => void
+  mustAvoidNodes: string[]
+  setMustAvoidNodes: (v: string[]) => void
+  mustAvoidSegs: string[]
+  setMustAvoidSegs: (v: string[]) => void
+  mustIncludeSegs: string[]
+  setMustIncludeSegs: (v: string[]) => void
+  mustIncludeSystems: string[]
+  setMustIncludeSystems: (v: string[]) => void
+  mustAvoidSystems: string[]
+  setMustAvoidSystems: (v: string[]) => void
+  mustIncludeCountries: string[]
+  setMustIncludeCountries: (v: string[]) => void
+  mustAvoidCountries: string[]
+  setMustAvoidCountries: (v: string[]) => void
+  countryOptions: { id: string; name: string }[]
+  maxWetHops: number | ''
+  setMaxWetHops: (v: number | '') => void
+  maxTerrestrialHops: number | ''
+  setMaxTerrestrialHops: (v: number | '') => void
+  optimiseFor: string
+  setOptimiseFor: (v: string) => void
+  activeTab: string
+  setActiveTab: (v: string) => void
+  onClearAll: () => void
+}) {
+  const t = useTheme()
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  const totalCount =
+    mustIncludeNodes.length + mustAvoidNodes.length +
+    mustAvoidSegs.length + mustIncludeSegs.length +
+    mustIncludeSystems.length + mustAvoidSystems.length +
+    mustIncludeCountries.length + mustAvoidCountries.length +
+    (maxWetHops !== '' ? 1 : 0) + (maxTerrestrialHops !== '' ? 1 : 0) +
+    (optimiseFor !== '' ? 1 : 0)
+
+  function getChips(id: string): { chips: string[]; hasValue: boolean } {
+    switch (id) {
+      case 'must_include_nodes':
+        return { chips: mustIncludeNodes.map(nid => nodes.find(n => n.id === nid)?.name ?? nid), hasValue: mustIncludeNodes.length > 0 }
+      case 'must_avoid_nodes':
+        return { chips: mustAvoidNodes.map(nid => nodes.find(n => n.id === nid)?.name ?? nid), hasValue: mustAvoidNodes.length > 0 }
+      case 'must_include_segments':
+        return { chips: mustIncludeSegs.map(sid => segments.find(s => s.id === sid)?.name ?? sid), hasValue: mustIncludeSegs.length > 0 }
+      case 'must_avoid_segments':
+        return { chips: mustAvoidSegs.map(sid => segments.find(s => s.id === sid)?.name ?? sid), hasValue: mustAvoidSegs.length > 0 }
+      case 'must_include_systems':
+        return { chips: mustIncludeSystems.map(sid => systemOptions.find(s => s.id === sid)?.name ?? sid), hasValue: mustIncludeSystems.length > 0 }
+      case 'must_avoid_systems':
+        return { chips: mustAvoidSystems.map(sid => systemOptions.find(s => s.id === sid)?.name ?? sid), hasValue: mustAvoidSystems.length > 0 }
+      case 'must_include_countries':
+        return { chips: mustIncludeCountries.map(c => countryOptions.find(o => o.id === c)?.name ?? c), hasValue: mustIncludeCountries.length > 0 }
+      case 'must_avoid_countries':
+        return { chips: mustAvoidCountries.map(c => countryOptions.find(o => o.id === c)?.name ?? c), hasValue: mustAvoidCountries.length > 0 }
+      case 'max_hops': {
+        const chips: string[] = []
+        if (maxWetHops !== '') chips.push(`🌊 Wet: ${maxWetHops}`)
+        if (maxTerrestrialHops !== '') chips.push(`⛰️ Land: ${maxTerrestrialHops}`)
+        return { chips, hasValue: chips.length > 0 }
+      }
+      case 'optimise_for': {
+        if (!optimiseFor) return { chips: [], hasValue: false }
+        const opt = OPTIMISE_OPTIONS.find(o => o.value === optimiseFor)
+        return { chips: [opt?.label ?? optimiseFor], hasValue: true }
+      }
+      default: return { chips: [], hasValue: false }
+    }
+  }
+
+  function clearConstraint(id: string) {
+    switch (id) {
+      case 'must_include_nodes': setMustIncludeNodes([]); break
+      case 'must_avoid_nodes': setMustAvoidNodes([]); break
+      case 'must_include_segments': setMustIncludeSegs([]); break
+      case 'must_avoid_segments': setMustAvoidSegs([]); break
+      case 'must_include_systems': setMustIncludeSystems([]); break
+      case 'must_avoid_systems': setMustAvoidSystems([]); break
+      case 'must_include_countries': setMustIncludeCountries([]); break
+      case 'must_avoid_countries': setMustAvoidCountries([]); break
+      case 'max_hops': setMaxWetHops(''); setMaxTerrestrialHops(''); break
+      case 'optimise_for': setOptimiseFor(''); break
+    }
+  }
+
+  const activeDef = CONSTRAINT_DEFS.find(d => d.id === activeTab) ?? CONSTRAINT_DEFS[0]
+  const LIST_H = 300
+
+  function renderPanel() {
+    switch (activeTab) {
+      case 'must_include_nodes':
+        return <FilteredNodeMulti nodes={nodes} exclude={[startNode, endNode]} selected={mustIncludeNodes} onToggle={id => toggleMulti(id, mustIncludeNodes, setMustIncludeNodes)} listHeight={LIST_H} />
+      case 'must_avoid_nodes':
+        return <FilteredNodeMulti nodes={nodes} exclude={[startNode, endNode]} selected={mustAvoidNodes} onToggle={id => toggleMulti(id, mustAvoidNodes, setMustAvoidNodes)} listHeight={LIST_H} />
+      case 'must_include_segments':
+        return <FilteredMulti items={segments.map(s => ({ id: s.id, primary: s.name, secondary: s.id }))} selected={mustIncludeSegs} onToggle={id => toggleMulti(id, mustIncludeSegs, setMustIncludeSegs)} placeholder="Filter segments…" listHeight={LIST_H} />
+      case 'must_avoid_segments':
+        return <FilteredMulti items={segments.map(s => ({ id: s.id, primary: s.name, secondary: s.id }))} selected={mustAvoidSegs} onToggle={id => toggleMulti(id, mustAvoidSegs, setMustAvoidSegs)} placeholder="Filter segments…" listHeight={LIST_H} />
+      case 'must_include_systems':
+        return <FilteredMulti items={systemOptions.map(s => ({ id: s.id, primary: s.id, secondary: s.name }))} selected={mustIncludeSystems} onToggle={id => toggleMulti(id, mustIncludeSystems, setMustIncludeSystems)} placeholder="Filter systems…" listHeight={LIST_H} />
+      case 'must_avoid_systems':
+        return <FilteredMulti items={systemOptions.map(s => ({ id: s.id, primary: s.id, secondary: s.name }))} selected={mustAvoidSystems} onToggle={id => toggleMulti(id, mustAvoidSystems, setMustAvoidSystems)} placeholder="Filter systems…" listHeight={LIST_H} />
+      case 'must_include_countries':
+        return <FilteredMulti items={countryOptions.map(c => ({ id: c.id, primary: c.name, secondary: c.id }))} selected={mustIncludeCountries} onToggle={id => toggleMulti(id, mustIncludeCountries, setMustIncludeCountries)} placeholder="Filter countries…" listHeight={LIST_H} />
+      case 'must_avoid_countries':
+        return <FilteredMulti items={countryOptions.map(c => ({ id: c.id, primary: c.name, secondary: c.id }))} selected={mustAvoidCountries} onToggle={id => toggleMulti(id, mustAvoidCountries, setMustAvoidCountries)} placeholder="Filter countries…" listHeight={LIST_H} />
+      case 'max_hops':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+            <HopStepper label="Max Wet Hops" icon="🌊" value={maxWetHops} onChange={setMaxWetHops} />
+            <div style={{ height: 1, background: t.border }} />
+            <HopStepper label="Max Terrestrial Hops" icon="⛰️" value={maxTerrestrialHops} onChange={setMaxTerrestrialHops} />
+          </div>
+        )
+      case 'optimise_for': {
+        const selectedOpt = OPTIMISE_OPTIONS.find(o => o.value === optimiseFor && optimiseFor !== '')
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              {OPTIMISE_OPTIONS.map(opt => {
+                const sel = optimiseFor === opt.value
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setOptimiseFor(opt.value)}
+                    style={{
+                      padding: '8px 18px', borderRadius: 8,
+                      border: `1px solid ${sel ? t.blue : t.border}`,
+                      background: sel ? t.blue + '22' : 'transparent',
+                      color: sel ? t.blue : t.textMuted,
+                      cursor: 'pointer',
+                      fontWeight: sel ? 700 : 400,
+                      fontSize: 13,
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      fontFamily: 'system-ui, sans-serif',
+                    }}
+                  >
+                    <span>{opt.icon}</span>{opt.label}
+                  </button>
+                )
+              })}
+            </div>
+            {selectedOpt && (
+              <div style={{
+                padding: '16px 18px', borderRadius: 10,
+                background: t.bgActiveSort,
+                border: `1px solid ${t.blue}44`,
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: t.blue, marginBottom: 8 }}>
+                  {selectedOpt.icon} {selectedOpt.label}
+                </div>
+                <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.65, margin: '0 0 14px' }}>
+                  {selectedOpt.explain}
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ fontSize: 11, color: t.green, lineHeight: 1.5 }}>
+                    <span style={{ fontWeight: 700 }}>↑ Better: </span>{selectedOpt.better}
+                  </div>
+                  <div style={{ fontSize: 11, color: t.red, lineHeight: 1.5 }}>
+                    <span style={{ fontWeight: 700 }}>↓ Worse: </span>{selectedOpt.worse}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      }
+      default: return null
+    }
+  }
+
+  if (!open) return null
+
+  return createPortal(
+    <>
+      <div
+        onClick={onClose}
+        style={{ position: 'fixed', inset: 0, zIndex: 1999, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(2px)' }}
+      />
+      <div style={{
+        position: 'fixed', zIndex: 2000,
+        top: '50%', left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 780, maxWidth: 'calc(100vw - 40px)',
+        height: 560, maxHeight: 'calc(100vh - 80px)',
+        background: t.bgPanel,
+        border: `1px solid ${t.border}`,
+        borderRadius: 10,
+        boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        fontFamily: 'system-ui, sans-serif',
+      }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 18px',
+          borderBottom: `1px solid ${t.border}`,
+          background: t.bgDeep,
+          flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: t.text, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              Advanced Constraints
+            </span>
+            {totalCount > 0 && (
+              <span style={{
+                fontSize: 10, fontWeight: 700,
+                background: t.blue + '22', color: t.blue,
+                borderRadius: 10, padding: '2px 8px',
+              }}>{totalCount} active</span>
+            )}
+          </div>
+          <button
+            type="button" onClick={onClose}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textFaint, fontSize: 20, lineHeight: 1, padding: '0 4px' }}
+          >×</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+          {/* Sidebar */}
+          <div style={{
+            width: 210, flexShrink: 0,
+            borderRight: `1px solid ${t.border}`,
+            display: 'flex', flexDirection: 'column',
+            background: t.bgDeep,
+          }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
+              {CONSTRAINT_DEFS.map(def => {
+                const isActive = activeTab === def.id
+                const { chips, hasValue } = getChips(def.id)
+                return (
+                  <div
+                    key={def.id}
+                    onClick={() => setActiveTab(def.id)}
+                    style={{
+                      padding: '9px 12px',
+                      cursor: 'pointer',
+                      background: isActive ? t.blue + '18' : 'transparent',
+                      borderLeft: `3px solid ${isActive ? t.blue : 'transparent'}`,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {hasValue && (
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: t.blue, flexShrink: 0 }} />
+                      )}
+                      {'icon' in def && (
+                        <span style={{ fontSize: 13, lineHeight: 1, flexShrink: 0 }}>{(def as { icon: string }).icon}</span>
+                      )}
+                      <span style={{
+                        flex: 1, fontSize: 12, fontWeight: 600,
+                        color: isActive ? t.text : hasValue ? t.textMuted : t.textFaint,
+                      }}>
+                        {def.label}
+                      </span>
+                      {hasValue && (
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); clearConstraint(def.id) }}
+                          style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: t.textFaint, fontSize: 14, lineHeight: 1,
+                            padding: '0 2px', flexShrink: 0,
+                          }}
+                        >×</button>
+                      )}
+                    </div>
+                    {chips.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 5, paddingLeft: 12 }}>
+                        {chips.slice(0, 3).map((chip, i) => (
+                          <span key={i} style={{
+                            fontSize: 9, padding: '1px 5px', borderRadius: 8,
+                            background: t.blue + '1a', color: t.blue,
+                            fontWeight: 600, maxWidth: 155,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            display: 'inline-block',
+                          }}>{chip}</span>
+                        ))}
+                        {chips.length > 3 && (
+                          <span style={{ fontSize: 9, color: t.textFaint, alignSelf: 'center' }}>
+                            +{chips.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Clear All */}
+            <div style={{ padding: '10px 12px', borderTop: `1px solid ${t.border}`, flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={onClearAll}
+                disabled={totalCount === 0}
+                style={{
+                  width: '100%', padding: '7px', borderRadius: 4,
+                  border: `1px solid ${totalCount > 0 ? t.red + '55' : 'transparent'}`,
+                  background: totalCount > 0 ? t.red + '10' : 'transparent',
+                  color: totalCount > 0 ? t.red : t.textFaintest,
+                  fontSize: 11, fontWeight: 700,
+                  cursor: totalCount > 0 ? 'pointer' : 'default',
+                  letterSpacing: '0.04em', textTransform: 'uppercase',
+                }}
+              >Clear All</button>
+            </div>
+          </div>
+
+          {/* Content panel */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+            {/* Description */}
+            <div style={{ padding: '16px 20px 14px', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 6 }}>
+                {activeDef.label}
+              </div>
+              <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.65 }}>
+                {activeDef.description}
+              </div>
+            </div>
+
+            {/* Parameter input */}
+            <div style={{ flex: 1, padding: '16px 20px', overflowY: 'auto' }}>
+              {renderPanel()}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+          padding: '10px 18px',
+          borderTop: `1px solid ${t.border}`,
+          background: t.bgDeep,
+          flexShrink: 0,
+          gap: 10,
+        }}>
+          {totalCount > 0 && (
+            <span style={{ fontSize: 11, color: t.textFaint, marginRight: 'auto' }}>
+              <span style={{ color: t.blue, fontWeight: 600 }}>{totalCount}</span> constraint{totalCount !== 1 ? 's' : ''} active
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '7px 24px', borderRadius: 6,
+              border: `1px solid ${t.blue}`,
+              background: t.blue,
+              color: '#0f172a',
+              fontSize: 13, fontWeight: 700,
+              cursor: 'pointer',
+              letterSpacing: '0.02em',
+            }}
+          >Apply</button>
+        </div>
+      </div>
+    </>,
+    document.body
+  )
+}
+
 export function SearchForm({ nodes, segments, systems = [], onSearch, loading, prefilledOrigin = '', prefilledDest = '', prefill }: Props) {
   const t = useTheme()
   const [startNode, setStartNode] = useState(prefilledOrigin)
@@ -391,7 +993,13 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
   const [mustIncludeSegs, setMustIncludeSegs] = useState<string[]>([])
   const [mustIncludeSystems, setMustIncludeSystems] = useState<string[]>([])
   const [mustAvoidSystems, setMustAvoidSystems] = useState<string[]>([])
-  const [advancedOpen, setAdvancedOpen] = useState(false)
+  const [mustIncludeCountries, setMustIncludeCountries] = useState<string[]>([])
+  const [mustAvoidCountries, setMustAvoidCountries] = useState<string[]>([])
+  const [maxWetHops, setMaxWetHops] = useState<number | ''>('')
+  const [maxTerrestrialHops, setMaxTerrestrialHops] = useState<number | ''>('')
+  const [optimiseFor, setOptimiseFor] = useState<string>('')
+  const [modalOpen, setModalOpen] = useState(false)
+  const [activeConstraintTab, setActiveConstraintTab] = useState('must_include_nodes')
 
   // Sync external prefill (from TSABuddy) — new object reference = new fill
   useEffect(() => {
@@ -405,31 +1013,48 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
     if (prefill.must_avoid_segments)   setMustAvoidSegs(prefill.must_avoid_segments)
     if (prefill.must_include_systems)  setMustIncludeSystems(prefill.must_include_systems)
     if (prefill.must_avoid_systems)    setMustAvoidSystems(prefill.must_avoid_systems)
+    if (prefill.must_include_countries) setMustIncludeCountries(prefill.must_include_countries)
+    if (prefill.must_avoid_countries)   setMustAvoidCountries(prefill.must_avoid_countries)
+    if (prefill.max_wet_hops != null)         setMaxWetHops(prefill.max_wet_hops)
+    if (prefill.max_terrestrial_hops != null) setMaxTerrestrialHops(prefill.max_terrestrial_hops)
+    if (prefill.optimise_for != null)         setOptimiseFor(prefill.optimise_for)
     const hasAdvanced = (
       (prefill.must_include_nodes?.length    ?? 0) > 0 ||
       (prefill.must_avoid_nodes?.length      ?? 0) > 0 ||
       (prefill.must_include_segments?.length ?? 0) > 0 ||
       (prefill.must_avoid_segments?.length   ?? 0) > 0 ||
       (prefill.must_include_systems?.length  ?? 0) > 0 ||
-      (prefill.must_avoid_systems?.length    ?? 0) > 0
+      (prefill.must_avoid_systems?.length    ?? 0) > 0 ||
+      (prefill.must_include_countries?.length ?? 0) > 0 ||
+      (prefill.must_avoid_countries?.length   ?? 0) > 0 ||
+      prefill.max_wet_hops != null ||
+      prefill.max_terrestrial_hops != null ||
+      prefill.optimise_for != null
     )
-    if (hasAdvanced) setAdvancedOpen(true)
+    void hasAdvanced
   }, [prefill])
 
   // Sync origin/dest set from map node clicks
   useEffect(() => { if (prefilledOrigin) setStartNode(prefilledOrigin) }, [prefilledOrigin])
   useEffect(() => { if (prefilledDest)   setEndNode(prefilledDest)   }, [prefilledDest])
 
-  // Unique system IDs from segments (preserves order of first appearance)
   const segmentSystemIds = [...new Set(segments.map(s => s.system_id))]
   const systemOptions = segmentSystemIds.map(id => {
     const sys = systems.find(s => s.id === id)
     return { id, name: sys?.name ?? id }
   }).sort((a, b) => a.id.localeCompare(b.id))
 
-  function toggleMulti(id: string, list: string[], setter: (v: string[]) => void) {
-    setter(list.includes(id) ? list.filter(x => x !== id) : [...list, id])
-  }
+  const countryOptions = useMemo(() => {
+    const seen = new Set<string>()
+    const opts: { id: string; name: string }[] = []
+    for (const n of nodes) {
+      if (n.type !== 'branching_unit' && !seen.has(n.country)) {
+        seen.add(n.country)
+        opts.push({ id: n.country, name: countryName(n.country) })
+      }
+    }
+    return opts.sort((a, b) => a.name.localeCompare(b.name))
+  }, [nodes])
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -443,8 +1068,28 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
       must_include_segments: mustIncludeSegs,
       must_include_systems: mustIncludeSystems,
       must_avoid_systems: mustAvoidSystems,
+      must_include_countries: mustIncludeCountries,
+      must_avoid_countries: mustAvoidCountries,
       diversity,
+      max_wet_hops: maxWetHops === '' ? undefined : maxWetHops as number,
+      max_terrestrial_hops: maxTerrestrialHops === '' ? undefined : maxTerrestrialHops as number,
+      optimise_for: optimiseFor || undefined,
     })
+  }
+
+  function clearAllConstraints() {
+    setMustIncludeNodes([])
+    setMustAvoidNodes([])
+    setMustAvoidSegs([])
+    setMustIncludeSegs([])
+    setMustIncludeSystems([])
+    setMustAvoidSystems([])
+    setMustIncludeCountries([])
+    setMustAvoidCountries([])
+    setMaxWetHops('')
+    setMaxTerrestrialHops('')
+    setOptimiseFor('')
+    setActiveConstraintTab('must_include_nodes')
   }
 
   const selectStyle: React.CSSProperties = {
@@ -459,13 +1104,38 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
     marginBottom: 4,
   }
 
-  const advancedCount = mustIncludeNodes.length + mustAvoidNodes.length + mustAvoidSegs.length + mustIncludeSegs.length + mustIncludeSystems.length + mustAvoidSystems.length
+  const advancedCount =
+    mustIncludeNodes.length + mustAvoidNodes.length +
+    mustAvoidSegs.length + mustIncludeSegs.length +
+    mustIncludeSystems.length + mustAvoidSystems.length +
+    mustIncludeCountries.length + mustAvoidCountries.length +
+    (maxWetHops !== '' ? 1 : 0) + (maxTerrestrialHops !== '' ? 1 : 0) +
+    (optimiseFor !== '' ? 1 : 0)
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div>
+      <div style={{ position: 'relative' }}>
         <label style={labelStyle}>Origin</label>
         <NodeCombobox nodes={nodes} value={startNode} onChange={setStartNode} placeholder="Search city, code, country, owner…" />
+
+        {/* Flip origin ↔ destination — Google Maps style */}
+        <button
+          type="button"
+          title="Swap origin and destination"
+          onClick={() => { setStartNode(endNode); setEndNode(startNode) }}
+          style={{
+            position: 'absolute', right: -2, top: '50%',
+            transform: 'translateY(-50%)',
+            width: 26, height: 26, borderRadius: '50%',
+            border: `1px solid ${t.border}`,
+            background: t.bgDeep,
+            color: t.textMuted,
+            cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 14, lineHeight: 1,
+            zIndex: 1,
+          }}
+        >⇅</button>
       </div>
 
       <div>
@@ -486,87 +1156,66 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
         </select>
       </div>
 
-      {/* Advanced Constraints */}
-      <div style={{ borderRadius: 6, border: `1px solid ${t.border}`, overflow: 'hidden' }}>
-        <button
-          type="button"
-          onClick={() => setAdvancedOpen(o => !o)}
-          style={{
-            width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '8px 10px', background: t.bgDeep, border: 'none', cursor: 'pointer',
-            color: t.textMuted, fontSize: 11, fontWeight: 700,
-            textTransform: 'uppercase', letterSpacing: '0.06em',
-          }}
-        >
-          <span>Advanced Constraints</span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {advancedCount > 0 && (
-              <span style={{
-                fontSize: 10, fontWeight: 700, color: t.blue,
-                background: t.bgActiveSort, borderRadius: 10,
-                padding: '1px 6px',
-              }}>
-                {advancedCount}
-              </span>
-            )}
-            <span style={{ fontSize: 10, color: t.textFaint, transition: 'transform 0.2s', display: 'inline-block', transform: advancedOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>▾</span>
-          </span>
-        </button>
-
-        {advancedOpen && (
-          <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: 10, borderTop: `1px solid ${t.border}` }}>
-            <div>
-              <label style={labelStyle}>Must Include Nodes</label>
-              <FilteredNodeMulti nodes={nodes} exclude={[startNode, endNode]} selected={mustIncludeNodes} onToggle={id => toggleMulti(id, mustIncludeNodes, setMustIncludeNodes)} />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Must Avoid Nodes</label>
-              <FilteredNodeMulti nodes={nodes} exclude={[startNode, endNode]} selected={mustAvoidNodes} onToggle={id => toggleMulti(id, mustAvoidNodes, setMustAvoidNodes)} />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Must Avoid Segments</label>
-              <FilteredMulti
-                items={segments.map(s => ({ id: s.id, primary: s.name, secondary: s.id }))}
-                selected={mustAvoidSegs}
-                onToggle={id => toggleMulti(id, mustAvoidSegs, setMustAvoidSegs)}
-                placeholder="Filter segments…"
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Must Include Segments</label>
-              <FilteredMulti
-                items={segments.map(s => ({ id: s.id, primary: s.name, secondary: s.id }))}
-                selected={mustIncludeSegs}
-                onToggle={id => toggleMulti(id, mustIncludeSegs, setMustIncludeSegs)}
-                placeholder="Filter segments…"
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Must Include System <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(≥1 segment)</span></label>
-              <FilteredMulti
-                items={systemOptions.map(s => ({ id: s.id, primary: s.id, secondary: s.name }))}
-                selected={mustIncludeSystems}
-                onToggle={id => toggleMulti(id, mustIncludeSystems, setMustIncludeSystems)}
-                placeholder="Filter systems…"
-              />
-            </div>
-
-            <div>
-              <label style={labelStyle}>Must Avoid System</label>
-              <FilteredMulti
-                items={systemOptions.map(s => ({ id: s.id, primary: s.id, secondary: s.name }))}
-                selected={mustAvoidSystems}
-                onToggle={id => toggleMulti(id, mustAvoidSystems, setMustAvoidSystems)}
-                placeholder="Filter systems…"
-              />
-            </div>
-          </div>
+      {/* Advanced Constraints button */}
+      <button
+        type="button"
+        onClick={() => setModalOpen(true)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '8px 12px', borderRadius: 6,
+          border: `1px solid ${advancedCount > 0 ? t.blue + '66' : t.border}`,
+          background: advancedCount > 0 ? t.blue + '0d' : t.bgDeep,
+          cursor: 'pointer',
+          color: advancedCount > 0 ? t.blue : t.textMuted,
+          fontSize: 11, fontWeight: 700,
+          textTransform: 'uppercase', letterSpacing: '0.06em',
+        }}
+      >
+        <span>Advanced Constraints</span>
+        {advancedCount > 0 && (
+          <span style={{
+            fontSize: 10, fontWeight: 700,
+            background: t.blue + '22', color: t.blue,
+            borderRadius: 10, padding: '1px 7px',
+          }}>{advancedCount}</span>
         )}
-      </div>
+      </button>
+
+      <AdvancedConstraintsModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        nodes={nodes}
+        segments={segments}
+        systemOptions={systemOptions}
+        startNode={startNode}
+        endNode={endNode}
+        mustIncludeNodes={mustIncludeNodes}
+        setMustIncludeNodes={setMustIncludeNodes}
+        mustAvoidNodes={mustAvoidNodes}
+        setMustAvoidNodes={setMustAvoidNodes}
+        mustAvoidSegs={mustAvoidSegs}
+        setMustAvoidSegs={setMustAvoidSegs}
+        mustIncludeSegs={mustIncludeSegs}
+        setMustIncludeSegs={setMustIncludeSegs}
+        mustIncludeSystems={mustIncludeSystems}
+        setMustIncludeSystems={setMustIncludeSystems}
+        mustAvoidSystems={mustAvoidSystems}
+        setMustAvoidSystems={setMustAvoidSystems}
+        mustIncludeCountries={mustIncludeCountries}
+        setMustIncludeCountries={setMustIncludeCountries}
+        mustAvoidCountries={mustAvoidCountries}
+        setMustAvoidCountries={setMustAvoidCountries}
+        countryOptions={countryOptions}
+        maxWetHops={maxWetHops}
+        setMaxWetHops={setMaxWetHops}
+        maxTerrestrialHops={maxTerrestrialHops}
+        setMaxTerrestrialHops={setMaxTerrestrialHops}
+        optimiseFor={optimiseFor}
+        setOptimiseFor={setOptimiseFor}
+        activeTab={activeConstraintTab}
+        setActiveTab={setActiveConstraintTab}
+        onClearAll={clearAllConstraints}
+      />
 
       <style>{`
         @keyframes sea-sweep {

@@ -1,7 +1,21 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import type { Route, CableNode, CableSystem, SegmentCapacity, SegmentOutage, PinnedRoute } from '../types'
+import type { Route, CableNode, CableSystem, SegmentCapacity, SegmentOutage, PinnedRoute, Project, ProjectCircuit, EndpointConfig } from '../types'
 import { useTheme } from '../theme'
+
+type EnrichLevel = 'none' | 'partial' | 'full'
+
+function enrichLevel(c: ProjectCircuit | undefined): EnrichLevel {
+  if (!c) return 'none'
+  const endFilled = (e: EndpointConfig) => !!(e.customer_site_name && e.access_type)
+  const coreFilled = !!(c.service_type && c.bandwidth && c.protection)
+  const endsFilled = endFilled(c.a_end) && endFilled(c.z_end)
+  if (coreFilled && endsFilled) return 'full'
+  const anyFilled = !!(c.service_type || c.bandwidth || c.protection ||
+    c.a_end.customer_site_name || c.a_end.access_type ||
+    c.z_end.customer_site_name || c.z_end.access_type)
+  return anyFilled ? 'partial' : 'none'
+}
 
 function useIsMobile(): boolean {
   const [mobile, setMobile] = useState(() => window.innerWidth < 768)
@@ -26,9 +40,15 @@ function classifyRoute(route: Route, onNetOwnership: Set<string>): { type: NetCl
   return { type: 'mixed', onNetPct: pct }
 }
 
+const DEFAULT_SHOWN = 5
+const MIN_SHOWN = 1
+const MAX_SHOWN = 10
+const MAX_PINS = 10
+
 interface Props {
   primaryRoutes: Route[]
   diverseRoutes: Route[]
+  totalFound?: number
   selectedRouteIds: string[]
   onSelectRoute: (id: string) => void
   nodes: CableNode[]
@@ -43,11 +63,32 @@ interface Props {
   // Optional external sort control (e.g. driven by TSABuddy)
   externalSortKey?: SortKey
   externalPushOutagesDown?: boolean
+  // Pool strategy label from last search (drives summary when no sort button active)
+  optimiseFor?: string
+  // Pair flip state (lifted to App so map reflects the swap)
+  flippedPairIds?: Set<string>
+  onFlipPair?: (pairId: string) => void
+  // Pin both legs of a diverse pair together
+  onPinPair?: (worker: Route, protect: Route) => void
+  // Add to project
+  onAddToProject?: (route: Route, protectRoute?: Route) => void
+  // Open circuit enrichment for a pinned route already in a project
+  onEnrichCircuit?: (pin: PinnedRoute) => void
+  // Active project for project mode banner
+  activeProject?: Project | null
+  onExitProjectMode?: () => void
+  onSwitchProject?: () => void
 }
 
 export type SortKey = 'hops' | 'distance' | 'latency' | 'availability' | 'margin' | 'capacity' | 'ownership'
 
 const NET_ORDER = { on_net: 0, mixed: 1, off_net: 2 }
+
+const OPTIMISE_LABELS: Record<string, string> = {
+  hops: 'Hops', distance: 'Distance', length: 'Distance',
+  latency: 'Latency', margin: 'Margin', cost: 'Margin',
+  capacity: 'Capacity', ownership: 'Ownership', outages: 'No Outages',
+}
 
 const SORT_OPTIONS: { key: SortKey; icon: string; label: string; dir: 'asc' | 'desc' }[] = [
   { key: 'hops',         icon: '⬡',  label: 'Hops',      dir: 'asc'  },
@@ -108,12 +149,14 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
   })
 }
 
-export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown }: Props) {
+export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown, optimiseFor, flippedPairIds, onFlipPair, onPinPair, onAddToProject, onEnrichCircuit, activeProject }: Props) {
   const t = useTheme()
   const onNetSet = new Set(onNetOwnership)
   const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
-  const [internalSortKey, setInternalSortKey] = useState<SortKey>('hops')
+  const [internalSortKey, setInternalSortKey] = useState<SortKey | null>(null)
   const [internalPushOutagesDown, setInternalPushOutagesDown] = useState(false)
+  const [pinsCompressed, setPinsCompressed] = useState(false)
+  const [shown, setShown] = useState(DEFAULT_SHOWN)
 
   // Sync from external when provided (e.g. TSABuddy sets the sort)
   useEffect(() => { if (externalSortKey !== undefined) setInternalSortKey(externalSortKey) }, [externalSortKey])
@@ -128,7 +171,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
   const outagesById = Object.fromEntries(outages.map(o => [o.segment_id, o]))
   const pinnedKeys = new Set(pinnedRoutes.map(p => routeKey(p.route)))
-  const canPin = pinnedRoutes.length < 5
+  const canPin = pinnedRoutes.length < MAX_PINS
 
   const hasResults = primaryRoutes.length > 0 || diverseRoutes.length > 0
   const hasPins = pinnedRoutes.length > 0
@@ -138,6 +181,13 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
   }
 
   function applySort(routes: Route[]): Route[] {
+    if (sortKey === null) {
+      if (!pushOutagesDown) return routes
+      return [
+        ...routes.filter(r => !routeHasOutage(r, outagesById)),
+        ...routes.filter(r =>  routeHasOutage(r, outagesById)),
+      ]
+    }
     const base = sortRoutes(routes, sortKey, capacityById, onNetSet, systemsById)
     if (!pushOutagesDown) return base
     return [
@@ -146,10 +196,49 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
     ]
   }
 
-  const sorted = {
-    primary: applySort(primaryRoutes),
-    diverse:  applySort(diverseRoutes),
+  // Build pairs when both arrays are same non-zero length (parallel arrays from backend)
+  const pairs = (diverseRoutes.length > 0 && diverseRoutes.length === primaryRoutes.length)
+    ? primaryRoutes.map((p, i) => ({ primary: p, diverse: diverseRoutes[i] }))
+    : null
+
+  // When clicking either route in a pair, select/deselect both together.
+  // Uses functional updater chaining so both toggles apply to the same state snapshot.
+  function selectPair(clickedId: string, partnerId: string) {
+    const selectingOn = !selectedRouteIds.includes(clickedId)
+    onSelectRoute(clickedId)
+    const partnerOn = selectedRouteIds.includes(partnerId)
+    if (partnerOn !== selectingOn) onSelectRoute(partnerId)
   }
+
+  function applyPairSort(ps: typeof pairs): typeof pairs {
+    if (!ps) return ps
+    // Sort by effective worker stats — when flipped, the diverse route is the worker
+    const withEffective = ps.map(p => ({
+      pair: p,
+      effectiveWorker: flippedPairIds?.has(p.primary.id) ? p.diverse : p.primary,
+    }))
+    const sortedWorkers = applySort(withEffective.map(x => x.effectiveWorker))
+    const workerIdToEntry = new Map(withEffective.map(x => [x.effectiveWorker.id, x.pair]))
+    return sortedWorkers.map(r => workerIdToEntry.get(r.id)).filter((p): p is NonNullable<typeof ps>[0] => Boolean(p))
+  }
+
+  const sortedPairs = applyPairSort(pairs)
+
+  const sorted = {
+    primary: pairs ? [] : applySort(primaryRoutes).slice(0, shown),
+    diverse:  pairs ? [] : applySort(diverseRoutes).slice(0, shown),
+  }
+
+  const summaryStored = pairs ? pairs.length : primaryRoutes.length
+  const summaryShown  = pairs
+    ? (sortedPairs?.slice(0, shown).length ?? 0)
+    : sorted.primary.length
+  const summaryFilterLabel = optimiseFor
+    ? (OPTIMISE_LABELS[optimiseFor] ?? optimiseFor)
+    : 'Default Weighting'
+  const summarySortLabel = sortKey !== null
+    ? (SORT_OPTIONS.find(o => o.key === sortKey)?.label ?? sortKey)
+    : 'Default'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -157,34 +246,142 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
       {/* Pinned routes section */}
       {hasPins && (
         <div style={{ marginBottom: hasResults ? 8 : 0 }}>
-          <div style={sectionLabelStyle(t)}>
-            📌 Pinned Routes
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4, gap: 6 }}>
+            {!activeProject && <div style={{ ...sectionLabelStyle(t), marginBottom: 0, flex: 1 }}>📌 Pinned Routes</div>}
+            {activeProject && <div style={{ flex: 1 }} />}
+            <button
+              onClick={() => setPinsCompressed(v => !v)}
+              style={{
+                fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 4, cursor: 'pointer',
+                border: `1px solid ${t.border}`, background: 'transparent',
+                color: t.textFaint, display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              {pinsCompressed
+                ? <><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 9l7 7 7-7"/></svg>Expand</>
+                : <><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 15l-7-7-7 7"/></svg>Compress</>
+              }
+            </button>
           </div>
-          {pinnedRoutes.map(p => (
-            <PinnedRouteCard
-              key={p.pinId}
-              pinned={p}
-              onUnpin={() => onUnpin(p.pinId)}
-              nodesById={nodesById}
-              capacityById={capacityById}
-              outagesById={outagesById}
-              onNetSet={onNetSet}
-              systemsById={systemsById}
-            />
-          ))}
+          {(() => {
+            // Detect diversity pairs among pinned routes.
+            // Project pairs: share same circuitId (worker first, protect has "(Protect)" label).
+            // Ad-hoc pairs: same color, protect has "(Protect)" in searchLabel.
+            const protectPinIds = new Set<string>()
+            const protectByWorkerPinId = new Map<string, PinnedRoute>()
+            for (const p of pinnedRoutes) {
+              if (protectPinIds.has(p.pinId)) continue
+              const isProtect = p.searchLabel.includes('(Protect)')
+              if (isProtect) continue
+              // Find a protect partner
+              const partner = pinnedRoutes.find(q =>
+                q.pinId !== p.pinId &&
+                !protectPinIds.has(q.pinId) &&
+                q.searchLabel.includes('(Protect)') &&
+                (
+                  (p.circuitId && q.circuitId && p.circuitId === q.circuitId) ||
+                  (!p.circuitId && !q.circuitId && p.color === q.color)
+                )
+              )
+              if (partner) {
+                protectPinIds.add(partner.pinId)
+                protectByWorkerPinId.set(p.pinId, partner)
+              }
+            }
+            const visiblePins = pinnedRoutes.filter(p => !protectPinIds.has(p.pinId))
+
+            return pinsCompressed
+              ? visiblePins.map(p => (
+                  <CompressedPinCard
+                    key={p.pinId}
+                    pinned={p}
+                    onUnpin={() => {
+                      onUnpin(p.pinId)
+                      const partner = protectByWorkerPinId.get(p.pinId)
+                      if (partner) onUnpin(partner.pinId)
+                    }}
+                    systemsById={systemsById}
+                  />
+                ))
+              : visiblePins.map(p => (
+                  <PinnedRouteCard
+                    key={p.pinId}
+                    pinned={p}
+                    onUnpin={() => {
+                      onUnpin(p.pinId)
+                      const partner = protectByWorkerPinId.get(p.pinId)
+                      if (partner) onUnpin(partner.pinId)
+                    }}
+                    protectPin={protectByWorkerPinId.get(p.pinId)}
+                    nodesById={nodesById}
+                    capacityById={capacityById}
+                    outagesById={outagesById}
+                    onNetSet={onNetSet}
+                    systemsById={systemsById}
+                    onEnrichCircuit={onEnrichCircuit ? () => onEnrichCircuit(p) : undefined}
+                    onAddToProject={onAddToProject ? () => onAddToProject(p.route) : undefined}
+                    activeProject={activeProject}
+                  />
+                ))
+          })()}
         </div>
       )}
 
       {/* Sort bar — only shown when there are search results */}
       {hasResults && (
         <>
+          {/* Search result summary + show-N stepper */}
+          {summaryStored > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0 8px' }}>
+              <div style={{ fontSize: 11, color: t.textFaint, lineHeight: 1.6 }}>
+                <span style={{ color: t.text, fontWeight: 600 }}>{totalFound || summaryStored}</span>
+                {' routes · '}
+                <span style={{ color: t.text, fontWeight: 600 }}>{summaryStored}</span>
+                {pairs ? ' pairs · ' : ' filtered by '}
+                {!pairs && <span style={{ color: t.blue, fontWeight: 600 }}>{summaryFilterLabel}</span>}
+                {!pairs && ' · '}
+                <span style={{ color: t.text, fontWeight: 600 }}>{summaryShown}</span>
+                {' shown · sorted by '}
+                <span style={{ color: t.blue, fontWeight: 600 }}>{summarySortLabel}</span>
+              </div>
+              {/* Routes-to-show stepper */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, marginLeft: 10 }}>
+                <span style={{ fontSize: 10, color: t.textFaint, letterSpacing: '0.04em' }}>Show</span>
+                <button
+                  onClick={() => setShown(v => Math.max(MIN_SHOWN, v - 1))}
+                  disabled={shown <= MIN_SHOWN}
+                  title="Show fewer routes"
+                  style={{
+                    width: 20, height: 20, borderRadius: 4, border: `1px solid ${t.border}`,
+                    background: 'transparent', color: shown <= MIN_SHOWN ? t.textFaintest : t.textMuted,
+                    cursor: shown <= MIN_SHOWN ? 'default' : 'pointer',
+                    fontSize: 14, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: 0,
+                  }}
+                >−</button>
+                <span style={{ fontSize: 12, fontWeight: 700, color: t.text, minWidth: 14, textAlign: 'center' }}>{shown}</span>
+                <button
+                  onClick={() => setShown(v => Math.min(MAX_SHOWN, v + 1))}
+                  disabled={shown >= MAX_SHOWN}
+                  title="Show more routes"
+                  style={{
+                    width: 20, height: 20, borderRadius: 4, border: `1px solid ${t.border}`,
+                    background: 'transparent', color: shown >= MAX_SHOWN ? t.textFaintest : t.textMuted,
+                    cursor: shown >= MAX_SHOWN ? 'default' : 'pointer',
+                    fontSize: 14, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: 0,
+                  }}
+                >+</button>
+              </div>
+            </div>
+          )}
           <div className="sort-bar" style={{ display: 'flex', gap: 4, marginBottom: 4, overflowX: 'auto' }}>
             {SORT_OPTIONS.map(opt => {
               const active = sortKey === opt.key
               return (
                 <button
                   key={opt.key}
-                  onClick={() => setSortKey(opt.key)}
+                  onClick={() => setSortKey(prev => prev === opt.key ? null : opt.key)}
                   title={`Sort by ${opt.label} (${opt.dir === 'asc' ? 'lowest first' : 'highest first'})`}
                   style={{
                     flex: '1 0 44px', display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -221,65 +418,113 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
             </button>
           </div>
 
-          {sorted.primary.length > 0 && (
-            <div>
-              <div style={sectionLabelStyle(t)}>Primary Routes</div>
-              {sorted.primary.map(r => (
-                <RouteCard
-                  key={r.id} route={r}
-                  selected={selectedRouteIds.includes(r.id)}
-                  onSelect={onSelectRoute}
+          {pairs ? (
+            <>
+              {(sortedPairs ?? []).slice(0, shown).map((pair, idx) => (
+                <PairCard
+                  key={pair.primary.id}
+                  pair={pair}
+                  idx={idx}
+                  selected={(id) => selectedRouteIds.includes(id)}
+                  onSelectPair={selectPair}
                   nodesById={nodesById}
                   capacityById={capacityById}
                   outagesById={outagesById}
-                  color={t.blue}
-                  isPinned={pinnedKeys.has(routeKey(r))}
-                  canPin={canPin}
-                  onPin={onPin}
                   onNetSet={onNetSet}
                   systemsById={systemsById}
-                />
-              ))}
-            </div>
-          )}
-          {sorted.diverse.length > 0 && (
-            <div>
-              <div style={sectionLabelStyle(t)}>Diverse Routes</div>
-              {sorted.diverse.map(r => (
-                <RouteCard
-                  key={r.id} route={r}
-                  selected={selectedRouteIds.includes(r.id)}
-                  onSelect={onSelectRoute}
-                  nodesById={nodesById}
-                  capacityById={capacityById}
-                  outagesById={outagesById}
-                  color={t.green}
-                  isPinned={pinnedKeys.has(routeKey(r))}
+                  pinnedKeys={pinnedKeys}
                   canPin={canPin}
                   onPin={onPin}
-                  onNetSet={onNetSet}
-                  systemsById={systemsById}
+                  onPinPair={onPinPair}
+                  flipped={flippedPairIds?.has(pair.primary.id) ?? false}
+                  onFlip={() => onFlipPair?.(pair.primary.id)}
+                  onAddToProject={onAddToProject ? (w, p) => onAddToProject(w, p) : undefined}
                 />
               ))}
-            </div>
-          )}
-          {sorted.diverse.length === 0 && diversityRequested && (
-            <div style={{
-              marginTop: 6, padding: '10px 14px', borderRadius: 6,
-              border: `1px solid ${t.orange}`,
-              background: t.bgCard,
-              display: 'flex', alignItems: 'center', gap: 10,
-            }}>
-              <span style={{ fontSize: 16, lineHeight: 1 }}>⚠</span>
-              <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: t.orange, marginBottom: 2 }}>
-                  Diversity Requirement not able to be Met
+              {(sortedPairs?.length ?? 0) === 0 && diversityRequested && (
+                <div style={{
+                  marginTop: 6, padding: '10px 14px', borderRadius: 6,
+                  border: `1px solid ${t.orange}`,
+                  background: t.bgCard,
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>⚠</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: t.orange, marginBottom: 2 }}>
+                      Diversity Requirement not able to be Met
+                    </div>
+                    <div style={{ fontSize: 11, color: t.textMuted }}>
+                      No segment-disjoint diverse path exists between these endpoints.
+                    </div>
+                  </div>
                 </div>
-                <div style={{ fontSize: 11, color: t.textMuted }}>
-                  No segment-disjoint diverse path exists between these endpoints.
+              )}
+            </>
+          ) : (
+            <>
+              {sorted.primary.length > 0 && (
+                <div>
+                  <div style={sectionLabelStyle(t)}>Worker Routes</div>
+                  {sorted.primary.map(r => (
+                    <RouteCard
+                      key={r.id} route={r}
+                      selected={selectedRouteIds.includes(r.id)}
+                      onSelect={onSelectRoute}
+                      nodesById={nodesById}
+                      capacityById={capacityById}
+                      outagesById={outagesById}
+                      color={t.blue}
+                      isPinned={pinnedKeys.has(routeKey(r))}
+                      canPin={canPin}
+                      onPin={onPin}
+                      onNetSet={onNetSet}
+                      systemsById={systemsById}
+                      onAddToProject={onAddToProject ? (route) => onAddToProject(route) : undefined}
+                    />
+                  ))}
                 </div>
-              </div>
-            </div>
+              )}
+              {sorted.diverse.length > 0 && (
+                <div>
+                  <div style={sectionLabelStyle(t)}>Protect Routes</div>
+                  {sorted.diverse.map(r => (
+                    <RouteCard
+                      key={r.id} route={r}
+                      selected={selectedRouteIds.includes(r.id)}
+                      onSelect={onSelectRoute}
+                      nodesById={nodesById}
+                      capacityById={capacityById}
+                      outagesById={outagesById}
+                      color={t.green}
+                      isPinned={pinnedKeys.has(routeKey(r))}
+                      canPin={canPin}
+                      onPin={onPin}
+                      onNetSet={onNetSet}
+                      systemsById={systemsById}
+                      onAddToProject={onAddToProject ? (route) => onAddToProject(route) : undefined}
+                    />
+                  ))}
+                </div>
+              )}
+              {sorted.diverse.length === 0 && diversityRequested && (
+                <div style={{
+                  marginTop: 6, padding: '10px 14px', borderRadius: 6,
+                  border: `1px solid ${t.orange}`,
+                  background: t.bgCard,
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>⚠</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: t.orange, marginBottom: 2 }}>
+                      Diversity Requirement not able to be Met
+                    </div>
+                    <div style={{ fontSize: 11, color: t.textMuted }}>
+                      No segment-disjoint diverse path exists between these endpoints.
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </>
       )}
@@ -287,7 +532,190 @@ export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSe
   )
 }
 
-function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, onNetSet, systemsById }: {
+function PairCard({
+  pair, idx, selected, onSelectPair,
+  nodesById, capacityById, outagesById, onNetSet, systemsById,
+  pinnedKeys, canPin, onPin, onPinPair,
+  flipped, onFlip, onAddToProject,
+}: {
+  pair: { primary: Route; diverse: Route }
+  idx: number
+  selected: (id: string) => boolean
+  onSelectPair: (clickedId: string, partnerId: string) => void
+  nodesById: Record<string, { name: string; type?: string }>
+  capacityById: Record<string, SegmentCapacity>
+  outagesById: Record<string, SegmentOutage>
+  onNetSet: Set<string>
+  systemsById: Record<string, CableSystem>
+  pinnedKeys: Set<string>
+  canPin: boolean
+  onPin: (route: Route) => void
+  onPinPair?: (worker: Route, protect: Route) => void
+  flipped: boolean
+  onFlip: () => void
+  onAddToProject?: (worker: Route, protect: Route) => void
+}) {
+  const t = useTheme()
+  const [segmentsOpen, setSegmentsOpen] = useState(false)
+
+  // When flipped, swap path data while keeping original role-based IDs so the map colors stay correct
+  const worker  = flipped ? { ...pair.diverse, id: pair.primary.id } : pair.primary
+  const protect = flipped ? { ...pair.primary, id: pair.diverse.id } : pair.diverse
+
+  const workerSegIds = new Set(worker.segments.map(s => s.segment_id))
+  const sharedIds = new Set(protect.segments.filter(s => workerSegIds.has(s.segment_id)).map(s => s.segment_id))
+
+  // Shared intermediate nodes (exclude endpoints — they're always the same for both routes)
+  const routeStart = worker.nodes[0]
+  const routeEnd = worker.nodes[worker.nodes.length - 1]
+  const workerNodeSet = new Set(worker.nodes)
+  const sharedNodeIds = new Set(
+    protect.nodes.filter(n => workerNodeSet.has(n) && n !== routeStart && n !== routeEnd)
+  )
+
+  return (
+    <div style={{ marginBottom: 6 }}>
+      {/* Pair label + breakdown toggle + flip button */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px 3px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ fontSize: 9, color: t.textFaint, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>
+            Pair {idx + 1}
+          </div>
+          <button
+            onClick={e => { e.stopPropagation(); onFlip() }}
+            title="Flip worker/protect roles within this pair"
+            style={{
+              fontSize: 11, padding: '1px 5px', borderRadius: 4, cursor: 'pointer',
+              border: `1px solid ${flipped ? t.orange + '88' : t.border}`,
+              background: flipped ? t.orange + '18' : 'transparent',
+              color: flipped ? t.orange : t.textFaint, fontWeight: 600,
+              lineHeight: 1,
+            }}
+          >⇅</button>
+          {onAddToProject && (
+            <button
+              onClick={e => { e.stopPropagation(); onAddToProject(worker, protect) }}
+              title="Add pair to project (worker + protect)"
+              style={{
+                fontSize: 10, padding: '1px 6px', borderRadius: 4, cursor: 'pointer',
+                border: `1px solid ${t.border}`,
+                background: 'transparent',
+                color: t.textFaint, fontWeight: 600, lineHeight: 1,
+              }}
+            >📁 Add Pair</button>
+          )}
+        </div>
+        <button
+          onClick={e => { e.stopPropagation(); setSegmentsOpen(o => !o) }}
+          style={{
+            fontSize: 9, padding: '2px 7px', borderRadius: 4, cursor: 'pointer',
+            border: `1px solid ${segmentsOpen ? t.blue : t.border}`,
+            background: segmentsOpen ? t.blue + '18' : 'transparent',
+            color: segmentsOpen ? t.blue : t.textFaint, fontWeight: 600,
+            letterSpacing: '0.04em',
+          }}
+        >
+          ≡ Path Comparison {segmentsOpen ? '▴' : '▾'}
+        </button>
+      </div>
+
+      {/* Worker */}
+      <RouteCard
+        route={worker}
+        selected={selected(worker.id)}
+        onSelect={() => onSelectPair(worker.id, protect.id)}
+        nodesById={nodesById}
+        capacityById={capacityById}
+        outagesById={outagesById}
+        color={t.blue}
+        isPinned={pinnedKeys.has(routeKey(worker)) && pinnedKeys.has(routeKey(protect))}
+        canPin={canPin}
+        onPin={onPinPair ? () => onPinPair(worker, protect) : onPin}
+        onNetSet={onNetSet}
+        systemsById={systemsById}
+      />
+
+      {/* Protect connector */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 6px 2px 14px' }}>
+        <div style={{ width: 1, height: 14, background: t.green + '66', flexShrink: 0 }} />
+        <span style={{ fontSize: 9, color: t.green, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' as const }}>
+          ↳ protect
+        </span>
+      </div>
+
+      {/* Protect */}
+      <RouteCard
+        route={protect}
+        selected={selected(protect.id)}
+        onSelect={() => onSelectPair(protect.id, worker.id)}
+        nodesById={nodesById}
+        capacityById={capacityById}
+        outagesById={outagesById}
+        color={t.green}
+        isPinned={pinnedKeys.has(routeKey(worker)) && pinnedKeys.has(routeKey(protect))}
+        canPin={canPin}
+        onPin={onPinPair ? () => onPinPair(worker, protect) : onPin}
+        onNetSet={onNetSet}
+        systemsById={systemsById}
+      />
+
+      {/* Side-by-side segment breakdown */}
+      {segmentsOpen && (
+        <div
+          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6, padding: '10px 10px 6px', borderRadius: 6, background: t.bgDeep, border: `1px solid ${t.border}` }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: t.blue, marginBottom: 6, letterSpacing: '0.04em' }}>🔵 Worker</div>
+            <PairBreakdown route={worker} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.blue} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: t.green, marginBottom: 6, letterSpacing: '0.04em' }}>🟢 Protect</div>
+            <PairBreakdown route={protect} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.green} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CompressedPinCard({ pinned, onUnpin, systemsById }: {
+  pinned: PinnedRoute
+  onUnpin: () => void
+  systemsById: Record<string, CableSystem>
+}) {
+  const t = useTheme()
+  const { route, color, circuitLabel, searchLabel } = pinned
+  const wetSystems = [...new Set(route.segments.filter(s => s.type === 'wet').map(s => s.system_id))]
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      padding: '5px 10px', borderRadius: 6, marginBottom: 3,
+      border: `1px solid ${t.border}`, background: t.bgCard,
+      position: 'relative', overflow: 'hidden',
+    }}>
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, borderRadius: '6px 0 0 6px', background: color }} />
+      <div style={{ paddingLeft: 6, flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color, flexShrink: 0 }}>
+          {circuitLabel ?? searchLabel}
+        </span>
+        {wetSystems.length > 0 && (
+          <span style={{ fontSize: 10, color: t.textFaint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {wetSystems.map(id => systemsById[id]?.name ?? id).join(' · ')}
+          </span>
+        )}
+      </div>
+      <button
+        onClick={onUnpin}
+        title="Unpin route"
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textFaint, fontSize: 14, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
+      >×</button>
+    </div>
+  )
+}
+
+function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, onNetSet, systemsById, onEnrichCircuit, onAddToProject, activeProject, protectPin }: {
   pinned: PinnedRoute
   onUnpin: () => void
   nodesById: Record<string, { name: string; type?: string }>
@@ -295,13 +723,21 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   outagesById: Record<string, SegmentOutage>
   onNetSet: Set<string>
   systemsById: Record<string, CableSystem>
+  onEnrichCircuit?: () => void
+  onAddToProject?: () => void
+  activeProject?: Project | null
+  protectPin?: PinnedRoute
 }) {
   const t = useTheme()
   const isMobile = useIsMobile()
-  const { route, color, searchLabel } = pinned
+  const { route, color, searchLabel, projectId, circuitLabel } = pinned
+  const circuit = activeProject?.circuits.find(c => c.circuit_id === pinned.circuitId)
+  const enrich = enrichLevel(circuit)
   const [hovered, setHovered] = useState(false)
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
   const [segmentsOpen, setSegmentsOpen] = useState(false)
+  const [pathCompareOpen, setPathCompareOpen] = useState(false)
+  const [enrichNudge, setEnrichNudge] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -335,18 +771,75 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
       <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, borderRadius: '6px 0 0 6px', background: color }} />
 
       <div style={{ paddingLeft: 6 }}>
-        {/* Search context label */}
-        <div style={{ fontSize: 10, color: t.textFaint, marginBottom: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>📌 {searchLabel}</span>
+        {/* Top row: circuit name (if set) or search label + enrich + unpin */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {circuitLabel
+              ? <span style={{ fontSize: 12, fontWeight: 700, color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{circuitLabel}</span>
+              : <span style={{ fontSize: 10, color: t.textFaint }}>📌 {searchLabel}</span>
+            }
+          </div>
+          {onAddToProject && !projectId && (
+            <button
+              onClick={onAddToProject}
+              title="Add to project"
+              style={{
+                fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 4, flexShrink: 0,
+                border: `1px solid ${t.border}`,
+                background: t.bgDeep,
+                color: t.textMuted,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+              </svg>
+              Add
+            </button>
+          )}
+          <button
+            onClick={() => {
+              if (!projectId) { setEnrichNudge(true); setTimeout(() => setEnrichNudge(false), 3000); return }
+              onEnrichCircuit?.()
+            }}
+            title={
+              !projectId ? 'Add to a project first'
+              : enrich === 'full' ? 'Fully enriched — click to review'
+              : enrich === 'partial' ? 'Partially enriched — click to complete'
+              : 'No attributes enriched — click to add details'
+            }
+            style={{
+              fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 4, flexShrink: 0,
+              border: `1px solid ${projectId ? t.blue + '88' : t.border}`,
+              background: projectId ? `${t.blue}18` : t.bgDeep,
+              color: projectId ? t.blue : t.textFaintest,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
+            </svg>
+            Enrich
+            {projectId && (
+              <span style={{
+                width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                background: enrich === 'full' ? '#22c55e' : enrich === 'partial' ? '#f59e0b' : '#ef4444',
+                boxShadow: `0 0 4px ${enrich === 'full' ? '#22c55e' : enrich === 'partial' ? '#f59e0b' : '#ef4444'}99`,
+              }} />
+            )}
+          </button>
           <button
             onClick={onUnpin}
             title="Unpin route"
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: t.textFaint, fontSize: 14, lineHeight: 1, padding: '0 2px',
-            }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textFaint, fontSize: 14, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
           >×</button>
         </div>
+
+        {/* If circuit label shown above, show the search label as subtitle */}
+        {circuitLabel && (
+          <div style={{ fontSize: 10, color: t.textFaint, marginBottom: 3 }}>📌 {searchLabel}</div>
+        )}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flex: 1 }}>
@@ -368,6 +861,10 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
           <span>RTD: <strong style={{ color: t.text }}>{(route.total_latency * 2).toFixed(0)} ms</strong></span>
           <span>Avail: <strong style={{ color: t.text }}>{reliabilityPct}%</strong></span>
         </div>
+
+        {enrichNudge && (
+          <div style={{ fontSize: 11, color: t.orange, marginBottom: 4 }}>Add to a project first via 📁</div>
+        )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div style={{
@@ -403,6 +900,48 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
             <SegmentBreakdownRows route={route} capacityById={capacityById} outagesById={outagesById} onNetSet={onNetSet} />
           </div>
         )}
+
+        {/* Path comparison for diversity pairs */}
+        {protectPin && (() => {
+          const worker = route
+          const protect = protectPin.route
+          const workerSegIds = new Set(worker.segments.map(s => s.segment_id))
+          const sharedIds = new Set(protect.segments.filter(s => workerSegIds.has(s.segment_id)).map(s => s.segment_id))
+          const routeStart = worker.nodes[0]
+          const routeEnd = worker.nodes[worker.nodes.length - 1]
+          const workerNodeSet = new Set(worker.nodes)
+          const sharedNodeIds = new Set(protect.nodes.filter(n => workerNodeSet.has(n) && n !== routeStart && n !== routeEnd))
+          return (
+            <>
+              <button
+                onClick={() => setPathCompareOpen(o => !o)}
+                style={{
+                  marginTop: 6, width: '100%',
+                  fontSize: 9, padding: '3px 8px', borderRadius: 4, cursor: 'pointer',
+                  border: `1px solid ${pathCompareOpen ? t.blue : t.border}`,
+                  background: pathCompareOpen ? t.blue + '18' : 'transparent',
+                  color: pathCompareOpen ? t.blue : t.textFaint, fontWeight: 600,
+                  letterSpacing: '0.04em', textAlign: 'left',
+                }}
+              >
+                ≡ Path Comparison {pathCompareOpen ? '▴' : '▾'}
+              </button>
+              {pathCompareOpen && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6, padding: '10px 10px 6px', borderRadius: 6, background: t.bgDeep, border: `1px solid ${t.border}` }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: t.blue, marginBottom: 6, letterSpacing: '0.04em' }}>🔵 Worker</div>
+                    <PairBreakdown route={worker} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.blue} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: t.green, marginBottom: 6, letterSpacing: '0.04em' }}>🟢 Protect</div>
+                    <PairBreakdown route={protect} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.green} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+                  </div>
+                </div>
+              )}
+            </>
+          )
+        })()}
+
       </div>
 
       {!isMobile && hovered && createPortal(
@@ -413,7 +952,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   )
 }
 
-function RouteCard({ route, selected, onSelect, nodesById, capacityById, outagesById, color, isPinned, canPin, onPin, onNetSet, systemsById }: {
+function RouteCard({ route, selected, onSelect, nodesById, capacityById, outagesById, color, isPinned, canPin, onPin, onNetSet, systemsById, onAddToProject }: {
   route: Route
   selected: boolean
   onSelect: (id: string) => void
@@ -426,6 +965,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
   onPin: (route: Route) => void
   onNetSet: Set<string>
   systemsById: Record<string, CableSystem>
+  onAddToProject?: (route: Route) => void
 }) {
   const t = useTheme()
   const isMobile = useIsMobile()
@@ -471,11 +1011,22 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
           <MarginBadge margin={routeMargin} />
           {hasOutage && <OutageBadge repairDate={repairDateLabel} />}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: t.textFaint }}>{route.nodes.length - 1} hops</span>
+          {onAddToProject && (
+            <button
+              onClick={e => { e.stopPropagation(); onAddToProject(route) }}
+              title="Add to project"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 12, lineHeight: 1, padding: '1px 3px', borderRadius: 3,
+                color: t.textFaint, transition: 'color 0.15s',
+              }}
+            >📁</button>
+          )}
           <button
             onClick={e => { e.stopPropagation(); onPin(route) }}
-            title={isPinned ? 'Unpin route' : pinDisabled ? 'Max 5 routes pinned' : 'Pin route'}
+            title={isPinned ? 'Unpin route' : pinDisabled ? 'Max 10 routes pinned' : 'Pin route'}
             style={{
               background: 'none', border: 'none', cursor: pinDisabled ? 'not-allowed' : 'pointer',
               fontSize: 13, lineHeight: 1, padding: '1px 3px', borderRadius: 3,
@@ -574,6 +1125,126 @@ function NetBadge({ route, onNetSet }: { route: Route; onNetSet: Set<string> }) 
     }}>
       {label}
     </span>
+  )
+}
+
+function PairBreakdown({ route, outagesById, sharedIds, accentColor, nodesById, sharedNodeIds }: {
+  route: Route
+  outagesById: Record<string, SegmentOutage>
+  sharedIds: Set<string>
+  accentColor: string
+  nodesById: Record<string, { name: string; type?: string }>
+  sharedNodeIds: Set<string>
+}) {
+  const t = useTheme()
+  // route.nodes has n+1 entries; route.segments has n entries.
+  // Layout: node[0] → segment[0] → node[1] → segment[1] → … → node[n]
+  // All node dots are centered at x=6 from the left (12px dot flush, or 8px BU dot + 2px margin).
+  // The track line (2px wide) sits at marginLeft:5 to bisect that 6px centre.
+  return (
+    <div style={{ paddingBottom: 4 }}>
+      {route.nodes.map((nodeId, i) => {
+        const seg = route.segments[i]           // undefined after last node
+        const node = nodesById[nodeId]
+        const isBU = node?.type === 'branching_unit'
+        const isSharedNode = sharedNodeIds.has(nodeId)
+        const nodeColor = isSharedNode ? t.orange : accentColor
+        const dotSize = isBU ? 8 : 12
+        const dotMarginLeft = isBU ? 2 : 0     // keeps both variants centred at x=6
+
+        // Segment details (computed only when seg exists)
+        const isSharedSeg = seg ? sharedIds.has(seg.segment_id) : false
+        const segOutage = seg ? outagesById[seg.segment_id] : undefined
+        const isWet = seg?.type === 'wet'
+        const trackColor = isSharedSeg ? t.orange + '99' : t.border
+
+        return (
+          <div key={`${nodeId}-${i}`}>
+            {/* ── Metro stop ─────────────────────────────────────── */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {/* Circle dot */}
+              <div style={{
+                width: dotSize, height: dotSize, borderRadius: '50%',
+                background: isSharedNode ? nodeColor : t.bgDeep,
+                border: `2px solid ${nodeColor}`,
+                flexShrink: 0,
+                marginLeft: dotMarginLeft,
+              }} />
+              {/* Label */}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                  {isBU ? (
+                    <span style={{ fontSize: 8, color: t.textFaint, fontFamily: 'monospace' }}>
+                      ◈ {nodeId}
+                    </span>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: nodeColor, fontFamily: 'monospace', letterSpacing: '0.03em' }}>
+                        {nodeId}
+                      </span>
+                      {node?.name && node.name !== nodeId && (
+                        <span style={{ fontSize: 9, color: t.textMuted }}>
+                          {node.name}
+                        </span>
+                      )}
+                    </>
+                  )}
+                  {isSharedNode && (
+                    <span style={{
+                      fontSize: 7, fontWeight: 700, color: t.orange,
+                      background: t.orange + '22', padding: '1px 4px',
+                      borderRadius: 3, letterSpacing: '0.04em',
+                    }}>
+                      SHARED
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* ── Track + segment card (only between nodes) ──────── */}
+            {seg && (
+              <div style={{ display: 'flex', alignItems: 'stretch', margin: '2px 0' }}>
+                {/* Vertical track line — centred under the dot above */}
+                <div style={{
+                  width: 2, flexShrink: 0,
+                  background: trackColor,
+                  marginLeft: 5, borderRadius: 1,
+                }} />
+                {/* Segment card */}
+                <div style={{
+                  flex: 1, marginLeft: 10, marginTop: 3, marginBottom: 3,
+                  padding: '5px 7px', borderRadius: 4,
+                  border: `1px solid ${isSharedSeg ? t.orange : t.border}`,
+                  background: isSharedSeg ? t.orange + '14' : t.bgCard,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: isWet ? accentColor : t.green }}>
+                      {seg.system_id}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {isSharedSeg && (
+                        <span style={{ fontSize: 8, fontWeight: 700, color: t.orange, background: t.orange + '22', padding: '1px 4px', borderRadius: 3, letterSpacing: '0.04em' }}>
+                          SHARED
+                        </span>
+                      )}
+                      {segOutage && <span style={{ fontSize: 11 }} title="Active outage">⚠️</span>}
+                      <span style={{ fontSize: 9, color: t.textFaint, textTransform: 'uppercase' as const }}>{seg.type}</span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 9, color: t.textMuted, fontFamily: 'monospace', marginBottom: 1 }}>
+                    {seg.segment_id}
+                  </div>
+                  <div style={{ fontSize: 9, color: t.textFaint }}>
+                    {seg.length_km.toLocaleString()} km · {seg.latency ?? '—'} ms
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
   )
 }
 

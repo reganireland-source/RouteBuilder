@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from ..models import Node, NodeUpdate
 from ..data_loader import load_nodes, save_nodes
+from ..id_utils import normalize_id
 
 router = APIRouter(prefix="/nodes", tags=["nodes"])
 
@@ -12,6 +13,7 @@ def get_nodes():
 
 @router.post("", response_model=Node, status_code=201)
 def create_node(node: Node):
+    node = node.model_copy(update={"id": normalize_id(node.id, "node")})
     nodes = load_nodes()
     if any(n.id == node.id for n in nodes):
         raise HTTPException(status_code=409, detail=f"Node '{node.id}' already exists")

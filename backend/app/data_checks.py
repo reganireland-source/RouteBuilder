@@ -98,7 +98,7 @@ def run_all_checks() -> list[CheckResult]:
     # ── Node coordinate sanity ─────────────────────────────────────────────────
     check("Node latitudes in [-90, 90]",   "error", [n.id for n in nodes if not (-90 <= n.lat <= 90)])
     check("Node longitudes in [-180, 180]","error", [n.id for n in nodes if not (-180 <= n.lng <= 180)])
-    valid_node_types = {"landing_station", "terrestrial_pop", "branching_unit"}
+    valid_node_types = {"landing_station", "primary_pop", "secondary_pop", "extension_pop", "branching_unit"}
     check("Node types valid",              "error", [n.id for n in nodes if n.type not in valid_node_types])
 
     # ── Outage cross-references ────────────────────────────────────────────────

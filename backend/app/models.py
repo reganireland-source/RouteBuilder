@@ -5,8 +5,10 @@ from enum import Enum
 
 class NodeType(str, Enum):
     landing_station = "landing_station"
-    terrestrial_pop = "terrestrial_pop"
-    branching_unit = "branching_unit"
+    primary_pop     = "primary_pop"
+    secondary_pop   = "secondary_pop"
+    extension_pop   = "extension_pop"
+    branching_unit  = "branching_unit"
 
 
 class SegmentType(str, Enum):
@@ -32,6 +34,33 @@ class DiversityType(str, Enum):
     full_nodes = "full_nodes"
 
 
+class VerificationStatus(str, Enum):
+    draft = "draft"
+    under_verification = "under_verification"
+    verified = "verified"
+
+
+class BackboneCapabilities(BaseModel):
+    ipt:  Optional[list[str]] = None
+    epl:  Optional[list[str]] = None
+    evpl: Optional[list[str]] = None
+
+
+class UnderlayCapabilities(BaseModel):
+    gid:   Optional[list[str]] = None
+    ipvpn: Optional[list[str]] = None
+
+
+class ColocationCapabilities(BaseModel):
+    category: int  # 1–5
+
+
+class NodeCapabilities(BaseModel):
+    backbone:   Optional[BackboneCapabilities]   = None
+    underlay:   Optional[UnderlayCapabilities]   = None
+    colocation: Optional[ColocationCapabilities] = None
+
+
 class Node(BaseModel):
     id: str
     name: str
@@ -41,7 +70,12 @@ class Node(BaseModel):
     country: str
     owner: str = "Telstra"
     trading_name: Optional[str] = None
+    city: Optional[str] = None
+    street_address: Optional[str] = None
     description: Optional[str] = None
+    capabilities: Optional[NodeCapabilities] = None
+    verification_status: VerificationStatus = VerificationStatus.draft
+    last_verified_date: Optional[str] = None
 
 
 class CableSystem(BaseModel):
@@ -64,6 +98,8 @@ class CableSegment(BaseModel):
     ownership: Ownership
     latency: Optional[float] = None
     waypoints: Optional[list[list[float]]] = None
+    verification_status: VerificationStatus = VerificationStatus.draft
+    last_verified_date: Optional[str] = None
 
 
 class DisallowedPair(BaseModel):
@@ -107,7 +143,12 @@ class RouteRequest(BaseModel):
     must_include_segments: list[str] = []
     must_include_systems: list[str] = []
     must_avoid_systems: list[str] = []
+    must_include_countries: list[str] = []
+    must_avoid_countries: list[str] = []
     diversity: DiversityType = DiversityType.none
+    max_wet_hops: Optional[int] = None
+    max_terrestrial_hops: Optional[int] = None
+    optimise_for: Optional[str] = None
 
 
 class RouteSegmentDetail(BaseModel):
@@ -138,6 +179,7 @@ class RouteResponse(BaseModel):
     routes: list[Route]
     primary_routes: list[Route]
     diverse_routes: list[Route]
+    total_found: int = 0
 
 
 # ── Partial-update models (PATCH/PUT) ─────────────────────────────────────────
@@ -150,7 +192,12 @@ class NodeUpdate(BaseModel):
     country: Optional[str] = None
     owner: Optional[str] = None
     trading_name: Optional[str] = None
+    city: Optional[str] = None
+    street_address: Optional[str] = None
     description: Optional[str] = None
+    capabilities: Optional[NodeCapabilities] = None
+    verification_status: Optional[VerificationStatus] = None
+    last_verified_date: Optional[str] = None
 
 class CableSegmentUpdate(BaseModel):
     name: Optional[str] = None
@@ -164,6 +211,8 @@ class CableSegmentUpdate(BaseModel):
     ownership: Optional[Ownership] = None
     latency: Optional[float] = None
     waypoints: Optional[list[list[float]]] = None
+    verification_status: Optional[VerificationStatus] = None
+    last_verified_date: Optional[str] = None
 
 class CableSystemUpdate(BaseModel):
     name: Optional[str] = None
@@ -192,6 +241,103 @@ class SegmentOutageUpdate(BaseModel):
     description: Optional[str] = None
 
 
+# ── Interface Types (reference table) ────────────────────────────────────────
+
+class InterfaceType(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+
+
+# ── Technical Enrichment Lookups ──────────────────────────────────────────────
+
+class TechLookupItem(BaseModel):
+    id: str
+    label: str
+    order: int = 0
+    description: Optional[str] = None
+
+class TechLookupItemUpdate(BaseModel):
+    label: Optional[str] = None
+    order: Optional[int] = None
+    description: Optional[str] = None
+
+
+class InterfaceTypeUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+# ── Customer Solution Projects ────────────────────────────────────────────────
+
+class SldConfig(BaseModel):
+    show_latency: bool = True
+    show_segment_latency: bool = True
+    show_distance: bool = True
+    show_ownership: bool = True
+    show_reliability: bool = False
+    show_rtd: bool = True
+
+
+class EndpointConfig(BaseModel):
+    customer_site_name: Optional[str] = None
+    customer_site_address: Optional[str] = None
+    access_type: Optional[str] = None          # "X-Connect" | "Local Loop" | "Direct"
+    cc_supplier: Optional[str] = None
+    cc_arranged_by: Optional[str] = None       # "Customer" | "Telstra"
+    ll_supplier: Optional[str] = None
+    ll_arranged_by: Optional[str] = None       # "Customer" | "Service Provider"
+    interface_id: Optional[str] = None         # FK → InterfaceType
+    bandwidth: Optional[str] = None
+    protection: Optional[str] = None
+
+
+class ProjectCircuit(BaseModel):
+    circuit_id: str
+    label: Optional[str] = None
+    order: int = 0
+    route_snapshot: dict
+    protect_route_snapshot: Optional[dict] = None
+    search_label: str = ""
+    pin_color: str = "#94e2d5"
+    service_type: Optional[str] = None
+    bandwidth: Optional[str] = None
+    protection: Optional[str] = None
+    frame_size: Optional[str] = None
+    l1_settings: Optional[str] = None
+    a_end: EndpointConfig = EndpointConfig()
+    z_end: EndpointConfig = EndpointConfig()
+    sld_config_override: Optional[dict] = None
+
+
+class Project(BaseModel):
+    id: str
+    name: str
+    customer_name: Optional[str] = None
+    account_manager: Optional[str] = None
+    solution_architect: Optional[str] = None
+    opportunity_id: Optional[str] = None
+    opportunity_name: Optional[str] = None
+    date_prepared: Optional[str] = None
+    visibility: str = "confidential"
+    sld_config: SldConfig = SldConfig()
+    circuits: list[ProjectCircuit] = []
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    customer_name: Optional[str] = None
+    account_manager: Optional[str] = None
+    solution_architect: Optional[str] = None
+    opportunity_id: Optional[str] = None
+    opportunity_name: Optional[str] = None
+    date_prepared: Optional[str] = None
+    visibility: Optional[str] = None
+    sld_config: Optional[SldConfig] = None
+
+
 # ── NLP route parsing ─────────────────────────────────────────────────────────
 
 class NlpParseRequest(BaseModel):
@@ -207,7 +353,12 @@ class NlpParseResponse(BaseModel):
     must_avoid_segments: list[str] = []
     must_include_systems: list[str] = []
     must_avoid_systems: list[str] = []
+    must_include_countries: list[str] = []
+    must_avoid_countries: list[str] = []
     diversity: str = "none"
+    max_wet_hops: Optional[int] = None
+    max_terrestrial_hops: Optional[int] = None
+    optimise_for: Optional[str] = None
     sort_mode: Optional[str] = None
     explanation: str = ""
     confidence: str = "low"

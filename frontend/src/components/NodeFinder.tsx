@@ -14,6 +14,58 @@ interface Result {
   distanceKm: number
 }
 
+const OWNER_LOGOS: Record<string, string> = {
+  'Telstra':        '/logos/telstra.svg',
+  'Equinix':        '/logos/equinix.svg',
+  'PCCW':           '/logos/pccw.svg',
+  'DRT':            '/logos/digitalrealty.svg',
+  'Digital Realty': '/logos/digitalrealty.svg',
+  'NTT':            '/logos/ntt.svg',
+  'NEXTDC':         '/logos/nextdc.svg',
+}
+
+const TYPE_LABEL: Record<CableNode['type'], string> = {
+  landing_station: 'Landing Station',
+  primary_pop:     'Primary PoP',
+  secondary_pop:   'Secondary PoP',
+  extension_pop:   'Extension PoP',
+  branching_unit:  'Branching Unit',
+}
+
+const TYPE_SHORT: Record<CableNode['type'], string> = {
+  landing_station: 'CLS',
+  primary_pop:     '1°PoP',
+  secondary_pop:   '2°PoP',
+  extension_pop:   'ExtPoP',
+  branching_unit:  'BU',
+}
+
+function OwnerLogo({ owner }: { owner?: string }) {
+  if (!owner) return null
+  const logoUrl = OWNER_LOGOS[owner]
+  const initial = owner.charAt(0).toUpperCase()
+  const hue = [...owner].reduce((a, c) => a + c.charCodeAt(0), 0) % 360
+
+  if (logoUrl) {
+    return (
+      <div style={{ background: '#fff', borderRadius: 5, padding: '3px 6px', display: 'flex', alignItems: 'center', height: 32, flexShrink: 0 }}>
+        <img src={logoUrl} alt={owner} style={{ height: 20, maxWidth: 68, objectFit: 'contain' }} />
+      </div>
+    )
+  }
+
+  return (
+    <div style={{
+      width: 32, height: 32, borderRadius: 6, flexShrink: 0,
+      background: `hsl(${hue}, 65%, 42%)`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: 14, fontWeight: 800, color: '#fff',
+    }}>
+      {initial}
+    </div>
+  )
+}
+
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371
   const dLat = (lat2 - lat1) * Math.PI / 180
@@ -87,9 +139,6 @@ export function NodeFinder({ nodes, onPinChange, onSetOrigin, onSetDest }: Props
     }
   }
 
-  const typeTag = (type: CableNode['type']) =>
-    type === 'landing_station' ? 'CLS' : type === 'terrestrial_pop' ? 'POP' : 'BU'
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ fontSize: 11, color: t.textFaint, lineHeight: 1.5 }}>
@@ -104,7 +153,7 @@ export function NodeFinder({ nodes, onPinChange, onSetOrigin, onSetDest }: Props
           style={{
             flex: 1, padding: '6px 8px', borderRadius: 4,
             border: `1px solid ${t.border}`, background: t.bgInput,
-            color: t.text, fontSize: 13,
+            color: t.text, fontSize: 13, outline: 'none',
           }}
         />
         <button
@@ -137,49 +186,101 @@ export function NodeFinder({ nodes, onPinChange, onSetOrigin, onSetDest }: Props
             Nearest nodes in <strong style={{ color: t.textMuted }}>{countryLabel}</strong>
           </div>
 
-          {results.map((r, i) => (
-            <div key={r.node.id} style={{
-              borderRadius: 6, border: `1px solid ${t.border}`,
-              background: t.bgCard, padding: '10px 10px 8px',
-              display: 'flex', flexDirection: 'column', gap: 6,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 11, color: t.textFaintest, fontWeight: 700, minWidth: 12 }}>{i + 1}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{r.node.name}</span>
+          {results.map((r, i) => {
+            const n = r.node
+            const showTrading = n.trading_name && n.trading_name !== n.name
+            return (
+              <div key={n.id} style={{
+                borderRadius: 6, border: `1px solid ${t.border}`,
+                background: t.bgCard, padding: '10px 10px 8px',
+                display: 'flex', flexDirection: 'column', gap: 7,
+              }}>
+                {/* Header row: logo + name + type badge */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
+                  <OwnerLogo owner={n.owner} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 11, color: t.textFaintest, fontWeight: 700, minWidth: 12 }}>{i + 1}</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: t.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {n.name}
+                      </span>
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3, marginLeft: 'auto',
+                        background: t.bgDeep, color: t.textFaint, letterSpacing: '0.05em', flexShrink: 0,
+                      }}>
+                        {TYPE_SHORT[n.type]}
+                      </span>
+                    </div>
+
+                    {/* Trading name */}
+                    {showTrading && (
+                      <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2, paddingLeft: 17 }}>
+                        {n.trading_name}
+                      </div>
+                    )}
+
+                    {/* Owner + Type */}
+                    <div style={{ display: 'flex', gap: 10, marginTop: 3, paddingLeft: 17, flexWrap: 'wrap' }}>
+                      {n.owner && (
+                        <span style={{ fontSize: 11, color: t.blue }}>{n.owner}</span>
+                      )}
+                      <span style={{ fontSize: 11, color: t.textFaint }}>{TYPE_LABEL[n.type]}</span>
+                    </div>
+                  </div>
                 </div>
-                <span style={{
-                  fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
-                  background: t.bgDeep, color: t.textFaint, letterSpacing: '0.05em', flexShrink: 0,
-                }}>
-                  {typeTag(r.node.type)}
-                </span>
-              </div>
-              <div style={{ fontSize: 12, color: t.textFaint }}>
-                {Math.round(r.distanceKm).toLocaleString()} km straight line · {r.node.id}
-              </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button
-                  onClick={() => onSetOrigin(r.node.id)}
-                  style={{
+
+                {/* Distance + ID */}
+                <div style={{ fontSize: 12, color: t.textFaint, paddingLeft: 41 }}>
+                  {Math.round(r.distanceKm).toLocaleString()} km straight line · <code style={{ fontSize: 11, color: t.textMuted }}>{n.id}</code>
+                </div>
+
+                {/* Product coverage traffic lights */}
+                {n.capabilities && (() => {
+                  const cap = n.capabilities
+                  const bb = cap.backbone
+                  const ul = cap.underlay
+                  const indicators: { label: string; active: boolean; sub?: string }[] = [
+                    { label: 'Backbone', active: !!(bb?.ipt?.length || bb?.epl?.length || bb?.evpl?.length) },
+                    { label: 'Underlay', active: !!(ul?.gid?.length || ul?.ipvpn?.length) },
+                    { label: 'Colo',     active: !!cap.colocation, sub: cap.colocation ? `Cat ${cap.colocation.category}` : undefined },
+                  ]
+                  return (
+                    <div style={{ display: 'flex', gap: 10, paddingLeft: 41, alignItems: 'center' }}>
+                      {indicators.map(({ label, active, sub }) => (
+                        <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <div style={{
+                            width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                            background: active ? '#16a34a' : '#3f0f0f',
+                            border: `1px solid ${active ? '#22c55e' : '#7f1d1d'}`,
+                            boxShadow: active ? '0 0 5px rgba(34,197,94,0.6)' : '0 0 3px rgba(239,68,68,0.2)',
+                          }} />
+                          <span style={{ fontSize: 9, fontWeight: 600, color: active ? '#6b7280' : '#374151' }}>
+                            {sub ?? label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+
+                {/* Action buttons */}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => onSetOrigin(n.id)} style={{
                     flex: 1, padding: '4px 6px', borderRadius: 3, fontSize: 11, fontWeight: 600,
                     border: `1px solid ${t.blue}`, background: 'transparent', color: t.blue, cursor: 'pointer',
-                  }}
-                >
-                  Set Origin
-                </button>
-                <button
-                  onClick={() => onSetDest(r.node.id)}
-                  style={{
+                  }}>
+                    Set Origin
+                  </button>
+                  <button onClick={() => onSetDest(n.id)} style={{
                     flex: 1, padding: '4px 6px', borderRadius: 3, fontSize: 11, fontWeight: 600,
                     border: `1px solid ${t.green}`, background: 'transparent', color: t.green, cursor: 'pointer',
-                  }}
-                >
-                  Set Dest
-                </button>
+                  }}>
+                    Set Dest
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
 
           <div style={{ fontSize: 10, color: t.textFaintest }}>
             Geocoding by{' '}
