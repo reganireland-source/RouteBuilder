@@ -52,13 +52,13 @@ interface ImportResult {
 const TABLE_META: Record<BulkTable, { label: string; icon: string; pk: string; cols: string[]; notes: string }> = {
   nodes: {
     label: 'Nodes', icon: '📍', pk: 'id',
-    cols: ['id', 'name', 'lat', 'lng', 'type', 'country', 'owner', 'trading_name', 'description'],
-    notes: 'type: landing_station | primary_pop | secondary_pop | extension_pop | branching_unit  ·  lat/lng: decimal degrees  ·  Note: capabilities managed via Coverage tab',
+    cols: ['id', 'name', 'lat', 'lng', 'type', 'country', 'owner', 'trading_name', 'city', 'street_address', 'description', 'verification_status', 'last_verified_date'],
+    notes: 'type: landing_station | primary_pop | secondary_pop | extension_pop | branching_unit  ·  lat/lng: decimal degrees  ·  verification_status: draft | under_verification | verified  ·  Note: capabilities managed via Coverage tab',
   },
   segments: {
     label: 'Segments', icon: '🔗', pk: 'id',
-    cols: ['id', 'name', 'system_id', 'start_node_id', 'end_node_id', 'type', 'length_km', 'latency', 'reliability', 'cost_weight', 'ownership'],
-    notes: 'type: wet | terrestrial  ·  ownership: owned | iru | consortium | integrated_lit_lease | offnet_resell  ·  reliability: 0–1  ·  latency: ms, optional  ·  Note: waypoints (cable routing) are preserved as-is and not exposed in bulk CSV',
+    cols: ['id', 'name', 'system_id', 'start_node_id', 'end_node_id', 'type', 'length_km', 'latency', 'reliability', 'cost_weight', 'ownership', 'verification_status', 'last_verified_date'],
+    notes: 'type: wet | terrestrial  ·  ownership: owned | iru | consortium | integrated_lit_lease | offnet_resell  ·  reliability: 0–1  ·  latency: ms, optional  ·  verification_status: draft | under_verification | verified  ·  Note: waypoints (cable routing) are preserved as-is and not exposed in bulk CSV',
   },
   systems: {
     label: 'Systems', icon: '🌊', pk: 'id',

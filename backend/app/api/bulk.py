@@ -36,11 +36,13 @@ BulkMode = Literal["upsert", "add_only", "full_replace"]
 # ── Column schemas ─────────────────────────────────────────────────────────────
 
 NODE_COLS = [
-    "id", "name", "lat", "lng", "type", "country", "owner", "trading_name", "description",
+    "id", "name", "lat", "lng", "type", "country", "owner", "trading_name",
+    "city", "street_address", "description", "verification_status", "last_verified_date",
 ]
 SEGMENT_COLS = [
     "id", "name", "system_id", "start_node_id", "end_node_id", "type",
     "length_km", "latency", "reliability", "cost_weight", "ownership",
+    "verification_status", "last_verified_date",
 ]
 SYSTEM_COLS   = ["id", "name", "description", "margin"]
 CAPACITY_COLS = ["segment_id", "total_capacity_t", "available_capacity_t"]
@@ -49,9 +51,10 @@ COVERAGE_COLS = [
     "gid_speeds", "ipvpn_speeds", "colocation_category",
 ]
 
-VALID_NODE_TYPES = {"landing_station", "primary_pop", "secondary_pop", "extension_pop", "branching_unit"}
-VALID_SEG_TYPES  = {"wet", "terrestrial"}
-VALID_OWNERSHIPS = {"owned", "iru", "consortium", "integrated_lit_lease", "offnet_resell"}
+VALID_NODE_TYPES   = {"landing_station", "primary_pop", "secondary_pop", "extension_pop", "branching_unit"}
+VALID_SEG_TYPES    = {"wet", "terrestrial"}
+VALID_OWNERSHIPS   = {"owned", "iru", "consortium", "integrated_lit_lease", "offnet_resell"}
+VALID_VERIF_STATUS = {"draft", "under_verification", "verified"}
 VALID_BB_SPEEDS  = {"1G", "10G", "100G", "400G"}
 VALID_UL_SPEEDS  = {"1G", "10G"}
 
@@ -186,7 +189,12 @@ async def export_nodes():
         rows.append({
             "id": n.id, "name": n.name, "lat": n.lat, "lng": n.lng,
             "type": _enum_val(n.type), "country": n.country, "owner": n.owner or "",
-            "trading_name": n.trading_name or "", "description": n.description or "",
+            "trading_name": n.trading_name or "",
+            "city": n.city or "",
+            "street_address": n.street_address or "",
+            "description": n.description or "",
+            "verification_status": _enum_val(n.verification_status) if n.verification_status else "draft",
+            "last_verified_date": n.last_verified_date or "",
         })
     return _csv_stream(rows, NODE_COLS, "nodes.csv")
 
@@ -202,6 +210,8 @@ async def export_segments():
             "latency": s.latency if s.latency is not None else "",
             "reliability": s.reliability, "cost_weight": s.cost_weight,
             "ownership": _enum_val(s.ownership),
+            "verification_status": _enum_val(s.verification_status) if s.verification_status else "draft",
+            "last_verified_date": s.last_verified_date or "",
         })
     return _csv_stream(rows, SEGMENT_COLS, "segments.csv")
 
@@ -291,6 +301,14 @@ async def validate_nodes(file: UploadFile = File(...), mode: BulkMode = Query("u
         if not row.get("country", "").strip():
             errors.append(_err(i, rid, "country", "", "country (ISO-2) is required"))
 
+        verif_raw = row.get("verification_status", "").strip()
+        if verif_raw and verif_raw not in VALID_VERIF_STATUS:
+            errors.append(_err(i, rid, "verification_status", verif_raw,
+                f"Must be one of: {', '.join(sorted(VALID_VERIF_STATUS))}"))
+
+        ex_verif = _enum_val(existing[rid].verification_status) if rid in existing else "draft"
+        verif = verif_raw if verif_raw in VALID_VERIF_STATUS else ex_verif
+
         try:
             new = {
                 "id": rid, "name": row.get("name", "").strip(),
@@ -298,7 +316,11 @@ async def validate_nodes(file: UploadFile = File(...), mode: BulkMode = Query("u
                 "type": ntype, "country": row.get("country", "").strip().upper(),
                 "owner": (row.get("owner") or "Telstra").strip(),
                 "trading_name": row.get("trading_name", "").strip() or None,
+                "city": row.get("city", "").strip() or None,
+                "street_address": row.get("street_address", "").strip() or None,
                 "description":  row.get("description", "").strip() or None,
+                "verification_status": verif,
+                "last_verified_date": row.get("last_verified_date", "").strip() or None,
             }
         except Exception:
             continue
@@ -308,7 +330,10 @@ async def validate_nodes(file: UploadFile = File(...), mode: BulkMode = Query("u
             old = {
                 "id": ex.id, "name": ex.name, "lat": ex.lat, "lng": ex.lng,
                 "type": _enum_val(ex.type), "country": ex.country, "owner": ex.owner,
-                "trading_name": ex.trading_name, "description": ex.description,
+                "trading_name": ex.trading_name, "city": ex.city, "street_address": ex.street_address,
+                "description": ex.description,
+                "verification_status": _enum_val(ex.verification_status) if ex.verification_status else "draft",
+                "last_verified_date": ex.last_verified_date,
             }
             cf = _changed_fields(new, old)
             if cf:
@@ -391,6 +416,14 @@ async def validate_segments(file: UploadFile = File(...), mode: BulkMode = Query
             except ValueError:
                 errors.append(_err(i, rid, num_fld, raw, f"'{num_fld}' must be a number"))
 
+        seg_verif_raw = row.get("verification_status", "").strip()
+        if seg_verif_raw and seg_verif_raw not in VALID_VERIF_STATUS:
+            errors.append(_err(i, rid, "verification_status", seg_verif_raw,
+                f"Must be one of: {', '.join(sorted(VALID_VERIF_STATUS))}"))
+
+        ex_seg_verif = _enum_val(existing[rid].verification_status) if rid in existing else "draft"
+        seg_verif = seg_verif_raw if seg_verif_raw in VALID_VERIF_STATUS else ex_seg_verif
+
         try:
             lat_raw = (row.get("latency") or "").strip()
             new = {
@@ -402,6 +435,8 @@ async def validate_segments(file: UploadFile = File(...), mode: BulkMode = Query
                 "reliability": float(row.get("reliability", 0) or 0),
                 "cost_weight": float(row.get("cost_weight", 0) or 0),
                 "ownership": own,
+                "verification_status": seg_verif,
+                "last_verified_date": row.get("last_verified_date", "").strip() or None,
             }
         except Exception:
             continue
@@ -414,6 +449,8 @@ async def validate_segments(file: UploadFile = File(...), mode: BulkMode = Query
                 "type": _enum_val(ex.type), "length_km": ex.length_km, "latency": ex.latency,
                 "reliability": ex.reliability, "cost_weight": ex.cost_weight,
                 "ownership": _enum_val(ex.ownership),
+                "verification_status": _enum_val(ex.verification_status) if ex.verification_status else "draft",
+                "last_verified_date": ex.last_verified_date,
             }
             cf = _changed_fields(new, old)
             if cf:
@@ -690,6 +727,14 @@ async def import_nodes(file: UploadFile = File(...), mode: BulkMode = Query("ups
             continue
 
         try:
+            verif_raw = row.get("verification_status", "").strip()
+            ex_node = existing.get(rid)
+            verif = verif_raw if verif_raw in VALID_VERIF_STATUS else (
+                _enum_val(ex_node.verification_status) if ex_node and ex_node.verification_status else "draft"
+            )
+            last_verified = row.get("last_verified_date", "").strip() or (
+                ex_node.last_verified_date if ex_node else None
+            )
             node = Node(
                 id=rid, name=row.get("name", "").strip(),
                 lat=float(row.get("lat", 0) or 0), lng=float(row.get("lng", 0) or 0),
@@ -697,8 +742,12 @@ async def import_nodes(file: UploadFile = File(...), mode: BulkMode = Query("ups
                 country=row.get("country", "").strip().upper(),
                 owner=(row.get("owner") or "Telstra").strip(),
                 trading_name=row.get("trading_name", "").strip() or None,
+                city=row.get("city", "").strip() or None,
+                street_address=row.get("street_address", "").strip() or None,
                 description=row.get("description", "").strip() or None,
-                capabilities=existing[rid].capabilities if rid in existing else None,
+                capabilities=ex_node.capabilities if ex_node else None,
+                verification_status=verif,
+                last_verified_date=last_verified or None,
             )
         except Exception:
             continue
@@ -734,6 +783,14 @@ async def import_segments(file: UploadFile = File(...), mode: BulkMode = Query("
 
         try:
             lat_raw = (row.get("latency") or "").strip()
+            seg_verif_raw = row.get("verification_status", "").strip()
+            ex_seg = existing.get(rid)
+            seg_verif = seg_verif_raw if seg_verif_raw in VALID_VERIF_STATUS else (
+                _enum_val(ex_seg.verification_status) if ex_seg and ex_seg.verification_status else "draft"
+            )
+            seg_last_verified = row.get("last_verified_date", "").strip() or (
+                ex_seg.last_verified_date if ex_seg else None
+            )
             seg = CableSegment(
                 id=rid, name=row.get("name", "").strip(),
                 system_id=row.get("system_id", "").strip(),
@@ -745,7 +802,9 @@ async def import_segments(file: UploadFile = File(...), mode: BulkMode = Query("
                 reliability=float(row.get("reliability", 1) or 1),
                 cost_weight=float(row.get("cost_weight", 1) or 1),
                 ownership=row.get("ownership", "offnet_resell").strip(),
-                waypoints=existing[rid].waypoints if rid in existing else None,
+                waypoints=ex_seg.waypoints if ex_seg else None,
+                verification_status=seg_verif,
+                last_verified_date=seg_last_verified or None,
             )
         except Exception:
             continue
