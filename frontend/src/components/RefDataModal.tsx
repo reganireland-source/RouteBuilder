@@ -423,7 +423,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     )
   }
 
-  function VerifBadge({ status }: { status?: VerificationStatus }) {
+  function VerifBadge({ status, onClick }: { status?: VerificationStatus; onClick?: () => void }) {
     const colours: Record<string, string> = {
       draft: '#ef4444',
       under_verification: '#f59e0b',
@@ -435,17 +435,17 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       verified: 'Verified',
     }
     const s = status ?? 'draft'
-    return (
-      <span style={{
-        display: 'inline-block', padding: '2px 7px', borderRadius: 10,
-        fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
-        background: colours[s] + '22', color: colours[s],
-        border: `1px solid ${colours[s]}55`,
-        whiteSpace: 'nowrap',
-      }}>
-        {labels[s]}
-      </span>
-    )
+    const style: React.CSSProperties = {
+      display: 'inline-block', padding: '2px 7px', borderRadius: 10,
+      fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
+      background: colours[s] + '22', color: colours[s],
+      border: `1px solid ${colours[s]}55`,
+      whiteSpace: 'nowrap',
+      ...(onClick ? { cursor: 'pointer', userSelect: 'none' } : {}),
+    }
+    return onClick
+      ? <button onClick={onClick} style={{ ...style, fontFamily: 'inherit' }}>{labels[s]} ✎</button>
+      : <span style={style}>{labels[s]}</span>
   }
 
   function VerifPrompt({ onChoice }: { onChoice: (status: VerificationStatus) => void }) {
@@ -504,9 +504,12 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   async function applyNodeVerif(id: string, status: VerificationStatus) {
     const date = status === 'verified' ? new Date().toISOString().slice(0, 10) : undefined
-    await api.updateNode(id, { verification_status: status, last_verified_date: date })
-    onDataChange()
-    setNodeVerifPending(null)
+    setSaving(true); setError(null)
+    try {
+      await api.updateNode(id, { verification_status: status, last_verified_date: date })
+      onDataChange()
+    } catch (e) { setError(String(e)) }
+    finally { setSaving(false); setNodeVerifPending(null) }
   }
 
   function NodeTab() {
@@ -568,7 +571,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                   { label: 'Address', value: n.street_address ?? '—' },
                   { label: 'Lat', value: n.lat },
                   { label: 'Lng', value: n.lng },
-                  { label: 'Status', value: <VerifBadge status={n.verification_status} /> },
+                  { label: 'Status', value: <VerifBadge status={n.verification_status} onClick={() => setNodeVerifPending(n.id)} /> },
                 ]}
                 onEdit={() => editId === n.id ? setEditId(null) : startEdit(n.id, editDefaults(n))}
                 onDelete={() => confirmDelete(() => api.deleteNode(n.id))}
@@ -600,7 +603,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                   <div style={cell(2)}>{n.description ?? ''}</div>
                   <div style={cell(1)}>{n.lat}</div>
                   <div style={cell(1)}>{n.lng}</div>
-                  <div style={cell(1.5)}><VerifBadge status={n.verification_status} /></div>
+                  <div style={cell(1.5)}><VerifBadge status={n.verification_status} onClick={() => setNodeVerifPending(n.id)} /></div>
                   <ActionsCell id={n.id}
                     onEdit={() => startEdit(n.id, editDefaults(n))}
                     onDelete={() => confirmDelete(() => api.deleteNode(n.id))}
@@ -622,9 +625,12 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   async function applySegVerif(id: string, status: VerificationStatus) {
     const date = status === 'verified' ? new Date().toISOString().slice(0, 10) : undefined
-    await api.updateSegment(id, { verification_status: status, last_verified_date: date })
-    onDataChange()
-    setSegVerifPending(null)
+    setSaving(true); setError(null)
+    try {
+      await api.updateSegment(id, { verification_status: status, last_verified_date: date })
+      onDataChange()
+    } catch (e) { setError(String(e)) }
+    finally { setSaving(false); setSegVerifPending(null) }
   }
 
   function SegmentTab() {
@@ -719,7 +725,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                   { label: 'Latency', value: s.latency != null ? `${s.latency} ms` : '—' },
                   { label: 'Ownership', value: OWNERSHIP_LABEL[s.ownership] ?? s.ownership },
                   { label: 'Network', value: isOnNet(s.ownership) ? 'ON-NET' : 'OFF-NET' },
-                  { label: 'Status', value: <VerifBadge status={s.verification_status} /> },
+                  { label: 'Status', value: <VerifBadge status={s.verification_status} onClick={() => setSegVerifPending(s.id)} /> },
                 ]}
                 onEdit={() => editId === s.id ? setEditId(null) : startEdit(s.id, segEditDefaults(s))}
                 onDelete={() => confirmDelete(() => api.deleteSegment(s.id))}
@@ -756,7 +762,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                     {isOnNet(s.ownership) ? 'ON-NET' : 'OFF-NET'}
                   </span>
                 </div>
-                <div style={cell(1.5)}><VerifBadge status={s.verification_status} /></div>
+                <div style={cell(1.5)}><VerifBadge status={s.verification_status} onClick={() => setSegVerifPending(s.id)} /></div>
                 <ActionsCell id={s.id}
                   onEdit={() => startEdit(s.id, segEditDefaults(s))}
                   onDelete={() => confirmDelete(() => api.deleteSegment(s.id))}
