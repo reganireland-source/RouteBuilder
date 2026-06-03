@@ -76,7 +76,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
 
   const FEATURES = [
     { icon: '🗺', title: 'PoP Route Builder',
-      desc: `Find optimal paths between any two nodes on our ${nodeCount}-node subsea network. Configure wet, full or terrestrial diversity, enforce via/avoid constraints on specific nodes, segments or cable systems, and see all viable paths ranked instantly.` },
+      desc: `Find optimal paths between any two nodes on our ${nodeCount}-node subsea network. Configure wet, full or terrestrial diversity, enforce via/avoid constraints on specific nodes, segments or cable systems, and see all viable paths ranked instantly. The live map uses colour and size to distinguish node types — large orange dots for CLS (Landing Stations), grading down through Primary, Secondary, Extension PoPs to small amber Branching Units.` },
     { icon: '🤖', title: 'TSABuddy — AI Route Assistant',
       desc: 'Type your request in plain English: "Singapore to Tokyo with full diversity, avoiding China, sort by latency." TSABuddy extracts origin, destination, diversity type, system/country/node constraints, and sort preference — then triggers the search automatically. Powered by Claude AI.' },
     { icon: '🏙', title: 'City Pairs',
@@ -93,18 +93,20 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       desc: 'Avoid or require specific countries in Advanced Constraints. "Must Avoid" removes every node in the selected countries from the graph — no landing station there will appear on any result. "Must Include" requires at least one transit node per selected country. Fully understood by TSABuddy via natural language.' },
     { icon: '🔵🟢', title: 'Diversity Pairs & Worker / Protect Flip',
       desc: 'Diversity searches return matched Worker (blue) / Protect (green) pairs. Click ⇅ on any pair to swap roles — the full route data trades places so Worker 1 carries the protect path and vice versa. Use this to define which circuit actually takes live traffic vs failover.' },
+    { icon: '🔵', title: 'Manual Route Builder',
+      desc: 'Build a route hop-by-hop on the live map. Tap any node as the origin, then pick each next hop from a scored candidate list showing latency, length and ownership. Undo any hop, then finish to pin the complete route — useful for modelling non-standard paths or checking specific cable combinations the auto-solver might not return.' },
     { icon: '🌊', title: 'Cable System Viewer',
       desc: `Toggle any of the ${systemCount} cable systems on the live map to explore coverage, topology and branching unit structure — ideal for network briefings and customer conversations.` },
     { icon: '🔍', title: 'Node Search',
-      desc: `Enter a customer address or lat/lng coordinates to find the nearest landing stations and PoPs. Results show owner logo, trading name, node type and straight-line distance — with one-click Set Origin / Set Dest to jump straight into a route search.` },
+      desc: `Enter a customer address or lat/lng coordinates to find the nearest landing stations and PoPs. Results show owner, trading name, node type and straight-line distance — with one-click Set Origin / Set Dest to jump straight into a route search.` },
     { icon: '📌', title: 'Pinned Routes & SLD Export',
       desc: 'Pin up to 5 routes for comparison, then export a professional branded straight-line diagram PDF — a cover page plus per-route diagrams with proportional segment layout — ready for customer delivery.' },
     { icon: '🗄', title: 'Ref Data Management',
-      desc: 'Full CRUD for all network data: nodes, segments, systems, capacity, outages and interconnect rules. Margin scores, ownership classifications and node positions are all editable within the app.' },
+      desc: 'Full CRUD for nodes, segments, systems, capacity, outages and interconnect rules. Nodes carry city, address and description fields. Verification status (Draft / Under Verification / Verified) is tracked per node and segment — click the status badge in any row to change it without opening the full edit form. Bulk CSV import/export includes all fields.' },
     { icon: '🚨', title: 'Live Outage Awareness',
       desc: 'Active segment outages appear on route cards with repair date estimates. Push outage-affected routes to the bottom with one click — keeping viable options front and centre during a network incident.' },
     { icon: '📱', title: 'Mobile-First Design',
-      desc: 'Full feature parity on phones and tablets. Demo routes, answer customer questions and build proposals from anywhere — in a meeting room, at a customer site, or in the field.' },
+      desc: 'Full feature parity on phones and tablets — including Country Viewer, Manual Route Builder, City Pairs, Node Search and Outages. Demo routes, answer customer questions and build proposals from anywhere.' },
   ]
 
   const card = (style?: Record<string, unknown>): Record<string, unknown> => ({
@@ -774,20 +776,24 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           <div style={sectionLabel}>Core Entities</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {entityCard('📍', 'Node', t.blue, [
-              { field: 'id',        type: 'string',    desc: 'Unique identifier (e.g. SIN3, HKG1). Used in route paths and all node-level constraints.' },
-              { field: 'name',      type: 'string',    desc: 'Human-readable name of the landing station or PoP.' },
-              { field: 'country',   type: 'ISO-2',     desc: 'Country code — used for country-level hard constraints (must_avoid / must_include).' },
-              { field: 'type',      type: 'enum',      desc: 'landing_station | primary_pop | secondary_pop | extension_pop | branching_unit. BUs are graph-traversed but never shown as endpoints.' },
-              { field: 'lat / lng', type: 'float',     desc: 'Coordinates for map rendering and nearest-node distance lookups.' },
+              { field: 'id',                  type: 'string',  desc: 'Unique identifier (e.g. SIN3, HKG1). Used in route paths and all node-level constraints.' },
+              { field: 'name',                type: 'string',  desc: 'Human-readable name of the landing station or PoP.' },
+              { field: 'country',             type: 'ISO-2',   desc: 'Country code — used for country-level hard constraints (must_avoid / must_include).' },
+              { field: 'type',                type: 'enum',    desc: 'landing_station | primary_pop | secondary_pop | extension_pop | branching_unit. Drives map icon size and colour (CLS largest/orange → BU smallest/amber). BUs are traversed but never shown as endpoints.' },
+              { field: 'lat / lng',           type: 'float',   desc: 'Coordinates for map rendering and nearest-node distance lookups. Accepts "lat, lng" paste directly into either field.' },
+              { field: 'owner / trading_name',type: 'string',  desc: 'Infrastructure owner (e.g. Telstra, Equinix, PLDT) and commercial trading name shown in node info panels and Node Search results.' },
+              { field: 'city / street_address',type: 'string', desc: 'Physical location fields — shown in the node info panel and included in bulk CSV export.' },
+              { field: 'verification_status', type: 'enum',    desc: 'draft | under_verification | verified. Colour-coded badge on every node row. Click the badge to change status directly without opening the edit form.' },
             ])}
             {entityCard('🔗', 'Segment', '#8b5cf6', [
-              { field: 'id',          type: 'string',  desc: 'Unique segment ID (e.g. EAC-2B2). Used in must_include / must_avoid segment constraints.' },
-              { field: 'system_id',   type: 'string',  desc: 'Parent cable system. Links to system-level constraints and commercial margin scoring.' },
-              { field: 'type',        type: 'enum',    desc: 'wet | terrestrial. Wet hops and terrestrial hops are counted separately for diversity and hop limits.' },
-              { field: 'length_km',   type: 'float',   desc: 'Physical distance used as primary graph edge weight and to compute total route km.' },
-              { field: 'latency',     type: 'float ms',desc: 'One-way propagation delay. Summed across all route segments to compute end-to-end RTD.' },
-              { field: 'reliability', type: 'float',   desc: 'Segment availability (0–1). Multiplied across the path for end-to-end availability score.' },
-              { field: 'ownership',   type: 'enum',    desc: 'owned | iru | consortium | integrated_lit_lease | offnet_resell. Drives commercial margin scoring.' },
+              { field: 'id',                  type: 'string',  desc: 'Unique segment ID (e.g. EAC-2B2). Used in must_include / must_avoid segment constraints.' },
+              { field: 'system_id',           type: 'string',  desc: 'Parent cable system. Links to system-level constraints and commercial margin scoring.' },
+              { field: 'type',                type: 'enum',    desc: 'wet | terrestrial. Wet hops and terrestrial hops are counted separately for diversity and hop limits.' },
+              { field: 'length_km',           type: 'float',   desc: 'Physical distance used as primary graph edge weight and to compute total route km.' },
+              { field: 'latency',             type: 'float ms',desc: 'One-way propagation delay. Summed across all route segments to compute end-to-end RTD.' },
+              { field: 'reliability',         type: 'float',   desc: 'Segment availability (0–1). Multiplied across the path for end-to-end availability score.' },
+              { field: 'ownership',           type: 'enum',    desc: 'owned | iru | consortium | integrated_lit_lease | offnet_resell. Drives commercial margin scoring.' },
+              { field: 'verification_status', type: 'enum',    desc: 'draft | under_verification | verified. Click the badge in any segment row to update status directly.' },
             ])}
             {entityCard('🌊', 'Cable System', t.green, [
               { field: 'id',     type: 'string', desc: 'System identifier (e.g. EAC, AAG, C2C). Used in must_include / must_avoid systems constraints.' },
