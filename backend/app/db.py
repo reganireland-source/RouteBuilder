@@ -158,6 +158,8 @@ def init_db() -> None:
             _run_migration_003(cur)
             # Migration 004: replace old PH terrestrial segments with revised set
             _run_migration_004(cur)
+            # Migration 005: insert Philippines cable-specific CLS nodes
+            _run_migration_005(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -207,6 +209,51 @@ def _run_migration_002(cur) -> None:
     cur.execute(
         "UPDATE nodes SET data = jsonb_set(data, '{type}', '\"secondary_pop\"'::jsonb) "
         "WHERE data->>'type' = 'terrestrial_pop'"
+    )
+
+
+_PH_CLS_NODES = [
+    {"id": "PCGD", "name": "PI EAC Cavite", "lat": 14.3213596, "lng": 121.0612705,
+     "type": "landing_station", "country": "PH", "owner": "Telstra",
+     "description": "EAC Cable landing station, Cavite", "city": "Cavite",
+     "verification_status": "under_verification"},
+    {"id": "PNMA", "name": "PI C2C CLS Nasugbu", "lat": 14.0676335, "lng": 120.626889,
+     "type": "landing_station", "country": "PH", "owner": "Telstra",
+     "description": "C2C cable landing station, Nasugbu", "city": "Nasugbu",
+     "verification_status": "draft"},
+    {"id": "LAUS", "name": "La Union CLS", "lat": 16.615891, "lng": 120.320937,
+     "type": "landing_station", "country": "PH", "owner": "Telstra",
+     "description": "Cable landing station, La Union", "city": "San Fernando",
+     "verification_status": "draft"},
+    {"id": "PBAT", "name": "PLDT Batangas CLS", "lat": 14.0667, "lng": 120.6333,
+     "type": "landing_station", "country": "PH", "owner": "PLDT",
+     "description": "PLDT western cable landing station, Nasugbu, Batangas. Philippines landing for ADC.",
+     "city": "Nasugbu", "verification_status": "draft"},
+    {"id": "PBAU", "name": "PLDT Baler Aurora CLS", "lat": 15.764, "lng": 121.562,
+     "type": "landing_station", "country": "PH", "owner": "PLDT",
+     "description": "PLDT cable landing station, Baler, Aurora. Philippines north branch for Apricot.",
+     "city": "Baler", "verification_status": "draft"},
+    {"id": "PDIG", "name": "PLDT Digos CLS", "lat": 6.752, "lng": 125.357,
+     "type": "landing_station", "country": "PH", "owner": "PLDT",
+     "description": "PLDT cable landing station, Brgy. Aplaya, Digos City, Davao del Sur. Philippines south branch for Apricot.",
+     "city": "Digos", "verification_status": "draft"},
+    {"id": "PCVD", "name": "Converge Davao International CLS", "lat": 7.045, "lng": 125.532,
+     "type": "landing_station", "country": "PH", "owner": "Converge ICT",
+     "description": "Converge ICT Davao International CLS, Bago Aplaya, Davao City. Philippines landing for BiFrost.",
+     "city": "Davao", "verification_status": "draft"},
+    {"id": "PGDV", "name": "Globe Telecom Davao CLS", "lat": 7.090, "lng": 125.593,
+     "type": "landing_station", "country": "PH", "owner": "Globe Telecom",
+     "description": "Globe Telecom CLS, Brgy. Talomo, Davao City. Philippines landing for SEA-US.",
+     "city": "Davao", "verification_status": "draft"},
+]
+
+
+def _run_migration_005(cur) -> None:
+    """Insert Philippines CLS nodes (cable-specific) if absent."""
+    psycopg2.extras.execute_values(
+        cur,
+        "INSERT INTO nodes (id, data) VALUES %s ON CONFLICT DO NOTHING",
+        [(n["id"], json.dumps(n)) for n in _PH_CLS_NODES],
     )
 
 
