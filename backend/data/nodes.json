@@ -1764,7 +1764,7 @@
     "verification_status": "draft"
   },
   {
-    "id": "HKCHK",
+    "id": "HKCC",
     "name": "Chung Hom Kok Cable Station",
     "lat": 22.213386,
     "lng": 114.2050588,
@@ -1776,7 +1776,7 @@
     "verification_status": "draft"
   },
   {
-    "id": "HKCS2",
+    "id": "HKCK",
     "name": "HKCS2",
     "lat": 22.282628,
     "lng": 114.27216,
@@ -1788,7 +1788,7 @@
     "verification_status": "draft"
   },
   {
-    "id": "HKDWB",
+    "id": "HKDW",
     "name": "Deep Water Bay, SMW3",
     "lat": 22.2481904,
     "lng": 114.185504,
@@ -1800,7 +1800,7 @@
     "verification_status": "draft"
   },
   {
-    "id": "HKCS1",
+    "id": "HKEA",
     "name": "HKCS1",
     "lat": 22.2833854,
     "lng": 114.2715172,
@@ -1812,7 +1812,7 @@
     "verification_status": "draft"
   },
   {
-    "id": "EQ-HK1",
+    "id": "HKGG",
     "name": "Equinix HK1",
     "lat": 22.3655806,
     "lng": 114.1193201,
@@ -1824,7 +1824,7 @@
     "verification_status": "draft"
   },
   {
-    "id": "HKHMS",
+    "id": "HKHH",
     "name": "Hermes House",
     "lat": 22.2959189,
     "lng": 114.1733822,
@@ -1836,7 +1836,7 @@
     "verification_status": "draft"
   },
   {
-    "id": "EQ-HK2",
+    "id": "HKKW",
     "name": "Equinix HK2",
     "lat": 22.3625,
     "lng": 114.11908,
@@ -1848,7 +1848,7 @@
     "verification_status": "draft"
   },
   {
-    "id": "HKDS1",
+    "id": "HKMI",
     "name": "HKDS1",
     "lat": 22.2660935,
     "lng": 114.2465174,
@@ -1860,7 +1860,7 @@
     "verification_status": "draft"
   },
   {
-    "id": "HKCW",
+    "id": "HKSF",
     "name": "Telstra Chai Wan",
     "lat": 22.266444,
     "lng": 114.2463868,
@@ -1872,7 +1872,7 @@
     "verification_status": "draft"
   },
   {
-    "id": "HKSTL",
+    "id": "HKST",
     "name": "Telstra Stanley Teleport",
     "lat": 22.20954,
     "lng": 114.21487,
@@ -1884,7 +1884,7 @@
     "verification_status": "draft"
   },
   {
-    "id": "HKTCH",
+    "id": "HKTH",
     "name": "Telecome House",
     "lat": 22.279908,
     "lng": 114.1711991,
@@ -1896,7 +1896,7 @@
     "verification_status": "draft"
   },
   {
-    "id": "HKSLA",
+    "id": "SLTU",
     "name": "South Lantau Cable Station",
     "lat": 22.2251512,
     "lng": 113.9294369,
@@ -1908,7 +1908,7 @@
     "verification_status": "draft"
   },
   {
-    "id": "HKTFK",
+    "id": "TGFK",
     "name": "Tong Fuk CLS",
     "lat": 22.2246493,
     "lng": 113.9281009,
