@@ -3394,20 +3394,6 @@
     "verification_status": "draft"
   },
   {
-    "id": "TERRESTRIAL_PH02",
-    "name": "Terrestrial EAC Cavite\u2013Robinsons Summit (D)",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "PCGD",
-    "end_node_id": "PMRS",
-    "type": "terrestrial",
-    "length_km": 33,
-    "reliability": 0.9998,
-    "cost_weight": 1,
-    "ownership": "owned",
-    "latency": 0.17,
-    "verification_status": "draft"
-  },
-  {
     "id": "TERRESTRIAL_PH03",
     "name": "Terrestrial EAC Cavite\u2013C2C Nasugbu",
     "system_id": "TERRESTRIAL",
@@ -3433,20 +3419,6 @@
     "cost_weight": 1,
     "ownership": "owned",
     "latency": 0.04,
-    "verification_status": "draft"
-  },
-  {
-    "id": "TERRESTRIAL_PH06",
-    "name": "Terrestrial C2C Nasugbu\u2013Reliance Centre",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "PNMA",
-    "end_node_id": "PMPC",
-    "type": "terrestrial",
-    "length_km": 93,
-    "reliability": 0.9998,
-    "cost_weight": 1,
-    "ownership": "owned",
-    "latency": 0.47,
     "verification_status": "draft"
   },
   {
@@ -3517,6 +3489,62 @@
     "cost_weight": 1,
     "ownership": "owned",
     "latency": 1.5,
+    "verification_status": "draft"
+  },
+  {
+    "id": "TERRESTRIAL_PH02a",
+    "name": "Terrestrial EAC Cavite\u2013Aguinaldo Cavite",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "PCGD",
+    "end_node_id": "PCRS",
+    "type": "terrestrial",
+    "length_km": 15,
+    "reliability": 0.9999,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "latency": 0.07,
+    "verification_status": "draft"
+  },
+  {
+    "id": "TERRESTRIAL_PH02b",
+    "name": "Terrestrial Aguinaldo Cavite\u2013Robinsons Summit",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "PCRS",
+    "end_node_id": "PMRS",
+    "type": "terrestrial",
+    "length_km": 37,
+    "reliability": 0.9998,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "latency": 0.18,
+    "verification_status": "draft"
+  },
+  {
+    "id": "TERRESTRIAL_PH06a",
+    "name": "Terrestrial C2C Nasugbu\u2013Aguinaldo Cavite",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "PNMA",
+    "end_node_id": "PCRS",
+    "type": "terrestrial",
+    "length_km": 55,
+    "reliability": 0.9998,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "latency": 0.28,
+    "verification_status": "draft"
+  },
+  {
+    "id": "TERRESTRIAL_PH06b",
+    "name": "Terrestrial Aguinaldo Cavite\u2013Reliance Centre",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "PCRS",
+    "end_node_id": "PMPC",
+    "type": "terrestrial",
+    "length_km": 42,
+    "reliability": 0.9998,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "latency": 0.21,
     "verification_status": "draft"
   }
 ]

@@ -160,6 +160,8 @@ def init_db() -> None:
             _run_migration_004(cur)
             # Migration 005: insert Philippines cable-specific CLS nodes
             _run_migration_005(cur)
+            # Migration 006: split PH02 and PH06 via PCRS waypoint
+            _run_migration_006(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -254,6 +256,38 @@ def _run_migration_005(cur) -> None:
         cur,
         "INSERT INTO nodes (id, data) VALUES %s ON CONFLICT DO NOTHING",
         [(n["id"], json.dumps(n)) for n in _PH_CLS_NODES],
+    )
+
+
+_PH02_PH06_REPLACEMENTS = [
+    {"id": "TERRESTRIAL_PH02a", "name": "Terrestrial EAC Cavite–Aguinaldo Cavite",       "system_id": "TERRESTRIAL", "start_node_id": "PCGD", "end_node_id": "PCRS", "type": "terrestrial", "length_km": 15, "reliability": 0.9999, "cost_weight": 1, "ownership": "owned", "latency": 0.07, "verification_status": "draft"},
+    {"id": "TERRESTRIAL_PH02b", "name": "Terrestrial Aguinaldo Cavite–Robinsons Summit",  "system_id": "TERRESTRIAL", "start_node_id": "PCRS", "end_node_id": "PMRS", "type": "terrestrial", "length_km": 37, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "latency": 0.18, "verification_status": "draft"},
+    {"id": "TERRESTRIAL_PH06a", "name": "Terrestrial C2C Nasugbu–Aguinaldo Cavite",      "system_id": "TERRESTRIAL", "start_node_id": "PNMA", "end_node_id": "PCRS", "type": "terrestrial", "length_km": 55, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "latency": 0.28, "verification_status": "draft"},
+    {"id": "TERRESTRIAL_PH06b", "name": "Terrestrial Aguinaldo Cavite–Reliance Centre",  "system_id": "TERRESTRIAL", "start_node_id": "PCRS", "end_node_id": "PMPC", "type": "terrestrial", "length_km": 42, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "latency": 0.21, "verification_status": "draft"},
+]
+
+_PH02_PH06_CAPACITY = [
+    {"segment_id": "TERRESTRIAL_PH02a", "total_capacity_t": 1.1, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_PH02b", "total_capacity_t": 0.8, "available_capacity_t": 0.3},
+    {"segment_id": "TERRESTRIAL_PH06a", "total_capacity_t": 1.6, "available_capacity_t": 0.7},
+    {"segment_id": "TERRESTRIAL_PH06b", "total_capacity_t": 1.1, "available_capacity_t": 0.6},
+]
+
+
+def _run_migration_006(cur) -> None:
+    """Split TERRESTRIAL_PH02 and TERRESTRIAL_PH06 via PCRS waypoint."""
+    for sid in ("TERRESTRIAL_PH02", "TERRESTRIAL_PH06"):
+        cur.execute("DELETE FROM segments WHERE id = %s", (sid,))
+        cur.execute("DELETE FROM capacity WHERE segment_id = %s", (sid,))
+    psycopg2.extras.execute_values(
+        cur,
+        "INSERT INTO segments (id, data) VALUES %s ON CONFLICT DO NOTHING",
+        [(s["id"], json.dumps(s)) for s in _PH02_PH06_REPLACEMENTS],
+    )
+    psycopg2.extras.execute_values(
+        cur,
+        "INSERT INTO capacity (segment_id, data) VALUES %s ON CONFLICT DO NOTHING",
+        [(c["segment_id"], json.dumps(c)) for c in _PH02_PH06_CAPACITY],
     )
 
 

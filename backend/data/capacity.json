@@ -1195,11 +1195,6 @@
     "available_capacity_t": 0.5
   },
   {
-    "segment_id": "TERRESTRIAL_PH02",
-    "total_capacity_t": 0.9,
-    "available_capacity_t": 0.4
-  },
-  {
     "segment_id": "TERRESTRIAL_PH03",
     "total_capacity_t": 1.6,
     "available_capacity_t": 0.9
@@ -1208,11 +1203,6 @@
     "segment_id": "TERRESTRIAL_PH05",
     "total_capacity_t": 1.8,
     "available_capacity_t": 0.7
-  },
-  {
-    "segment_id": "TERRESTRIAL_PH06",
-    "total_capacity_t": 1.1,
-    "available_capacity_t": 0.4
   },
   {
     "segment_id": "TERRESTRIAL_PH07",
@@ -1237,6 +1227,26 @@
   {
     "segment_id": "TERRESTRIAL_PH103",
     "total_capacity_t": 1.7,
+    "available_capacity_t": 0.6
+  },
+  {
+    "segment_id": "TERRESTRIAL_PH02a",
+    "total_capacity_t": 1.1,
+    "available_capacity_t": 0.5
+  },
+  {
+    "segment_id": "TERRESTRIAL_PH02b",
+    "total_capacity_t": 0.8,
+    "available_capacity_t": 0.3
+  },
+  {
+    "segment_id": "TERRESTRIAL_PH06a",
+    "total_capacity_t": 1.6,
+    "available_capacity_t": 0.7
+  },
+  {
+    "segment_id": "TERRESTRIAL_PH06b",
+    "total_capacity_t": 1.1,
     "available_capacity_t": 0.6
   }
 ]
