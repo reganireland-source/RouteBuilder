@@ -154,6 +154,8 @@ def init_db() -> None:
             )
             # Migration 002: rename terrestrial_pop → primary/secondary/extension_pop
             _run_migration_002(cur)
+            # Migration 003: insert Philippines PoPs if absent
+            _run_migration_003(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -203,6 +205,54 @@ def _run_migration_002(cur) -> None:
     cur.execute(
         "UPDATE nodes SET data = jsonb_set(data, '{type}', '\"secondary_pop\"'::jsonb) "
         "WHERE data->>'type' = 'terrestrial_pop'"
+    )
+
+
+_PHILIPPINES_POPS = [
+    {"id": "PCRS", "name": "Aguinaldo Highway Cavite", "lat": 14.29623, "lng": 120.9564,
+     "type": "extension_pop", "country": "PH", "owner": "Telstra", "trading_name": None,
+     "city": "Cavite", "street_address": None,
+     "description": "Extension PoP on Aguinaldo Highway in Cavite, Philippines",
+     "capabilities": None, "verification_status": "draft", "last_verified_date": None},
+    {"id": "PCIN", "name": "Innove Data Centre Cebu", "lat": 10.3157, "lng": 123.8854,
+     "type": "secondary_pop", "country": "PH", "owner": "Telstra", "trading_name": None,
+     "city": "Cebu", "street_address": None,
+     "description": "Secondary PoP co-located in Innove Data Centre, Cebu, Philippines",
+     "capabilities": None, "verification_status": "draft", "last_verified_date": None},
+    {"id": "PHPN", "name": "RCBC Tower 2 Makati", "lat": 14.56077, "lng": 121.0169,
+     "type": "primary_pop", "country": "PH", "owner": "Telstra", "trading_name": None,
+     "city": "Makati", "street_address": "RCBC Tower 2, Ayala Avenue, Makati",
+     "description": "Primary PoP co-located in RCBC Tower 2, Makati, Metro Manila",
+     "capabilities": None, "verification_status": "draft", "last_verified_date": None},
+    {"id": "PMRS", "name": "Robinsons Summit", "lat": 14.55754, "lng": 121.0206,
+     "type": "primary_pop", "country": "PH", "owner": "Telstra", "trading_name": None,
+     "city": "Makati", "street_address": "Robinsons Summit Center, Ayala Avenue, Makati",
+     "description": "Primary PoP co-located in Robinsons Summit Center, Makati, Metro Manila",
+     "capabilities": None, "verification_status": "draft", "last_verified_date": None},
+    {"id": "PMVR", "name": "EPLDT Vitro Data Centre Makati", "lat": 14.56453, "lng": 121.0219,
+     "type": "secondary_pop", "country": "PH", "owner": "Telstra", "trading_name": None,
+     "city": "Makati", "street_address": None,
+     "description": "Secondary PoP co-located in EPLDT Vitro data centre, Makati",
+     "capabilities": None, "verification_status": "draft", "last_verified_date": None},
+    {"id": "PMPC", "name": "Reliance Centre Building Pasig", "lat": 14.57772, "lng": 121.0741,
+     "type": "primary_pop", "country": "PH", "owner": "Telstra", "trading_name": None,
+     "city": "Pasig", "street_address": "Reliance Centre, Pasig, Metro Manila",
+     "description": "Primary PoP co-located in Reliance Centre, Pasig, Metro Manila",
+     "capabilities": None, "verification_status": "draft", "last_verified_date": None},
+    {"id": "PMPI", "name": "EPLDT Vitro Data Centre Pasig", "lat": 14.58457, "lng": 121.0708,
+     "type": "extension_pop", "country": "PH", "owner": "Telstra", "trading_name": None,
+     "city": "Pasig", "street_address": None,
+     "description": "Extension PoP co-located in EPLDT Vitro data centre, Pasig, Metro Manila",
+     "capabilities": None, "verification_status": "draft", "last_verified_date": None},
+]
+
+
+def _run_migration_003(cur) -> None:
+    """Upsert Philippines PoPs that may be missing from pre-existing databases."""
+    psycopg2.extras.execute_values(
+        cur,
+        "INSERT INTO nodes (id, data) VALUES %s ON CONFLICT DO NOTHING",
+        [(node["id"], json.dumps(node)) for node in _PHILIPPINES_POPS],
     )
 
 
