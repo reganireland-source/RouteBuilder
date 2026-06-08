@@ -350,16 +350,6 @@
     "available_capacity_t": 3.0
   },
   {
-    "segment_id": "BIFROST-GUM-MNL",
-    "total_capacity_t": 3.0,
-    "available_capacity_t": 3.0
-  },
-  {
-    "segment_id": "BIFROST-MNL-JAK",
-    "total_capacity_t": 3.0,
-    "available_capacity_t": 3.0
-  },
-  {
     "segment_id": "BIFROST-JAK-SIN",
     "total_capacity_t": 3.0,
     "available_capacity_t": 3.0
@@ -415,11 +405,6 @@
     "available_capacity_t": 1.2
   },
   {
-    "segment_id": "SEAUS-MNL-GUM",
-    "total_capacity_t": 1.5,
-    "available_capacity_t": 0.6
-  },
-  {
     "segment_id": "SEAUS-GUM-HAW",
     "total_capacity_t": 1.5,
     "available_capacity_t": 0.5
@@ -458,16 +443,6 @@
     "segment_id": "ADC-TPE-HKG",
     "total_capacity_t": 1.5,
     "available_capacity_t": 0.8
-  },
-  {
-    "segment_id": "ADC-HKG-MNL",
-    "total_capacity_t": 1.5,
-    "available_capacity_t": 0.7
-  },
-  {
-    "segment_id": "ADC-MNL-SIN",
-    "total_capacity_t": 1.5,
-    "available_capacity_t": 0.6
   },
   {
     "segment_id": "JUNO-TYO-HAW",
@@ -588,16 +563,6 @@
     "segment_id": "JUPITER-BU-MNL",
     "total_capacity_t": 8.0,
     "available_capacity_t": 4.5
-  },
-  {
-    "segment_id": "APRICOT-SIN-MNL",
-    "total_capacity_t": 16.0,
-    "available_capacity_t": 12.0
-  },
-  {
-    "segment_id": "APRICOT-MNL-BU",
-    "total_capacity_t": 16.0,
-    "available_capacity_t": 12.0
   },
   {
     "segment_id": "APRICOT-BU-OSA",
@@ -1248,5 +1213,45 @@
     "segment_id": "TERRESTRIAL_PH06b",
     "total_capacity_t": 1.1,
     "available_capacity_t": 0.6
+  },
+  {
+    "segment_id": "ADC-HKG-BAT",
+    "total_capacity_t": 1.5,
+    "available_capacity_t": 0.7
+  },
+  {
+    "segment_id": "ADC-BAT-SIN",
+    "total_capacity_t": 1.5,
+    "available_capacity_t": 0.6
+  },
+  {
+    "segment_id": "BIFROST-GUM-CVD",
+    "total_capacity_t": 3.0,
+    "available_capacity_t": 3.0
+  },
+  {
+    "segment_id": "BIFROST-CVD-JAK",
+    "total_capacity_t": 3.0,
+    "available_capacity_t": 3.0
+  },
+  {
+    "segment_id": "SEAUS-GDV-GUM",
+    "total_capacity_t": 1.5,
+    "available_capacity_t": 0.6
+  },
+  {
+    "segment_id": "APRICOT-SIN-BU",
+    "total_capacity_t": 16.0,
+    "available_capacity_t": 12.0
+  },
+  {
+    "segment_id": "APRICOT-BU-BAU",
+    "total_capacity_t": 16.0,
+    "available_capacity_t": 8.0
+  },
+  {
+    "segment_id": "APRICOT-BU-DGS",
+    "total_capacity_t": 16.0,
+    "available_capacity_t": 8.0
   }
 ]

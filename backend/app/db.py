@@ -162,6 +162,8 @@ def init_db() -> None:
             _run_migration_005(cur)
             # Migration 006: split PH02 and PH06 via PCRS waypoint
             _run_migration_006(cur)
+            # Migration 007: reconnect subsea segments to cable-specific PH CLS nodes
+            _run_migration_007(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -288,6 +290,53 @@ def _run_migration_006(cur) -> None:
         cur,
         "INSERT INTO capacity (segment_id, data) VALUES %s ON CONFLICT DO NOTHING",
         [(c["segment_id"], json.dumps(c)) for c in _PH02_PH06_CAPACITY],
+    )
+
+
+_SUBSEA_PH_REPLACEMENTS = [
+    {"id": "ADC-HKG-BAT",      "name": "ADC Hong Kong–Batangas",          "system_id": "ADC",      "start_node_id": "HKG1",       "end_node_id": "PBAT", "type": "subsea", "length_km": 1429, "latency": 7.14,  "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
+    {"id": "ADC-BAT-SIN",      "name": "ADC Batangas–Singapore",          "system_id": "ADC",      "start_node_id": "PBAT",       "end_node_id": "SIN1", "type": "subsea", "length_km": 2909, "latency": 14.54, "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
+    {"id": "BIFROST-GUM-CVD",  "name": "BiFrost Guam–Davao (Converge)",  "system_id": "BIFROST",  "start_node_id": "GUM1",       "end_node_id": "PCVD", "type": "subsea", "length_km": 2779, "latency": 13.89, "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
+    {"id": "BIFROST-CVD-JAK",  "name": "BiFrost Davao–Jakarta",          "system_id": "BIFROST",  "start_node_id": "PCVD",       "end_node_id": "JAK1", "type": "subsea", "length_km": 3179, "latency": 15.89, "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
+    {"id": "SEAUS-GDV-GUM",    "name": "SEA-US Davao–Guam",              "system_id": "SEA-US",   "start_node_id": "PGDV",       "end_node_id": "GUM1", "type": "subsea", "length_km": 2769, "latency": 13.85, "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
+    {"id": "APRICOT-SIN-BU",   "name": "Apricot Singapore–BU",           "system_id": "APRICOT",  "start_node_id": "SIN1",       "end_node_id": "APRICOTBU1", "type": "subsea", "length_km": 4079, "latency": 20.39, "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
+    {"id": "APRICOT-BU-BAU",   "name": "Apricot BU–Baler Aurora",        "system_id": "APRICOT",  "start_node_id": "APRICOTBU1", "end_node_id": "PBAU", "type": "subsea", "length_km": 929,  "latency": 4.64,  "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
+    {"id": "APRICOT-BU-DGS",   "name": "Apricot BU–Digos",               "system_id": "APRICOT",  "start_node_id": "APRICOTBU1", "end_node_id": "PDIG", "type": "subsea", "length_km": 1855, "latency": 9.28,  "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
+]
+
+_SUBSEA_PH_CAPACITY = [
+    {"segment_id": "ADC-HKG-BAT",     "total_capacity_t": 1.5,  "available_capacity_t": 0.5},
+    {"segment_id": "ADC-BAT-SIN",     "total_capacity_t": 1.5,  "available_capacity_t": 0.5},
+    {"segment_id": "BIFROST-GUM-CVD", "total_capacity_t": 3.0,  "available_capacity_t": 1.0},
+    {"segment_id": "BIFROST-CVD-JAK", "total_capacity_t": 3.0,  "available_capacity_t": 1.0},
+    {"segment_id": "SEAUS-GDV-GUM",   "total_capacity_t": 1.5,  "available_capacity_t": 0.5},
+    {"segment_id": "APRICOT-SIN-BU",  "total_capacity_t": 16.0, "available_capacity_t": 8.0},
+    {"segment_id": "APRICOT-BU-BAU",  "total_capacity_t": 16.0, "available_capacity_t": 8.0},
+    {"segment_id": "APRICOT-BU-DGS",  "total_capacity_t": 16.0, "available_capacity_t": 8.0},
+]
+
+_SUBSEA_PH_OLD_IDS = [
+    "ADC-HKG-MNL", "ADC-MNL-SIN",
+    "BIFROST-GUM-MNL", "BIFROST-MNL-JAK",
+    "SEAUS-MNL-GUM",
+    "APRICOT-SIN-MNL", "APRICOT-MNL-BU",
+]
+
+
+def _run_migration_007(cur) -> None:
+    """Reconnect subsea segments from generic MNL1 to cable-specific PH CLS nodes."""
+    for sid in _SUBSEA_PH_OLD_IDS:
+        cur.execute("DELETE FROM segments WHERE id = %s", (sid,))
+        cur.execute("DELETE FROM capacity WHERE segment_id = %s", (sid,))
+    psycopg2.extras.execute_values(
+        cur,
+        "INSERT INTO segments (id, data) VALUES %s ON CONFLICT DO NOTHING",
+        [(s["id"], json.dumps(s)) for s in _SUBSEA_PH_REPLACEMENTS],
+    )
+    psycopg2.extras.execute_values(
+        cur,
+        "INSERT INTO capacity (segment_id, data) VALUES %s ON CONFLICT DO NOTHING",
+        [(c["segment_id"], json.dumps(c)) for c in _SUBSEA_PH_CAPACITY],
     )
 
 

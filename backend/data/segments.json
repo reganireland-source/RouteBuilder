@@ -954,54 +954,6 @@
     "latency": 47.0
   },
   {
-    "id": "BIFROST-GUM-MNL",
-    "name": "BiFrost Guam\u2013Manila",
-    "system_id": "BIFROST",
-    "start_node_id": "GUM1",
-    "end_node_id": "MNL1",
-    "type": "wet",
-    "length_km": 2700,
-    "reliability": 0.9995,
-    "cost_weight": 9,
-    "ownership": "iru",
-    "latency": 13.5
-  },
-  {
-    "id": "BIFROST-MNL-JAK",
-    "name": "BiFrost Manila\u2013Jakarta",
-    "system_id": "BIFROST",
-    "start_node_id": "MNL1",
-    "end_node_id": "JAK1",
-    "type": "wet",
-    "length_km": 2800,
-    "reliability": 0.9995,
-    "cost_weight": 9,
-    "ownership": "iru",
-    "latency": 14.0,
-    "waypoints": [
-      [
-        9.0,
-        119.5
-      ],
-      [
-        4.0,
-        118.0
-      ],
-      [
-        -0.5,
-        117.5
-      ],
-      [
-        -4.5,
-        114.0
-      ],
-      [
-        -5.5,
-        110.0
-      ]
-    ]
-  },
-  {
     "id": "BIFROST-JAK-SIN",
     "name": "BiFrost Jakarta\u2013Singapore",
     "system_id": "BIFROST",
@@ -1173,19 +1125,6 @@
     "latency": 13.0
   },
   {
-    "id": "SEAUS-MNL-GUM",
-    "name": "SEA-US Manila\u2013Guam",
-    "system_id": "SEAUS",
-    "start_node_id": "MNL1",
-    "end_node_id": "GUM1",
-    "type": "wet",
-    "length_km": 2900,
-    "reliability": 0.9993,
-    "cost_weight": 9,
-    "ownership": "iru",
-    "latency": 14.5
-  },
-  {
     "id": "SEAUS-GUM-HAW",
     "name": "SEA-US Guam\u2013Hawaii",
     "system_id": "SEAUS",
@@ -1288,32 +1227,6 @@
     "cost_weight": 3,
     "ownership": "offnet_resell",
     "latency": 4.0
-  },
-  {
-    "id": "ADC-HKG-MNL",
-    "name": "ADC Hong Kong\u2013Manila",
-    "system_id": "ADC",
-    "start_node_id": "HKG1",
-    "end_node_id": "MNL1",
-    "type": "wet",
-    "length_km": 1100,
-    "reliability": 0.9995,
-    "cost_weight": 4,
-    "ownership": "offnet_resell",
-    "latency": 5.5
-  },
-  {
-    "id": "ADC-MNL-SIN",
-    "name": "ADC Manila\u2013Singapore",
-    "system_id": "ADC",
-    "start_node_id": "MNL1",
-    "end_node_id": "SIN1",
-    "type": "wet",
-    "length_km": 2500,
-    "reliability": 0.9993,
-    "cost_weight": 8,
-    "ownership": "offnet_resell",
-    "latency": 12.5
   },
   {
     "id": "JUNO-MNB-BU",
@@ -1639,32 +1552,6 @@
     "cost_weight": 17,
     "ownership": "offnet_resell",
     "latency": 24.5
-  },
-  {
-    "id": "APRICOT-SIN-MNL",
-    "name": "Apricot Singapore to Manila",
-    "system_id": "APRICOT",
-    "start_node_id": "SIN1",
-    "end_node_id": "MNL1",
-    "type": "wet",
-    "length_km": 2600,
-    "reliability": 0.9993,
-    "cost_weight": 9,
-    "ownership": "offnet_resell",
-    "latency": 13.0
-  },
-  {
-    "id": "APRICOT-MNL-BU",
-    "name": "Apricot Manila to Philippine Sea BU",
-    "system_id": "APRICOT",
-    "start_node_id": "MNL1",
-    "end_node_id": "APRICOTBU1",
-    "type": "wet",
-    "length_km": 1000,
-    "reliability": 0.9995,
-    "cost_weight": 5,
-    "ownership": "offnet_resell",
-    "latency": 5.0
   },
   {
     "id": "APRICOT-BU-OSA",
@@ -3546,5 +3433,109 @@
     "ownership": "owned",
     "latency": 0.21,
     "verification_status": "draft"
+  },
+  {
+    "id": "ADC-HKG-BAT",
+    "name": "ADC Hong Kong\u2013Batangas",
+    "system_id": "ADC",
+    "start_node_id": "HKG1",
+    "end_node_id": "PBAT",
+    "type": "wet",
+    "length_km": 1429,
+    "reliability": 0.9995,
+    "cost_weight": 4,
+    "ownership": "offnet_resell",
+    "latency": 7.14
+  },
+  {
+    "id": "ADC-BAT-SIN",
+    "name": "ADC Batangas\u2013Singapore",
+    "system_id": "ADC",
+    "start_node_id": "PBAT",
+    "end_node_id": "SIN1",
+    "type": "wet",
+    "length_km": 2909,
+    "reliability": 0.9995,
+    "cost_weight": 4,
+    "ownership": "offnet_resell",
+    "latency": 14.54
+  },
+  {
+    "id": "BIFROST-GUM-CVD",
+    "name": "BiFrost Guam\u2013Davao (Converge)",
+    "system_id": "BIFROST",
+    "start_node_id": "GUM1",
+    "end_node_id": "PCVD",
+    "type": "wet",
+    "length_km": 2779,
+    "reliability": 0.9995,
+    "cost_weight": 9,
+    "ownership": "iru",
+    "latency": 13.89
+  },
+  {
+    "id": "BIFROST-CVD-JAK",
+    "name": "BiFrost Davao\u2013Jakarta",
+    "system_id": "BIFROST",
+    "start_node_id": "PCVD",
+    "end_node_id": "JAK1",
+    "type": "wet",
+    "length_km": 3179,
+    "reliability": 0.9995,
+    "cost_weight": 9,
+    "ownership": "iru",
+    "latency": 15.89
+  },
+  {
+    "id": "SEAUS-GDV-GUM",
+    "name": "SEA-US Davao\u2013Guam",
+    "system_id": "SEAUS",
+    "start_node_id": "PGDV",
+    "end_node_id": "GUM1",
+    "type": "wet",
+    "length_km": 2769,
+    "reliability": 0.9993,
+    "cost_weight": 9,
+    "ownership": "iru",
+    "latency": 13.85
+  },
+  {
+    "id": "APRICOT-SIN-BU",
+    "name": "Apricot Singapore\u2013BU",
+    "system_id": "APRICOT",
+    "start_node_id": "SIN1",
+    "end_node_id": "APRICOTBU1",
+    "type": "wet",
+    "length_km": 4079,
+    "reliability": 0.9993,
+    "cost_weight": 9,
+    "ownership": "offnet_resell",
+    "latency": 20.39
+  },
+  {
+    "id": "APRICOT-BU-BAU",
+    "name": "Apricot BU\u2013Baler Aurora",
+    "system_id": "APRICOT",
+    "start_node_id": "APRICOTBU1",
+    "end_node_id": "PBAU",
+    "type": "wet",
+    "length_km": 929,
+    "reliability": 0.9993,
+    "cost_weight": 9,
+    "ownership": "offnet_resell",
+    "latency": 4.64
+  },
+  {
+    "id": "APRICOT-BU-DGS",
+    "name": "Apricot BU\u2013Digos",
+    "system_id": "APRICOT",
+    "start_node_id": "APRICOTBU1",
+    "end_node_id": "PDIG",
+    "type": "wet",
+    "length_km": 1855,
+    "reliability": 0.9993,
+    "cost_weight": 9,
+    "ownership": "offnet_resell",
+    "latency": 9.28
   }
 ]
