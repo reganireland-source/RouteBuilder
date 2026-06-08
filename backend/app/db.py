@@ -156,6 +156,8 @@ def init_db() -> None:
             _run_migration_002(cur)
             # Migration 003: insert Philippines PoPs if absent
             _run_migration_003(cur)
+            # Migration 004: replace old PH terrestrial segments with revised set
+            _run_migration_004(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -245,6 +247,54 @@ _PHILIPPINES_POPS = [
      "description": "Extension PoP co-located in EPLDT Vitro data centre, Pasig, Metro Manila",
      "capabilities": None, "verification_status": "draft", "last_verified_date": None},
 ]
+
+
+_PH_TERRESTRIAL_SEGMENTS = [
+    {"id": "TERRESTRIAL_PH01",  "name": "Terrestrial EAC Cavite–Robinsons Summit",       "system_id": "TERRESTRIAL", "start_node_id": "PCGD", "end_node_id": "PMRS", "type": "terrestrial", "length_km": 33,  "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "latency": 0.17, "verification_status": "draft"},
+    {"id": "TERRESTRIAL_PH02",  "name": "Terrestrial EAC Cavite–Robinsons Summit (D)",    "system_id": "TERRESTRIAL", "start_node_id": "PCGD", "end_node_id": "PMRS", "type": "terrestrial", "length_km": 33,  "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "latency": 0.17, "verification_status": "draft"},
+    {"id": "TERRESTRIAL_PH03",  "name": "Terrestrial EAC Cavite–C2C Nasugbu",             "system_id": "TERRESTRIAL", "start_node_id": "PCGD", "end_node_id": "PNMA", "type": "terrestrial", "length_km": 68,  "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "latency": 0.34, "verification_status": "draft"},
+    {"id": "TERRESTRIAL_PH05",  "name": "Terrestrial Robinsons Summit–Reliance Centre",   "system_id": "TERRESTRIAL", "start_node_id": "PMRS", "end_node_id": "PMPC", "type": "terrestrial", "length_km": 8,   "reliability": 0.9999, "cost_weight": 1, "ownership": "owned", "latency": 0.04, "verification_status": "draft"},
+    {"id": "TERRESTRIAL_PH06",  "name": "Terrestrial C2C Nasugbu–Reliance Centre",        "system_id": "TERRESTRIAL", "start_node_id": "PNMA", "end_node_id": "PMPC", "type": "terrestrial", "length_km": 93,  "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "latency": 0.47, "verification_status": "draft"},
+    {"id": "TERRESTRIAL_PH07",  "name": "Terrestrial Robinsons Summit–RCBC Tower 2",      "system_id": "TERRESTRIAL", "start_node_id": "PMRS", "end_node_id": "PHPN", "type": "terrestrial", "length_km": 1,   "reliability": 0.9999, "cost_weight": 1, "ownership": "owned", "latency": 0.01, "verification_status": "draft"},
+    {"id": "TERRESTRIAL_PH08",  "name": "Terrestrial RCBC Tower 2–Reliance Centre",       "system_id": "TERRESTRIAL", "start_node_id": "PHPN", "end_node_id": "PMPC", "type": "terrestrial", "length_km": 8,   "reliability": 0.9999, "cost_weight": 1, "ownership": "owned", "latency": 0.04, "verification_status": "draft"},
+    {"id": "TERRESTRIAL_PH10",  "name": "Terrestrial Robinsons Summit–EPLDT Vitro Makati","system_id": "TERRESTRIAL", "start_node_id": "PMRS", "end_node_id": "PMVR", "type": "terrestrial", "length_km": 1,   "reliability": 0.9999, "cost_weight": 1, "ownership": "owned", "latency": 0.01, "verification_status": "draft"},
+    {"id": "TERRESTRIAL_PH11",  "name": "Terrestrial C2C Nasugbu–Reliance Centre (D)",    "system_id": "TERRESTRIAL", "start_node_id": "PNMA", "end_node_id": "PMPC", "type": "terrestrial", "length_km": 93,  "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "latency": 0.47, "verification_status": "draft"},
+    {"id": "TERRESTRIAL_PH103", "name": "Terrestrial Reliance Centre–La Union CLS",       "system_id": "TERRESTRIAL", "start_node_id": "PMPC", "end_node_id": "LAUS", "type": "terrestrial", "length_km": 301, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "latency": 1.50, "verification_status": "draft"},
+]
+
+_OLD_PH_SEGMENT_IDS = ["TERRESTRIAL_PH01", "TERRESTRIAL_PH02", "TERRESTRIAL_PH03",
+                        "TERRESTRIAL_PH04", "TERRESTRIAL_PH05"]
+
+
+_PH_TERRESTRIAL_CAPACITY = [
+    {"segment_id": "TERRESTRIAL_PH01",  "total_capacity_t": 1.5, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_PH02",  "total_capacity_t": 0.9, "available_capacity_t": 0.4},
+    {"segment_id": "TERRESTRIAL_PH03",  "total_capacity_t": 1.6, "available_capacity_t": 0.9},
+    {"segment_id": "TERRESTRIAL_PH05",  "total_capacity_t": 1.8, "available_capacity_t": 0.7},
+    {"segment_id": "TERRESTRIAL_PH06",  "total_capacity_t": 1.1, "available_capacity_t": 0.4},
+    {"segment_id": "TERRESTRIAL_PH07",  "total_capacity_t": 0.8, "available_capacity_t": 0.4},
+    {"segment_id": "TERRESTRIAL_PH08",  "total_capacity_t": 0.5, "available_capacity_t": 0.2},
+    {"segment_id": "TERRESTRIAL_PH10",  "total_capacity_t": 1.5, "available_capacity_t": 0.8},
+    {"segment_id": "TERRESTRIAL_PH11",  "total_capacity_t": 0.8, "available_capacity_t": 0.4},
+    {"segment_id": "TERRESTRIAL_PH103", "total_capacity_t": 1.7, "available_capacity_t": 0.6},
+]
+
+
+def _run_migration_004(cur) -> None:
+    """Replace old Philippines terrestrial segments with the revised set, add capacity."""
+    for sid in _OLD_PH_SEGMENT_IDS:
+        cur.execute("DELETE FROM segments WHERE id = %s", (sid,))
+        cur.execute("DELETE FROM capacity WHERE segment_id = %s", (sid,))
+    psycopg2.extras.execute_values(
+        cur,
+        "INSERT INTO segments (id, data) VALUES %s ON CONFLICT DO NOTHING",
+        [(s["id"], json.dumps(s)) for s in _PH_TERRESTRIAL_SEGMENTS],
+    )
+    psycopg2.extras.execute_values(
+        cur,
+        "INSERT INTO capacity (segment_id, data) VALUES %s ON CONFLICT DO NOTHING",
+        [(c["segment_id"], json.dumps(c)) for c in _PH_TERRESTRIAL_CAPACITY],
+    )
 
 
 def _run_migration_003(cur) -> None:
