@@ -164,6 +164,8 @@ def init_db() -> None:
             _run_migration_006(cur)
             # Migration 007: reconnect subsea segments to cable-specific PH CLS nodes
             _run_migration_007(cur)
+            # Migration 008: insert Hong Kong nodes
+            _run_migration_008(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -337,6 +339,33 @@ def _run_migration_007(cur) -> None:
         cur,
         "INSERT INTO capacity (segment_id, data) VALUES %s ON CONFLICT DO NOTHING",
         [(c["segment_id"], json.dumps(c)) for c in _SUBSEA_PH_CAPACITY],
+    )
+
+
+_HK_NODES = [
+    {"id": "HKEX",   "name": "Hong Kong Exchange",             "lat": 22.2852388, "lng": 114.2732985, "type": "extension_pop",  "country": "HK", "owner": "Hong Kong Exchange",   "city": "Hong Kong", "description": "Hong Kong Exchange facility",                           "verification_status": "draft"},
+    {"id": "HKCHK",  "name": "Chung Hom Kok Cable Station",    "lat": 22.213386,  "lng": 114.2050588, "type": "landing_station", "country": "HK", "owner": "Telstra International","city": "Hong Kong", "description": "Chung Hom Kok cable landing station, Hong Kong",      "verification_status": "draft"},
+    {"id": "HKCS2",  "name": "HKCS2",                          "lat": 22.282628,  "lng": 114.27216,   "type": "secondary_pop",   "country": "HK", "owner": "Telstra International","city": "Hong Kong", "description": "HKCS2 secondary PoP, Hong Kong",                        "verification_status": "draft"},
+    {"id": "HKDWB",  "name": "Deep Water Bay, SMW3",           "lat": 22.2481904, "lng": 114.185504,  "type": "landing_station", "country": "HK", "owner": "Telstra International","city": "Hong Kong", "description": "Deep Water Bay cable landing station, SMW3, Hong Kong", "verification_status": "draft"},
+    {"id": "HKCS1",  "name": "HKCS1",                          "lat": 22.2833854, "lng": 114.2715172, "type": "extension_pop",   "country": "HK", "owner": "Telstra International","city": "Hong Kong", "description": "HKCS1 PoP, Hong Kong",                                  "verification_status": "draft"},
+    {"id": "EQ-HK1", "name": "Equinix HK1",                   "lat": 22.3655806, "lng": 114.1193201, "type": "extension_pop",   "country": "HK", "owner": "Equinix",              "city": "Hong Kong", "description": "Equinix HK1, Hong Kong",                                "verification_status": "draft"},
+    {"id": "HKHMS",  "name": "Hermes House",                   "lat": 22.2959189, "lng": 114.1733822, "type": "extension_pop",   "country": "HK", "owner": "Telstra International","city": "Hong Kong", "description": "Hermes House, Hong Kong",                                "verification_status": "draft"},
+    {"id": "EQ-HK2", "name": "Equinix HK2",                   "lat": 22.3625,    "lng": 114.11908,   "type": "extension_pop",   "country": "HK", "owner": "Equinix",              "city": "Hong Kong", "description": "Equinix HK2, Hong Kong",                                "verification_status": "draft"},
+    {"id": "HKDS1",  "name": "HKDS1",                          "lat": 22.2660935, "lng": 114.2465174, "type": "primary_pop",     "country": "HK", "owner": "Telstra International","city": "Hong Kong", "description": "HKDS1 primary PoP, Hong Kong",                          "verification_status": "draft"},
+    {"id": "HKCW",   "name": "Telstra Chai Wan",               "lat": 22.266444,  "lng": 114.2463868, "type": "extension_pop",   "country": "HK", "owner": "Telstra International","city": "Chai Wan",  "description": "Telstra Chai Wan facility, Hong Kong",                   "verification_status": "draft"},
+    {"id": "HKSTL",  "name": "Telstra Stanley Teleport",       "lat": 22.20954,   "lng": 114.21487,   "type": "extension_pop",   "country": "HK", "owner": "Telstra International","city": "Stanley",   "description": "Telstra Stanley Teleport, Hong Kong",                    "verification_status": "draft"},
+    {"id": "HKTCH",  "name": "Telecome House",                 "lat": 22.279908,  "lng": 114.1711991, "type": "primary_pop",     "country": "HK", "owner": "Telstra International","city": "Hong Kong", "description": "Telecome House, Hong Kong",                              "verification_status": "draft"},
+    {"id": "HKSLA",  "name": "South Lantau Cable Station",     "lat": 22.2251512, "lng": 113.9294369, "type": "landing_station", "country": "HK", "owner": "Telstra International","city": "Lantau",    "description": "South Lantau cable landing station, Hong Kong",          "verification_status": "draft"},
+    {"id": "HKTFK",  "name": "Tong Fuk CLS",                  "lat": 22.2246493, "lng": 113.9281009, "type": "landing_station", "country": "HK", "owner": "Telstra International","city": "Lantau",    "description": "Tong Fuk cable landing station, Hong Kong",              "verification_status": "draft"},
+]
+
+
+def _run_migration_008(cur) -> None:
+    """Insert Hong Kong nodes if absent."""
+    psycopg2.extras.execute_values(
+        cur,
+        "INSERT INTO nodes (id, data) VALUES %s ON CONFLICT DO NOTHING",
+        [(n["id"], json.dumps(n)) for n in _HK_NODES],
     )
 
 
