@@ -166,6 +166,8 @@ def init_db() -> None:
             _run_migration_007(cur)
             # Migration 008: insert Hong Kong nodes
             _run_migration_008(cur)
+            # Migration 009: fix type='subsea' → type='wet' inserted by migration 007
+            _run_migration_009(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -296,14 +298,14 @@ def _run_migration_006(cur) -> None:
 
 
 _SUBSEA_PH_REPLACEMENTS = [
-    {"id": "ADC-HKG-BAT",      "name": "ADC Hong Kong–Batangas",          "system_id": "ADC",      "start_node_id": "HKG1",       "end_node_id": "PBAT", "type": "subsea", "length_km": 1429, "latency": 7.14,  "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
-    {"id": "ADC-BAT-SIN",      "name": "ADC Batangas–Singapore",          "system_id": "ADC",      "start_node_id": "PBAT",       "end_node_id": "SIN1", "type": "subsea", "length_km": 2909, "latency": 14.54, "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
-    {"id": "BIFROST-GUM-CVD",  "name": "BiFrost Guam–Davao (Converge)",  "system_id": "BIFROST",  "start_node_id": "GUM1",       "end_node_id": "PCVD", "type": "subsea", "length_km": 2779, "latency": 13.89, "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
-    {"id": "BIFROST-CVD-JAK",  "name": "BiFrost Davao–Jakarta",          "system_id": "BIFROST",  "start_node_id": "PCVD",       "end_node_id": "JAK1", "type": "subsea", "length_km": 3179, "latency": 15.89, "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
-    {"id": "SEAUS-GDV-GUM",    "name": "SEA-US Davao–Guam",              "system_id": "SEA-US",   "start_node_id": "PGDV",       "end_node_id": "GUM1", "type": "subsea", "length_km": 2769, "latency": 13.85, "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
-    {"id": "APRICOT-SIN-BU",   "name": "Apricot Singapore–BU",           "system_id": "APRICOT",  "start_node_id": "SIN1",       "end_node_id": "APRICOTBU1", "type": "subsea", "length_km": 4079, "latency": 20.39, "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
-    {"id": "APRICOT-BU-BAU",   "name": "Apricot BU–Baler Aurora",        "system_id": "APRICOT",  "start_node_id": "APRICOTBU1", "end_node_id": "PBAU", "type": "subsea", "length_km": 929,  "latency": 4.64,  "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
-    {"id": "APRICOT-BU-DGS",   "name": "Apricot BU–Digos",               "system_id": "APRICOT",  "start_node_id": "APRICOTBU1", "end_node_id": "PDIG", "type": "subsea", "length_km": 1855, "latency": 9.28,  "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
+    {"id": "ADC-HKG-BAT",      "name": "ADC Hong Kong–Batangas",          "system_id": "ADC",      "start_node_id": "HKG1",       "end_node_id": "PBAT", "type": "wet", "length_km": 1429, "latency": 7.14,  "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
+    {"id": "ADC-BAT-SIN",      "name": "ADC Batangas–Singapore",          "system_id": "ADC",      "start_node_id": "PBAT",       "end_node_id": "SIN1", "type": "wet", "length_km": 2909, "latency": 14.54, "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
+    {"id": "BIFROST-GUM-CVD",  "name": "BiFrost Guam–Davao (Converge)",  "system_id": "BIFROST",  "start_node_id": "GUM1",       "end_node_id": "PCVD", "type": "wet", "length_km": 2779, "latency": 13.89, "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
+    {"id": "BIFROST-CVD-JAK",  "name": "BiFrost Davao–Jakarta",          "system_id": "BIFROST",  "start_node_id": "PCVD",       "end_node_id": "JAK1", "type": "wet", "length_km": 3179, "latency": 15.89, "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
+    {"id": "SEAUS-GDV-GUM",    "name": "SEA-US Davao–Guam",              "system_id": "SEA-US",   "start_node_id": "PGDV",       "end_node_id": "GUM1", "type": "wet", "length_km": 2769, "latency": 13.85, "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
+    {"id": "APRICOT-SIN-BU",   "name": "Apricot Singapore–BU",           "system_id": "APRICOT",  "start_node_id": "SIN1",       "end_node_id": "APRICOTBU1", "type": "wet", "length_km": 4079, "latency": 20.39, "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
+    {"id": "APRICOT-BU-BAU",   "name": "Apricot BU–Baler Aurora",        "system_id": "APRICOT",  "start_node_id": "APRICOTBU1", "end_node_id": "PBAU", "type": "wet", "length_km": 929,  "latency": 4.64,  "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
+    {"id": "APRICOT-BU-DGS",   "name": "Apricot BU–Digos",               "system_id": "APRICOT",  "start_node_id": "APRICOTBU1", "end_node_id": "PDIG", "type": "wet", "length_km": 1855, "latency": 9.28,  "reliability": 0.9999, "cost_weight": 1, "ownership": "consortium"},
 ]
 
 _SUBSEA_PH_CAPACITY = [
@@ -373,6 +375,14 @@ def _run_migration_008(cur) -> None:
         cur,
         "INSERT INTO nodes (id, data) VALUES %s ON CONFLICT DO NOTHING",
         [(n["id"], json.dumps(n)) for n in _HK_NODES],
+    )
+
+
+def _run_migration_009(cur) -> None:
+    """Fix segments inserted by migration 007 with type='subsea' → type='wet'."""
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{type}', '\"wet\"')"
+        " WHERE data->>'type' = 'subsea'"
     )
 
 
