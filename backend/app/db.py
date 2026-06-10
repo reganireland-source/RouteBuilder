@@ -184,6 +184,8 @@ def init_db() -> None:
             _run_migration_016(cur)
             # Migration 017: reconnect C2C-S6 SG endpoint
             _run_migration_017(cur)
+            # Migration 018: reconnect AAE1+Apricot SG endpoints; add missing BBG-PEN-SIN segment
+            _run_migration_018(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -790,6 +792,31 @@ def _run_migration_017(cur) -> None:
     """Reconnect C2C-S6 SG endpoint from removed SIN4 to SGCH."""
     cur.execute(
         "UPDATE segments SET data = jsonb_set(data, '{end_node_id}', '\"SGCH\"') WHERE id = 'C2C-S6'",
+    )
+
+
+_BBG_PEN_SIN = {"id": "BBG-PEN-SIN", "name": "BBG Penang–Singapore", "system_id": "BBG", "start_node_id": "PEN1", "end_node_id": "IST1", "type": "wet", "length_km": 747, "latency": 3.74, "reliability": 0.9994, "cost_weight": 1, "ownership": "consortium", "verification_status": "draft"}
+_BBG_PEN_SIN_CAP = {"segment_id": "BBG-PEN-SIN", "total_capacity_t": 2.0, "available_capacity_t": 1.1}
+
+
+def _run_migration_018(cur) -> None:
+    """Reconnect AAE1+Apricot SG endpoints; add missing BBG Penang–Singapore segment."""
+    # AAE1-SIN-VUT: start SIN1 → IST1
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{start_node_id}', '\"IST1\"') WHERE id = 'AAE1-SIN-VUT'",
+    )
+    # APRICOT-SIN-BU: start SIN1 → TUAS
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{start_node_id}', '\"TUAS\"') WHERE id = 'APRICOT-SIN-BU'",
+    )
+    # Add missing BBG Penang→Singapore segment (cable ends at PEN1 in existing data)
+    cur.execute(
+        "INSERT INTO segments (id, data) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+        (_BBG_PEN_SIN["id"], json.dumps(_BBG_PEN_SIN)),
+    )
+    cur.execute(
+        "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+        (_BBG_PEN_SIN_CAP["segment_id"], json.dumps(_BBG_PEN_SIN_CAP)),
     )
 
 
