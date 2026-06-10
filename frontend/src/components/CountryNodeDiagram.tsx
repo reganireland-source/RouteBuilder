@@ -396,7 +396,7 @@ export function CountryNodeDiagram({
             onMouseLeave={() => setTip(null)}
             onMouseMove={mv}
           >
-            <rect width={svgW} height={svgH} fill={t.bgDeep} />
+            <rect width={svgW} height={svgH} fill="#f1f5f9" />
             <defs>
               <marker id="ndSub" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
                 <path d="M0,0 L0,6 L8,3 z" fill="#22d3ee" />
@@ -421,7 +421,7 @@ export function CountryNodeDiagram({
                     onMouseEnter={e => segTip(seg, e)} onMouseLeave={() => setTip(null)} />
                   <path d={d} fill="none" stroke={color} strokeWidth={2.2}
                     style={{ pointerEvents: 'none' }} />
-                  <text x={lx} y={ly} fontSize={10} fontWeight="600" fill={color}
+                  <text x={lx} y={ly} fontSize={12} fontWeight="600" fill={color}
                     textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none' }}>
                     {seg.id.replace('TERRESTRIAL_', '')}
                   </text>
@@ -451,12 +451,12 @@ export function CountryNodeDiagram({
                     <line x1={x1} y1={y1} x2={x2} y2={y2}
                       stroke={sysColor} strokeWidth={2.2} strokeDasharray="5,3"
                       markerEnd="url(#ndSub)" style={{ pointerEvents: 'none' }} />
-                    <text x={lx} y={ly - 4} fontSize={9} fontWeight="600" fill={sysColor}
+                    <text x={lx} y={ly - 4} fontSize={11} fontWeight="600" fill={sysColor}
                       textAnchor={goRight ? 'start' : 'end'}
                       style={{ pointerEvents: 'none', userSelect: 'none' }}>
                       {seg.id}
                     </text>
-                    <text x={lx} y={ly + 7} fontSize={8.5} fill={sysColor} opacity={0.75}
+                    <text x={lx} y={ly + 9} fontSize={10} fill={sysColor} opacity={0.8}
                       textAnchor={goRight ? 'start' : 'end'}
                       style={{ pointerEvents: 'none', userSelect: 'none' }}>
                       → {destCC}
@@ -486,11 +486,11 @@ export function CountryNodeDiagram({
                   <line x1={px} y1={py} x2={ex} y2={ey}
                     stroke="#fb923c" strokeWidth={2.2} strokeDasharray="5,3"
                     markerEnd="url(#ndCrs)" style={{ pointerEvents: 'none' }} />
-                  <text x={lx} y={ly} fontSize={9} fontWeight="600" fill="#fb923c"
+                  <text x={lx} y={ly} fontSize={11} fontWeight="600" fill="#fb923c"
                     textAnchor={anchor} style={{ pointerEvents: 'none', userSelect: 'none' }}>
                     {seg.id}
                   </text>
-                  <text x={lx} y={ly + 11} fontSize={8.5} fill="#fb923c" opacity={0.75}
+                  <text x={lx} y={ly + 13} fontSize={10} fill="#fb923c" opacity={0.8}
                     textAnchor={anchor} style={{ pointerEvents: 'none', userSelect: 'none' }}>
                     → {out?.country ?? '?'}
                   </text>
@@ -515,18 +515,18 @@ export function CountryNodeDiagram({
                   {/* Symbol */}
                   {isCls ? (
                     <rect x={x - r} y={y - r} width={r * 2} height={r * 2}
-                      fill={col} stroke={t.bgDeep} strokeWidth={1.5}
+                      fill={col} stroke="#f1f5f9" strokeWidth={1.5}
                       transform={`rotate(45,${x},${y})`} />
                   ) : (
                     <circle cx={x} cy={y} r={r} fill={col} stroke={t.bgDeep} strokeWidth={1.5} />
                   )}
                   {/* ID */}
-                  <text x={x} y={y + BOX_H + 16} fontSize={10} fontWeight="700"
-                    fill={t.text} textAnchor="middle"
+                  <text x={x} y={y + BOX_H + 17} fontSize={11} fontWeight="700"
+                    fill={col} textAnchor="middle"
                     style={{ pointerEvents: 'none', userSelect: 'none' }}>{n.id}</text>
                   {/* Name */}
-                  <text x={x} y={y + BOX_H + 29} fontSize={8}
-                    fill={t.textMuted} opacity={0.9} textAnchor="middle"
+                  <text x={x} y={y + BOX_H + 30} fontSize={9}
+                    fill="#374151" textAnchor="middle"
                     style={{ pointerEvents: 'none', userSelect: 'none' }}>
                     {n.name.length > 20 ? n.name.slice(0, 18) + '…' : n.name}
                   </text>
