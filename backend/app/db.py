@@ -202,6 +202,8 @@ def init_db() -> None:
             _run_migration_025(cur)
             # Migration 026: rename SGOX → SKGX (correct ID for Singapore Stock Exchange)
             _run_migration_026(cur)
+            # Migration 027: insert 21 Singapore terrestrial backhaul segments + capacity
+            _run_migration_027(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -897,6 +899,69 @@ def _run_migration_026(cur) -> None:
     cur.execute(
         "INSERT INTO nodes (id, data) VALUES (%s, %s) ON CONFLICT DO NOTHING",
         ("SKGX", json.dumps(_SG_SKGX)),
+    )
+
+
+_SG_TERRESTRIAL_SEGMENTS = [
+    {"id": "TERRESTRIAL_SG31", "name": "Terrestrial Tuas CLS–Equinix SG1",            "system_id": "TERRESTRIAL", "start_node_id": "TUAS", "end_node_id": "IST1", "type": "terrestrial", "length_km": 18.9, "latency": 0.095, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": [[1.310, 103.717]]},
+    {"id": "TERRESTRIAL_SG28", "name": "Terrestrial Tuas CLS–SGDS1",                  "system_id": "TERRESTRIAL", "start_node_id": "TUAS", "end_node_id": "SGGS", "type": "terrestrial", "length_km": 33.1, "latency": 0.166, "reliability": 0.9997, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": [[1.310, 103.717], [1.342, 103.750]]},
+    {"id": "TERRESTRIAL_SG25", "name": "Terrestrial Equinix SG1–Starhub Changi CLS",  "system_id": "TERRESTRIAL", "start_node_id": "IST1", "end_node_id": "SGCL", "type": "terrestrial", "length_km": 26.3, "latency": 0.132, "reliability": 0.9997, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": [[1.305, 103.848], [1.326, 103.937]]},
+    {"id": "TERRESTRIAL_SG03", "name": "Terrestrial Equinix SG1–SGDS1",               "system_id": "TERRESTRIAL", "start_node_id": "IST1", "end_node_id": "SGGS", "type": "terrestrial", "length_km": 15.7, "latency": 0.079, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": [[1.305, 103.848]]},
+    {"id": "TERRESTRIAL_SG39", "name": "Terrestrial Equinix SG1–SGCS1 (diverse A)",   "system_id": "TERRESTRIAL", "start_node_id": "IST1", "end_node_id": "SGCN", "type": "terrestrial", "length_km": 26.1, "latency": 0.131, "reliability": 0.9997, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": [[1.305, 103.848], [1.322, 103.937]]},
+    {"id": "TERRESTRIAL_SG11", "name": "Terrestrial SGCS2–Equinix SG1",               "system_id": "TERRESTRIAL", "start_node_id": "SGPL", "end_node_id": "IST1", "type": "terrestrial", "length_km": 14.7, "latency": 0.073, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": null},
+    {"id": "TERRESTRIAL_SG35", "name": "Terrestrial Equinix SG1–SingTel Katong",      "system_id": "TERRESTRIAL", "start_node_id": "IST1", "end_node_id": "KTLS", "type": "terrestrial", "length_km": 15.0, "latency": 0.075, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": [[1.305, 103.848]]},
+    {"id": "TERRESTRIAL_SG04", "name": "Terrestrial Equinix SG1–SGCS1 (diverse B)",   "system_id": "TERRESTRIAL", "start_node_id": "IST1", "end_node_id": "SGCN", "type": "terrestrial", "length_km": 26.1, "latency": 0.131, "reliability": 0.9997, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": [[1.341, 103.848], [1.344, 103.940]]},
+    {"id": "TERRESTRIAL_SG36", "name": "Terrestrial SingTel Katong–SGDS1",            "system_id": "TERRESTRIAL", "start_node_id": "KTLS", "end_node_id": "SGGS", "type": "terrestrial", "length_km":  5.1, "latency": 0.025, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": null},
+    {"id": "TERRESTRIAL_SG10", "name": "Terrestrial SGCS2–SGDS1",                     "system_id": "TERRESTRIAL", "start_node_id": "SGPL", "end_node_id": "SGGS", "type": "terrestrial", "length_km":  2.1, "latency": 0.011, "reliability": 0.9999, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": null},
+    {"id": "TERRESTRIAL_SG08", "name": "Terrestrial SGCS2–Changi C2C CLS",            "system_id": "TERRESTRIAL", "start_node_id": "SGPL", "end_node_id": "SGCH", "type": "terrestrial", "length_km":  9.5, "latency": 0.048, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": [[1.315, 103.930]]},
+    {"id": "TERRESTRIAL_SG09", "name": "Terrestrial SGCS2–SGCS1",                     "system_id": "TERRESTRIAL", "start_node_id": "SGPL", "end_node_id": "SGCN", "type": "terrestrial", "length_km": 11.4, "latency": 0.057, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": [[1.315, 103.930]]},
+    {"id": "TERRESTRIAL_SG41", "name": "Terrestrial Equinix SG5–SGDS1",               "system_id": "TERRESTRIAL", "start_node_id": "SSG5", "end_node_id": "SGGS", "type": "terrestrial", "length_km": 26.8, "latency": 0.134, "reliability": 0.9997, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": [[1.342, 103.750]]},
+    {"id": "TERRESTRIAL_SG42", "name": "Terrestrial Equinix SG5–SGCS1",               "system_id": "TERRESTRIAL", "start_node_id": "SSG5", "end_node_id": "SGCN", "type": "terrestrial", "length_km": 37.6, "latency": 0.188, "reliability": 0.9997, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": [[1.342, 103.750], [1.344, 103.940]]},
+    {"id": "TERRESTRIAL_SG40", "name": "Terrestrial SGX–SGCS1",                       "system_id": "TERRESTRIAL", "start_node_id": "SKGX", "end_node_id": "SGCN", "type": "terrestrial", "length_km": 13.9, "latency": 0.070, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": [[1.358, 103.935]]},
+    {"id": "TERRESTRIAL_SG06", "name": "Terrestrial SGX–Changi C2C CLS",              "system_id": "TERRESTRIAL", "start_node_id": "SKGX", "end_node_id": "SGCH", "type": "terrestrial", "length_km": 12.8, "latency": 0.064, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": [[1.358, 103.935]]},
+    {"id": "TERRESTRIAL_SG23", "name": "Terrestrial SGX–SGDS1",                       "system_id": "TERRESTRIAL", "start_node_id": "SKGX", "end_node_id": "SGGS", "type": "terrestrial", "length_km":  5.7, "latency": 0.029, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": null},
+    {"id": "TERRESTRIAL_SG01", "name": "Terrestrial SGDS1–SGCS1 (diverse A)",         "system_id": "TERRESTRIAL", "start_node_id": "SGGS", "end_node_id": "SGCN", "type": "terrestrial", "length_km": 10.7, "latency": 0.053, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": [[1.354, 103.933]]},
+    {"id": "TERRESTRIAL_SG02", "name": "Terrestrial SGDS1–SGCS1 (diverse B)",         "system_id": "TERRESTRIAL", "start_node_id": "SGGS", "end_node_id": "SGCN", "type": "terrestrial", "length_km": 10.7, "latency": 0.053, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": [[1.328, 103.937]]},
+    {"id": "TERRESTRIAL_SG30", "name": "Terrestrial SGDS1–SGCS1 (diverse C)",         "system_id": "TERRESTRIAL", "start_node_id": "SGGS", "end_node_id": "SGCN", "type": "terrestrial", "length_km": 10.7, "latency": 0.053, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": [[1.342, 103.943]]},
+    {"id": "TERRESTRIAL_SG22", "name": "Terrestrial SGCS1–Starhub Changi CLS",        "system_id": "TERRESTRIAL", "start_node_id": "SGCN", "end_node_id": "SGCL", "type": "terrestrial", "length_km":  0.3, "latency": 0.002, "reliability": 0.9999, "cost_weight": 1, "ownership": "owned", "verification_status": "draft", "waypoints": null},
+]
+
+_SG_TERRESTRIAL_CAPACITY = [
+    {"segment_id": "TERRESTRIAL_SG31", "total_capacity_t": 1.3, "available_capacity_t": 0.7},
+    {"segment_id": "TERRESTRIAL_SG28", "total_capacity_t": 1.5, "available_capacity_t": 0.8},
+    {"segment_id": "TERRESTRIAL_SG25", "total_capacity_t": 1.3, "available_capacity_t": 0.7},
+    {"segment_id": "TERRESTRIAL_SG03", "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_SG39", "total_capacity_t": 1.3, "available_capacity_t": 0.7},
+    {"segment_id": "TERRESTRIAL_SG11", "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_SG35", "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_SG04", "total_capacity_t": 1.3, "available_capacity_t": 0.7},
+    {"segment_id": "TERRESTRIAL_SG36", "total_capacity_t": 0.8, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_SG10", "total_capacity_t": 0.6, "available_capacity_t": 0.4},
+    {"segment_id": "TERRESTRIAL_SG08", "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_SG09", "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_SG41", "total_capacity_t": 1.3, "available_capacity_t": 0.7},
+    {"segment_id": "TERRESTRIAL_SG42", "total_capacity_t": 1.5, "available_capacity_t": 0.8},
+    {"segment_id": "TERRESTRIAL_SG40", "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_SG06", "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_SG23", "total_capacity_t": 0.8, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_SG01", "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_SG02", "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_SG30", "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_SG22", "total_capacity_t": 0.6, "available_capacity_t": 0.4},
+]
+
+
+def _run_migration_027(cur) -> None:
+    """Insert 21 Singapore terrestrial backhaul segments with waypoints and capacity."""
+    psycopg2.extras.execute_values(
+        cur,
+        "INSERT INTO segments (id, data) VALUES %s ON CONFLICT DO NOTHING",
+        [(s["id"], json.dumps(s)) for s in _SG_TERRESTRIAL_SEGMENTS],
+    )
+    psycopg2.extras.execute_values(
+        cur,
+        "INSERT INTO capacity (segment_id, data) VALUES %s ON CONFLICT DO NOTHING",
+        [(c["segment_id"], json.dumps(c)) for c in _SG_TERRESTRIAL_CAPACITY],
     )
 
 
