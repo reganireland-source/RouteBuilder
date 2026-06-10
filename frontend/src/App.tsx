@@ -22,6 +22,7 @@ import { ProjectsModal } from './components/ProjectsModal'
 import { RouteManualLeft, RouteManualMiddle, computeCandidates, assembleRoute } from './components/RouteManual'
 import type { NextHopCandidate } from './components/RouteManual'
 import { OutagePanel } from './components/OutagePanel'
+import { CountryNodeDiagram } from './components/CountryNodeDiagram'
 
 const NLP_ENABLED = import.meta.env.VITE_ENABLE_NLP !== 'false'
 const NlpChat = NLP_ENABLED
@@ -194,6 +195,7 @@ export default function App() {
   const [nlpSortKey, setNlpSortKey]                 = useState<SortKey | undefined>(undefined)
   const [nlpPushOutages, setNlpPushOutages]         = useState<boolean | undefined>(undefined)
   const [countryHighlight, setCountryHighlight]     = useState<CountryHighlight | null>(null)
+  const [showNodeDiagram, setShowNodeDiagram]       = useState(false)
 
   // ── RouteManual state ──────────────────────────────────────────────────────
   const [manualState,   setManualState]   = useState<import('./components/RouteManual').ManualState | null>(null)
@@ -238,7 +240,7 @@ export default function App() {
 
   function switchMode(next: AppMode) {
     if (next === 'systemviewer') { setResponse(null); setSelectedRouteIds([]); setError(null) }
-    if (next !== 'countryviewer') setCountryHighlight(null)
+    if (next !== 'countryviewer') { setCountryHighlight(null); setShowNodeDiagram(false) }
     if (next === 'countryviewer') setShowSegmentLabels(true)
     if (next !== 'routemanual') { setManualState(null); setManualFinishConfirm(null) }
     if (next === 'outageviewer') setShowAllOutages(true)
@@ -1141,6 +1143,37 @@ export default function App() {
         {/* Map */}
         <div style={{ flex: 1, position: 'relative' }}>
 
+          {/* Country Node Diagram button */}
+          {mode === 'countryviewer' && countryHighlight && (
+            <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 800, pointerEvents: 'auto' }}>
+              <button
+                onClick={() => setShowNodeDiagram(true)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '8px 16px', borderRadius: 20,
+                  background: 'rgba(6,182,212,0.15)',
+                  border: '1px solid rgba(6,182,212,0.5)',
+                  color: '#22d3ee', cursor: 'pointer', fontSize: 13,
+                  fontFamily: 'inherit', fontWeight: 600,
+                  backdropFilter: 'blur(6px)',
+                  boxShadow: '0 2px 12px rgba(6,182,212,0.2)',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(6,182,212,0.28)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(6,182,212,0.15)')}
+              >
+                <svg width={16} height={16} viewBox="0 0 16 16" fill="none">
+                  <circle cx={4} cy={8} r={2.5} stroke="#22d3ee" strokeWidth={1.5} />
+                  <circle cx={12} cy={4} r={2.5} stroke="#22d3ee" strokeWidth={1.5} />
+                  <circle cx={12} cy={12} r={2.5} stroke="#22d3ee" strokeWidth={1.5} />
+                  <line x1={6.5} y1={7} x2={9.5} y2={5} stroke="#22d3ee" strokeWidth={1} />
+                  <line x1={6.5} y1={9} x2={9.5} y2={11} stroke="#22d3ee" strokeWidth={1} />
+                </svg>
+                View {countryHighlight.countryName} as Node Diagram
+              </button>
+            </div>
+          )}
+
           {nodes.length > 0 ? (
             <Map
               nodes={nodes} segments={segments} selectedRoutes={selectedRoutes}
@@ -1175,6 +1208,14 @@ export default function App() {
           node={selectedNode.node} segments={segments} systems={systems}
           initialX={selectedNode.x} initialY={selectedNode.y}
           onClose={() => setSelectedNode(null)}
+        />
+      )}
+
+      {showNodeDiagram && countryHighlight && (
+        <CountryNodeDiagram
+          nodes={nodes} segments={segments} systems={systems} capacity={capacity}
+          countryHighlight={countryHighlight}
+          onClose={() => setShowNodeDiagram(false)}
         />
       )}
 
