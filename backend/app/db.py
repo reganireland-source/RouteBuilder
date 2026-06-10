@@ -178,6 +178,8 @@ def init_db() -> None:
             _run_migration_013(cur)
             # Migration 014: fix 013 data errors; remove old generic SG nodes + terrestrials
             _run_migration_014(cur)
+            # Migration 015: reconnect EAC and C2C segments to correct SG nodes
+            _run_migration_015(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -729,6 +731,22 @@ def _run_migration_014(cur) -> None:
     for sid in _SG_OLD_TERRESTRIAL_IDS:
         cur.execute("DELETE FROM capacity WHERE segment_id = %s", (sid,))
         cur.execute("DELETE FROM segments WHERE id = %s", (sid,))
+
+
+def _run_migration_015(cur) -> None:
+    """Reconnect EAC and C2C segments from removed SG nodes to correct new nodes."""
+    # EAC-2A1: SIN3 (removed) → TKOH — fix SG end to SGCN
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{start_node_id}', '\"SGCN\"') WHERE id = 'EAC-2A1'",
+    )
+    # EAC-2B2: SIN3 (removed) → CPSA — fix SG end to SGCN
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{start_node_id}', '\"SGCN\"') WHERE id = 'EAC-2B2'",
+    )
+    # C2C-S7: CHKK (removed) → SIN4 (removed) — fix SG end to SGCH
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{end_node_id}', '\"SGCH\"') WHERE id = 'C2C-S7'",
+    )
 
 
 def _seed_if_empty(conn) -> None:
