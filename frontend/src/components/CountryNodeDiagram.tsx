@@ -33,11 +33,11 @@ const TYPE_LABEL: Record<string, string> = {
   branching_unit:  'BU',
 }
 
-// 14 visually distinct segment colours
+// 14 visually distinct segment colours — all chosen to read on a mid-grey background
 const SEG_PALETTE = [
-  '#22d3ee', '#a78bfa', '#4ade80', '#fb923c', '#f472b6',
-  '#fbbf24', '#60a5fa', '#34d399', '#e879f9', '#f87171',
-  '#2dd4bf', '#a3e635', '#818cf8', '#fdba74',
+  '#0891b2', '#7c3aed', '#16a34a', '#ea580c', '#db2777',
+  '#b45309', '#2563eb', '#059669', '#c026d3', '#dc2626',
+  '#0d9488', '#65a30d', '#4f46e5', '#c2410c',
 ]
 
 const BOX_H    = 34    // half-side of routing box → 68×68 px
@@ -396,7 +396,7 @@ export function CountryNodeDiagram({
             onMouseLeave={() => setTip(null)}
             onMouseMove={mv}
           >
-            <rect width={svgW} height={svgH} fill="#f1f5f9" />
+            <rect width={svgW} height={svgH} fill="#cbd5e1" />
             <defs>
               <marker id="ndSub" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
                 <path d="M0,0 L0,6 L8,3 z" fill="#22d3ee" />
@@ -515,7 +515,7 @@ export function CountryNodeDiagram({
                   {/* Symbol */}
                   {isCls ? (
                     <rect x={x - r} y={y - r} width={r * 2} height={r * 2}
-                      fill={col} stroke="#f1f5f9" strokeWidth={1.5}
+                      fill={col} stroke="#cbd5e1" strokeWidth={1.5}
                       transform={`rotate(45,${x},${y})`} />
                   ) : (
                     <circle cx={x} cy={y} r={r} fill={col} stroke={t.bgDeep} strokeWidth={1.5} />
