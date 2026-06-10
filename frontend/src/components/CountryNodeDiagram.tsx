@@ -112,8 +112,14 @@ function portXY(cx: number, cy: number, side: Side, idx: number, total: number):
   return sidePort(cx, cy, side, off)
 }
 
-function orthoPath(sx: number, sy: number, dx: number, dy: number, exitSide: Side): string {
+function orthoPath(sx: number, sy: number, dx: number, dy: number, exitSide: Side, bypass = false): string {
   const isH = exitSide === 'right' || exitSide === 'left'
+  if (isH && bypass) {
+    // Route above/below the node row so the line does not visually cut
+    // through intermediate nodes that sit between src and dst.
+    const yBypass = Math.min(sy, dy) - BOX_H - 30
+    return `M${sx},${sy} V${yBypass} H${dx} V${dy}`
+  }
   if (isH) {
     if (Math.abs(sy - dy) < 0.5) return `M${sx},${sy} H${dx}`
     return `M${sx},${sy} H${(sx + dx) / 2} V${dy} H${dx}`
@@ -201,6 +207,8 @@ interface RoutedEdge {
   /** Pre-computed perpendicular port offsets */
   offA: number; offB: number
   groupLocalIdx: number; groupN: number
+  /** True when nodes are in the same grid row but 2+ columns apart — bypass above */
+  longHoriz: boolean
 }
 interface RoutedCross {
   seg: CableSegment; nodeId: string; side: Side; pIdx: number; pTotal: number
@@ -298,6 +306,7 @@ export function CountryNodeDiagram({
       nodeA: string; nodeB: string
       sideA: Side; sideB: Side
       N: number; colors: string[]
+      longHoriz: boolean
     }
     const groups: GrpInfo[] = []
     let colorIdx = 0
@@ -306,10 +315,13 @@ export function CountryNodeDiagram({
       const g1 = grid.get(s0.start_node_id), g2 = grid.get(s0.end_node_id)
       if (!g1 || !g2) continue
       const [sideA, sideB] = determineSides(g1[0], g1[1], g2[0], g2[1])
+      // Same row, 2+ columns apart → route above to avoid crossing intermediate nodes
+      const longHoriz = g1[1] === g2[1] && Math.abs(g1[0] - g2[0]) >= 2
       groups.push({
         segs, nodeA: s0.start_node_id, nodeB: s0.end_node_id,
         sideA, sideB, N: segs.length,
         colors: segs.map(() => SEG_PALETTE[colorIdx++ % SEG_PALETTE.length]),
+        longHoriz,
       })
     }
 
@@ -352,6 +364,7 @@ export function CountryNodeDiagram({
           sideA: grp.sideA, sideB: grp.sideB,
           offA: cA + localOff, offB: cB + localOff,
           groupLocalIdx: i, groupN: grp.N,
+          longHoriz: grp.longHoriz,
         })
       })
     })
@@ -474,7 +487,7 @@ export function CountryNodeDiagram({
             </defs>
 
             {/* ── Internal terrestrial edges ── */}
-            {routedEdges.map(({ seg, color, nodeA, sideA, sideB, offA, offB, groupLocalIdx, groupN }) => {
+            {routedEdges.map(({ seg, color, nodeA, sideA, sideB, offA, offB, groupLocalIdx, groupN, longHoriz }) => {
               const isForward = seg.start_node_id === nodeA
               const [srcSide, dstSide] = isForward ? [sideA, sideB] : [sideB, sideA]
               const [srcOff, dstOff]   = isForward ? [offA,  offB]  : [offB,  offA]
@@ -482,8 +495,12 @@ export function CountryNodeDiagram({
               if (!p1 || !p2) return null
               const [sx, sy] = sidePort(p1[0], p1[1], srcSide, srcOff)
               const [dx, dy] = sidePort(p2[0], p2[1], dstSide, dstOff)
-              const d = orthoPath(sx, sy, dx, dy, srcSide)
-              const [lx, ly] = labelPos(sx, sy, dx, dy, srcSide, groupLocalIdx, groupN)
+              const d = orthoPath(sx, sy, dx, dy, srcSide, longHoriz)
+              // Labels on bypass paths sit on the above-row horizontal segment
+              const t = groupN <= 1 ? 0.5 : 0.2 + (groupLocalIdx / (groupN - 1)) * 0.6
+              const [lx, ly] = longHoriz
+                ? [sx + (dx - sx) * t, Math.min(sy, dy) - BOX_H - 30 - 14]
+                : labelPos(sx, sy, dx, dy, srcSide, groupLocalIdx, groupN)
               const sel = selSegId === seg.id
               return (
                 <g key={seg.id}>
