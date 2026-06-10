@@ -182,6 +182,8 @@ def init_db() -> None:
             _run_migration_015(cur)
             # Migration 016: rename SCOL→SGCL; reconnect SMW4, INDIGO, AAG SG endpoints
             _run_migration_016(cur)
+            # Migration 017: reconnect C2C-S6 SG endpoint
+            _run_migration_017(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -781,6 +783,13 @@ def _run_migration_016(cur) -> None:
     # AAG-SIN-HKG: start SIN1 → SGCL
     cur.execute(
         "UPDATE segments SET data = jsonb_set(data, '{start_node_id}', '\"SGCL\"') WHERE id = 'AAG-SIN-HKG'",
+    )
+
+
+def _run_migration_017(cur) -> None:
+    """Reconnect C2C-S6 SG endpoint from removed SIN4 to SGCH."""
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{end_node_id}', '\"SGCH\"') WHERE id = 'C2C-S6'",
     )
 
 
