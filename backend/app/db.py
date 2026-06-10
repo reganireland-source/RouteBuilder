@@ -186,6 +186,8 @@ def init_db() -> None:
             _run_migration_017(cur)
             # Migration 018: reconnect AAE1+Apricot SG endpoints; add missing BBG-PEN-SIN segment
             _run_migration_018(cur)
+            # Migration 019: reconnect BIFROST SG endpoint to TUAS
+            _run_migration_019(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -817,6 +819,13 @@ def _run_migration_018(cur) -> None:
     cur.execute(
         "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT DO NOTHING",
         (_BBG_PEN_SIN_CAP["segment_id"], json.dumps(_BBG_PEN_SIN_CAP)),
+    )
+
+
+def _run_migration_019(cur) -> None:
+    """Reconnect BIFROST-JAK-SIN SG endpoint from SIN1 to TUAS."""
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{end_node_id}', '\"TUAS\"') WHERE id = 'BIFROST-JAK-SIN'",
     )
 
 
