@@ -19,10 +19,10 @@ const NODE_COLOR: Record<string, string> = {
   branching_unit:  '#6b7280',
 }
 const NODE_R: Record<string, number> = {
-  landing_station: 13,
-  primary_pop:     11,
-  secondary_pop:    9,
-  extension_pop:    8,
+  landing_station: 14,
+  primary_pop:     12,
+  secondary_pop:   10,
+  extension_pop:    9,
   branching_unit:   5,
 }
 const TYPE_LABEL: Record<string, string> = {
@@ -33,19 +33,19 @@ const TYPE_LABEL: Record<string, string> = {
   branching_unit:  'BU',
 }
 
-// Distinct palette for segments (cycles if more than 14)
+// 14 visually distinct segment colours
 const SEG_PALETTE = [
   '#22d3ee', '#a78bfa', '#4ade80', '#fb923c', '#f472b6',
   '#fbbf24', '#60a5fa', '#34d399', '#e879f9', '#f87171',
   '#2dd4bf', '#a3e635', '#818cf8', '#fdba74',
 ]
 
-const BOX_H   = 32    // half-side of routing box → 64×64 px
-const GW      = 280   // grid column spacing (centre-to-centre)
-const GH      = 180   // grid row spacing
-const PAD     = 170   // outer padding — room for stubs + labels
-const PORT_SP = 10    // px between parallel lines within a group
-const STUB_LEN = 90
+const BOX_H    = 34    // half-side of routing box → 68×68 px
+const GW       = 300   // grid column spacing
+const GH       = 200   // grid row spacing
+const PAD      = 180   // outer padding (room for 45° stubs + labels)
+const PORT_SP  = 16    // px between parallel lines within one group
+const STUB_LEN = 100   // length of subsea stub lines
 
 type Side = 'left' | 'right' | 'top' | 'bottom'
 
@@ -84,7 +84,7 @@ function boxCenter(col: number, row: number): [number, number] {
   return [PAD + col * GW, PAD + row * GH]
 }
 
-// ── Routing helpers ──────────────────────────────────────────────────────────
+// ── Orthogonal routing helpers ───────────────────────────────────────────────
 function determineSides(c1: number, r1: number, c2: number, r2: number): [Side, Side] {
   const dc = c2 - c1, dr = r2 - r1
   if (dc === 0 && dr === 0) return ['right', 'left']
@@ -95,10 +95,7 @@ function determineSides(c1: number, r1: number, c2: number, r2: number): [Side, 
     : (dr > 0 ? ['bottom', 'top'] : ['top', 'bottom'])
 }
 
-/**
- * Port on the box side using group-local index/total.
- * Group-local ensures srcOff == dstOff within a group → lines stay truly parallel.
- */
+/** Port using group-local idx/total — srcOff==dstOff so same-row pairs = straight parallels. */
 function portXY(cx: number, cy: number, side: Side, idx: number, total: number): [number, number] {
   const off = total === 1 ? 0 : (idx - (total - 1) / 2) * PORT_SP
   switch (side) {
@@ -109,65 +106,93 @@ function portXY(cx: number, cy: number, side: Side, idx: number, total: number):
   }
 }
 
-/** H-first ortho path (or V-first). With group-local ports srcOff==dstOff so same-row = straight. */
 function orthoPath(sx: number, sy: number, dx: number, dy: number, exitSide: Side): string {
   const isH = exitSide === 'right' || exitSide === 'left'
   if (isH) {
     if (Math.abs(sy - dy) < 0.5) return `M${sx},${sy} H${dx}`
-    const mx = (sx + dx) / 2
-    return `M${sx},${sy} H${mx} V${dy} H${dx}`
-  } else {
-    if (Math.abs(sx - dx) < 0.5) return `M${sx},${sy} V${dy}`
-    const my = (sy + dy) / 2
-    return `M${sx},${sy} V${my} H${dx} V${dy}`
+    return `M${sx},${sy} H${(sx + dx) / 2} V${dy} H${dx}`
   }
+  if (Math.abs(sx - dx) < 0.5) return `M${sx},${sy} V${dy}`
+  return `M${sx},${sy} V${(sy + dy) / 2} H${dx} V${dy}`
 }
 
 /**
- * Label position: spread along the segment using group index.
- * t varies across [0.2 … 0.8] so labels for a group are distributed horizontally.
+ * Label position for a segment line.
+ * Distributes labels along the segment using (idx+0.5)/total so a group's
+ * labels are spread across 20%–80% of the segment length.
+ * Label sits 22px ABOVE the port y (horizontal lines) or 22px LEFT (vertical).
  */
 function labelPos(
   sx: number, sy: number, dx: number, dy: number,
-  exitSide: Side, idx: number, total: number
+  exitSide: Side, idx: number, total: number,
 ): [number, number] {
-  const t = total <= 1 ? 0.5 : 0.2 + (idx / (total - 1)) * 0.6
+  const t  = total <= 1 ? 0.5 : 0.2 + (idx / (total - 1)) * 0.6
   const isH = exitSide === 'right' || exitSide === 'left'
-  if (isH) {
-    const lx = sx + (dx - sx) * t
-    return [lx, sy - 9]   // above the line (sy is already the port y = group-local offset)
-  } else {
-    const ly = sy + (dy - sy) * t
-    return [sx - 9, ly]
-  }
+  if (isH) return [sx + (dx - sx) * t, sy - 20]
+  return [sx - 20, sy + (dy - sy) * t]
 }
 
+// ── 45° diagonal stub for subsea cables ─────────────────────────────────────
+/**
+ * Subsea stubs exit from the outward-facing CORNER of the routing box
+ * at 45° (or fanned around 45°). This guarantees they never overlap with
+ * horizontal/vertical internal lines and are visually distinctive.
+ */
+function subsea45(
+  cx: number, cy: number,
+  centX: number, centY: number,
+  pIdx: number, pTotal: number,
+): { x1: number; y1: number; x2: number; y2: number; labelAngle: number } {
+  const goRight = cx >= centX
+  const goDown  = cy >= centY
+
+  // Corner of the box facing outward
+  const x1 = goRight ? cx + BOX_H : cx - BOX_H
+  const y1 = goDown  ? cy + BOX_H : cy - BOX_H
+
+  // Base 45° angle toward the outward quadrant
+  let base: number
+  if ( goRight && !goDown) base = -Math.PI / 4        // NE
+  else if ( goRight &&  goDown) base =  Math.PI / 4   // SE
+  else if (!goRight &&  goDown) base =  3 * Math.PI / 4  // SW
+  else                          base = -3 * Math.PI / 4  // NW
+
+  // Fan spread: ±30° around base (total 60° for many stubs)
+  const spread = (Math.PI / 3) * Math.min(1, pTotal / 5)
+  const t = pTotal === 1 ? 0.5 : pIdx / (pTotal - 1)
+  const angle = base - spread / 2 + t * spread
+
+  const x2 = x1 + Math.cos(angle) * STUB_LEN
+  const y2 = y1 + Math.sin(angle) * STUB_LEN
+
+  return { x1, y1, x2, y2, labelAngle: angle }
+}
+
+/** Straight H/V stub from box side for cross-country links. */
 function outwardSide(cx: number, cy: number, centX: number, centY: number): Side {
   const dx = cx - centX, dy = cy - centY
   if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'right' : 'left'
   return dy >= 0 ? 'bottom' : 'top'
 }
 
-function stubEnd(px: number, py: number, side: Side): [number, number] {
+function sideStubEnd(px: number, py: number, side: Side): [number, number] {
+  const L = STUB_LEN
   switch (side) {
-    case 'right':  return [px + STUB_LEN, py]
-    case 'left':   return [px - STUB_LEN, py]
-    case 'bottom': return [px,            py + STUB_LEN]
-    case 'top':    return [px,            py - STUB_LEN]
+    case 'right':  return [px + L, py]
+    case 'left':   return [px - L, py]
+    case 'bottom': return [px,     py + L]
+    case 'top':    return [px,     py - L]
   }
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface Tip { title: string; lines: string[]; sx: number; sy: number }
 interface RoutedEdge {
-  seg: CableSegment
-  color: string
-  srcSide: Side; dstSide: Side
-  pIdx: number; pTotal: number   // group-local
+  seg: CableSegment; color: string
+  srcSide: Side; dstSide: Side; pIdx: number; pTotal: number
 }
-interface RoutedStub {
-  seg: CableSegment
-  nodeId: string; side: Side; pIdx: number; pTotal: number
+interface RoutedCross {
+  seg: CableSegment; nodeId: string; side: Side; pIdx: number; pTotal: number
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -231,7 +256,10 @@ export function CountryNodeDiagram({
   const { svgW, svgH } = useMemo(() => {
     let maxC = 0, maxR = 0
     for (const [c, r] of grid.values()) { maxC = Math.max(maxC, c); maxR = Math.max(maxR, r) }
-    return { svgW: PAD * 2 + maxC * GW, svgH: PAD * 2 + maxR * GH + 80 }
+    return {
+      svgW: PAD * 2 + maxC * GW,
+      svgH: PAD * 2 + maxR * GH + 80,
+    }
   }, [grid])
 
   // ── Group parallel internal edges ────────────────────────────────────────
@@ -245,7 +273,7 @@ export function CountryNodeDiagram({
     return g
   }, [internalSegs])
 
-  // ── Port-based routing — GROUP-LOCAL indices so parallels stay parallel ──
+  // Group-local routing: idx 0…N-1 so srcOff == dstOff → truly parallel lines
   const routedEdges = useMemo((): RoutedEdge[] => {
     const result: RoutedEdge[] = []
     let colorIdx = 0
@@ -256,37 +284,27 @@ export function CountryNodeDiagram({
       const [srcSide, dstSide] = determineSides(g1[0], g1[1], g2[0], g2[1])
       const N = segs.length
       segs.forEach((seg, i) => {
-        result.push({
-          seg, srcSide, dstSide, pIdx: i, pTotal: N,
-          color: SEG_PALETTE[colorIdx % SEG_PALETTE.length],
-        })
+        result.push({ seg, srcSide, dstSide, pIdx: i, pTotal: N,
+          color: SEG_PALETTE[colorIdx % SEG_PALETTE.length] })
         colorIdx++
       })
     }
     return result
   }, [edgeGroups, grid])
 
-  // ── Subsea stub routing ──────────────────────────────────────────────────
-  const stubRouting = useMemo((): RoutedStub[] => {
-    const [centX, centY] = centroid
-    const byCls = new Map<string, CableSegment[]>()
+  // Group stubs by CLS for 45° fan
+  const stubsByCls = useMemo(() => {
+    const m = new Map<string, CableSegment[]>()
     for (const s of stubs) {
       const clsId = clsIds.has(s.start_node_id) ? s.start_node_id : s.end_node_id
-      if (!byCls.has(clsId)) byCls.set(clsId, [])
-      byCls.get(clsId)!.push(s)
+      if (!m.has(clsId)) m.set(clsId, [])
+      m.get(clsId)!.push(s)
     }
-    const result: RoutedStub[] = []
-    for (const [clsId, clsStubs] of byCls) {
-      const p = nodePos.get(clsId); if (!p) continue
-      const side = outwardSide(p[0], p[1], centX, centY)
-      clsStubs.forEach((seg, i) =>
-        result.push({ seg, nodeId: clsId, side, pIdx: i, pTotal: clsStubs.length }))
-    }
-    return result
-  }, [stubs, clsIds, nodePos, centroid])
+    return m
+  }, [stubs, clsIds])
 
-  // ── Cross-country stub routing ───────────────────────────────────────────
-  const crossRouting = useMemo((): RoutedStub[] => {
+  // Cross-country stubs (H/V from side)
+  const crossRouting = useMemo((): RoutedCross[] => {
     const [centX, centY] = centroid
     const byNode = new Map<string, CableSegment[]>()
     for (const seg of crossSegs) {
@@ -294,7 +312,7 @@ export function CountryNodeDiagram({
       if (!byNode.has(inId)) byNode.set(inId, [])
       byNode.get(inId)!.push(seg)
     }
-    const result: RoutedStub[] = []
+    const result: RoutedCross[] = []
     for (const [nodeId, segs] of byNode) {
       const p = nodePos.get(nodeId); if (!p) continue
       const side = outwardSide(p[0], p[1], centX, centY)
@@ -304,7 +322,7 @@ export function CountryNodeDiagram({
     return result
   }, [crossSegs, countryHighlight, nodePos, centroid])
 
-  // ── Tooltip ──────────────────────────────────────────────────────────────
+  // ── Tooltip helpers ──────────────────────────────────────────────────────
   const mv = (e: React.MouseEvent) => setTip(p => p ? { ...p, sx: e.clientX, sy: e.clientY } : null)
 
   function nodeTip(n: CableNode, e: React.MouseEvent) {
@@ -326,15 +344,6 @@ export function CountryNodeDiagram({
               `${seg.length_km} km · ${(seg.latency * 1000).toFixed(1)} ms`].filter(Boolean) })
   }
 
-  // Helper: text anchor + position for a stub endpoint
-  function stubLabelPos(ex: number, ey: number, side: Side) {
-    const anchor: 'start' | 'end' | 'middle' =
-      side === 'left' ? 'end' : side === 'right' ? 'start' : 'middle'
-    const lx = side === 'right' ? ex + 5 : side === 'left' ? ex - 5 : ex
-    const ly = side === 'bottom' ? ey + 14 : side === 'top' ? ey - 12 : ey - 5
-    return { lx, ly, anchor }
-  }
-
   const legend = [
     { color: NODE_COLOR.landing_station, label: 'Cable Landing Station', shape: 'diamond' },
     { color: NODE_COLOR.primary_pop,     label: 'Primary PoP',           shape: 'circle'  },
@@ -352,7 +361,7 @@ export function CountryNodeDiagram({
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div style={{
-        width: 'min(97vw, 1300px)', maxHeight: '93vh',
+        width: 'min(98vw, 1500px)', height: '94vh',
         background: t.bgDeep, border: `1px solid ${t.border}`, borderRadius: 12,
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
         boxShadow: '0 24px 64px rgba(0,0,0,0.7)',
@@ -360,10 +369,10 @@ export function CountryNodeDiagram({
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '12px 18px', borderBottom: `1px solid ${t.border}`,
+                      padding: '10px 18px', borderBottom: `1px solid ${t.border}`,
                       background: t.bgBase, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 18 }}>🗺</span>
+            <span style={{ fontSize: 16 }}>🗺</span>
             <div>
               <div style={{ fontSize: 14, fontWeight: 700, color: t.text }}>
                 {countryHighlight.countryName} — Node Diagram
@@ -378,12 +387,14 @@ export function CountryNodeDiagram({
             fontSize: 13, fontFamily: 'inherit' }}>Close ✕</button>
         </div>
 
-        {/* Diagram */}
-        <div style={{ flex: 1, overflow: 'auto' }}>
+        {/* Diagram — fills remaining height, NO overflow/scroll */}
+        <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
           <svg
             viewBox={`0 0 ${svgW} ${svgH}`}
-            style={{ width: '100%', minWidth: svgW, display: 'block' }}
+            preserveAspectRatio="xMidYMid meet"
+            style={{ width: '100%', height: '100%', display: 'block' }}
             onMouseLeave={() => setTip(null)}
+            onMouseMove={mv}
           >
             <rect width={svgW} height={svgH} fill={t.bgDeep} />
             <defs>
@@ -405,11 +416,12 @@ export function CountryNodeDiagram({
               const [lx, ly] = labelPos(sx, sy, dx, dy, srcSide, pIdx, pTotal)
               return (
                 <g key={seg.id}>
-                  <path d={d} fill="none" stroke="transparent" strokeWidth={12} style={{ cursor: 'pointer' }}
-                    onMouseEnter={e => segTip(seg, e)} onMouseMove={mv} onMouseLeave={() => setTip(null)} />
-                  <path d={d} fill="none" stroke={color} strokeWidth={2} opacity={0.85}
+                  <path d={d} fill="none" stroke="transparent" strokeWidth={14}
+                    style={{ cursor: 'pointer' }}
+                    onMouseEnter={e => segTip(seg, e)} onMouseLeave={() => setTip(null)} />
+                  <path d={d} fill="none" stroke={color} strokeWidth={2.2}
                     style={{ pointerEvents: 'none' }} />
-                  <text x={lx} y={ly} fontSize={8} fontWeight="500" fill={color} opacity={1}
+                  <text x={lx} y={ly} fontSize={10} fontWeight="600" fill={color}
                     textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none' }}>
                     {seg.id.replace('TERRESTRIAL_', '')}
                   </text>
@@ -417,57 +429,68 @@ export function CountryNodeDiagram({
               )
             })}
 
-            {/* ── Subsea stubs ── */}
-            {stubRouting.map(({ seg, nodeId, side, pIdx, pTotal }) => {
-              const p = nodePos.get(nodeId); if (!p) return null
-              const [px, py] = portXY(p[0], p[1], side, pIdx, pTotal)
-              const [ex, ey] = stubEnd(px, py, side)
-              const sysColor = countryHighlight.systemColors.get(seg.system_id) ?? '#22d3ee'
-              const fId = clsIds.has(seg.start_node_id) ? seg.end_node_id : seg.start_node_id
-              const foreign = nodesById[fId]
-              const destCC = foreign?.country ?? '?'
-              const { lx, ly, anchor } = stubLabelPos(ex, ey, side)
-              return (
-                <g key={`${seg.id}-stub`}>
-                  <line x1={px} y1={py} x2={ex} y2={ey}
-                    stroke="transparent" strokeWidth={14} style={{ cursor: 'pointer' }}
-                    onMouseEnter={e => stubTip(seg, e)} onMouseMove={mv} onMouseLeave={() => setTip(null)} />
-                  <line x1={px} y1={py} x2={ex} y2={ey}
-                    stroke={sysColor} strokeWidth={2.2} strokeDasharray="5,3"
-                    markerEnd="url(#ndSub)" style={{ pointerEvents: 'none' }} />
-                  <text x={lx} y={ly} fontSize={7.5} fontWeight="500" fill={sysColor} opacity={1}
-                    textAnchor={anchor} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                    {seg.id}
-                  </text>
-                  <text x={lx} y={ly + 10} fontSize={7} fill={sysColor} opacity={0.75}
-                    textAnchor={anchor} style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                    → {destCC}
-                  </text>
-                </g>
-              )
+            {/* ── Subsea stubs — always 45° diagonal from outward box corner ── */}
+            {[...stubsByCls.entries()].flatMap(([clsId, clsStubs]) => {
+              const p = nodePos.get(clsId); if (!p) return []
+              const [centX, centY] = centroid
+              return clsStubs.map((seg, i) => {
+                const { x1, y1, x2, y2, labelAngle } = subsea45(
+                  p[0], p[1], centX, centY, i, clsStubs.length)
+                const sysColor = countryHighlight.systemColors.get(seg.system_id) ?? '#22d3ee'
+                const fId  = clsIds.has(seg.start_node_id) ? seg.end_node_id : seg.start_node_id
+                const foreign = nodesById[fId]
+                const destCC  = foreign?.country ?? '?'
+                const goRight = Math.cos(labelAngle) >= 0
+                const lx = x2 + Math.cos(labelAngle) * 6
+                const ly = y2 + Math.sin(labelAngle) * 6
+                return (
+                  <g key={`${seg.id}-stub`}>
+                    <line x1={x1} y1={y1} x2={x2} y2={y2}
+                      stroke="transparent" strokeWidth={14} style={{ cursor: 'pointer' }}
+                      onMouseEnter={e => stubTip(seg, e)} onMouseLeave={() => setTip(null)} />
+                    <line x1={x1} y1={y1} x2={x2} y2={y2}
+                      stroke={sysColor} strokeWidth={2.2} strokeDasharray="5,3"
+                      markerEnd="url(#ndSub)" style={{ pointerEvents: 'none' }} />
+                    <text x={lx} y={ly - 4} fontSize={9} fontWeight="600" fill={sysColor}
+                      textAnchor={goRight ? 'start' : 'end'}
+                      style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                      {seg.id}
+                    </text>
+                    <text x={lx} y={ly + 7} fontSize={8.5} fill={sysColor} opacity={0.75}
+                      textAnchor={goRight ? 'start' : 'end'}
+                      style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                      → {destCC}
+                    </text>
+                  </g>
+                )
+              })
             })}
 
-            {/* ── Cross-country stubs ── */}
+            {/* ── Cross-country stubs — H/V from side ── */}
             {crossRouting.map(({ seg, nodeId, side, pIdx, pTotal }) => {
               const p = nodePos.get(nodeId); if (!p) return null
               const [px, py] = portXY(p[0], p[1], side, pIdx, pTotal)
-              const [ex, ey] = stubEnd(px, py, side)
-              const outId = countryHighlight.nodeIds.has(seg.start_node_id) ? seg.end_node_id : seg.start_node_id
+              const [ex, ey] = sideStubEnd(px, py, side)
+              const outId = countryHighlight.nodeIds.has(seg.start_node_id)
+                ? seg.end_node_id : seg.start_node_id
               const out = nodesById[outId]
-              const { lx, ly, anchor } = stubLabelPos(ex, ey, side)
+              const anchor: 'start' | 'end' | 'middle' =
+                side === 'left' ? 'end' : side === 'right' ? 'start' : 'middle'
+              const lx = side === 'right' ? ex + 5 : side === 'left' ? ex - 5 : ex
+              const ly = side === 'bottom' ? ey + 14 : side === 'top' ? ey - 12 : ey - 6
               return (
                 <g key={seg.id}>
                   <line x1={px} y1={py} x2={ex} y2={ey}
                     stroke="transparent" strokeWidth={14} style={{ cursor: 'pointer' }}
-                    onMouseEnter={e => segTip(seg, e)} onMouseMove={mv} onMouseLeave={() => setTip(null)} />
+                    onMouseEnter={e => segTip(seg, e)} onMouseLeave={() => setTip(null)} />
                   <line x1={px} y1={py} x2={ex} y2={ey}
                     stroke="#fb923c" strokeWidth={2.2} strokeDasharray="5,3"
                     markerEnd="url(#ndCrs)" style={{ pointerEvents: 'none' }} />
-                  <text x={lx} y={ly} fontSize={7.5} fontWeight="500" fill="#fb923c" opacity={1}
+                  <text x={lx} y={ly} fontSize={9} fontWeight="600" fill="#fb923c"
                     textAnchor={anchor} style={{ pointerEvents: 'none', userSelect: 'none' }}>
                     {seg.id}
                   </text>
-                  <text x={lx} y={ly + 10} fontSize={7} fill="#fb923c" opacity={0.75}
+                  <text x={lx} y={ly + 11} fontSize={8.5} fill="#fb923c" opacity={0.75}
                     textAnchor={anchor} style={{ pointerEvents: 'none', userSelect: 'none' }}>
                     → {out?.country ?? '?'}
                   </text>
@@ -475,7 +498,7 @@ export function CountryNodeDiagram({
               )
             })}
 
-            {/* ── Nodes: outer routing box + inner symbol + labels ── */}
+            {/* ── Nodes: routing box + symbol + label ── */}
             {countryNodes.map(n => {
               const pos = nodePos.get(n.id); if (!pos) return null
               const [x, y] = pos
@@ -484,11 +507,10 @@ export function CountryNodeDiagram({
               const isCls = n.type === 'landing_station'
               return (
                 <g key={n.id} style={{ cursor: 'pointer' }}
-                  onMouseEnter={e => nodeTip(n, e)} onMouseMove={mv}
-                  onMouseLeave={() => setTip(null)}>
+                  onMouseEnter={e => nodeTip(n, e)} onMouseLeave={() => setTip(null)}>
                   {/* Routing box */}
                   <rect x={x - BOX_H} y={y - BOX_H} width={BOX_H * 2} height={BOX_H * 2}
-                    fill={col} fillOpacity={0.08} stroke={col} strokeOpacity={0.55}
+                    fill={col} fillOpacity={0.09} stroke={col} strokeOpacity={0.55}
                     strokeWidth={1.5} rx={3} />
                   {/* Symbol */}
                   {isCls ? (
@@ -499,11 +521,11 @@ export function CountryNodeDiagram({
                     <circle cx={x} cy={y} r={r} fill={col} stroke={t.bgDeep} strokeWidth={1.5} />
                   )}
                   {/* ID */}
-                  <text x={x} y={y + BOX_H + 15} fontSize={9.5} fontWeight="700"
-                    fill={t.text} opacity={1} textAnchor="middle"
+                  <text x={x} y={y + BOX_H + 16} fontSize={10} fontWeight="700"
+                    fill={t.text} textAnchor="middle"
                     style={{ pointerEvents: 'none', userSelect: 'none' }}>{n.id}</text>
                   {/* Name */}
-                  <text x={x} y={y + BOX_H + 27} fontSize={7.5}
+                  <text x={x} y={y + BOX_H + 29} fontSize={8}
                     fill={t.textMuted} opacity={0.9} textAnchor="middle"
                     style={{ pointerEvents: 'none', userSelect: 'none' }}>
                     {n.name.length > 20 ? n.name.slice(0, 18) + '…' : n.name}
@@ -515,16 +537,16 @@ export function CountryNodeDiagram({
         </div>
 
         {/* Legend */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 18px',
-                      padding: '8px 18px', borderTop: `1px solid ${t.border}`,
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 16px',
+                      padding: '7px 18px', borderTop: `1px solid ${t.border}`,
                       background: t.bgBase, flexShrink: 0 }}>
           {legend.map(item => (
-            <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               {item.shape === 'circle'  && <svg width={14} height={14}><circle cx={7} cy={7} r={5} fill={item.color} /></svg>}
               {item.shape === 'diamond' && <svg width={14} height={14}><rect x={3} y={3} width={8} height={8} fill={item.color} transform="rotate(45,7,7)" /></svg>}
               {item.shape === 'line'    && <svg width={22} height={10}><line x1={0} y1={5} x2={22} y2={5} stroke={item.color} strokeWidth={2} /></svg>}
               {item.shape === 'dashed'  && <svg width={22} height={10}><line x1={0} y1={5} x2={22} y2={5} stroke={item.color} strokeWidth={2} strokeDasharray="4,3" /></svg>}
-              {item.shape === 'arrow'   && (
+              {item.shape === 'arrow' && (
                 <svg width={24} height={10}>
                   <defs><marker id="ll" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
                     <path d="M0,0 L0,6 L6,3 z" fill={item.color} />
