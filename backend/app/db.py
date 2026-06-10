@@ -200,6 +200,8 @@ def init_db() -> None:
             _run_migration_024(cur)
             # Migration 025: reconnect APG HK endpoint to HKCK
             _run_migration_025(cur)
+            # Migration 026: rename SGOX → SKGX (correct ID for Singapore Stock Exchange)
+            _run_migration_026(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -697,7 +699,7 @@ _SG_NODES = [
     {"id": "KTLS", "name": "SingTel Katong Exchange",          "lat": 1.302560, "lng": 103.8974, "type": "cable_landing_station", "country": "SG", "owner": "Singtel",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
     {"id": "SGCH", "name": "Changi C2C CLS, Singapore",        "lat": 1.337551, "lng": 103.9585, "type": "cable_landing_station", "country": "SG", "owner": "Telstra",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
     {"id": "6NTP", "name": "Epsilon, Singapore",               "lat": 1.352115, "lng": 103.8607, "type": "extension_pop",        "country": "SG", "owner": "Epsilon",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
-    {"id": "SGOX", "name": "Singapore Stock Exchange",         "lat": 1.375236, "lng": 103.8748, "type": "extension_pop",        "country": "SG", "owner": "Singapore Stock Exchange", "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
+    {"id": "SKGX", "name": "Singapore Stock Exchange",         "lat": 1.375236, "lng": 103.8748, "type": "extension_pop",        "country": "SG", "owner": "Singapore Stock Exchange", "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
     {"id": "SGCL", "name": "Starhub Changi Cable Station",     "lat": 1.349119, "lng": 103.9714, "type": "cable_landing_station", "country": "SG", "owner": "StarHub",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
     {"id": "SGCN", "name": "SGCS1, Singapore",                 "lat": 1.347041, "lng": 103.9707, "type": "extension_pop",        "country": "SG", "owner": "Telstra",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
     {"id": "SGGS", "name": "SGDS1, Singapore",                 "lat": 1.338723, "lng": 103.8938, "type": "primary_pop",          "country": "SG", "owner": "Telstra",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
@@ -883,6 +885,18 @@ def _run_migration_025(cur) -> None:
     """Reconnect APG-SIN-HKG HK endpoint from HKG1 to HKCK."""
     cur.execute(
         "UPDATE segments SET data = jsonb_set(data, '{end_node_id}', '\"HKCK\"') WHERE id = 'APG-SIN-HKG'",
+    )
+
+
+_SG_SKGX = {"id": "SKGX", "name": "Singapore Stock Exchange", "lat": 1.375236, "lng": 103.8748, "type": "extension_pop", "country": "SG", "owner": "Singapore Stock Exchange", "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None}
+
+
+def _run_migration_026(cur) -> None:
+    """Rename SGOX → SKGX (correct ID for Singapore Stock Exchange)."""
+    cur.execute("DELETE FROM nodes WHERE id = 'SGOX'")
+    cur.execute(
+        "INSERT INTO nodes (id, data) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+        ("SKGX", json.dumps(_SG_SKGX)),
     )
 
 
