@@ -194,6 +194,8 @@ def init_db() -> None:
             _run_migration_021(cur)
             # Migration 022: reconnect ADC and SMW3 SG endpoints to TUAS
             _run_migration_022(cur)
+            # Migration 023: reconnect APG SG endpoint to SGCH
+            _run_migration_023(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -856,6 +858,13 @@ def _run_migration_022(cur) -> None:
     )
     cur.execute(
         "UPDATE segments SET data = jsonb_set(data, '{start_node_id}', '\"TUAS\"') WHERE id = 'SMW3-SIN-BOM'",
+    )
+
+
+def _run_migration_023(cur) -> None:
+    """Reconnect APG-SIN-HKG SG endpoint from SIN1 to SGCH."""
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{start_node_id}', '\"SGCH\"') WHERE id = 'APG-SIN-HKG'",
     )
 
 
