@@ -89,13 +89,11 @@ function VerifPrompt({ onChoice, onDismiss, theme }: {
               background: bg, color, fontWeight: 700, fontSize: 13, fontFamily: 'inherit', textAlign: 'left',
             }}>{busy ? '…' : label}</button>
           ))}
-          {promptError && (
-            <button onClick={onDismiss} style={{
-              marginTop: 4, padding: '7px 14px', borderRadius: 7,
-              border: `1px solid ${theme.border}`, cursor: 'pointer',
-              background: 'transparent', color: theme.textFaint, fontSize: 12, fontFamily: 'inherit',
-            }}>Dismiss</button>
-          )}
+          <button onClick={onDismiss} style={{
+            marginTop: 4, padding: '7px 14px', borderRadius: 7,
+            border: `1px solid ${theme.border}`, cursor: 'pointer',
+            background: 'transparent', color: theme.textFaint, fontSize: 12, fontFamily: 'inherit',
+          }}>Cancel — keep current status</button>
         </div>
       </div>
     </div>
@@ -556,7 +554,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         <Field label="Street Address" k="street_address" src={editValues} setSrc={setEditValues} />
         <Field label="Description"    k="description"    src={editValues} setSrc={setEditValues} />
         <SaveCancel
-          onSave={async () => { await saveEdit(() => api.updateNode(n.id, editValues as Partial<CableNode>), true); setNodeVerifPending(n.id) }}
+          onSave={async () => { await saveEdit(() => api.updateNode(n.id, editValues as Partial<CableNode>)) }}
           onCancel={() => setEditId(null)}
         />
       </div>
@@ -702,7 +700,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           <button onClick={() => { const wps = [...((editValues.waypoints as [number, number][]) ?? []), [0, 0] as [number, number]]; setEditValues({ ...editValues, waypoints: wps }) }} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 3, border: `1px solid ${t.blue}`, background: 'transparent', color: t.blue, cursor: 'pointer', marginTop: 2 }}>+ Add waypoint</button>
         </div>
         <SaveCancel
-          onSave={async () => { const wps = (editValues.waypoints as [number, number][]) ?? []; await saveEdit(() => api.updateSegment(s.id, { ...editValues, waypoints: wps.length > 0 ? wps : null } as Partial<CableSegment>), true); setSegVerifPending(s.id) }}
+          onSave={async () => { const wps = (editValues.waypoints as [number, number][]) ?? []; await saveEdit(() => api.updateSegment(s.id, { ...editValues, waypoints: wps.length > 0 ? wps : null } as Partial<CableSegment>)) }}
           onCancel={() => setEditId(null)}
           disabled={!nodesById[String(editValues.start_node_id ?? '')] || !nodesById[String(editValues.end_node_id ?? '')]}
           disabledReason="Select valid start and end nodes before saving"
