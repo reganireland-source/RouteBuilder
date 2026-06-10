@@ -170,6 +170,8 @@ def init_db() -> None:
             _run_migration_009(cur)
             # Migration 010: insert Hong Kong terrestrial segments and capacity
             _run_migration_010(cur)
+            # Migration 011: remove old HK nodes/segments, fix TERRESTRIAL_HK02 collision
+            _run_migration_011(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -450,6 +452,32 @@ def _run_migration_010(cur) -> None:
         cur,
         "INSERT INTO capacity (segment_id, data) VALUES %s ON CONFLICT DO NOTHING",
         [(c["segment_id"], json.dumps(c)) for c in _HK_TERRESTRIAL_CAPACITY],
+    )
+
+
+_HK_OLD_NODE_IDS = ["HKG1", "HKG2", "CHKK", "TKOH"]
+
+_HK02_CORRECT = {"id": "TERRESTRIAL_HK02", "name": "Terrestrial HKCS2–HKDS1", "system_id": "TERRESTRIAL", "start_node_id": "HKCK", "end_node_id": "HKMI", "type": "terrestrial", "length_km": 4, "latency": 0.02, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"}
+_HK02_CAPACITY = {"segment_id": "TERRESTRIAL_HK02", "total_capacity_t": 1.3, "available_capacity_t": 0.5}
+
+
+def _run_migration_011(cur) -> None:
+    """Remove old HK nodes (HKG1/HKG2/CHKK/TKOH) and stale segments; fix TERRESTRIAL_HK02 collision."""
+    # Remove old HK nodes
+    for nid in _HK_OLD_NODE_IDS:
+        cur.execute("DELETE FROM nodes WHERE id = %s", (nid,))
+    # Remove old terrestrial segments that referenced those nodes
+    for sid in ("TERRESTRIAL_HK01", "TERRESTRIAL_HK02"):
+        cur.execute("DELETE FROM capacity WHERE segment_id = %s", (sid,))
+        cur.execute("DELETE FROM segments WHERE id = %s", (sid,))
+    # Re-insert correct TERRESTRIAL_HK02 (was blocked by ON CONFLICT DO NOTHING in migration 010)
+    cur.execute(
+        "INSERT INTO segments (id, data) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+        (_HK02_CORRECT["id"], json.dumps(_HK02_CORRECT)),
+    )
+    cur.execute(
+        "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+        (_HK02_CAPACITY["segment_id"], json.dumps(_HK02_CAPACITY)),
     )
 
 
