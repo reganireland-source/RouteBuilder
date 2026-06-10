@@ -180,6 +180,8 @@ def init_db() -> None:
             _run_migration_014(cur)
             # Migration 015: reconnect EAC and C2C segments to correct SG nodes
             _run_migration_015(cur)
+            # Migration 016: rename SCOL→SGCL; reconnect SMW4, INDIGO, AAG SG endpoints
+            _run_migration_016(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -678,7 +680,7 @@ _SG_NODES = [
     {"id": "SGCH", "name": "Changi C2C CLS, Singapore",        "lat": 1.337551, "lng": 103.9585, "type": "cable_landing_station", "country": "SG", "owner": "Telstra",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
     {"id": "6NTP", "name": "Epsilon, Singapore",               "lat": 1.352115, "lng": 103.8607, "type": "extension_pop",        "country": "SG", "owner": "Epsilon",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
     {"id": "SGOX", "name": "Singapore Stock Exchange",         "lat": 1.375236, "lng": 103.8748, "type": "extension_pop",        "country": "SG", "owner": "Singapore Stock Exchange", "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
-    {"id": "SCOL", "name": "Starhub Changi Cable Station",     "lat": 1.349119, "lng": 103.9714, "type": "cable_landing_station", "country": "SG", "owner": "StarHub",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
+    {"id": "SGCL", "name": "Starhub Changi Cable Station",     "lat": 1.349119, "lng": 103.9714, "type": "cable_landing_station", "country": "SG", "owner": "StarHub",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
     {"id": "SGCN", "name": "SGCS1, Singapore",                 "lat": 1.347041, "lng": 103.9707, "type": "extension_pop",        "country": "SG", "owner": "Telstra",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
     {"id": "SGGS", "name": "SGDS1, Singapore",                 "lat": 1.338723, "lng": 103.8938, "type": "primary_pop",          "country": "SG", "owner": "Telstra",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
     {"id": "SGNT", "name": "NTT Singapore PoP",                "lat": 1.376080, "lng": 103.8748, "type": "extension_pop",        "country": "SG", "owner": "NTT",                      "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
@@ -746,6 +748,39 @@ def _run_migration_015(cur) -> None:
     # C2C-S7: CHKK (removed) → SIN4 (removed) — fix SG end to SGCH
     cur.execute(
         "UPDATE segments SET data = jsonb_set(data, '{end_node_id}', '\"SGCH\"') WHERE id = 'C2C-S7'",
+    )
+
+
+_SG_SGCL = {"id": "SGCL", "name": "Starhub Changi Cable Station", "lat": 1.349119, "lng": 103.9714, "type": "cable_landing_station", "country": "SG", "owner": "StarHub", "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None}
+
+
+def _run_migration_016(cur) -> None:
+    """Rename SCOL → SGCL; reconnect SMW4, INDIGO, and AAG SG endpoints."""
+    # Rename SCOL → SGCL (photo misread; correct ID is SGCL)
+    cur.execute("DELETE FROM nodes WHERE id = 'SCOL'")
+    cur.execute(
+        "INSERT INTO nodes (id, data) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+        ("SGCL", json.dumps(_SG_SGCL)),
+    )
+    # SMW4-SIN-BOM: start SIN1 → TUAS
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{start_node_id}', '\"TUAS\"') WHERE id = 'SMW4-SIN-BOM'",
+    )
+    # INDIGO_C-JAK-SIN: end SIN1 → TUAS
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{end_node_id}', '\"TUAS\"') WHERE id = 'INDIGO_C-JAK-SIN'",
+    )
+    # INDIGO_W-SIN-BOM: start SIN1 → TUAS
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{start_node_id}', '\"TUAS\"') WHERE id = 'INDIGO_W-SIN-BOM'",
+    )
+    # INDIGO_W-PER-SIN: end SIN1 → TUAS
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{end_node_id}', '\"TUAS\"') WHERE id = 'INDIGO_W-PER-SIN'",
+    )
+    # AAG-SIN-HKG: start SIN1 → SGCL
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{start_node_id}', '\"SGCL\"') WHERE id = 'AAG-SIN-HKG'",
     )
 
 
