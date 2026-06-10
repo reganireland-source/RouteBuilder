@@ -332,7 +332,8 @@ export function CountryNodeDiagram({
   function stubLabel(ex: number, ey: number, side: Side) {
     const lx = side === 'right' ? ex + 5 : side === 'left' ? ex - 5 : ex
     const ly = side === 'bottom' ? ey + 13 : side === 'top' ? ey - 11 : ey - 5
-    const anchor = side === 'left' ? 'end' : side === 'right' ? 'start' : 'middle'
+    const anchor: 'start' | 'end' | 'middle' =
+      side === 'left' ? 'end' : side === 'right' ? 'start' : 'middle'
     return { lx, ly, anchor }
   }
 
