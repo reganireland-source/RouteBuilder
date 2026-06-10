@@ -172,6 +172,8 @@ def init_db() -> None:
             _run_migration_010(cur)
             # Migration 011: remove old HK nodes/segments, fix TERRESTRIAL_HK02 collision
             _run_migration_011(cur)
+            # Migration 012: add waypoints to HK and PH terrestrial segments
+            _run_migration_012(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -479,6 +481,93 @@ def _run_migration_011(cur) -> None:
         "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT DO NOTHING",
         (_HK02_CAPACITY["segment_id"], json.dumps(_HK02_CAPACITY)),
     )
+
+
+# Waypoints for HK and PH terrestrial segments.
+# Each value is a list of [lat, lng] intermediate points that guide the
+# polyline along logical infrastructure corridors rather than straight lines.
+_TERRESTRIAL_WAYPOINTS = {
+    # ── Hong Kong ──────────────────────────────────────────────────────────
+    # South Lantau → Tung Chung corridor → Tsing Yi → Kwai Chung
+    "TERRESTRIAL_HK19":  [[22.289, 113.944], [22.358, 114.070]],
+    # Equinix HK1/HK2 are co-located in Kwai Chung – tiny visual offset
+    "TERRESTRIAL_HK09":  [[22.368, 114.115]],
+    # Kwai Chung → Kowloon → Western Harbour Crossing → Sheung Wan
+    "TERRESTRIAL_HK08":  [[22.330, 114.145], [22.298, 114.163]],
+    # Sheung Wan → Kennedy Town → Tung Chung corridor → South Lantau
+    "TERRESTRIAL_HK16":  [[22.283, 114.130], [22.289, 113.944]],
+    # SLTU/TGFK co-located – tiny visual offset
+    "TERRESTRIAL_HK26":  [[22.227, 113.929]],
+    # Sheung Wan → Aberdeen Tunnel → Deep Water Bay
+    "TERRESTRIAL_HK13":  [[22.263, 114.175]],
+    # Sheung Wan → Aberdeen → south coast → Stanley
+    "TERRESTRIAL_HK15":  [[22.263, 114.175], [22.233, 114.197]],
+    # Deep Water Bay → south coast → Stanley
+    "TERRESTRIAL_HK14":  [[22.232, 114.198]],
+    # Sheung Wan → Aberdeen → Repulse Bay → Chung Hom Kok
+    "TERRESTRIAL_HK21":  [[22.263, 114.177], [22.237, 114.195]],
+    # Sheung Wan → north coast east → Chai Wan
+    "TERRESTRIAL_HK18":  [[22.280, 114.210], [22.277, 114.238]],
+    # Kwai Chung → Hung Hom → Eastern Harbour Crossing → Quarry Bay
+    "TERRESTRIAL_HK05":  [[22.338, 114.183], [22.308, 114.232]],
+    # Quarry Bay → Island Eastern Corridor → Chai Wan
+    "TERRESTRIAL_HK02":  [[22.274, 114.261]],
+    # Chai Wan → south coast → Chung Hom Kok
+    "TERRESTRIAL_HK03":  [[22.245, 114.228], [22.219, 114.210]],
+    # Quarry Bay → Chai Wan (offset from HK02)
+    "TERRESTRIAL_HK23":  [[22.276, 114.263]],
+    # Chai Wan → south coast → Chung Hom Kok (offset from HK03)
+    "TERRESTRIAL_HK24":  [[22.247, 114.232], [22.218, 114.213]],
+    # HKSF/HKMI co-located in Chai Wan – tiny visual offset
+    "TERRESTRIAL_HK07":  [[22.268, 114.248]],
+    # Telecome House → Hermes House (short, slight west bow)
+    "TERRESTRIAL_HK11":  [[22.288, 114.172]],
+    # South Lantau → south coast → Lamma passage → Aberdeen → Chung Hom Kok
+    "TERRESTRIAL_HK20":  [[22.220, 113.970], [22.205, 114.075], [22.210, 114.155]],
+    # South Lantau → Tung Chung → Tsing Yi → western approach to Sheung Wan
+    "TERRESTRIAL_HK12":  [[22.289, 113.944], [22.358, 114.068], [22.305, 114.148]],
+    # Kwai Chung → western harbor → Sheung Wan → Aberdeen → south coast → Chung Hom Kok
+    "TERRESTRIAL_HK06":  [[22.318, 114.153], [22.285, 114.168], [22.255, 114.173], [22.227, 114.196]],
+    # HKCS1/HKCS2 diverse pair – north bow / south bow to separate visually
+    "TERRESTRIAL_HK04A": [[22.286, 114.272]],
+    "TERRESTRIAL_HK04B": [[22.281, 114.272]],
+
+    # ── Philippines ────────────────────────────────────────────────────────
+    # EAC Cavite coast → north via coastal road → Makati
+    "TERRESTRIAL_PH01":  [[14.420, 121.040], [14.510, 121.010]],
+    # EAC Cavite coast → inland via Aguinaldo Hwy toward PCRS
+    "TERRESTRIAL_PH02a": [[14.308, 121.005]],
+    # PCRS → Aguinaldo Hwy north → Manila → Makati
+    "TERRESTRIAL_PH02b": [[14.430, 120.970], [14.510, 121.000]],
+    # EAC Cavite → SW via Trece Martires / Tagaytay corridor → Nasugbu
+    "TERRESTRIAL_PH03":  [[14.220, 120.860], [14.110, 120.730]],
+    # Makati → BGC / Guadalupe bridge → Pasig
+    "TERRESTRIAL_PH05":  [[14.562, 121.045]],
+    # PNMA → Tagaytay corridor → Aguinaldo Hwy → PCRS
+    "TERRESTRIAL_PH06a": [[14.110, 120.730], [14.220, 120.870]],
+    # PCRS → Aguinaldo Hwy north → Manila → Pasig (offset from PH02b)
+    "TERRESTRIAL_PH06b": [[14.430, 120.975], [14.540, 121.020]],
+    # PMRS/PHPN co-located in Makati – tiny visual offset
+    "TERRESTRIAL_PH07":  [[14.560, 121.018]],
+    # RCBC Makati → C5 / Ortigas → Pasig
+    "TERRESTRIAL_PH08":  [[14.563, 121.042], [14.570, 121.060]],
+    # PMRS/PMVR co-located in Makati – tiny visual offset
+    "TERRESTRIAL_PH10":  [[14.561, 121.022]],
+    # Nasugbu → Batangas interior → STAR Tollway → SLEX → Pasig
+    # (deliberately east of PH06 to avoid overlap)
+    "TERRESTRIAL_PH11":  [[14.050, 120.750], [13.980, 121.050], [14.220, 121.150], [14.480, 121.060]],
+    # Pasig → north Manila → NLEX → Tarlac → Pangasinan → La Union
+    "TERRESTRIAL_PH103": [[14.740, 121.050], [15.100, 120.720], [15.490, 120.600], [15.950, 120.380], [16.400, 120.310]],
+}
+
+
+def _run_migration_012(cur) -> None:
+    """Add routing waypoints to HK and PH terrestrial segments."""
+    for seg_id, waypoints in _TERRESTRIAL_WAYPOINTS.items():
+        cur.execute(
+            "UPDATE segments SET data = jsonb_set(data, '{waypoints}', %s::jsonb) WHERE id = %s",
+            (json.dumps(waypoints), seg_id),
+        )
 
 
 _PHILIPPINES_POPS = [
