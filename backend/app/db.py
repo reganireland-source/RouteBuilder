@@ -168,6 +168,8 @@ def init_db() -> None:
             _run_migration_008(cur)
             # Migration 009: fix type='subsea' → type='wet' inserted by migration 007
             _run_migration_009(cur)
+            # Migration 010: insert Hong Kong terrestrial segments and capacity
+            _run_migration_010(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -383,6 +385,71 @@ def _run_migration_009(cur) -> None:
     cur.execute(
         "UPDATE segments SET data = jsonb_set(data, '{type}', '\"wet\"')"
         " WHERE data->>'type' = 'subsea'"
+    )
+
+
+_HK_TERRESTRIAL_SEGMENTS = [
+    {"id": "TERRESTRIAL_HK19",  "name": "Terrestrial South Lantau CLS–Equinix HK1",           "system_id": "TERRESTRIAL", "start_node_id": "SLTU", "end_node_id": "HKGG", "type": "terrestrial", "length_km": 31, "latency": 0.16, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK09",  "name": "Terrestrial Equinix HK1–Equinix HK2",                "system_id": "TERRESTRIAL", "start_node_id": "HKGG", "end_node_id": "HKKW", "type": "terrestrial", "length_km":  1, "latency": 0.01, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK08",  "name": "Terrestrial Equinix HK2–Telecome House",              "system_id": "TERRESTRIAL", "start_node_id": "HKKW", "end_node_id": "HKTH", "type": "terrestrial", "length_km": 13, "latency": 0.07, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK16",  "name": "Terrestrial Telecome House–Tong Fuk CLS",             "system_id": "TERRESTRIAL", "start_node_id": "HKTH", "end_node_id": "TGFK", "type": "terrestrial", "length_km": 32, "latency": 0.16, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK26",  "name": "Terrestrial South Lantau CLS–Tong Fuk CLS",          "system_id": "TERRESTRIAL", "start_node_id": "SLTU", "end_node_id": "TGFK", "type": "terrestrial", "length_km":  1, "latency": 0.01, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK13",  "name": "Terrestrial Telecome House–Deep Water Bay",           "system_id": "TERRESTRIAL", "start_node_id": "HKTH", "end_node_id": "HKDW", "type": "terrestrial", "length_km":  5, "latency": 0.02, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK15",  "name": "Terrestrial Hermes House–Telstra Stanley Teleport",   "system_id": "TERRESTRIAL", "start_node_id": "HKHH", "end_node_id": "HKST", "type": "terrestrial", "length_km": 13, "latency": 0.07, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK14",  "name": "Terrestrial Deep Water Bay–Telstra Stanley Teleport", "system_id": "TERRESTRIAL", "start_node_id": "HKDW", "end_node_id": "HKST", "type": "terrestrial", "length_km":  7, "latency": 0.03, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK21",  "name": "Terrestrial Telecome House–Chung Hom Kok CLS",        "system_id": "TERRESTRIAL", "start_node_id": "HKTH", "end_node_id": "HKCC", "type": "terrestrial", "length_km": 10, "latency": 0.05, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK18",  "name": "Terrestrial Telecome House–HKDS1",                    "system_id": "TERRESTRIAL", "start_node_id": "HKTH", "end_node_id": "HKMI", "type": "terrestrial", "length_km": 10, "latency": 0.05, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK05",  "name": "Terrestrial Equinix HK1–HKCS2",                      "system_id": "TERRESTRIAL", "start_node_id": "HKGG", "end_node_id": "HKCK", "type": "terrestrial", "length_km": 23, "latency": 0.11, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK02",  "name": "Terrestrial HKCS2–HKDS1",                            "system_id": "TERRESTRIAL", "start_node_id": "HKCK", "end_node_id": "HKMI", "type": "terrestrial", "length_km":  4, "latency": 0.02, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK03",  "name": "Terrestrial HKDS1–Chung Hom Kok CLS",                "system_id": "TERRESTRIAL", "start_node_id": "HKMI", "end_node_id": "HKCC", "type": "terrestrial", "length_km":  9, "latency": 0.05, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK23",  "name": "Terrestrial HKCS2–Telstra Chai Wan",                 "system_id": "TERRESTRIAL", "start_node_id": "HKCK", "end_node_id": "HKSF", "type": "terrestrial", "length_km":  4, "latency": 0.02, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK24",  "name": "Terrestrial Telstra Chai Wan–Chung Hom Kok CLS",     "system_id": "TERRESTRIAL", "start_node_id": "HKSF", "end_node_id": "HKCC", "type": "terrestrial", "length_km":  9, "latency": 0.05, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK07",  "name": "Terrestrial Telstra Chai Wan–HKDS1",                 "system_id": "TERRESTRIAL", "start_node_id": "HKSF", "end_node_id": "HKMI", "type": "terrestrial", "length_km":  1, "latency": 0.01, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK11",  "name": "Terrestrial Telecome House–Hermes House",             "system_id": "TERRESTRIAL", "start_node_id": "HKTH", "end_node_id": "HKHH", "type": "terrestrial", "length_km":  2, "latency": 0.01, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK20",  "name": "Terrestrial South Lantau CLS–Chung Hom Kok CLS",     "system_id": "TERRESTRIAL", "start_node_id": "SLTU", "end_node_id": "HKCC", "type": "terrestrial", "length_km": 36, "latency": 0.18, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK12",  "name": "Terrestrial South Lantau CLS–Hermes House",          "system_id": "TERRESTRIAL", "start_node_id": "SLTU", "end_node_id": "HKHH", "type": "terrestrial", "length_km": 33, "latency": 0.16, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK06",  "name": "Terrestrial Equinix HK1–Chung Hom Kok CLS",          "system_id": "TERRESTRIAL", "start_node_id": "HKGG", "end_node_id": "HKCC", "type": "terrestrial", "length_km": 24, "latency": 0.12, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK04A", "name": "Terrestrial HKCS1–HKCS2 (diverse A)",                "system_id": "TERRESTRIAL", "start_node_id": "HKEA", "end_node_id": "HKCK", "type": "terrestrial", "length_km":  1, "latency": 0.01, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_HK04B", "name": "Terrestrial HKCS1–HKCS2 (diverse B)",                "system_id": "TERRESTRIAL", "start_node_id": "HKEA", "end_node_id": "HKCK", "type": "terrestrial", "length_km":  1, "latency": 0.01, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+]
+
+_HK_TERRESTRIAL_CAPACITY = [
+    {"segment_id": "TERRESTRIAL_HK19",  "total_capacity_t": 1.7, "available_capacity_t": 0.7},
+    {"segment_id": "TERRESTRIAL_HK09",  "total_capacity_t": 0.9, "available_capacity_t": 0.6},
+    {"segment_id": "TERRESTRIAL_HK08",  "total_capacity_t": 0.7, "available_capacity_t": 0.3},
+    {"segment_id": "TERRESTRIAL_HK16",  "total_capacity_t": 1.3, "available_capacity_t": 0.7},
+    {"segment_id": "TERRESTRIAL_HK26",  "total_capacity_t": 0.7, "available_capacity_t": 0.4},
+    {"segment_id": "TERRESTRIAL_HK13",  "total_capacity_t": 1.3, "available_capacity_t": 0.8},
+    {"segment_id": "TERRESTRIAL_HK15",  "total_capacity_t": 0.5, "available_capacity_t": 0.3},
+    {"segment_id": "TERRESTRIAL_HK14",  "total_capacity_t": 0.8, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_HK21",  "total_capacity_t": 1.3, "available_capacity_t": 0.8},
+    {"segment_id": "TERRESTRIAL_HK18",  "total_capacity_t": 0.8, "available_capacity_t": 0.3},
+    {"segment_id": "TERRESTRIAL_HK05",  "total_capacity_t": 0.6, "available_capacity_t": 0.4},
+    {"segment_id": "TERRESTRIAL_HK02",  "total_capacity_t": 1.3, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_HK03",  "total_capacity_t": 0.8, "available_capacity_t": 0.3},
+    {"segment_id": "TERRESTRIAL_HK23",  "total_capacity_t": 0.8, "available_capacity_t": 0.4},
+    {"segment_id": "TERRESTRIAL_HK24",  "total_capacity_t": 1.2, "available_capacity_t": 0.7},
+    {"segment_id": "TERRESTRIAL_HK07",  "total_capacity_t": 0.6, "available_capacity_t": 0.4},
+    {"segment_id": "TERRESTRIAL_HK11",  "total_capacity_t": 2.0, "available_capacity_t": 1.2},
+    {"segment_id": "TERRESTRIAL_HK20",  "total_capacity_t": 1.6, "available_capacity_t": 1.0},
+    {"segment_id": "TERRESTRIAL_HK12",  "total_capacity_t": 0.6, "available_capacity_t": 0.3},
+    {"segment_id": "TERRESTRIAL_HK06",  "total_capacity_t": 0.6, "available_capacity_t": 0.4},
+    {"segment_id": "TERRESTRIAL_HK04A", "total_capacity_t": 1.3, "available_capacity_t": 0.4},
+    {"segment_id": "TERRESTRIAL_HK04B", "total_capacity_t": 1.2, "available_capacity_t": 0.7},
+]
+
+
+def _run_migration_010(cur) -> None:
+    """Insert Hong Kong terrestrial segments and capacity."""
+    psycopg2.extras.execute_values(
+        cur,
+        "INSERT INTO segments (id, data) VALUES %s ON CONFLICT DO NOTHING",
+        [(s["id"], json.dumps(s)) for s in _HK_TERRESTRIAL_SEGMENTS],
+    )
+    psycopg2.extras.execute_values(
+        cur,
+        "INSERT INTO capacity (segment_id, data) VALUES %s ON CONFLICT DO NOTHING",
+        [(c["segment_id"], json.dumps(c)) for c in _HK_TERRESTRIAL_CAPACITY],
     )
 
 
