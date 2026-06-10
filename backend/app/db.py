@@ -190,6 +190,8 @@ def init_db() -> None:
             _run_migration_019(cur)
             # Migration 020: reconnect ECHO SG endpoint to SGCN
             _run_migration_020(cur)
+            # Migration 021: reconnect SJC2 SG endpoint to SGCH
+            _run_migration_021(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -835,6 +837,13 @@ def _run_migration_020(cur) -> None:
     """Reconnect ECHO-SIN-JAK SG endpoint from SIN1 to SGCN."""
     cur.execute(
         "UPDATE segments SET data = jsonb_set(data, '{start_node_id}', '\"SGCN\"') WHERE id = 'ECHO-SIN-JAK'",
+    )
+
+
+def _run_migration_021(cur) -> None:
+    """Reconnect SJC2-SIN-MNL SG endpoint from SIN1 to SGCH."""
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{start_node_id}', '\"SGCH\"') WHERE id = 'SJC2-SIN-MNL'",
     )
 
 
