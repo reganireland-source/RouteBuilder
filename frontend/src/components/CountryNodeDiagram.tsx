@@ -45,6 +45,7 @@ const GW       = 300   // grid column spacing
 const GH       = 200   // grid row spacing
 const PAD      = 180   // outer padding (room for 45° stubs + labels)
 const PORT_SP  = 16    // px between parallel lines within one group
+const GROUP_GAP = 10   // px gap between separate groups on the same (node, side)
 const STUB_LEN = 100   // length of subsea stub lines
 
 type Side = 'left' | 'right' | 'top' | 'bottom'
@@ -95,15 +96,20 @@ function determineSides(c1: number, r1: number, c2: number, r2: number): [Side, 
     : (dr > 0 ? ['bottom', 'top'] : ['top', 'bottom'])
 }
 
-/** Port using group-local idx/total — srcOff==dstOff so same-row pairs = straight parallels. */
-function portXY(cx: number, cy: number, side: Side, idx: number, total: number): [number, number] {
-  const off = total === 1 ? 0 : (idx - (total - 1) / 2) * PORT_SP
+/** Port using a pre-computed perpendicular offset. */
+function sidePort(cx: number, cy: number, side: Side, off: number): [number, number] {
   switch (side) {
     case 'right':  return [cx + BOX_H, cy + off]
     case 'left':   return [cx - BOX_H, cy + off]
     case 'bottom': return [cx + off,   cy + BOX_H]
     case 'top':    return [cx + off,   cy - BOX_H]
   }
+}
+
+/** Port using group-local idx/total (used for cross-country stubs). */
+function portXY(cx: number, cy: number, side: Side, idx: number, total: number): [number, number] {
+  const off = total === 1 ? 0 : (idx - (total - 1) / 2) * PORT_SP
+  return sidePort(cx, cy, side, off)
 }
 
 function orthoPath(sx: number, sy: number, dx: number, dy: number, exitSide: Side): string {
@@ -189,7 +195,12 @@ function sideStubEnd(px: number, py: number, side: Side): [number, number] {
 interface Tip { title: string; lines: string[]; sx: number; sy: number }
 interface RoutedEdge {
   seg: CableSegment; color: string
-  srcSide: Side; dstSide: Side; pIdx: number; pTotal: number
+  /** Canonical src/dst node IDs (from first seg in group) */
+  nodeA: string; nodeB: string
+  sideA: Side; sideB: Side
+  /** Pre-computed perpendicular port offsets */
+  offA: number; offB: number
+  groupLocalIdx: number; groupN: number
 }
 interface RoutedCross {
   seg: CableSegment; nodeId: string; side: Side; pIdx: number; pTotal: number
@@ -279,22 +290,71 @@ export function CountryNodeDiagram({
     return g
   }, [internalSegs])
 
-  // Group-local routing: idx 0…N-1 so srcOff == dstOff → truly parallel lines
+  // Global grouped port assignment: groups on the same (node, side) are stacked
+  // with GROUP_GAP between them so lines from different pairs never overlap.
   const routedEdges = useMemo((): RoutedEdge[] => {
-    const result: RoutedEdge[] = []
+    interface GrpInfo {
+      segs: CableSegment[]
+      nodeA: string; nodeB: string
+      sideA: Side; sideB: Side
+      N: number; colors: string[]
+    }
+    const groups: GrpInfo[] = []
     let colorIdx = 0
     for (const segs of edgeGroups.values()) {
       const s0 = segs[0]
       const g1 = grid.get(s0.start_node_id), g2 = grid.get(s0.end_node_id)
       if (!g1 || !g2) continue
-      const [srcSide, dstSide] = determineSides(g1[0], g1[1], g2[0], g2[1])
-      const N = segs.length
-      segs.forEach((seg, i) => {
-        result.push({ seg, srcSide, dstSide, pIdx: i, pTotal: N,
-          color: SEG_PALETTE[colorIdx % SEG_PALETTE.length] })
-        colorIdx++
+      const [sideA, sideB] = determineSides(g1[0], g1[1], g2[0], g2[1])
+      groups.push({
+        segs, nodeA: s0.start_node_id, nodeB: s0.end_node_id,
+        sideA, sideB, N: segs.length,
+        colors: segs.map(() => SEG_PALETTE[colorIdx++ % SEG_PALETTE.length]),
       })
     }
+
+    // For each (nodeId, side), collect which group indices use it
+    const sideGroups = new Map<string, number[]>()
+    groups.forEach((grp, gi) => {
+      for (const k of [`${grp.nodeA}|${grp.sideA}`, `${grp.nodeB}|${grp.sideB}`]) {
+        if (!sideGroups.has(k)) sideGroups.set(k, [])
+        sideGroups.get(k)!.push(gi)
+      }
+    })
+
+    // Compute each group's center offset within each (nodeId, side),
+    // stacking groups with GROUP_GAP between them
+    const groupCenters = new Map<string, Map<number, number>>()
+    for (const [key, gIdxs] of sideGroups) {
+      const totalSpan =
+        gIdxs.reduce((s, gi) => s + (groups[gi].N - 1) * PORT_SP, 0) +
+        (gIdxs.length - 1) * GROUP_GAP
+      let cursor = -totalSpan / 2
+      const cMap = new Map<number, number>()
+      for (const gi of gIdxs) {
+        const N = groups[gi].N
+        cMap.set(gi, cursor + (N - 1) / 2 * PORT_SP)
+        cursor += (N - 1) * PORT_SP + GROUP_GAP
+      }
+      groupCenters.set(key, cMap)
+    }
+
+    // Build edges with pre-computed offsets
+    const result: RoutedEdge[] = []
+    groups.forEach((grp, gi) => {
+      const cA = groupCenters.get(`${grp.nodeA}|${grp.sideA}`)!.get(gi)!
+      const cB = groupCenters.get(`${grp.nodeB}|${grp.sideB}`)!.get(gi)!
+      grp.segs.forEach((seg, i) => {
+        const localOff = grp.N === 1 ? 0 : (i - (grp.N - 1) / 2) * PORT_SP
+        result.push({
+          seg, color: grp.colors[i],
+          nodeA: grp.nodeA, nodeB: grp.nodeB,
+          sideA: grp.sideA, sideB: grp.sideB,
+          offA: cA + localOff, offB: cB + localOff,
+          groupLocalIdx: i, groupN: grp.N,
+        })
+      })
+    })
     return result
   }, [edgeGroups, grid])
 
@@ -414,13 +474,16 @@ export function CountryNodeDiagram({
             </defs>
 
             {/* ── Internal terrestrial edges ── */}
-            {routedEdges.map(({ seg, color, srcSide, dstSide, pIdx, pTotal }) => {
+            {routedEdges.map(({ seg, color, nodeA, sideA, sideB, offA, offB, groupLocalIdx, groupN }) => {
+              const isForward = seg.start_node_id === nodeA
+              const [srcSide, dstSide] = isForward ? [sideA, sideB] : [sideB, sideA]
+              const [srcOff, dstOff]   = isForward ? [offA,  offB]  : [offB,  offA]
               const p1 = nodePos.get(seg.start_node_id), p2 = nodePos.get(seg.end_node_id)
               if (!p1 || !p2) return null
-              const [sx, sy] = portXY(p1[0], p1[1], srcSide, pIdx, pTotal)
-              const [dx, dy] = portXY(p2[0], p2[1], dstSide, pIdx, pTotal)
+              const [sx, sy] = sidePort(p1[0], p1[1], srcSide, srcOff)
+              const [dx, dy] = sidePort(p2[0], p2[1], dstSide, dstOff)
               const d = orthoPath(sx, sy, dx, dy, srcSide)
-              const [lx, ly] = labelPos(sx, sy, dx, dy, srcSide, pIdx, pTotal)
+              const [lx, ly] = labelPos(sx, sy, dx, dy, srcSide, groupLocalIdx, groupN)
               const sel = selSegId === seg.id
               return (
                 <g key={seg.id}>
@@ -529,10 +592,13 @@ export function CountryNodeDiagram({
               return (
                 <g key={n.id} style={{ cursor: 'pointer' }}
                   onMouseEnter={e => nodeTip(n, e)} onMouseLeave={() => setTip(null)}>
-                  {/* Routing box */}
+                  {/* Opaque background — occludes any edges drawn behind this node */}
                   <rect x={x - BOX_H} y={y - BOX_H} width={BOX_H * 2} height={BOX_H * 2}
-                    fill={col} fillOpacity={0.09} stroke={col} strokeOpacity={0.55}
-                    strokeWidth={1.5} rx={3} />
+                    fill="#cbd5e1" stroke="none" rx={3} />
+                  {/* Coloured tint + border */}
+                  <rect x={x - BOX_H} y={y - BOX_H} width={BOX_H * 2} height={BOX_H * 2}
+                    fill={col} fillOpacity={0.15} stroke={col} strokeOpacity={0.8}
+                    strokeWidth={2} rx={3} />
                   {/* Symbol */}
                   {isCls ? (
                     <rect x={x - r} y={y - r} width={r * 2} height={r * 2}
