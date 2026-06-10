@@ -201,6 +201,12 @@ export function CountryNodeDiagram({
 }: Props) {
   const t = useTheme()
   const [tip, setTip] = useState<Tip | null>(null)
+  const [selSegId, setSelSegId] = useState<string | null>(null)
+
+  function toggleSeg(id: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    setSelSegId(prev => prev === id ? null : id)
+  }
 
   const nodesById   = useMemo(() => Object.fromEntries(nodes.map(n => [n.id, n])),   [nodes])
   const systemsById = useMemo(() => Object.fromEntries(systems.map(s => [s.id, s])), [systems])
@@ -395,6 +401,7 @@ export function CountryNodeDiagram({
             style={{ width: '100%', height: '100%', display: 'block' }}
             onMouseLeave={() => setTip(null)}
             onMouseMove={mv}
+            onClick={() => setSelSegId(null)}
           >
             <rect width={svgW} height={svgH} fill="#cbd5e1" />
             <defs>
@@ -414,12 +421,16 @@ export function CountryNodeDiagram({
               const [dx, dy] = portXY(p2[0], p2[1], dstSide, pIdx, pTotal)
               const d = orthoPath(sx, sy, dx, dy, srcSide)
               const [lx, ly] = labelPos(sx, sy, dx, dy, srcSide, pIdx, pTotal)
+              const sel = selSegId === seg.id
               return (
                 <g key={seg.id}>
+                  {sel && <path d={d} fill="none" stroke={color} strokeWidth={14} opacity={0.25}
+                    style={{ pointerEvents: 'none' }} />}
                   <path d={d} fill="none" stroke="transparent" strokeWidth={14}
                     style={{ cursor: 'pointer' }}
-                    onMouseEnter={e => segTip(seg, e)} onMouseLeave={() => setTip(null)} />
-                  <path d={d} fill="none" stroke={color} strokeWidth={2.2}
+                    onMouseEnter={e => segTip(seg, e)} onMouseLeave={() => setTip(null)}
+                    onClick={e => toggleSeg(seg.id, e)} />
+                  <path d={d} fill="none" stroke={color} strokeWidth={sel ? 5 : 2.2}
                     style={{ pointerEvents: 'none' }} />
                   <text x={lx} y={ly} fontSize={12} fontWeight="600" fill={color}
                     textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none' }}>
@@ -443,13 +454,18 @@ export function CountryNodeDiagram({
                 const goRight = Math.cos(labelAngle) >= 0
                 const lx = x2 + Math.cos(labelAngle) * 6
                 const ly = y2 + Math.sin(labelAngle) * 6
+                const selSub = selSegId === seg.id
                 return (
                   <g key={`${seg.id}-stub`}>
+                    {selSub && <line x1={x1} y1={y1} x2={x2} y2={y2}
+                      stroke={sysColor} strokeWidth={14} opacity={0.25}
+                      style={{ pointerEvents: 'none' }} />}
                     <line x1={x1} y1={y1} x2={x2} y2={y2}
                       stroke="transparent" strokeWidth={14} style={{ cursor: 'pointer' }}
-                      onMouseEnter={e => stubTip(seg, e)} onMouseLeave={() => setTip(null)} />
+                      onMouseEnter={e => stubTip(seg, e)} onMouseLeave={() => setTip(null)}
+                      onClick={e => toggleSeg(seg.id, e)} />
                     <line x1={x1} y1={y1} x2={x2} y2={y2}
-                      stroke={sysColor} strokeWidth={2.2} strokeDasharray="5,3"
+                      stroke={sysColor} strokeWidth={selSub ? 5 : 2.2} strokeDasharray="5,3"
                       markerEnd="url(#ndSub)" style={{ pointerEvents: 'none' }} />
                     <text x={lx} y={ly - 4} fontSize={11} fontWeight="600" fill={sysColor}
                       textAnchor={goRight ? 'start' : 'end'}
@@ -478,13 +494,18 @@ export function CountryNodeDiagram({
                 side === 'left' ? 'end' : side === 'right' ? 'start' : 'middle'
               const lx = side === 'right' ? ex + 5 : side === 'left' ? ex - 5 : ex
               const ly = side === 'bottom' ? ey + 14 : side === 'top' ? ey - 12 : ey - 6
+              const selCrs = selSegId === seg.id
               return (
                 <g key={seg.id}>
+                  {selCrs && <line x1={px} y1={py} x2={ex} y2={ey}
+                    stroke="#fb923c" strokeWidth={14} opacity={0.25}
+                    style={{ pointerEvents: 'none' }} />}
                   <line x1={px} y1={py} x2={ex} y2={ey}
                     stroke="transparent" strokeWidth={14} style={{ cursor: 'pointer' }}
-                    onMouseEnter={e => segTip(seg, e)} onMouseLeave={() => setTip(null)} />
+                    onMouseEnter={e => segTip(seg, e)} onMouseLeave={() => setTip(null)}
+                    onClick={e => toggleSeg(seg.id, e)} />
                   <line x1={px} y1={py} x2={ex} y2={ey}
-                    stroke="#fb923c" strokeWidth={2.2} strokeDasharray="5,3"
+                    stroke="#fb923c" strokeWidth={selCrs ? 5 : 2.2} strokeDasharray="5,3"
                     markerEnd="url(#ndCrs)" style={{ pointerEvents: 'none' }} />
                   <text x={lx} y={ly} fontSize={11} fontWeight="600" fill="#fb923c"
                     textAnchor={anchor} style={{ pointerEvents: 'none', userSelect: 'none' }}>
