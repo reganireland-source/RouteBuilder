@@ -20,10 +20,10 @@ const NODE_COLOR: Record<string, string> = {
 }
 const NODE_R: Record<string, number> = {
   landing_station: 11,
-  primary_pop:      9,
-  secondary_pop:    7,
-  extension_pop:    6,
-  branching_unit:   4,
+  primary_pop:     10,
+  secondary_pop:    8,
+  extension_pop:    7,
+  branching_unit:   5,
 }
 const TYPE_LABEL: Record<string, string> = {
   landing_station: 'CLS',
@@ -33,12 +33,17 @@ const TYPE_LABEL: Record<string, string> = {
   branching_unit:  'BU',
 }
 
-// Grid cell size — generous spacing so edges have room to fan
-const CW  = 190
-const RH  = 140
-const PAD = 110   // outer padding (stubs need space to exit)
+// Each node is enclosed in a routing square of side BOX_H*2
+const BOX_H    = 26    // half-side of routing box → 52×52 box
+const GW       = 230   // grid column spacing (centre-to-centre)
+const GH       = 145   // grid row spacing
+const PAD      = 150   // outer padding (stubs need room)
+const PORT_SP  = 7     // px between parallel ports on a side
+const STUB_LEN = 85    // length of subsea / cross-country stub lines
 
-/** BFS grid assignment — pure topology, no lat/lng. */
+type Side = 'left' | 'right' | 'top' | 'bottom'
+
+// ── Grid (BFS, no lat/lng) ───────────────────────────────────────────────────
 function buildGrid(nodes: CableNode[], segs: CableSegment[]): Map<string, [number, number]> {
   if (!nodes.length) return new Map()
   const nodeSet = new Set(nodes.map(n => n.id))
@@ -53,61 +58,101 @@ function buildGrid(nodes: CableNode[], segs: CableSegment[]): Map<string, [numbe
   }
   for (const [id, nb] of adj)
     adj.set(id, nb.sort((a, b) => (degree.get(b) ?? 0) - (degree.get(a) ?? 0)))
-
   const startId = [...degree.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? nodes[0].id
   const order: string[] = []
   const visited = new Set([startId])
   const q = [startId]
   while (q.length) {
-    const curr = q.shift()!
-    order.push(curr)
+    const curr = q.shift()!; order.push(curr)
     for (const nb of adj.get(curr) ?? [])
       if (!visited.has(nb)) { visited.add(nb); q.push(nb) }
   }
   for (const n of nodes) if (!visited.has(n.id)) order.push(n.id)
-
   const cols = Math.max(2, Math.ceil(Math.sqrt(order.length * 1.8)))
   const grid = new Map<string, [number, number]>()
   order.forEach((id, i) => grid.set(id, [i % cols, Math.floor(i / cols)]))
   return grid
 }
 
-function cell2svg(col: number, row: number): [number, number] {
-  return [PAD + col * CW, PAD + row * RH]
+function boxCenter(col: number, row: number): [number, number] {
+  return [PAD + col * GW, PAD + row * GH]
 }
 
-/**
- * Straight line from (x1,y1) to (x2,y2), offset perpendicularly for parallel edges.
- * idx = 0-based index among siblings, total = count of parallel edges.
- * Returns SVG path string.
- */
-function fanLine(
-  x1: number, y1: number, x2: number, y2: number,
-  idx: number, total: number, spacing = 7
-): string {
-  const dx = x2 - x1, dy = y2 - y1
-  const len = Math.sqrt(dx * dx + dy * dy)
-  if (len < 0.1) return `M${x1},${y1}`
-  const px = -dy / len, py = dx / len   // perpendicular unit vector
-  const off = total === 1 ? 0 : (idx - (total - 1) / 2) * spacing
-  return `M${x1 + px * off},${y1 + py * off} L${x2 + px * off},${y2 + py * off}`
+// ── Orthogonal routing helpers ───────────────────────────────────────────────
+
+function determineSides(c1: number, r1: number, c2: number, r2: number): [Side, Side] {
+  const dc = c2 - c1, dr = r2 - r1
+  if (dc === 0 && dr === 0) return ['right', 'left']
+  if (dc === 0) return dr > 0 ? ['bottom', 'top'] : ['top', 'bottom']
+  if (dr === 0) return dc > 0 ? ['right', 'left'] : ['left', 'right']
+  return Math.abs(dc) >= Math.abs(dr)
+    ? (dc > 0 ? ['right', 'left'] : ['left', 'right'])
+    : (dr > 0 ? ['bottom', 'top'] : ['top', 'bottom'])
 }
 
-/** Midpoint of a fanLine path (for label placement). */
-function fanMid(
-  x1: number, y1: number, x2: number, y2: number,
-  idx: number, total: number, spacing = 7
-): [number, number] {
-  const dx = x2 - x1, dy = y2 - y1
-  const len = Math.sqrt(dx * dx + dy * dy)
-  if (len < 0.1) return [(x1 + x2) / 2, (y1 + y2) / 2]
-  const px = -dy / len, py = dx / len
-  const off = total === 1 ? 0 : (idx - (total - 1) / 2) * spacing
-  return [(x1 + x2) / 2 + px * off, (y1 + y2) / 2 + py * off]
+/** Port position on the flat side of a routing box centred at (cx,cy). */
+function portXY(cx: number, cy: number, side: Side, idx: number, total: number): [number, number] {
+  const off = total === 1 ? 0 : (idx - (total - 1) / 2) * PORT_SP
+  switch (side) {
+    case 'right':  return [cx + BOX_H, cy + off]
+    case 'left':   return [cx - BOX_H, cy + off]
+    case 'bottom': return [cx + off,   cy + BOX_H]
+    case 'top':    return [cx + off,   cy - BOX_H]
+  }
 }
 
+/** Orthogonal (H/V) SVG path between two ports. */
+function orthoPath(sx: number, sy: number, dx: number, dy: number, exitSide: Side): string {
+  const isH = exitSide === 'right' || exitSide === 'left'
+  if (isH) {
+    if (Math.abs(sy - dy) < 0.5) return `M${sx},${sy} H${dx}`
+    const mx = (sx + dx) / 2
+    return `M${sx},${sy} H${mx} V${dy} H${dx}`
+  } else {
+    if (Math.abs(sx - dx) < 0.5) return `M${sx},${sy} V${dy}`
+    const my = (sy + dy) / 2
+    return `M${sx},${sy} V${my} H${dx} V${dy}`
+  }
+}
+
+/** Approximate label position for an ortho path (above/left of bend). */
+function orthoLabelPos(sx: number, sy: number, dx: number, dy: number, exitSide: Side): [number, number] {
+  const isH = exitSide === 'right' || exitSide === 'left'
+  if (isH) return [(sx + dx) / 2, Math.min(sy, dy) - 5]
+  return [Math.min(sx, dx) - 5, (sy + dy) / 2]
+}
+
+/** Side of the box that faces outward from the diagram centroid. */
+function outwardSide(cx: number, cy: number, centX: number, centY: number): Side {
+  const dx = cx - centX, dy = cy - centY
+  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'right' : 'left'
+  return dy >= 0 ? 'bottom' : 'top'
+}
+
+/** Endpoint of a stub line starting at a port. */
+function stubEnd(px: number, py: number, side: Side): [number, number] {
+  switch (side) {
+    case 'right':  return [px + STUB_LEN, py]
+    case 'left':   return [px - STUB_LEN, py]
+    case 'bottom': return [px,            py + STUB_LEN]
+    case 'top':    return [px,            py - STUB_LEN]
+  }
+}
+
+// ── Types ────────────────────────────────────────────────────────────────────
 interface Tip { title: string; lines: string[]; sx: number; sy: number }
+interface RoutedEdge {
+  seg: CableSegment
+  srcSide: Side; dstSide: Side
+  srcPIdx: number; srcPTotal: number
+  dstPIdx: number; dstPTotal: number
+}
+interface RoutedStub {
+  seg: CableSegment
+  nodeId: string; side: Side; pIdx: number; pTotal: number
+}
 
+// ── Component ────────────────────────────────────────────────────────────────
 export function CountryNodeDiagram({
   nodes, segments, systems, capacity, countryHighlight, onClose,
 }: Props) {
@@ -128,9 +173,7 @@ export function CountryNodeDiagram({
 
   // ── Segment categorisation ───────────────────────────────────────────────
   const { internalSegs, crossSegs, stubs } = useMemo(() => {
-    const internal: CableSegment[] = []
-    const cross: CableSegment[] = []
-    const stubList: CableSegment[] = []
+    const internal: CableSegment[] = [], cross: CableSegment[] = [], stubList: CableSegment[] = []
     const seen = new Set<string>()
     for (const seg of segments) {
       const sIn = countryHighlight.nodeIds.has(seg.start_node_id)
@@ -139,8 +182,7 @@ export function CountryNodeDiagram({
         if (sIn && eIn) internal.push(seg)
         else if (sIn || eIn) cross.push(seg)
       } else if (seg.type === 'wet') {
-        const sCls = clsIds.has(seg.start_node_id)
-        const eCls = clsIds.has(seg.end_node_id)
+        const sCls = clsIds.has(seg.start_node_id), eCls = clsIds.has(seg.end_node_id)
         if ((sCls && !eIn) || (eCls && !sIn)) {
           const clsId = sCls ? seg.start_node_id : seg.end_node_id
           const key = `${seg.system_id}|${clsId}`
@@ -151,15 +193,14 @@ export function CountryNodeDiagram({
     return { internalSegs: internal, crossSegs: cross, stubs: stubList }
   }, [segments, countryHighlight, clsIds])
 
-  // ── Grid layout ──────────────────────────────────────────────────────────
+  // ── Grid + positions ─────────────────────────────────────────────────────
   const grid    = useMemo(() => buildGrid(countryNodes, internalSegs), [countryNodes, internalSegs])
   const nodePos = useMemo(() => {
     const m = new Map<string, [number, number]>()
-    for (const [id, [c, r]] of grid) m.set(id, cell2svg(c, r))
+    for (const [id, [c, r]] of grid) m.set(id, boxCenter(c, r))
     return m
   }, [grid])
 
-  // Centroid of all rendered nodes — used for outward stub direction
   const centroid = useMemo(() => {
     const pts = [...nodePos.values()]
     if (!pts.length) return [0, 0] as [number, number]
@@ -169,14 +210,13 @@ export function CountryNodeDiagram({
     ] as [number, number]
   }, [nodePos])
 
-  // SVG canvas — extra right/bottom space for outward stubs
   const { svgW, svgH } = useMemo(() => {
     let maxC = 0, maxR = 0
     for (const [c, r] of grid.values()) { maxC = Math.max(maxC, c); maxR = Math.max(maxR, r) }
-    return { svgW: PAD * 2 + maxC * CW, svgH: PAD * 2 + maxR * RH + 40 }
+    return { svgW: PAD * 2 + maxC * GW, svgH: PAD * 2 + maxR * GH + 70 }
   }, [grid])
 
-  // Group parallel internal edges
+  // ── Group parallel internal edges ────────────────────────────────────────
   const edgeGroups = useMemo(() => {
     const g = new Map<string, CableSegment[]>()
     for (const seg of internalSegs) {
@@ -187,20 +227,77 @@ export function CountryNodeDiagram({
     return g
   }, [internalSegs])
 
-  // Group stubs by CLS for angular fan-out
-  const stubsByCls = useMemo(() => {
-    const g = new Map<string, CableSegment[]>()
+  // ── Port-based routing for internal edges ────────────────────────────────
+  const routedEdges = useMemo((): RoutedEdge[] => {
+    type GI = { segs: CableSegment[], srcId: string, dstId: string, srcSide: Side, dstSide: Side }
+    const grps: GI[] = []
+    for (const segs of edgeGroups.values()) {
+      const s0 = segs[0]
+      const g1 = grid.get(s0.start_node_id), g2 = grid.get(s0.end_node_id)
+      if (!g1 || !g2) continue
+      const [srcSide, dstSide] = determineSides(g1[0], g1[1], g2[0], g2[1])
+      grps.push({ segs, srcId: s0.start_node_id, dstId: s0.end_node_id, srcSide, dstSide })
+    }
+    const portCount = new Map<string, number>()
+    for (const { segs, srcId, dstId, srcSide, dstSide } of grps) {
+      const sk = `${srcId}|${srcSide}`, dk = `${dstId}|${dstSide}`
+      portCount.set(sk, (portCount.get(sk) ?? 0) + segs.length)
+      portCount.set(dk, (portCount.get(dk) ?? 0) + segs.length)
+    }
+    const nextIdx = new Map<string, number>()
+    const result: RoutedEdge[] = []
+    for (const { segs, srcId, dstId, srcSide, dstSide } of grps) {
+      const sk = `${srcId}|${srcSide}`, dk = `${dstId}|${dstSide}`
+      const srcPTotal = portCount.get(sk)!, dstPTotal = portCount.get(dk)!
+      for (const seg of segs) {
+        const srcPIdx = nextIdx.get(sk) ?? 0; nextIdx.set(sk, srcPIdx + 1)
+        const dstPIdx = nextIdx.get(dk) ?? 0; nextIdx.set(dk, dstPIdx + 1)
+        result.push({ seg, srcSide, dstSide, srcPIdx, srcPTotal, dstPIdx, dstPTotal })
+      }
+    }
+    return result
+  }, [edgeGroups, grid])
+
+  // ── Stub routing (subsea) ────────────────────────────────────────────────
+  const stubRouting = useMemo((): RoutedStub[] => {
+    const [centX, centY] = centroid
+    const byCls = new Map<string, CableSegment[]>()
     for (const s of stubs) {
       const clsId = clsIds.has(s.start_node_id) ? s.start_node_id : s.end_node_id
-      if (!g.has(clsId)) g.set(clsId, [])
-      g.get(clsId)!.push(s)
+      if (!byCls.has(clsId)) byCls.set(clsId, [])
+      byCls.get(clsId)!.push(s)
     }
-    return g
-  }, [stubs, clsIds])
+    const result: RoutedStub[] = []
+    for (const [clsId, clsStubs] of byCls) {
+      const p = nodePos.get(clsId); if (!p) continue
+      const side = outwardSide(p[0], p[1], centX, centY)
+      clsStubs.forEach((seg, i) =>
+        result.push({ seg, nodeId: clsId, side, pIdx: i, pTotal: clsStubs.length }))
+    }
+    return result
+  }, [stubs, clsIds, nodePos, centroid])
+
+  // ── Cross-country stub routing ───────────────────────────────────────────
+  const crossRouting = useMemo((): RoutedStub[] => {
+    const [centX, centY] = centroid
+    const byNode = new Map<string, CableSegment[]>()
+    for (const seg of crossSegs) {
+      const inId = countryHighlight.nodeIds.has(seg.start_node_id) ? seg.start_node_id : seg.end_node_id
+      if (!byNode.has(inId)) byNode.set(inId, [])
+      byNode.get(inId)!.push(seg)
+    }
+    const result: RoutedStub[] = []
+    for (const [nodeId, segs] of byNode) {
+      const p = nodePos.get(nodeId); if (!p) continue
+      const side = outwardSide(p[0], p[1], centX, centY)
+      segs.forEach((seg, i) =>
+        result.push({ seg, nodeId, side, pIdx: i, pTotal: segs.length }))
+    }
+    return result
+  }, [crossSegs, countryHighlight, nodePos, centroid])
 
   // ── Tooltip helpers ──────────────────────────────────────────────────────
-  const mv = (e: React.MouseEvent) =>
-    setTip(p => p ? { ...p, sx: e.clientX, sy: e.clientY } : null)
+  const mv = (e: React.MouseEvent) => setTip(p => p ? { ...p, sx: e.clientX, sy: e.clientY } : null)
 
   function nodeTip(n: CableNode, e: React.MouseEvent) {
     setTip({ title: n.name, sx: e.clientX, sy: e.clientY,
@@ -231,6 +328,14 @@ export function CountryNodeDiagram({
     { color: '#22d3ee',                  label: 'Subsea cable stub',      shape: 'arrow'   },
   ]
 
+  // Helper: stub label anchor based on direction
+  function stubLabel(ex: number, ey: number, side: Side) {
+    const lx = side === 'right' ? ex + 5 : side === 'left' ? ex - 5 : ex
+    const ly = side === 'bottom' ? ey + 13 : side === 'top' ? ey - 11 : ey - 5
+    const anchor = side === 'left' ? 'end' : side === 'right' ? 'start' : 'middle'
+    return { lx, ly, anchor }
+  }
+
   return (
     <div
       style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.72)',
@@ -238,7 +343,7 @@ export function CountryNodeDiagram({
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div style={{
-        width: 'min(97vw, 1100px)', maxHeight: '93vh',
+        width: 'min(97vw, 1200px)', maxHeight: '93vh',
         background: t.bgDeep, border: `1px solid ${t.border}`, borderRadius: 12,
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
         boxShadow: '0 24px 64px rgba(0,0,0,0.7)',
@@ -281,137 +386,86 @@ export function CountryNodeDiagram({
               </marker>
             </defs>
 
-            {/* ── Internal terrestrial — straight lines, fan-out for parallels ── */}
-            {[...edgeGroups.values()].flatMap(segs =>
-              segs.map((seg, idx) => {
-                const p1 = nodePos.get(seg.start_node_id)
-                const p2 = nodePos.get(seg.end_node_id)
-                if (!p1 || !p2) return null
-                const d  = fanLine(p1[0], p1[1], p2[0], p2[1], idx, segs.length)
-                const [mx, my] = fanMid(p1[0], p1[1], p2[0], p2[1], idx, segs.length)
-                return (
-                  <g key={seg.id}>
-                    <path d={d} fill="none" stroke="transparent" strokeWidth={12}
-                      style={{ cursor: 'pointer' }}
-                      onMouseEnter={e => segTip(seg, e)} onMouseMove={mv}
-                      onMouseLeave={() => setTip(null)} />
-                    <path d={d} fill="none" stroke="#94a3b8" strokeWidth={1.8} opacity={0.55}
-                      style={{ pointerEvents: 'none' }} />
-                    <text x={mx} y={my - 7} fontSize={7.5} fill="#94a3b8" opacity={0.75}
-                      textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                      {seg.id.replace('TERRESTRIAL_', '')}
-                    </text>
-                  </g>
-                )
-              })
-            )}
-
-            {/* ── Subsea stubs — fan outward from centroid, one arrow per system ── */}
-            {[...stubsByCls.entries()].flatMap(([clsId, clsStubs]) => {
-              const p = nodePos.get(clsId)
-              if (!p) return []
-              const [cx, cy] = p
-              const [centX, centY] = centroid
-
-              // Base angle: direction FROM centroid TO this CLS (outward)
-              const baseDx = cx - centX, baseDy = cy - centY
-              const baseLen = Math.sqrt(baseDx * baseDx + baseDy * baseDy)
-              const baseAngle = baseLen > 1
-                ? Math.atan2(baseDy, baseDx)
-                : 0  // fallback: point right
-
-              // Fan spread: 25° per stub, centred on baseAngle
-              const fanDeg   = (25 * Math.PI) / 180
-              const halfSpan = ((clsStubs.length - 1) / 2) * fanDeg
-              const stubLen  = 75
-              const r        = NODE_R['landing_station'] + 3
-
-              return clsStubs.map((seg, i) => {
-                const angle    = baseAngle - halfSpan + i * fanDeg
-                const x1       = cx + Math.cos(angle) * r
-                const y1       = cy + Math.sin(angle) * r
-                const x2       = cx + Math.cos(angle) * (r + stubLen)
-                const y2       = cy + Math.sin(angle) * (r + stubLen)
-                const fId      = clsIds.has(seg.start_node_id) ? seg.end_node_id : seg.start_node_id
-                const foreign  = nodesById[fId]
-                const sysColor = countryHighlight.systemColors.get(seg.system_id) ?? '#22d3ee'
-                const sys      = systemsById[seg.system_id]
-                const destCC   = foreign?.country ?? '?'
-                // Label sits past the arrowhead, offset slightly perpendicular
-                const lx = x2 + Math.cos(angle) * 6
-                const ly = y2 + Math.sin(angle) * 6
-                return (
-                  <g key={`${seg.id}-stub`}>
-                    <line x1={x1} y1={y1} x2={x2} y2={y2}
-                      stroke="transparent" strokeWidth={12}
-                      style={{ cursor: 'pointer' }}
-                      onMouseEnter={e => stubTip(seg, e)} onMouseMove={mv}
-                      onMouseLeave={() => setTip(null)} />
-                    <line x1={x1} y1={y1} x2={x2} y2={y2}
-                      stroke={sysColor} strokeWidth={2} strokeDasharray="5,3"
-                      markerEnd="url(#ndSub)" style={{ pointerEvents: 'none' }} />
-                    {/* Label anchored past arrowhead */}
-                    <text
-                      x={lx} y={ly - 4}
-                      fontSize={7} fill={sysColor} opacity={0.9}
-                      textAnchor={Math.cos(angle) >= 0 ? 'start' : 'end'}
-                      style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                      {sys?.name ?? seg.system_id}
-                    </text>
-                    <text
-                      x={lx} y={ly + 5}
-                      fontSize={6.5} fill={sysColor} opacity={0.6}
-                      textAnchor={Math.cos(angle) >= 0 ? 'start' : 'end'}
-                      style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                      → {destCC}
-                    </text>
-                  </g>
-                )
-              })
-            })}
-
-            {/* ── Cross-country terrestrial — short arrow outward ── */}
-            {crossSegs.map(seg => {
-              const inId = countryHighlight.nodeIds.has(seg.start_node_id) ? seg.start_node_id : seg.end_node_id
-              const outId = countryHighlight.nodeIds.has(seg.start_node_id) ? seg.end_node_id : seg.start_node_id
-              const p   = nodePos.get(inId)
-              const out = nodesById[outId]
-              if (!p || !out) return null
-              const [cx, cy] = p
-              const [centX, centY] = centroid
-              // Point away from centroid
-              const dx = cx - centX, dy = cy - centY
-              const len = Math.sqrt(dx * dx + dy * dy)
-              const angle = len > 1 ? Math.atan2(dy, dx) : 0
-              const r  = (NODE_R[nodesById[inId]?.type ?? 'extension_pop'] ?? 7) + 3
-              const x2 = cx + Math.cos(angle) * (r + 55)
-              const y2 = cy + Math.sin(angle) * (r + 55)
+            {/* ── Internal terrestrial edges — pure H/V paths ── */}
+            {routedEdges.map(({ seg, srcSide, dstSide, srcPIdx, srcPTotal, dstPIdx, dstPTotal }) => {
+              const p1 = nodePos.get(seg.start_node_id), p2 = nodePos.get(seg.end_node_id)
+              if (!p1 || !p2) return null
+              const [sx, sy] = portXY(p1[0], p1[1], srcSide, srcPIdx, srcPTotal)
+              const [dx, dy] = portXY(p2[0], p2[1], dstSide, dstPIdx, dstPTotal)
+              const d = orthoPath(sx, sy, dx, dy, srcSide)
+              const [lx, ly] = orthoLabelPos(sx, sy, dx, dy, srcSide)
               return (
                 <g key={seg.id}>
-                  <line x1={cx + Math.cos(angle) * r} y1={cy + Math.sin(angle) * r}
-                    x2={x2} y2={y2}
-                    stroke="transparent" strokeWidth={12} style={{ cursor: 'pointer' }}
-                    onMouseEnter={e => segTip(seg, e)} onMouseMove={mv}
-                    onMouseLeave={() => setTip(null)} />
-                  <line x1={cx + Math.cos(angle) * r} y1={cy + Math.sin(angle) * r}
-                    x2={x2} y2={y2}
-                    stroke="#fb923c" strokeWidth={1.8} strokeDasharray="5,3"
-                    markerEnd="url(#ndCrs)" style={{ pointerEvents: 'none' }} />
-                  <text
-                    x={x2 + Math.cos(angle) * 5} y={y2 + Math.sin(angle) * 5}
-                    fontSize={7} fill="#fb923c" opacity={0.85}
-                    textAnchor={Math.cos(angle) >= 0 ? 'start' : 'end'}
-                    style={{ pointerEvents: 'none', userSelect: 'none' }}>
-                    → {out.country}
+                  <path d={d} fill="none" stroke="transparent" strokeWidth={10} style={{ cursor: 'pointer' }}
+                    onMouseEnter={e => segTip(seg, e)} onMouseMove={mv} onMouseLeave={() => setTip(null)} />
+                  <path d={d} fill="none" stroke="#94a3b8" strokeWidth={1.8} opacity={0.55}
+                    style={{ pointerEvents: 'none' }} />
+                  <text x={lx} y={ly} fontSize={7} fill="#94a3b8" opacity={0.7}
+                    textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                    {seg.id.replace('TERRESTRIAL_', '')}
                   </text>
                 </g>
               )
             })}
 
-            {/* ── Nodes ── */}
+            {/* ── Subsea stubs — straight out from outward side of CLS box ── */}
+            {stubRouting.map(({ seg, nodeId, side, pIdx, pTotal }) => {
+              const p = nodePos.get(nodeId); if (!p) return null
+              const [px, py] = portXY(p[0], p[1], side, pIdx, pTotal)
+              const [ex, ey] = stubEnd(px, py, side)
+              const sysColor = countryHighlight.systemColors.get(seg.system_id) ?? '#22d3ee'
+              const sys = systemsById[seg.system_id]
+              const fId = clsIds.has(seg.start_node_id) ? seg.end_node_id : seg.start_node_id
+              const foreign = nodesById[fId]
+              const destCC = foreign?.country ?? '?'
+              const { lx, ly, anchor } = stubLabel(ex, ey, side)
+              return (
+                <g key={`${seg.id}-stub`}>
+                  <line x1={px} y1={py} x2={ex} y2={ey}
+                    stroke="transparent" strokeWidth={12} style={{ cursor: 'pointer' }}
+                    onMouseEnter={e => stubTip(seg, e)} onMouseMove={mv} onMouseLeave={() => setTip(null)} />
+                  <line x1={px} y1={py} x2={ex} y2={ey}
+                    stroke={sysColor} strokeWidth={2} strokeDasharray="5,3"
+                    markerEnd="url(#ndSub)" style={{ pointerEvents: 'none' }} />
+                  <text x={lx} y={ly} fontSize={7} fill={sysColor} opacity={0.9}
+                    textAnchor={anchor} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                    {sys?.name ?? seg.system_id}
+                  </text>
+                  <text x={lx} y={ly + 9} fontSize={6.5} fill={sysColor} opacity={0.6}
+                    textAnchor={anchor} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                    → {destCC}
+                  </text>
+                </g>
+              )
+            })}
+
+            {/* ── Cross-country stubs ── */}
+            {crossRouting.map(({ seg, nodeId, side, pIdx, pTotal }) => {
+              const p = nodePos.get(nodeId); if (!p) return null
+              const [px, py] = portXY(p[0], p[1], side, pIdx, pTotal)
+              const [ex, ey] = stubEnd(px, py, side)
+              const outId = countryHighlight.nodeIds.has(seg.start_node_id) ? seg.end_node_id : seg.start_node_id
+              const out = nodesById[outId]
+              const { lx, ly, anchor } = stubLabel(ex, ey, side)
+              return (
+                <g key={seg.id}>
+                  <line x1={px} y1={py} x2={ex} y2={ey}
+                    stroke="transparent" strokeWidth={12} style={{ cursor: 'pointer' }}
+                    onMouseEnter={e => segTip(seg, e)} onMouseMove={mv} onMouseLeave={() => setTip(null)} />
+                  <line x1={px} y1={py} x2={ex} y2={ey}
+                    stroke="#fb923c" strokeWidth={1.8} strokeDasharray="5,3"
+                    markerEnd="url(#ndCrs)" style={{ pointerEvents: 'none' }} />
+                  <text x={lx} y={ly} fontSize={7} fill="#fb923c" opacity={0.85}
+                    textAnchor={anchor} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                    → {out?.country ?? '?'}
+                  </text>
+                </g>
+              )
+            })}
+
+            {/* ── Nodes: outer routing box + inner symbol + labels ── */}
             {countryNodes.map(n => {
-              const pos = nodePos.get(n.id)
-              if (!pos) return null
+              const pos = nodePos.get(n.id); if (!pos) return null
               const [x, y] = pos
               const col   = NODE_COLOR[n.type] ?? '#94a3b8'
               const r     = NODE_R[n.type] ?? 7
@@ -420,7 +474,11 @@ export function CountryNodeDiagram({
                 <g key={n.id} style={{ cursor: 'pointer' }}
                   onMouseEnter={e => nodeTip(n, e)} onMouseMove={mv}
                   onMouseLeave={() => setTip(null)}>
-                  <circle cx={x} cy={y} r={r + 7} fill={col} opacity={0.10} />
+                  {/* Routing box */}
+                  <rect x={x - BOX_H} y={y - BOX_H} width={BOX_H * 2} height={BOX_H * 2}
+                    fill={col} fillOpacity={0.07} stroke={col} strokeOpacity={0.4}
+                    strokeWidth={1.2} rx={3} />
+                  {/* Symbol */}
                   {isCls ? (
                     <rect x={x - r} y={y - r} width={r * 2} height={r * 2}
                       fill={col} stroke={t.bgDeep} strokeWidth={1.5}
@@ -428,10 +486,12 @@ export function CountryNodeDiagram({
                   ) : (
                     <circle cx={x} cy={y} r={r} fill={col} stroke={t.bgDeep} strokeWidth={1.5} />
                   )}
-                  <text x={x} y={y + r + 13} fontSize={8.5} fontWeight="600"
+                  {/* ID */}
+                  <text x={x} y={y + BOX_H + 13} fontSize={8.5} fontWeight="600"
                     fill={t.text} opacity={0.9} textAnchor="middle"
                     style={{ pointerEvents: 'none', userSelect: 'none' }}>{n.id}</text>
-                  <text x={x} y={y + r + 23} fontSize={6.5}
+                  {/* Name */}
+                  <text x={x} y={y + BOX_H + 23} fontSize={6.5}
                     fill={t.textFaint} opacity={0.7} textAnchor="middle"
                     style={{ pointerEvents: 'none', userSelect: 'none' }}>
                     {n.name.length > 22 ? n.name.slice(0, 20) + '…' : n.name}
@@ -457,7 +517,8 @@ export function CountryNodeDiagram({
                   <defs><marker id="ll" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
                     <path d="M0,0 L0,6 L6,3 z" fill={item.color} />
                   </marker></defs>
-                  <line x1={0} y1={5} x2={16} y2={5} stroke={item.color} strokeWidth={2} strokeDasharray="4,2" markerEnd="url(#ll)" />
+                  <line x1={0} y1={5} x2={16} y2={5} stroke={item.color} strokeWidth={2}
+                    strokeDasharray="4,2" markerEnd="url(#ll)" />
                 </svg>
               )}
               <span style={{ fontSize: 10, color: t.textFaint }}>{item.label}</span>

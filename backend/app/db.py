@@ -206,6 +206,8 @@ def init_db() -> None:
             _run_migration_027(cur)
             # Migration 028: fix invalid type 'cable_landing_station' → 'landing_station'
             _run_migration_028(cur)
+            # Migration 029: update waypoints for all 21 SG terrestrial segments
+            _run_migration_029(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -973,6 +975,66 @@ def _run_migration_028(cur) -> None:
         "UPDATE nodes SET data = jsonb_set(data, '{type}', '\"landing_station\"') "
         "WHERE data->>'type' = 'cable_landing_station'"
     )
+
+
+# Node coords for reference:
+# TUAS (1.321, 103.656)  IST1 (1.295, 103.790)  SSG5 (1.317, 103.702)
+# SGGS (1.339, 103.894)  SGPL (1.324, 103.892)  KTLS (1.303, 103.897)
+# SGCN (1.347, 103.971)  SGCL (1.349, 103.971)  SGCH (1.338, 103.959)
+# SKGX (1.375, 103.875)
+_SG_WAYPOINTS: dict[str, list | None] = {
+    # TUAS → IST1: SE then E
+    "TERRESTRIAL_SG31": [[1.308, 103.700], [1.295, 103.756]],
+    # TUAS → SGGS: E via SSG5 area then NE
+    "TERRESTRIAL_SG28": [[1.310, 103.700], [1.338, 103.780], [1.338, 103.860]],
+    # IST1 → SGCL: NE via central corridor
+    "TERRESTRIAL_SG25": [[1.295, 103.848], [1.330, 103.930], [1.349, 103.955]],
+    # IST1 → SGGS: E then N
+    "TERRESTRIAL_SG03": [[1.295, 103.840], [1.330, 103.890]],
+    # IST1 → SGCN diverse A: southern route via lower corridor
+    "TERRESTRIAL_SG39": [[1.285, 103.845], [1.298, 103.935], [1.338, 103.968]],
+    # SGPL → IST1: W then SW
+    "TERRESTRIAL_SG11": [[1.320, 103.850], [1.295, 103.820]],
+    # IST1 → KTLS: E along southern corridor
+    "TERRESTRIAL_SG35": [[1.295, 103.840], [1.300, 103.875]],
+    # IST1 → SGCN diverse B: northern route via upper corridor
+    "TERRESTRIAL_SG04": [[1.330, 103.830], [1.350, 103.900], [1.350, 103.960]],
+    # KTLS → SGGS: N along eastern cluster
+    "TERRESTRIAL_SG36": [[1.318, 103.895]],
+    # SGPL → SGGS: very short, direct N
+    "TERRESTRIAL_SG10": [[1.331, 103.892]],
+    # SGPL → SGCH: E then slight N
+    "TERRESTRIAL_SG08": [[1.324, 103.920], [1.330, 103.950]],
+    # SGPL → SGCN: NE via north side
+    "TERRESTRIAL_SG09": [[1.335, 103.930], [1.347, 103.955]],
+    # SSG5 → SGGS: E along central corridor
+    "TERRESTRIAL_SG41": [[1.317, 103.760], [1.335, 103.850]],
+    # SSG5 → SGCN: E via northern route
+    "TERRESTRIAL_SG42": [[1.317, 103.760], [1.338, 103.870], [1.347, 103.950]],
+    # SKGX → SGCN: SE via north side
+    "TERRESTRIAL_SG40": [[1.370, 103.920], [1.355, 103.958]],
+    # SKGX → SGCH: SE via slightly lower angle
+    "TERRESTRIAL_SG06": [[1.360, 103.900], [1.345, 103.943]],
+    # SKGX → SGGS: S then slight SE
+    "TERRESTRIAL_SG23": [[1.360, 103.880]],
+    # SGGS → SGCN diverse A: northern arc
+    "TERRESTRIAL_SG01": [[1.356, 103.920], [1.356, 103.960]],
+    # SGGS → SGCN diverse B: southern arc
+    "TERRESTRIAL_SG02": [[1.325, 103.930], [1.335, 103.967]],
+    # SGGS → SGCN diverse C: central direct
+    "TERRESTRIAL_SG30": [[1.341, 103.932], [1.344, 103.962]],
+    # SGCN → SGCL: very short adjacent stub
+    "TERRESTRIAL_SG22": [[1.348, 103.971]],
+}
+
+
+def _run_migration_029(cur) -> None:
+    """Update waypoints for all 21 SG terrestrial segments (guarantees correct data regardless of seed history)."""
+    for seg_id, wps in _SG_WAYPOINTS.items():
+        cur.execute(
+            "UPDATE segments SET data = jsonb_set(data, '{waypoints}', %s::jsonb) WHERE id = %s",
+            (json.dumps(wps), seg_id),
+        )
 
 
 def _seed_if_empty(conn) -> None:
