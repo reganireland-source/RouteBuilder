@@ -176,6 +176,8 @@ def init_db() -> None:
             _run_migration_012(cur)
             # Migration 013: insert Singapore PoPs and CLSs
             _run_migration_013(cur)
+            # Migration 014: fix 013 data errors; remove old generic SG nodes + terrestrials
+            _run_migration_014(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -672,12 +674,12 @@ _SG_NODES = [
     {"id": "IST1", "name": "Equinix SG1, Singapore",          "lat": 1.295231, "lng": 103.7898, "type": "extension_pop",        "country": "SG", "owner": "Equinix",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
     {"id": "KTLS", "name": "SingTel Katong Exchange",          "lat": 1.302560, "lng": 103.8974, "type": "cable_landing_station", "country": "SG", "owner": "Singtel",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
     {"id": "SGCH", "name": "Changi C2C CLS, Singapore",        "lat": 1.337551, "lng": 103.9585, "type": "cable_landing_station", "country": "SG", "owner": "Telstra",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
-    {"id": "GNTP", "name": "Epsilon, Singapore",               "lat": 1.352115, "lng": 103.8607, "type": "extension_pop",        "country": "SG", "owner": "Epsilon",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
+    {"id": "6NTP", "name": "Epsilon, Singapore",               "lat": 1.352115, "lng": 103.8607, "type": "extension_pop",        "country": "SG", "owner": "Epsilon",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
     {"id": "SGOX", "name": "Singapore Stock Exchange",         "lat": 1.375236, "lng": 103.8748, "type": "extension_pop",        "country": "SG", "owner": "Singapore Stock Exchange", "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
     {"id": "SCOL", "name": "Starhub Changi Cable Station",     "lat": 1.349119, "lng": 103.9714, "type": "cable_landing_station", "country": "SG", "owner": "StarHub",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
-    {"id": "SGCN", "name": "SGCS1, Singapore",                 "lat": 1.347041, "lng": 103.9707, "type": "cable_landing_station", "country": "SG", "owner": "Telstra",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
+    {"id": "SGCN", "name": "SGCS1, Singapore",                 "lat": 1.347041, "lng": 103.9707, "type": "extension_pop",        "country": "SG", "owner": "Telstra",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
     {"id": "SGGS", "name": "SGDS1, Singapore",                 "lat": 1.338723, "lng": 103.8938, "type": "primary_pop",          "country": "SG", "owner": "Telstra",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
-    {"id": "SDNT", "name": "NTT Singapore",                    "lat": 1.376080, "lng": 103.8748, "type": "extension_pop",        "country": "SG", "owner": "NTT",                      "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
+    {"id": "SGNT", "name": "NTT Singapore PoP",                "lat": 1.376080, "lng": 103.8748, "type": "extension_pop",        "country": "SG", "owner": "NTT",                      "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
     {"id": "SGPL", "name": "SGCS2, Singapore",                 "lat": 1.323929, "lng": 103.8917, "type": "primary_pop",          "country": "SG", "owner": "BDX",                      "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
     {"id": "SSG2", "name": "Equinix SG2, Singapore",           "lat": 1.321822, "lng": 103.6953, "type": "extension_pop",        "country": "SG", "owner": "Equinix",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
     {"id": "SSG3", "name": "Equinix SG3, Singapore",           "lat": 1.296184, "lng": 103.7909, "type": "extension_pop",        "country": "SG", "owner": "Equinix",                  "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None},
@@ -693,6 +695,40 @@ def _run_migration_013(cur) -> None:
         "INSERT INTO nodes (id, data) VALUES %s ON CONFLICT DO NOTHING",
         [(n["id"], json.dumps(n)) for n in _SG_NODES],
     )
+
+
+_SG_6NTP = {"id": "6NTP", "name": "Epsilon, Singapore", "lat": 1.352115, "lng": 103.8607, "type": "extension_pop", "country": "SG", "owner": "Epsilon", "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None}
+_SG_SGNT = {"id": "SGNT", "name": "NTT Singapore PoP", "lat": 1.376080, "lng": 103.8748, "type": "extension_pop", "country": "SG", "owner": "NTT", "trading_name": None, "city": "Singapore", "street_address": None, "description": None, "capabilities": None, "verification_status": "draft", "last_verified_date": None}
+
+_SG_OLD_GENERIC_IDS = ["SIN1", "SIN2", "SIN3", "SIN4"]
+_SG_OLD_TERRESTRIAL_IDS = ["TERRESTRIAL_SG01", "TERRESTRIAL_SG02", "TERRESTRIAL_SG03", "TERRESTRIAL_SG04", "TERRESTRIAL_SG05"]
+
+
+def _run_migration_014(cur) -> None:
+    """Fix migration-013 data errors; remove old generic SG nodes and their terrestrial segments."""
+    # Fix GNTP → 6NTP (ID was wrong, image showed 6 not G)
+    cur.execute("DELETE FROM nodes WHERE id = 'GNTP'")
+    cur.execute(
+        "INSERT INTO nodes (id, data) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+        ("6NTP", json.dumps(_SG_6NTP)),
+    )
+    # Fix SGCN type: cable_landing_station → extension_pop
+    cur.execute(
+        "UPDATE nodes SET data = jsonb_set(data, '{type}', '\"extension_pop\"') WHERE id = 'SGCN'",
+    )
+    # Fix SDNT → SGNT with correct name
+    cur.execute("DELETE FROM nodes WHERE id = 'SDNT'")
+    cur.execute(
+        "INSERT INTO nodes (id, data) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+        ("SGNT", json.dumps(_SG_SGNT)),
+    )
+    # Remove old generic SG nodes
+    for nid in _SG_OLD_GENERIC_IDS:
+        cur.execute("DELETE FROM nodes WHERE id = %s", (nid,))
+    # Remove old SG terrestrial segments (all reference deleted nodes)
+    for sid in _SG_OLD_TERRESTRIAL_IDS:
+        cur.execute("DELETE FROM capacity WHERE segment_id = %s", (sid,))
+        cur.execute("DELETE FROM segments WHERE id = %s", (sid,))
 
 
 def _seed_if_empty(conn) -> None:
