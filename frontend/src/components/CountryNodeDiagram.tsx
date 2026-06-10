@@ -317,11 +317,14 @@ export function CountryNodeDiagram({ nodes, segments, systems, capacity, country
               if (!arr) return null
               const sysColor = countryHighlight.systemColors.get(seg.system_id) ?? '#22d3ee'
               const sys = systemsById[seg.system_id]
+              const foreignId = clsIds.has(seg.start_node_id) ? seg.end_node_id : seg.start_node_id
+              const foreign = nodesById[foreignId]
+              const destCountry = foreign?.country ?? '?'
               const midX = (arr.x1 + arr.x2) / 2, midY = (arr.y1 + arr.y2) / 2
               const dx = arr.x2 - arr.x1, dy = arr.y2 - arr.y1
               const len = Math.sqrt(dx * dx + dy * dy)
-              // Label offset perpendicular to arrow
-              const nx = -dy / len * 12, ny = dx / len * 12
+              // Perpendicular offset so label sits beside the arrow
+              const px = -dy / len * 13, py = dx / len * 13
               return (
                 <g key={seg.id}>
                   <line
@@ -333,13 +336,23 @@ export function CountryNodeDiagram({ nodes, segments, systems, capacity, country
                     onMouseMove={e => setTooltip(prev => prev ? { ...prev, screenX: e.clientX, screenY: e.clientY } : null)}
                     onMouseLeave={() => setTooltip(null)}
                   />
+                  {/* System name */}
                   <text
-                    x={midX + nx} y={midY + ny}
-                    fontSize={7} fill={sysColor} opacity={0.85}
+                    x={midX + px} y={midY + py - 4}
+                    fontSize={7} fill={sysColor} opacity={0.9}
                     textAnchor="middle" dominantBaseline="middle"
                     style={{ pointerEvents: 'none', userSelect: 'none' }}
                   >
                     {sys?.name ?? seg.system_id}
+                  </text>
+                  {/* Destination country */}
+                  <text
+                    x={midX + px} y={midY + py + 5}
+                    fontSize={6.5} fill={sysColor} opacity={0.65}
+                    textAnchor="middle" dominantBaseline="middle"
+                    style={{ pointerEvents: 'none', userSelect: 'none' }}
+                  >
+                    → {destCountry}
                   </text>
                 </g>
               )
