@@ -223,6 +223,10 @@ def init_db() -> None:
             _run_migration_035(cur)
             # Migration 036: insert Japan terrestrial backhaul segments + fix MJLS coordinates
             _run_migration_036(cur)
+            # Migration 037: reroute C2C segments S4 and S3C to SMCC
+            _run_migration_037(cur)
+            # Migration 038: reroute C2C-S5 to CHCC, UNITY/FASTER Chikura end to CKKD
+            _run_migration_038(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -1485,6 +1489,34 @@ def _run_migration_036(cur) -> None:
         cur,
         "INSERT INTO capacity (segment_id, data) VALUES %s ON CONFLICT DO NOTHING",
         [(c["segment_id"], json.dumps(c)) for c in _JP_TERRESTRIAL_CAPACITY],
+    )
+
+
+def _run_migration_037(cur) -> None:
+    """Reroute C2C segments S4 and S3C to SMCC (KDDI Shima CLS)."""
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{end_node_id}', '\"SMCC\"'::jsonb) "
+        "WHERE id = 'C2C-S4'"
+    )
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{end_node_id}', '\"SMCC\"'::jsonb) "
+        "WHERE id = 'C2C-S3C'"
+    )
+
+
+def _run_migration_038(cur) -> None:
+    """Reroute subsea segments to correct Japan CLS endpoints: C2C-S5→CHCC, UNITY/FASTER→CKKD."""
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{start_node_id}', '\"CHCC\"'::jsonb) "
+        "WHERE id = 'C2C-S5'"
+    )
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{start_node_id}', '\"CKKD\"'::jsonb) "
+        "WHERE id = 'UNITY-CHK-HAW'"
+    )
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{end_node_id}', '\"CKKD\"'::jsonb) "
+        "WHERE id = 'FASTER-BDN-CHK'"
     )
 
 
