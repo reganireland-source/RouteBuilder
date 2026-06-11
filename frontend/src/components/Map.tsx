@@ -19,6 +19,7 @@ const NODE_STYLE: Record<string, { color: string; fill: string; radius: number; 
   secondary_pop:   { color: '#7c3aed', fill: '#a855f7', radius: 6,   weight: 1.5, opacity: 1    },
   extension_pop:   { color: '#475569', fill: '#64748b', radius: 5,   weight: 1,   opacity: 0.85 },
   branching_unit:  { color: '#92400e', fill: '#d97706', radius: 3,   weight: 1,   opacity: 0.75 },
+  off_net:         { color: '#374151', fill: '#6b7280', radius: 5,   weight: 1,   opacity: 0.65 },
 }
 
 const NODE_TYPE_LABEL: Record<string, string> = {
@@ -27,6 +28,7 @@ const NODE_TYPE_LABEL: Record<string, string> = {
   secondary_pop:   'Secondary PoP',
   extension_pop:   'Extension PoP',
   branching_unit:  'Branching Unit',
+  off_net:         'Off-Net Node',
 }
 
 interface Props {
@@ -284,6 +286,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
         ['secondary_pop',   'Secondary PoP'],
         ['extension_pop',   'Extension PoP'],
         ['branching_unit',  'Branching Unit'],
+        ['off_net',         'Off-Net Node'],
       ] as [string, string][]).map(([type, label]) => {
         const ns = NODE_STYLE[type]
         const sz = Math.round(ns.radius * 1.5)

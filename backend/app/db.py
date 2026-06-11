@@ -217,6 +217,8 @@ def init_db() -> None:
             _run_migration_032(cur)
             # Migration 033: insert Japan PoPs and cable landing stations
             _run_migration_033(cur)
+            # Migration 034: ensure off_net type nodes have on_net = 'off_net'
+            _run_migration_034(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -1296,6 +1298,16 @@ def _run_migration_033(cur) -> None:
         cur,
         "INSERT INTO nodes (id, data) VALUES %s ON CONFLICT DO NOTHING",
         [(n["id"], json.dumps(n)) for n in _JAPAN_NODES],
+    )
+
+
+def _run_migration_034(cur) -> None:
+    """Ensure any off_net type nodes (created before on_net was populated) have on_net set."""
+    cur.execute(
+        """UPDATE nodes
+           SET data = jsonb_set(data, '{on_net}', '"off_net"'::jsonb)
+           WHERE data->>'type' = 'off_net'
+             AND data->>'on_net' IS NULL"""
     )
 
 

@@ -191,6 +191,7 @@ export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onC
     : node.type === 'primary_pop' ? 'Primary PoP'
     : node.type === 'secondary_pop' ? 'Secondary PoP'
     : node.type === 'extension_pop' ? 'Extension PoP'
+    : node.type === 'off_net' ? 'Off-Net Node'
     : node.type
 
   const delta = 0.01

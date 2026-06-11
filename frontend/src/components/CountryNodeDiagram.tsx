@@ -17,6 +17,7 @@ const NODE_COLOR: Record<string, string> = {
   secondary_pop:   '#b45309',   // dark amber   (was bright yellow-amber)
   extension_pop:   '#7c3aed',   // violet       (keep)
   branching_unit:  '#6b7280',   // gray         (keep)
+  off_net:         '#374151',   // dark slate
 }
 const NODE_R: Record<string, number> = {
   landing_station: 14,
@@ -24,6 +25,7 @@ const NODE_R: Record<string, number> = {
   secondary_pop:   10,
   extension_pop:    9,
   branching_unit:   5,
+  off_net:          8,
 }
 const TYPE_LABEL: Record<string, string> = {
   landing_station: 'CLS',
@@ -31,6 +33,7 @@ const TYPE_LABEL: Record<string, string> = {
   secondary_pop:   'Secondary PoP',
   extension_pop:   'Extension PoP',
   branching_unit:  'BU',
+  off_net:         'Off-Net',
 }
 
 // 14 visually distinct segment colours — all dark enough to read on a light grey background
