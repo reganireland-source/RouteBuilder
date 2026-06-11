@@ -478,28 +478,28 @@ export function CountryNodeDiagram({
     >
       <div style={{
         width: 'min(98vw, 1500px)', height: '94vh',
-        background: t.bgDeep, border: `1px solid ${t.border}`, borderRadius: 12,
+        background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 12,
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
         boxShadow: '0 24px 64px rgba(0,0,0,0.7)',
       }}>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '10px 18px', borderBottom: `1px solid ${t.border}`,
-                      background: t.bgBase, flexShrink: 0 }}>
+                      padding: '10px 18px', borderBottom: '1px solid #e2e8f0',
+                      background: '#ffffff', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 16 }}>🗺</span>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: t.text }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
                 {countryHighlight.countryName} — Node Diagram
               </div>
-              <div style={{ fontSize: 11, color: t.textFaint }}>
+              <div style={{ fontSize: 11, color: '#6b7280' }}>
                 {countryNodes.length} nodes · {internalSegs.length} backhauls · {stubs.length} subsea stubs
               </div>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: `1px solid ${t.border}`,
-            borderRadius: 6, color: t.textFaint, cursor: 'pointer', padding: '4px 10px',
+          <button onClick={onClose} style={{ background: 'none', border: '1px solid #d1d5db',
+            borderRadius: 6, color: '#6b7280', cursor: 'pointer', padding: '4px 10px',
             fontSize: 13, fontFamily: 'inherit' }}>Close ✕</button>
         </div>
 
@@ -514,7 +514,7 @@ export function CountryNodeDiagram({
             onMouseMove={mv}
             onClick={() => setSelected(null)}
           >
-            <rect width={svgW} height={svgH} fill="#cbd5e1" />
+            <rect width={svgW} height={svgH} fill="#ffffff" />
             <defs>
               <marker id="ndSub" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
                 <path d="M0,0 L0,6 L8,3 z" fill={STUB_COLOR} />
@@ -649,7 +649,7 @@ export function CountryNodeDiagram({
                   onClick={e => clickNode(n, e)}>
                   {/* Opaque background — occludes any edges drawn behind this node */}
                   <rect x={x - BOX_H} y={y - BOX_H} width={BOX_H * 2} height={BOX_H * 2}
-                    fill="#cbd5e1" stroke="none" rx={3} />
+                    fill="#ffffff" stroke="none" rx={3} />
                   {/* Coloured tint + border */}
                   <rect x={x - BOX_H} y={y - BOX_H} width={BOX_H * 2} height={BOX_H * 2}
                     fill={col} fillOpacity={selected?.kind === 'node' && selected.node.id === n.id ? 0.35 : 0.15}
@@ -669,7 +669,7 @@ export function CountryNodeDiagram({
                     style={{ pointerEvents: 'none', userSelect: 'none' }}>{n.id}</text>
                   {/* Name */}
                   <text x={x} y={y + BOX_H + 30} fontSize={9}
-                    fill="#374151" textAnchor="middle"
+                    fill="#6b7280" textAnchor="middle"
                     style={{ pointerEvents: 'none', userSelect: 'none' }}>
                     {n.name.length > 20 ? n.name.slice(0, 18) + '…' : n.name}
                   </text>
@@ -684,13 +684,12 @@ export function CountryNodeDiagram({
               style={{
                 position: 'absolute', bottom: 12, right: 12,
                 width: 280, maxHeight: 320, overflowY: 'auto',
-                background: 'rgba(15,23,42,0.94)',
+                background: '#ffffff',
                 border: `1px solid ${selected.kind === 'node'
-                  ? NODE_COLOR[(selected as { kind: 'node'; node: CableNode }).node.type] + '80'
-                  : (selected as { kind: 'seg'; seg: CableSegment; color: string }).color + '80'}`,
+                  ? NODE_COLOR[(selected as { kind: 'node'; node: CableNode }).node.type] + '55'
+                  : (selected as { kind: 'seg'; seg: CableSegment; color: string }).color + '55'}`,
                 borderRadius: 10, padding: '12px 14px',
-                backdropFilter: 'blur(8px)',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
                 zIndex: 100,
               }}
               onClick={e => e.stopPropagation()}
@@ -710,7 +709,7 @@ export function CountryNodeDiagram({
                 onClick={() => setSelected(null)}
                 style={{
                   position: 'absolute', top: 8, right: 8,
-                  background: 'none', border: 'none', color: '#94a3b8',
+                  background: 'none', border: 'none', color: '#9ca3af',
                   cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 2,
                 }}
               >✕</button>
@@ -720,8 +719,8 @@ export function CountryNodeDiagram({
 
         {/* Legend */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 16px',
-                      padding: '7px 18px', borderTop: `1px solid ${t.border}`,
-                      background: t.bgBase, flexShrink: 0 }}>
+                      padding: '7px 18px', borderTop: '1px solid #e2e8f0',
+                      background: '#ffffff', flexShrink: 0 }}>
           {legend.map(item => (
             <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               {item.shape === 'circle'  && <svg width={14} height={14}><circle cx={7} cy={7} r={5} fill={item.color} /></svg>}
@@ -737,7 +736,7 @@ export function CountryNodeDiagram({
                     strokeDasharray="4,2" markerEnd="url(#ll)" />
                 </svg>
               )}
-              <span style={{ fontSize: 10, color: t.textFaint }}>{item.label}</span>
+              <span style={{ fontSize: 10, color: '#6b7280' }}>{item.label}</span>
             </div>
           ))}
         </div>
@@ -746,11 +745,11 @@ export function CountryNodeDiagram({
       {/* Hover tooltip */}
       {tip && (
         <div style={{ position: 'fixed', left: tip.sx + 14, top: tip.sy - 8,
-                      background: t.bgBase, border: `1px solid ${t.border}`, borderRadius: 7,
+                      background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 7,
                       padding: '7px 11px', pointerEvents: 'none', zIndex: 9100, maxWidth: 260,
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.5)' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: t.text, marginBottom: 4 }}>{tip.title}</div>
-          {tip.lines.map((l, i) => <div key={i} style={{ fontSize: 11, color: t.textFaint, lineHeight: 1.5 }}>{l}</div>)}
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.15)' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', marginBottom: 4 }}>{tip.title}</div>
+          {tip.lines.map((l, i) => <div key={i} style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.5 }}>{l}</div>)}
         </div>
       )}
     </div>
@@ -770,10 +769,10 @@ const OWNERSHIP_LABELS: Record<string, string> = {
 function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 6, padding: '4px 0',
-                  borderTop: '1px solid rgba(255,255,255,0.07)', alignItems: 'baseline' }}>
-      <span style={{ fontSize: 9, fontWeight: 700, color: '#64748b', textTransform: 'uppercase',
+                  borderTop: '1px solid #f1f5f9', alignItems: 'baseline' }}>
+      <span style={{ fontSize: 9, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase',
                      letterSpacing: '0.07em' }}>{label}</span>
-      <span style={{ fontSize: 11, color: '#e2e8f0', lineHeight: 1.4,
+      <span style={{ fontSize: 11, color: '#1f2937', lineHeight: 1.4,
                      fontFamily: mono ? 'monospace' : 'inherit' }}>{value}</span>
     </div>
   )
@@ -790,7 +789,7 @@ function NodeInfoPanel({ node, capMap: _capMap }: { node: CableNode; capMap: Rec
           {TYPE_LABEL[node.type] ?? node.type}
         </span>
       </div>
-      <div style={{ fontSize: 12, fontWeight: 600, color: '#cbd5e1', marginBottom: 8, lineHeight: 1.3 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 8, lineHeight: 1.3 }}>
         {node.name}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -833,7 +832,7 @@ function SegInfoPanel({ seg, color, nodesById, systemsById, capMap }: {
         </span>
       </div>
       {seg.name && seg.name !== seg.id && (
-        <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8 }}>{seg.name}</div>
+        <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 8 }}>{seg.name}</div>
       )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
         <InfoRow label="System"  value={sys?.name ?? seg.system_id} />
