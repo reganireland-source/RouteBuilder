@@ -338,3 +338,12 @@ export const TECH_LOOKUP_LABELS: Record<TechLookupTable, string> = {
   tech_arranged_by:   'Arranged By',
   tech_l1_settings:   'L1 / Optical Settings',
 }
+
+export interface FeatureRequest {
+  id: string
+  title: string
+  description: string
+  category: string
+  status: 'backlog' | 'in_development' | 'completed'
+  created_at: string
+}

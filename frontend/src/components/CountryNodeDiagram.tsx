@@ -663,6 +663,9 @@ export function CountryNodeDiagram({
                   ) : (
                     <circle cx={x} cy={y} r={r} fill={col} stroke={t.bgDeep} strokeWidth={1.5} />
                   )}
+                  {/* Opaque background for label area — prevents vertical lines passing through text */}
+                  <rect x={x - 60} y={y + BOX_H + 4} width={120} height={34}
+                    fill="#ffffff" stroke="none" />
                   {/* ID */}
                   <text x={x} y={y + BOX_H + 17} fontSize={11} fontWeight="700"
                     fill={col} textAnchor="middle"

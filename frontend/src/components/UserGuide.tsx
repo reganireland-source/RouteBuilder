@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '../theme'
+import { api } from '../api/client'
 
-import type { CableNode, CableSegment, CableSystem } from '../types'
+import type { CableNode, CableSegment, CableSystem, FeatureRequest } from '../types'
 
 
 const STEPS = [
@@ -30,9 +31,19 @@ interface Props {
 
 export function UserGuide({ nodes, segments, systems }: Props) {
   const t = useTheme()
-  const [page, setPage] = useState<1 | 2 | 3 | 4 | 5>(1)
+  const [page, setPage] = useState<1 | 2 | 3 | 4 | 5 | 6>(1)
   const [printAll, setPrintAll] = useState(false)
   const printRef = useRef<HTMLDivElement>(null)
+  const [featureRequests, setFeatureRequests] = useState<FeatureRequest[]>([])
+  const [reqForm, setReqForm] = useState({ title: '', description: '', category: '' })
+  const [reqSubmitting, setReqSubmitting] = useState(false)
+  const [reqDone, setReqDone] = useState(false)
+
+  useEffect(() => {
+    if (page === 6) {
+      api.getFeatureRequests().then(setFeatureRequests).catch(() => {})
+    }
+  }, [page])
 
   useEffect(() => {
     if (!printAll) return
@@ -261,7 +272,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         [3, '🔍 Search Algorithm'],
         [4, '🗄 Data Model'],
         [5, '📁 Solution Projects'],
-      ] as [1|2|3|4|5, string][]).map(([p, label]) => (
+        [6, '📋 Feature Backlog'],
+      ] as [1|2|3|4|5|6, string][]).map(([p, label]) => (
         <button
           key={p}
           onClick={() => setPage(p)}
@@ -1209,6 +1221,256 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     </div>
   )
   if (page === 5 && !printAll) return projectsGuide
+
+  // ── Page 6: Feature Backlog ────────────────────────────────────────────────
+
+  const FEATURE_CATEGORIES = [
+    'Route Search & Discovery',
+    'Manual Route Builder',
+    'Country Explorer',
+    'Network Visualization',
+    'Data Management',
+    'Customer Solutions & SLD',
+    'AI & Intelligence',
+    'Integration & Data Feeds',
+    'Reporting & Export',
+    'UI/UX & Design',
+  ]
+
+  const COMPLETED_FEATURES: { title: string; category: string; desc: string }[] = [
+    { title: 'PoP Route Builder',             category: 'Route Search & Discovery',  desc: 'Graph-based engine finding optimal paths between any two network nodes, ranked by latency, hops, margin or capacity.' },
+    { title: 'Diversity Pairs — Worker/Protect',category: 'Route Search & Discovery', desc: '1+1 diversity search returning matched worker/protect pairs with full flip capability.' },
+    { title: 'Country & Node Constraints',    category: 'Route Search & Discovery',  desc: 'Must-avoid and must-include filtering on nodes, segments, systems and countries — hard exclusions from the graph.' },
+    { title: 'On-Net/Off-Net Classification', category: 'Route Search & Discovery',  desc: 'Automatic ownership classification of routes with on-net percentage badge on every result card.' },
+    { title: 'Margin Scoring',                category: 'Route Search & Discovery',  desc: 'Weighted commercial margin score (1–10) on every route based on segment ownership and cable system margin weights.' },
+    { title: 'Sequential Segment Breakdown',  category: 'Route Search & Discovery',  desc: 'Segment breakdown rows ordered A→B→C along the route direction, matching the actual path traversal.' },
+    { title: 'TSABuddy AI Route Assistant',   category: 'AI & Intelligence',         desc: 'Natural language route design via Claude AI or Azure OpenAI — extracts nodes, diversity, constraints and sort preference.' },
+    { title: 'Manual Route Builder',          category: 'Manual Route Builder',      desc: 'Expert hop-by-hop route construction on the live map with per-hop latency, distance and margin stats.' },
+    { title: 'Node Code Search in RouteManual',category: 'Manual Route Builder',     desc: 'Search and display nodes by their canonical 4-char code (e.g. SGCH) throughout the manual builder interface.' },
+    { title: 'Country Viewer',                category: 'Country Explorer',          desc: 'Highlight all cable systems and backhaul routes for any country on the live map with subsea/backhaul filter toggles.' },
+    { title: 'Country Node Diagram',          category: 'Country Explorer',          desc: 'Schematic SVG topology diagram with orthogonal routing, colour-coded cables and 45° subsea stubs.' },
+    { title: 'Node/Segment Info Panel',       category: 'Country Explorer',          desc: 'Click any node or segment in the diagram to open a detail panel with ID, type, ownership, latency and capacity.' },
+    { title: 'City Pairs',                    category: 'Network Visualization',     desc: 'Fast subsea system itineraries between any two cities without a full route search.' },
+    { title: 'Cable System Viewer',           category: 'Network Visualization',     desc: 'Toggle individual cable systems on the live map to inspect their routes and node coverage.' },
+    { title: 'Node Search',                   category: 'Network Visualization',     desc: 'Find nodes by name, address or coordinates — with one-click set as origin or destination.' },
+    { title: 'Segment Labels Toggle',         category: 'Network Visualization',     desc: 'Show segment IDs directly on the map for active and highlighted routes.' },
+    { title: 'Capacity Dashboard',            category: 'Data Management',           desc: 'Full-network capacity view across all segments with utilisation colour-coding.' },
+    { title: 'Live Outage Awareness',         category: 'Data Management',           desc: 'Active outage flagging on route cards with repair date estimates and outage-push sort.' },
+    { title: 'Ref Data Management',           category: 'Data Management',           desc: 'Full CRUD for nodes, segments, systems, capacity, outages and interconnect rules.' },
+    { title: 'Bulk CSV Import/Export',        category: 'Data Management',           desc: 'Bulk import and export of all ref data entities via CSV including all fields.' },
+    { title: 'Verification Status Badges',    category: 'Data Management',           desc: 'Draft / Under Verification / Verified status per node and segment — click badge to update inline.' },
+    { title: 'Customer Solution Projects',    category: 'Customer Solutions & SLD',  desc: 'Full project management for customer solutions — circuits, enrichment, SLD export in one workflow.' },
+    { title: 'A-End/Z-End Circuit Enrichment',category: 'Customer Solutions & SLD', desc: 'Per-endpoint technical detail including access type, supplier, interface and protection scheme.' },
+    { title: 'Quick SLD Export (PDF)',        category: 'Reporting & Export',        desc: 'Instant branded straight-line diagram PDF from any pinned routes — cover page + per-circuit diagrams.' },
+    { title: 'Customer SLD Export',           category: 'Reporting & Export',        desc: 'Customer-ready enriched SLD PDF with cover page, A/Z-End panels and DrawIO XML export option.' },
+    { title: 'Dark / Light Theme',            category: 'UI/UX & Design',            desc: 'Full dark and light theme support throughout the entire application.' },
+    { title: 'Mobile-First Design',           category: 'UI/UX & Design',            desc: 'Full feature parity on phones and tablets — demo routes and answer customer questions from anywhere.' },
+    { title: 'White Node Diagram Panel',      category: 'UI/UX & Design',            desc: 'Clean all-white panel for the country node diagram — no dark bands, muted professional colour palette.' },
+  ]
+
+  const IN_DEV_FEATURES: { title: string; category: string; desc: string }[] = [
+    { title: 'Feature Backlog & Requests', category: 'UI/UX & Design', desc: 'This page — product backlog visibility and user feature request submission.' },
+  ]
+
+  const BACKLOG_FEATURES: { title: string; category: string; desc: string }[] = [
+    { title: 'Real-Time Capacity from Inventory',  category: 'Integration & Data Feeds', desc: 'Live capacity feed from Veritas inventory — total and available per segment updated as circuits are provisioned.' },
+    { title: 'Automatic Outage Feed from TSM',     category: 'Integration & Data Feeds', desc: 'Fault records pushed automatically from Telstra Service Management (ServiceNow) on creation and status change.' },
+    { title: 'Live Latency from NMS',              category: 'Integration & Data Feeds', desc: 'Real-time measured round-trip delay per segment from the Network Management System.' },
+    { title: 'Salesforce / CRM Integration',       category: 'Integration & Data Feeds', desc: 'Sync opportunities and projects with Salesforce — auto-link route designs to Salesforce records.' },
+    { title: 'Inventory Sync (Node/Segment IDs)',  category: 'Integration & Data Feeds', desc: 'Auto-sync new nodes and segments from the network inventory database on commissioning.' },
+    { title: 'Quoting & Pricing Integration',      category: 'Customer Solutions & SLD', desc: 'Bridge margin scores to actual pricing outputs — indicative quotes directly from a route design.' },
+    { title: 'AI-Driven Recommendations',          category: 'AI & Intelligence',         desc: 'TSABuddy evolves to proactively surface market intelligence and optimise route recommendations.' },
+    { title: 'Customer-Facing Self-Serve Portal',  category: 'UI/UX & Design',            desc: 'Enterprise customers explore routes, model options and initiate enquiries independently.' },
+    { title: 'Network Health Dashboard',           category: 'Network Visualization',     desc: 'Real-time health view across the network with fault, utilisation and latency indicators.' },
+    { title: 'DrawIO / Visio Export from Projects',category: 'Reporting & Export',        desc: 'Export enriched SLDs as DrawIO XML or Visio VSDX for collaborative editing and custom annotations.' },
+    { title: 'Route Versioning & History',         category: 'Customer Solutions & SLD',  desc: 'Track changes to routes and circuits over time — compare versions and restore previous designs.' },
+    { title: 'Pricing Engine Integration',         category: 'Route Search & Discovery',  desc: 'Auto-derive margin from live IRU/lease cost data and commercial agreements.' },
+  ]
+
+  async function submitFeatureRequest() {
+    if (!reqForm.title.trim() || !reqForm.category) return
+    setReqSubmitting(true)
+    try {
+      const created = await api.createFeatureRequest(reqForm)
+      setFeatureRequests(prev => [...prev, created])
+      setReqForm({ title: '', description: '', category: '' })
+      setReqDone(true)
+      setTimeout(() => setReqDone(false), 4000)
+    } catch { /* ignore */ }
+    setReqSubmitting(false)
+  }
+
+  const statusColor = { backlog: t.textFaint, in_development: t.orange, completed: t.green }
+
+  const featureCard = (title: string, category: string, desc: string, status: 'completed' | 'in_development' | 'backlog', extra?: string) => (
+    <div key={title + extra} style={{
+      background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 8,
+      padding: '11px 13px', display: 'flex', flexDirection: 'column' as const, gap: 5,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: t.text, lineHeight: 1.3, flex: 1 }}>{title}</div>
+        <span style={{
+          fontSize: 8, fontWeight: 800, padding: '2px 6px', borderRadius: 3, flexShrink: 0,
+          background: statusColor[status] + '22', color: statusColor[status],
+          border: `1px solid ${statusColor[status]}44`, letterSpacing: '0.06em', textTransform: 'uppercase' as const,
+        }}>{category}</span>
+      </div>
+      <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{desc}</div>
+    </div>
+  )
+
+  const backlogPage = (
+    <div style={{
+      maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
+      fontFamily: 'system-ui, sans-serif', color: t.text,
+    }}>
+      {!printAll && pageTabs}
+
+      {/* Hero */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0c1a35 0%, #1a2e5a 60%, #1e3a6e 100%)',
+        borderRadius: 12, padding: '36px 36px 32px', marginBottom: 28,
+        position: 'relative', overflow: 'hidden',
+      }}>
+        <div style={{ position: 'absolute', right: -40, top: -40, width: 200, height: 200, borderRadius: '50%', background: 'rgba(99,102,241,0.07)' }} />
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(147,197,253,0.8)', letterSpacing: '0.12em', textTransform: 'uppercase' as const, marginBottom: 8 }}>PRODUCT ROADMAP</div>
+        <div style={{ fontSize: 30, fontWeight: 800, color: '#fff', lineHeight: 1.1, marginBottom: 10 }}>
+          Feature Backlog
+        </div>
+        <p style={{ fontSize: 13, color: 'rgba(160,190,240,0.85)', maxWidth: 540, lineHeight: 1.7, margin: '0 0 20px' }}>
+          Everything we have built, what is in progress, and what is planned next.
+          Use the form below to submit a feature request — it will appear in the backlog immediately.
+        </p>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' as const }}>
+          {[
+            { num: COMPLETED_FEATURES.length, label: 'Completed', color: t.green },
+            { num: IN_DEV_FEATURES.length,    label: 'In Development', color: t.orange },
+            { num: BACKLOG_FEATURES.length + featureRequests.length, label: 'In Backlog', color: '#6366f1' },
+          ].map(({ num, label, color }) => (
+            <div key={label} style={{ background: 'rgba(255,255,255,0.07)', borderRadius: 8, padding: '8px 16px', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color, lineHeight: 1 }}>{num}</div>
+              <div style={{ fontSize: 10, color: 'rgba(200,220,255,0.75)', marginTop: 2 }}>{label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── In Development ── */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ ...sectionLabel, color: t.orange } as React.CSSProperties}>
+          In Development ({IN_DEV_FEATURES.length})
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8 }}>
+          {IN_DEV_FEATURES.map(f => featureCard(f.title, f.category, f.desc, 'in_development', 'dev'))}
+        </div>
+      </div>
+
+      {/* ── Backlog ── */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ ...sectionLabel, color: '#6366f1' } as React.CSSProperties}>
+          Backlog ({BACKLOG_FEATURES.length + featureRequests.length})
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 8 }}>
+          {BACKLOG_FEATURES.map(f => featureCard(f.title, f.category, f.desc, 'backlog', 'bl'))}
+          {featureRequests.map(r => featureCard(r.title, r.category, r.description, 'backlog', r.id))}
+        </div>
+      </div>
+
+      {/* ── Request a Feature ── */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={sectionLabel as React.CSSProperties}>Request a Feature</div>
+        <div style={{
+          ...card() as React.CSSProperties,
+          borderLeft: `4px solid ${t.blue}`, paddingLeft: 16,
+        }}>
+          <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6, margin: '0 0 16px' }}>
+            Have an idea? Tell us what you need. Submitted requests go straight to the backlog above.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 9, fontWeight: 700, color: t.textFaint, letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginBottom: 5 }}>Title *</div>
+                <input
+                  value={reqForm.title}
+                  onChange={e => setReqForm(p => ({ ...p, title: e.target.value }))}
+                  placeholder="e.g. Export route to CSV"
+                  style={{
+                    width: '100%', boxSizing: 'border-box' as const,
+                    background: t.bgBase, border: `1px solid ${t.border}`, borderRadius: 6,
+                    color: t.text, fontSize: 12, padding: '7px 10px', outline: 'none', fontFamily: 'inherit',
+                  }}
+                />
+              </div>
+              <div>
+                <div style={{ fontSize: 9, fontWeight: 700, color: t.textFaint, letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginBottom: 5 }}>Category *</div>
+                <select
+                  value={reqForm.category}
+                  onChange={e => setReqForm(p => ({ ...p, category: e.target.value }))}
+                  style={{
+                    width: '100%', boxSizing: 'border-box' as const,
+                    background: t.bgBase, border: `1px solid ${t.border}`, borderRadius: 6,
+                    color: reqForm.category ? t.text : t.textFaint, fontSize: 12, padding: '7px 10px', fontFamily: 'inherit',
+                  }}
+                >
+                  <option value="">Select a category…</option>
+                  {FEATURE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: t.textFaint, letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginBottom: 5 }}>Description</div>
+              <textarea
+                value={reqForm.description}
+                onChange={e => setReqForm(p => ({ ...p, description: e.target.value }))}
+                placeholder="What would this feature do? Who would use it and why?"
+                rows={3}
+                style={{
+                  width: '100%', boxSizing: 'border-box' as const, resize: 'vertical' as const,
+                  background: t.bgBase, border: `1px solid ${t.border}`, borderRadius: 6,
+                  color: t.text, fontSize: 12, padding: '7px 10px', outline: 'none', fontFamily: 'inherit', lineHeight: 1.5,
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button
+                onClick={submitFeatureRequest}
+                disabled={reqSubmitting || !reqForm.title.trim() || !reqForm.category}
+                style={{
+                  padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                  background: (!reqForm.title.trim() || !reqForm.category) ? t.border : t.blue,
+                  color: (!reqForm.title.trim() || !reqForm.category) ? t.textFaint : '#fff',
+                  border: 'none', transition: 'all 0.15s', fontFamily: 'inherit',
+                }}
+              >
+                {reqSubmitting ? 'Submitting…' : 'Submit Request'}
+              </button>
+              {reqDone && (
+                <span style={{ fontSize: 11, color: t.green, fontWeight: 600 }}>
+                  ✓ Request added to backlog
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Completed ── */}
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ ...sectionLabel, color: t.green } as React.CSSProperties}>
+          Completed ({COMPLETED_FEATURES.length})
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 8 }}>
+          {COMPLETED_FEATURES.map(f => featureCard(f.title, f.category, f.desc, 'completed', 'done'))}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ textAlign: 'center', padding: '20px 0 0', borderTop: `1px solid ${t.border}` }}>
+        <div style={{ fontSize: 11, color: t.textFaint }}>International Telco · RouteBuilder · Feature Backlog</div>
+      </div>
+    </div>
+  )
+  if (page === 6 && !printAll) return backlogPage
 
   // ── Page 1: Product Overview ───────────────────────────────────────────────
   const overview = (

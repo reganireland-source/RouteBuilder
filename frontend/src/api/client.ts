@@ -1,4 +1,4 @@
-import type { AppConfig, CableNode, CableSegment, CableSystem, CityInfo, CityPairResponse, InterfaceType, InterconnectRule, NlpParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, TechLookupItem, TechLookupTable } from '../types'
+import type { AppConfig, CableNode, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, NlpParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, TechLookupItem, TechLookupTable } from '../types'
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -145,4 +145,8 @@ export const api = {
   createTechItem:   (table: TechLookupTable, item: TechLookupItem)        => post<TechLookupItem>(`/api/tech-lookups/${table}`, item),
   updateTechItem:   (table: TechLookupTable, id: string, data: Partial<TechLookupItem>) => put<TechLookupItem>(`/api/tech-lookups/${table}/${id}`, data),
   deleteTechItem:   (table: TechLookupTable, id: string)                  => del(`/api/tech-lookups/${table}/${id}`),
+
+  // Feature Requests
+  getFeatureRequests:    ()                                                         => get<FeatureRequest[]>('/api/feature-requests'),
+  createFeatureRequest:  (data: { title: string; description: string; category: string }) => post<FeatureRequest>('/api/feature-requests', data),
 }
