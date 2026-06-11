@@ -227,6 +227,8 @@ def init_db() -> None:
             _run_migration_037(cur)
             # Migration 038: reroute C2C-S5 to CHCC, UNITY/FASTER Chikura end to CKKD
             _run_migration_038(cur)
+            # Migration 039: add waypoints to Japan-touching subsea segments
+            _run_migration_039(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -1518,6 +1520,51 @@ def _run_migration_038(cur) -> None:
         "UPDATE segments SET data = jsonb_set(data, '{end_node_id}', '\"CKKD\"'::jsonb) "
         "WHERE id = 'FASTER-BDN-CHK'"
     )
+
+
+def _run_migration_039(cur) -> None:
+    """Add waypoints to Japan-touching subsea segments for map readability."""
+    _WP: list[tuple[str, str]] = [
+        # US West Coast → Japan (North Pacific great-circle arcs, separated by latitude)
+        ("TOPAZ-SEA-TYO",    "[[49,-145],[52,-168],[50,173],[44,157],[39,148]]"),
+        ("PC1N-HPT-AJI",     "[[48,-142],[51,-165],[48,177],[43,160],[40,150]]"),
+        ("FASTER-BDN-CHK",   "[[46,-147],[48,-170],[45,176],[40,158],[36,148]]"),
+        ("FASTER-BDN-SHM",   "[[46,-148],[48,-171],[45,174],[40,156],[36,144]]"),
+        ("PC1S-GRB-SHM",     "[[37,-140],[40,-155],[43,-172],[40,175],[37,158],[35,146]]"),
+        ("JUNO-BU-GRB",      "[[37,155],[42,170],[45,-175],[43,-155],[39,-135]]"),
+        ("JUPITER-SEA-BU",   "[[49,-145],[52,-168],[50,-180],[46,165]]"),
+        # Guam ↔ Chikura/Maruyama (offset each direction)
+        ("AJC-GUM-TYO",      "[[19,143],[26,141]]"),
+        ("JGA-TYO-GUM",      "[[25,143],[18,145]]"),
+        # Taiwan → Japan (three cables fanned through East China Sea)
+        ("SJC2-TPE-TYO",     "[[27,124],[30,129],[33,135]]"),
+        ("APG-TPE-TYO",      "[[28,126],[31,131],[33,137]]"),
+        ("ADC-TYO-TPE",      "[[32,137],[29,133],[26,127]]"),
+        # Philippine Sea → Japan
+        ("APRICOT-BU-TYO",   "[[25,130],[30,136]]"),
+        ("APRICOT-BU-OSA",   "[[25,128],[30,132]]"),
+        ("PROA-OSA-TIN",     "[[30,138],[24,143],[19,145]]"),
+        # Chikura east
+        ("UNITY-CHK-HAW",    "[[37,150],[41,167],[38,180],[33,-170],[27,-162]]"),
+        ("C2C-S5",           "[[30,135],[24,130],[19,126]]"),
+        ("JUNO-MNB-BU",      "[[34.9,141.5]]"),
+        ("JUNO-SHM-BU",      "[[34.0,139.0],[34.5,141.0]]"),
+        # Sea of Japan / Korea → Japan
+        ("EAC-K",            "[[36.8,130],[37,135],[37,139]]"),
+        ("SJC2-TYO-ICN",     "[[36,136],[37,131]]"),
+        ("C2C-S3C",          "[[34.8,131],[34.5,134],[34.3,136]]"),
+        # Japan coast south
+        ("EAC-A",            "[[29,129],[32,134]]"),
+        ("EAC-L",            "[[35.8,140.0],[35.2,138.5],[34.7,137.5]]"),
+        ("JUPITER-BU-TYO",   "[[35,150]]"),
+    ]
+    for seg_id, wp_json in _WP:
+        cur.execute(
+            "UPDATE segments "
+            "SET data = jsonb_set(data, '{waypoints}', %s::jsonb) "
+            "WHERE id = %s",
+            (wp_json, seg_id),
+        )
 
 
 def _seed_if_empty(conn) -> None:
