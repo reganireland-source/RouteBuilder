@@ -12,11 +12,11 @@ interface Props {
 }
 
 const NODE_COLOR: Record<string, string> = {
-  landing_station: '#06b6d4',
-  primary_pop:     '#22c55e',
-  secondary_pop:   '#f59e0b',
-  extension_pop:   '#a855f7',
-  branching_unit:  '#6b7280',
+  landing_station: '#0369a1',   // ocean blue  (was neon cyan)
+  primary_pop:     '#15803d',   // forest green (was bright green)
+  secondary_pop:   '#b45309',   // dark amber   (was bright yellow-amber)
+  extension_pop:   '#7c3aed',   // violet       (keep)
+  branching_unit:  '#6b7280',   // gray         (keep)
 }
 const NODE_R: Record<string, number> = {
   landing_station: 14,
@@ -33,12 +33,26 @@ const TYPE_LABEL: Record<string, string> = {
   branching_unit:  'BU',
 }
 
-// 14 visually distinct segment colours — all chosen to read on a mid-grey background
+// 14 visually distinct segment colours — all dark enough to read on a light grey background
 const SEG_PALETTE = [
-  '#0891b2', '#7c3aed', '#16a34a', '#ea580c', '#db2777',
-  '#b45309', '#2563eb', '#059669', '#c026d3', '#dc2626',
-  '#0d9488', '#65a30d', '#4f46e5', '#c2410c',
+  '#0369a1', // ocean blue
+  '#6d28d9', // violet
+  '#15803d', // forest green
+  '#c2410c', // burnt orange
+  '#be185d', // deep rose
+  '#92400e', // dark amber
+  '#1d4ed8', // royal blue
+  '#0f766e', // dark teal
+  '#a21caf', // deep magenta (was neon #c026d3)
+  '#b91c1c', // crimson
+  '#115e59', // dark emerald
+  '#4d7c0f', // olive        (was neon lime #65a30d)
+  '#4338ca', // indigo
+  '#9a3412', // brick
 ]
+
+const STUB_COLOR  = '#0369a1'  // deep blue (was neon cyan #22d3ee)
+const CROSS_COLOR = '#c2410c'  // burnt orange (was bright #fb923c)
 
 const BOX_H    = 34    // half-side of routing box → 68×68 px
 const GW       = 300   // grid column spacing
@@ -197,6 +211,9 @@ function sideStubEnd(px: number, py: number, side: Side): [number, number] {
 
 // ── Types ────────────────────────────────────────────────────────────────────
 interface Tip { title: string; lines: string[]; sx: number; sy: number }
+type SelItem =
+  | { kind: 'node'; node: CableNode }
+  | { kind: 'seg';  seg: CableSegment; color: string }
 interface RoutedEdge {
   seg: CableSegment; color: string
   /** Canonical src/dst node IDs (from first seg in group) */
@@ -217,12 +234,16 @@ export function CountryNodeDiagram({
   nodes, segments, systems, capacity, countryHighlight, onClose,
 }: Props) {
   const t = useTheme()
-  const [tip, setTip] = useState<Tip | null>(null)
-  const [selSegId, setSelSegId] = useState<string | null>(null)
+  const [tip, setTip]       = useState<Tip | null>(null)
+  const [selected, setSelected] = useState<SelItem | null>(null)
 
-  function toggleSeg(id: string, e: React.MouseEvent) {
+  function clickSeg(seg: CableSegment, color: string, e: React.MouseEvent) {
     e.stopPropagation()
-    setSelSegId(prev => prev === id ? null : id)
+    setSelected(prev => prev?.kind === 'seg' && prev.seg.id === seg.id ? null : { kind: 'seg', seg, color })
+  }
+  function clickNode(node: CableNode, e: React.MouseEvent) {
+    e.stopPropagation()
+    setSelected(prev => prev?.kind === 'node' && prev.node.id === node.id ? null : { kind: 'node', node })
   }
 
   const nodesById   = useMemo(() => Object.fromEntries(nodes.map(n => [n.id, n])),   [nodes])
@@ -427,8 +448,8 @@ export function CountryNodeDiagram({
   function segTip(seg: CableSegment, e: React.MouseEvent) {
     const cap = capMap[seg.id]
     setTip({ title: seg.name || seg.id, sx: e.clientX, sy: e.clientY,
-      lines: [`ID: ${seg.id}`, `${seg.length_km} km · ${(seg.latency * 1000).toFixed(1)} ms`,
-              cap ? `${cap.available_capacity_t}/${cap.total_capacity_t} Tbps avail` : ''].filter(Boolean) })
+      lines: [`ID: ${seg.id}`, `${seg.length_km} km · ${seg.latency.toFixed(1)} ms`,
+              cap ? `${cap.available_capacity_t}/${cap.total_capacity_t} T avail` : ''].filter(Boolean) })
   }
   function stubTip(seg: CableSegment, e: React.MouseEvent) {
     const sys = systemsById[seg.system_id]
@@ -436,7 +457,7 @@ export function CountryNodeDiagram({
     const f   = nodesById[fId]
     setTip({ title: sys?.name ?? seg.system_id, sx: e.clientX, sy: e.clientY,
       lines: [`ID: ${seg.id}`, f ? `→ ${f.name} (${f.country})` : '',
-              `${seg.length_km} km · ${(seg.latency * 1000).toFixed(1)} ms`].filter(Boolean) })
+              `${seg.length_km} km · ${seg.latency.toFixed(1)} ms`].filter(Boolean) })
   }
 
   const legend = [
@@ -445,8 +466,8 @@ export function CountryNodeDiagram({
     { color: NODE_COLOR.secondary_pop,   label: 'Secondary PoP',         shape: 'circle'  },
     { color: NODE_COLOR.extension_pop,   label: 'Extension PoP',         shape: 'circle'  },
     { color: SEG_PALETTE[0],             label: 'Terrestrial backhaul',   shape: 'line'    },
-    { color: '#fb923c',                  label: 'Cross-country link',     shape: 'dashed'  },
-    { color: '#22d3ee',                  label: 'Subsea cable stub',      shape: 'arrow'   },
+    { color: CROSS_COLOR,                label: 'Cross-country link',     shape: 'dashed'  },
+    { color: STUB_COLOR,                 label: 'Subsea cable stub',      shape: 'arrow'   },
   ]
 
   return (
@@ -483,22 +504,23 @@ export function CountryNodeDiagram({
         </div>
 
         {/* Diagram — fills remaining height, NO overflow/scroll */}
-        <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+        <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}
+          onClick={() => setSelected(null)}>
           <svg
             viewBox={`0 0 ${svgW} ${svgH}`}
             preserveAspectRatio="xMidYMid meet"
             style={{ width: '100%', height: '100%', display: 'block' }}
             onMouseLeave={() => setTip(null)}
             onMouseMove={mv}
-            onClick={() => setSelSegId(null)}
+            onClick={() => setSelected(null)}
           >
             <rect width={svgW} height={svgH} fill="#cbd5e1" />
             <defs>
               <marker id="ndSub" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                <path d="M0,0 L0,6 L8,3 z" fill="#22d3ee" />
+                <path d="M0,0 L0,6 L8,3 z" fill={STUB_COLOR} />
               </marker>
               <marker id="ndCrs" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-                <path d="M0,0 L0,6 L8,3 z" fill="#fb923c" />
+                <path d="M0,0 L0,6 L8,3 z" fill={CROSS_COLOR} />
               </marker>
             </defs>
 
@@ -512,21 +534,20 @@ export function CountryNodeDiagram({
               const [sx, sy] = sidePort(p1[0], p1[1], srcSide, srcOff)
               const [dx, dy] = sidePort(p2[0], p2[1], dstSide, dstOff)
               const d = orthoPath(sx, sy, dx, dy, srcSide, bypassOff)
-              // Labels on bypass paths sit on the staggered above-row horizontal segment
-              const t = groupN <= 1 ? 0.5 : 0.2 + (groupLocalIdx / (groupN - 1)) * 0.6
+              const tFrac = groupN <= 1 ? 0.5 : 0.2 + (groupLocalIdx / (groupN - 1)) * 0.6
               const [lx, ly] = bypassOff > 0
-                ? [sx + (dx - sx) * t, Math.min(sy, dy) - bypassOff - 14]
+                ? [sx + (dx - sx) * tFrac, Math.min(sy, dy) - bypassOff - 14]
                 : labelPos(sx, sy, dx, dy, srcSide, groupLocalIdx, groupN)
-              const sel = selSegId === seg.id
+              const isSel = selected?.kind === 'seg' && selected.seg.id === seg.id
               return (
                 <g key={seg.id}>
-                  {sel && <path d={d} fill="none" stroke={color} strokeWidth={14} opacity={0.25}
+                  {isSel && <path d={d} fill="none" stroke={color} strokeWidth={14} opacity={0.25}
                     style={{ pointerEvents: 'none' }} />}
                   <path d={d} fill="none" stroke="transparent" strokeWidth={14}
                     style={{ cursor: 'pointer' }}
                     onMouseEnter={e => segTip(seg, e)} onMouseLeave={() => setTip(null)}
-                    onClick={e => toggleSeg(seg.id, e)} />
-                  <path d={d} fill="none" stroke={color} strokeWidth={sel ? 5 : 2.2}
+                    onClick={e => clickSeg(seg, color, e)} />
+                  <path d={d} fill="none" stroke={color} strokeWidth={isSel ? 5 : 2.2}
                     style={{ pointerEvents: 'none' }} />
                   <text x={lx} y={ly} fontSize={12} fontWeight="600" fill={color}
                     textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none' }}>
@@ -543,25 +564,25 @@ export function CountryNodeDiagram({
               return clsStubs.map((seg, i) => {
                 const { x1, y1, x2, y2, labelAngle } = subsea45(
                   p[0], p[1], centX, centY, i, clsStubs.length)
-                const sysColor = countryHighlight.systemColors.get(seg.system_id) ?? '#22d3ee'
+                const sysColor = countryHighlight.systemColors.get(seg.system_id) ?? STUB_COLOR
                 const fId  = clsIds.has(seg.start_node_id) ? seg.end_node_id : seg.start_node_id
                 const foreign = nodesById[fId]
                 const destCC  = foreign?.country ?? '?'
                 const goRight = Math.cos(labelAngle) >= 0
                 const lx = x2 + Math.cos(labelAngle) * 6
                 const ly = y2 + Math.sin(labelAngle) * 6
-                const selSub = selSegId === seg.id
+                const isSelSub = selected?.kind === 'seg' && selected.seg.id === seg.id
                 return (
                   <g key={`${seg.id}-stub`}>
-                    {selSub && <line x1={x1} y1={y1} x2={x2} y2={y2}
+                    {isSelSub && <line x1={x1} y1={y1} x2={x2} y2={y2}
                       stroke={sysColor} strokeWidth={14} opacity={0.25}
                       style={{ pointerEvents: 'none' }} />}
                     <line x1={x1} y1={y1} x2={x2} y2={y2}
                       stroke="transparent" strokeWidth={14} style={{ cursor: 'pointer' }}
                       onMouseEnter={e => stubTip(seg, e)} onMouseLeave={() => setTip(null)}
-                      onClick={e => toggleSeg(seg.id, e)} />
+                      onClick={e => clickSeg(seg, sysColor, e)} />
                     <line x1={x1} y1={y1} x2={x2} y2={y2}
-                      stroke={sysColor} strokeWidth={selSub ? 5 : 2.2} strokeDasharray="5,3"
+                      stroke={sysColor} strokeWidth={isSelSub ? 5 : 2.2} strokeDasharray="5,3"
                       markerEnd="url(#ndSub)" style={{ pointerEvents: 'none' }} />
                     <text x={lx} y={ly - 4} fontSize={11} fontWeight="600" fill={sysColor}
                       textAnchor={goRight ? 'start' : 'end'}
@@ -590,24 +611,24 @@ export function CountryNodeDiagram({
                 side === 'left' ? 'end' : side === 'right' ? 'start' : 'middle'
               const lx = side === 'right' ? ex + 5 : side === 'left' ? ex - 5 : ex
               const ly = side === 'bottom' ? ey + 14 : side === 'top' ? ey - 12 : ey - 6
-              const selCrs = selSegId === seg.id
+              const isSelCrs = selected?.kind === 'seg' && selected.seg.id === seg.id
               return (
                 <g key={seg.id}>
-                  {selCrs && <line x1={px} y1={py} x2={ex} y2={ey}
-                    stroke="#fb923c" strokeWidth={14} opacity={0.25}
+                  {isSelCrs && <line x1={px} y1={py} x2={ex} y2={ey}
+                    stroke={CROSS_COLOR} strokeWidth={14} opacity={0.25}
                     style={{ pointerEvents: 'none' }} />}
                   <line x1={px} y1={py} x2={ex} y2={ey}
                     stroke="transparent" strokeWidth={14} style={{ cursor: 'pointer' }}
                     onMouseEnter={e => segTip(seg, e)} onMouseLeave={() => setTip(null)}
-                    onClick={e => toggleSeg(seg.id, e)} />
+                    onClick={e => clickSeg(seg, CROSS_COLOR, e)} />
                   <line x1={px} y1={py} x2={ex} y2={ey}
-                    stroke="#fb923c" strokeWidth={selCrs ? 5 : 2.2} strokeDasharray="5,3"
+                    stroke={CROSS_COLOR} strokeWidth={isSelCrs ? 5 : 2.2} strokeDasharray="5,3"
                     markerEnd="url(#ndCrs)" style={{ pointerEvents: 'none' }} />
-                  <text x={lx} y={ly} fontSize={11} fontWeight="600" fill="#fb923c"
+                  <text x={lx} y={ly} fontSize={11} fontWeight="600" fill={CROSS_COLOR}
                     textAnchor={anchor} style={{ pointerEvents: 'none', userSelect: 'none' }}>
                     {seg.id}
                   </text>
-                  <text x={lx} y={ly + 13} fontSize={10} fill="#fb923c" opacity={0.8}
+                  <text x={lx} y={ly + 13} fontSize={10} fill={CROSS_COLOR} opacity={0.8}
                     textAnchor={anchor} style={{ pointerEvents: 'none', userSelect: 'none' }}>
                     → {out?.country ?? '?'}
                   </text>
@@ -624,14 +645,16 @@ export function CountryNodeDiagram({
               const isCls = n.type === 'landing_station'
               return (
                 <g key={n.id} style={{ cursor: 'pointer' }}
-                  onMouseEnter={e => nodeTip(n, e)} onMouseLeave={() => setTip(null)}>
+                  onMouseEnter={e => nodeTip(n, e)} onMouseLeave={() => setTip(null)}
+                  onClick={e => clickNode(n, e)}>
                   {/* Opaque background — occludes any edges drawn behind this node */}
                   <rect x={x - BOX_H} y={y - BOX_H} width={BOX_H * 2} height={BOX_H * 2}
                     fill="#cbd5e1" stroke="none" rx={3} />
                   {/* Coloured tint + border */}
                   <rect x={x - BOX_H} y={y - BOX_H} width={BOX_H * 2} height={BOX_H * 2}
-                    fill={col} fillOpacity={0.15} stroke={col} strokeOpacity={0.8}
-                    strokeWidth={2} rx={3} />
+                    fill={col} fillOpacity={selected?.kind === 'node' && selected.node.id === n.id ? 0.35 : 0.15}
+                    stroke={col} strokeOpacity={0.8}
+                    strokeWidth={selected?.kind === 'node' && selected.node.id === n.id ? 3 : 2} rx={3} />
                   {/* Symbol */}
                   {isCls ? (
                     <rect x={x - r} y={y - r} width={r * 2} height={r * 2}
@@ -654,6 +677,45 @@ export function CountryNodeDiagram({
               )
             })}
           </svg>
+
+          {/* Info panel — bottom right, shown on click */}
+          {selected && (
+            <div
+              style={{
+                position: 'absolute', bottom: 12, right: 12,
+                width: 280, maxHeight: 320, overflowY: 'auto',
+                background: 'rgba(15,23,42,0.94)',
+                border: `1px solid ${selected.kind === 'node'
+                  ? NODE_COLOR[(selected as { kind: 'node'; node: CableNode }).node.type] + '80'
+                  : (selected as { kind: 'seg'; seg: CableSegment; color: string }).color + '80'}`,
+                borderRadius: 10, padding: '12px 14px',
+                backdropFilter: 'blur(8px)',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+                zIndex: 100,
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              {selected.kind === 'node' ? (
+                <NodeInfoPanel node={selected.node} capMap={capMap} />
+              ) : (
+                <SegInfoPanel
+                  seg={selected.seg}
+                  color={selected.color}
+                  nodesById={nodesById}
+                  systemsById={systemsById}
+                  capMap={capMap}
+                />
+              )}
+              <button
+                onClick={() => setSelected(null)}
+                style={{
+                  position: 'absolute', top: 8, right: 8,
+                  background: 'none', border: 'none', color: '#94a3b8',
+                  cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: 2,
+                }}
+              >✕</button>
+            </div>
+          )}
         </div>
 
         {/* Legend */}
@@ -681,7 +743,7 @@ export function CountryNodeDiagram({
         </div>
       </div>
 
-      {/* Tooltip */}
+      {/* Hover tooltip */}
       {tip && (
         <div style={{ position: 'fixed', left: tip.sx + 14, top: tip.sy - 8,
                       background: t.bgBase, border: `1px solid ${t.border}`, borderRadius: 7,
@@ -691,6 +753,108 @@ export function CountryNodeDiagram({
           {tip.lines.map((l, i) => <div key={i} style={{ fontSize: 11, color: t.textFaint, lineHeight: 1.5 }}>{l}</div>)}
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Info panel sub-components ─────────────────────────────────────────────────
+
+const OWNERSHIP_LABELS: Record<string, string> = {
+  owned:                'Owned',
+  consortium:           'Consortium',
+  iru:                  'IRU',
+  integrated_lit_lease: 'Int. Lit Lease',
+  offnet_resell:        'Offnet Resell',
+}
+
+function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 6, padding: '4px 0',
+                  borderTop: '1px solid rgba(255,255,255,0.07)', alignItems: 'baseline' }}>
+      <span style={{ fontSize: 9, fontWeight: 700, color: '#64748b', textTransform: 'uppercase',
+                     letterSpacing: '0.07em' }}>{label}</span>
+      <span style={{ fontSize: 11, color: '#e2e8f0', lineHeight: 1.4,
+                     fontFamily: mono ? 'monospace' : 'inherit' }}>{value}</span>
+    </div>
+  )
+}
+
+function NodeInfoPanel({ node, capMap: _capMap }: { node: CableNode; capMap: Record<string, SegmentCapacity> }) {
+  const col = NODE_COLOR[node.type] ?? '#94a3b8'
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, paddingRight: 20 }}>
+        <span style={{ fontFamily: 'monospace', fontSize: 15, fontWeight: 800, color: col }}>{node.id}</span>
+        <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+                       background: col + '22', color: col, border: `1px solid ${col}44` }}>
+          {TYPE_LABEL[node.type] ?? node.type}
+        </span>
+      </div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: '#cbd5e1', marginBottom: 8, lineHeight: 1.3 }}>
+        {node.name}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+        <InfoRow label="Country"  value={node.country} />
+        {node.owner        && <InfoRow label="Owner"    value={node.owner} />}
+        {node.trading_name && node.trading_name !== node.owner &&
+                              <InfoRow label="Trading"  value={node.trading_name} />}
+        {node.city         && <InfoRow label="City"     value={node.city} />}
+        {node.street_address && <InfoRow label="Address" value={node.street_address} />}
+        {node.description  && <InfoRow label="Notes"   value={node.description} />}
+        {node.verification_status && (
+          <InfoRow label="Status" value={node.verification_status.replace('_', ' ')} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function SegInfoPanel({ seg, color, nodesById, systemsById, capMap }: {
+  seg: CableSegment
+  color: string
+  nodesById: Record<string, CableNode>
+  systemsById: Record<string, CableSystem>
+  capMap: Record<string, SegmentCapacity>
+}) {
+  const cap = capMap[seg.id]
+  const sys = systemsById[seg.system_id]
+  const startNode = nodesById[seg.start_node_id]
+  const endNode   = nodesById[seg.end_node_id]
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, paddingRight: 20 }}>
+        <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 800, color }}>
+          {seg.id.replace('TERRESTRIAL_', '')}
+        </span>
+        <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+                       background: color + '22', color, border: `1px solid ${color}44`,
+                       textTransform: 'uppercase' }}>
+          {seg.type}
+        </span>
+      </div>
+      {seg.name && seg.name !== seg.id && (
+        <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 8 }}>{seg.name}</div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+        <InfoRow label="System"  value={sys?.name ?? seg.system_id} />
+        <InfoRow label="From"
+          value={startNode ? `${seg.start_node_id} – ${startNode.name}` : seg.start_node_id}
+          mono={!startNode} />
+        <InfoRow label="To"
+          value={endNode ? `${seg.end_node_id} – ${endNode.name}` : seg.end_node_id}
+          mono={!endNode} />
+        <InfoRow label="Length"  value={`${seg.length_km.toLocaleString()} km`} />
+        <InfoRow label="Latency" value={`${seg.latency.toFixed(2)} ms`} />
+        <InfoRow label="Own'ship" value={OWNERSHIP_LABELS[seg.ownership] ?? seg.ownership} />
+        <InfoRow label="Avail."  value={`${(seg.reliability * 100).toFixed(2)}%`} />
+        {cap && (
+          <InfoRow label="Capacity"
+            value={`${cap.available_capacity_t} T free / ${cap.total_capacity_t} T total`} />
+        )}
+        {seg.verification_status && (
+          <InfoRow label="Status" value={seg.verification_status.replace('_', ' ')} />
+        )}
+      </div>
     </div>
   )
 }
