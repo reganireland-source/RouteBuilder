@@ -83,6 +83,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       desc: 'Explore city-to-city connectivity across our subsea network. Type to search cities by name or country — the live combobox filters as you type. See all viable system itineraries and key metrics without needing to know individual node IDs.' },
     { icon: '🌍', title: 'Country Viewer',
       desc: `Select any country from the searchable list to instantly highlight every subsea cable system landing there and all backhaul routes connecting those stations. Each system is rendered in a distinct vivid colour; backhaul appears in teal. The map auto-centres on the country. Use the Subsea Only and Backhaul Only toggles to reduce clutter.` },
+    { icon: '📊', title: 'Country Node Diagram',
+      desc: 'Opened from Country Viewer via the "View Node Diagram" button. Renders a schematic of every node in the selected country and the cable systems connecting them — laid out on a clean grid with colour-coded connections and subsea stubs. Click any cable line to highlight that system on the main map. Useful for topology briefings and country deep-dives.' },
     { icon: '💰', title: 'Margin Scoring',
       desc: 'Every route is automatically scored for commercial margin (1–10) based on cable system ownership, weighted by segment distance. Sort routes by margin to surface the most commercially attractive options first.' },
     { icon: '📡', title: 'Capacity Dashboard',
@@ -1497,6 +1499,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               { step: '2', color: '#0e7490', title: 'Read the map', desc: 'Each subsea cable system landing in that country is highlighted in a distinct vivid colour. Terrestrial backhaul connecting those stations appears in deep teal. All other segments dim out.' },
               { step: '3', color: '#0e7490', title: 'Filter clutter', desc: 'Use the Subsea Only toggle (top-right) to hide backhaul and see only wet systems. Use Backhaul Only to focus on terrestrial routes. The toggles are mutually exclusive.' },
               { step: '4', color: '#0e7490', title: 'Read system + node counts', desc: 'The panel shows how many cable systems land in the country and how many PoPs / landing stations are present — useful for briefings.' },
+              { step: '5', color: '#0e7490', title: 'Open the Node Diagram', desc: 'Click the "View Node Diagram" button (bottom-left of the map while Country Viewer is active) to open a schematic showing every node in the country and the cable systems interconnecting them. Each node is a labelled box; each cable system a colour-coded line with subsea stubs extending to the ocean. Click any line to highlight that system on the main map.' },
             ].map(({ step, color, title, desc }) => (
               <div key={step} style={{
                 display: 'flex', gap: 12, alignItems: 'flex-start',
@@ -1517,6 +1520,41 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           </div>
           <div style={{ marginTop: 12, fontSize: 10, color: 'rgba(100,190,210,0.7)', lineHeight: 1.5 }}>
             Seg Labels are automatically enabled when Country Viewer is activated so you can read segment IDs directly on the highlighted routes.
+          </div>
+        </div>
+      </div>
+
+      {/* ── Country Node Diagram ── */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel}>Country Node Diagram</div>
+        <div style={{ ...card(), background: '#071624', border: `1px solid #1e4070` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 22 }}>📊</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Schematic Node Diagram — Topology at a Glance</div>
+              <div style={{ fontSize: 11, color: 'rgba(160,210,255,0.8)', marginTop: 2 }}>
+                Available in Country Viewer. Click "View Node Diagram" on the map to open.
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+            {[
+              { icon: '⬡', label: 'Nodes as boxes', desc: 'Every landing station and PoP in the country is drawn as a labelled rectangle. Box colour reflects node type — orange for landing stations, blue for primary PoPs, etc.' },
+              { icon: '━', label: 'Colour-coded cables', desc: 'Each cable system is assigned a distinct colour. Lines connect nodes that share a segment on that system, with orthogonal routing to keep the layout readable.' },
+              { icon: '╮', label: 'Subsea stubs', desc: 'Where a cable continues outside the country (e.g. an onward submarine leg), a 45° diagonal stub extends from the edge node to indicate the outbound direction.' },
+              { icon: '🖱', label: 'Click to highlight', desc: 'Click any cable line in the diagram to highlight that cable system on the main map — instantly cross-referencing the schematic with the geographic view.' },
+            ].map(({ icon, label, desc }) => (
+              <div key={label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 7, padding: '10px 12px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+                  <span style={{ fontSize: 14, color: '#60a5fa' }}>{icon}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#cce4ff' }}>{label}</span>
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(160,205,255,0.75)', lineHeight: 1.5 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: 10, color: 'rgba(100,175,230,0.7)', lineHeight: 1.5 }}>
+            The diagram scales to fit all nodes and is fully contained within the panel — no scrolling needed. It is regenerated each time you select a different country.
           </div>
         </div>
       </div>

@@ -1255,12 +1255,23 @@ function SegmentBreakdownRows({ route, capacityById, outagesById, onNetSet }: {
   onNetSet: Set<string>
 }) {
   const t = useTheme()
+  const nodeIndex = new Map(route.nodes.map((n, i) => [n, i]))
+  const sortedSegs = [...route.segments].sort((a, b) => {
+    const aIdx = Math.min(nodeIndex.get(a.start_node_id) ?? 0, nodeIndex.get(a.end_node_id) ?? 0)
+    const bIdx = Math.min(nodeIndex.get(b.start_node_id) ?? 0, nodeIndex.get(b.end_node_id) ?? 0)
+    return aIdx - bIdx
+  })
   return (
     <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 8 }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
         Segment Breakdown
       </div>
-      {route.segments.map(seg => {
+      {sortedSegs.map(seg => {
+        const startIdx = nodeIndex.get(seg.start_node_id) ?? 0
+        const endIdx = nodeIndex.get(seg.end_node_id) ?? 1
+        const [displayStart, displayEnd] = startIdx <= endIdx
+          ? [seg.start_node_id, seg.end_node_id]
+          : [seg.end_node_id, seg.start_node_id]
         const cap = capacityById[seg.segment_id]
         const capPct = cap ? Math.round((cap.available_capacity_t / cap.total_capacity_t) * 100) : null
         const onNet = seg.type === 'wet' ? onNetSet.has(seg.ownership) : null
@@ -1304,7 +1315,7 @@ function SegmentBreakdownRows({ route, capacityById, outagesById, onNetSet }: {
               <span style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase' }}>{seg.type}</span>
             </div>
             <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2, fontFamily: 'monospace' }}>
-              {seg.start_node_id} → {seg.end_node_id}
+              {displayStart} → {displayEnd}
               <span style={{ color: t.textFaint }}> | {seg.segment_id}</span>
             </div>
             <div style={{ display: 'flex', gap: 10, fontSize: 10, color: t.textMuted, marginTop: 2 }}>
