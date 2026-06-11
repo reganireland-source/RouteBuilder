@@ -9,6 +9,7 @@ class NodeType(str, Enum):
     secondary_pop   = "secondary_pop"
     extension_pop   = "extension_pop"
     branching_unit  = "branching_unit"
+    off_net         = "off_net"
 
 
 class SegmentType(str, Enum):
@@ -76,6 +77,7 @@ class Node(BaseModel):
     capabilities: Optional[NodeCapabilities] = None
     verification_status: VerificationStatus = VerificationStatus.draft
     last_verified_date: Optional[str] = None
+    on_net: Optional[str] = None  # 'on_net' | 'off_net'
 
 
 class CableSystem(BaseModel):
@@ -198,6 +200,7 @@ class NodeUpdate(BaseModel):
     capabilities: Optional[NodeCapabilities] = None
     verification_status: Optional[VerificationStatus] = None
     last_verified_date: Optional[str] = None
+    on_net: Optional[str] = None  # 'on_net' | 'off_net'
 
 class CableSegmentUpdate(BaseModel):
     name: Optional[str] = None

@@ -1,4 +1,5 @@
-export type NodeType = 'landing_station' | 'primary_pop' | 'secondary_pop' | 'extension_pop' | 'branching_unit'
+export type NodeType = 'landing_station' | 'primary_pop' | 'secondary_pop' | 'extension_pop' | 'branching_unit' | 'off_net'
+export type OnNet = 'on_net' | 'off_net'
 export type VerificationStatus = 'draft' | 'under_verification' | 'verified'
 export type SegmentType = 'wet' | 'terrestrial'
 export type Ownership = 'owned' | 'iru' | 'consortium' | 'integrated_lit_lease' | 'offnet_resell'
@@ -41,6 +42,7 @@ export interface CableNode {
   capabilities?: NodeCapabilities
   verification_status?: VerificationStatus
   last_verified_date?: string
+  on_net?: OnNet
 }
 
 export interface CableSystem {

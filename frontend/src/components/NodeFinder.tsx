@@ -30,6 +30,7 @@ const TYPE_LABEL: Record<CableNode['type'], string> = {
   secondary_pop:   'Secondary PoP',
   extension_pop:   'Extension PoP',
   branching_unit:  'Branching Unit',
+  off_net:         'Off-Net Node',
 }
 
 const TYPE_SHORT: Record<CableNode['type'], string> = {
@@ -38,6 +39,7 @@ const TYPE_SHORT: Record<CableNode['type'], string> = {
   secondary_pop:   '2°PoP',
   extension_pop:   'ExtPoP',
   branching_unit:  'BU',
+  off_net:         'Off-Net',
 }
 
 function OwnerLogo({ owner }: { owner?: string }) {

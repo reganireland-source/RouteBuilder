@@ -209,6 +209,14 @@ def init_db() -> None:
             _run_migration_028(cur)
             # Migration 029: update waypoints for all 21 SG terrestrial segments
             _run_migration_029(cur)
+            # Migration 030: add waypoints to APAC wet segments that cross land
+            _run_migration_030(cur)
+            # Migration 031: populate city field on branching-unit nodes
+            _run_migration_031(cur)
+            # Migration 032: set on_net field based on node type
+            _run_migration_032(cur)
+            # Migration 033: insert Japan PoPs and cable landing stations
+            _run_migration_033(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -1036,6 +1044,259 @@ def _run_migration_029(cur) -> None:
             "UPDATE segments SET data = jsonb_set(data, '{waypoints}', %s::jsonb) WHERE id = %s",
             (json.dumps(wps), seg_id),
         )
+
+
+# ── Migration 030 ─────────────────────────────────────────────────────────────
+# Waypoints for APAC wet segments that would cross land on a straight line.
+# Principle: cables exit perpendicular to the shore first, then curve to destination.
+_APAC_WET_WAYPOINTS: dict[str, list] = {
+    # EAC-K: Seosan (W Korea) → Hitachinaka (Japan)
+    # Exits W into Yellow Sea, S around Korea, E through Korea Strait, NE to Japan
+    "EAC-K": [
+        [36.5, 125.5], [35.5, 125.0], [34.5, 126.0], [34.0, 128.5],
+        [33.5, 131.5], [33.5, 134.5], [33.5, 137.5], [34.5, 139.5], [35.5, 140.0],
+    ],
+    # EAC-2B1: Taipei → Cavite (Philippines)
+    # Exits W through Taiwan Strait, S along west of Luzon in South China Sea
+    "EAC-2B1": [
+        [24.8, 121.0], [23.0, 120.0], [21.0, 119.5], [19.0, 119.5],
+        [17.0, 119.8], [15.5, 120.0], [14.5, 120.3], [14.4, 120.7],
+    ],
+    # SJC2-MNL-TPE: Manila → Taipei
+    # Exits W from Manila Bay, N through South China Sea west of Luzon, through Taiwan Strait
+    "SJC2-MNL-TPE": [
+        [14.5, 120.3], [16.0, 119.8], [19.0, 119.5],
+        [21.0, 120.0], [23.0, 120.5], [24.5, 121.0],
+    ],
+    # C2C-S5: Hitachinaka (Japan) → Nasugbu (Philippines)
+    # Exits E into Pacific, arcs SE then SW around east Philippines to Nasugbu
+    "C2C-S5": [
+        [36.5, 142.0], [30.0, 143.0], [22.0, 140.0], [16.0, 134.0],
+        [13.0, 128.0], [13.0, 124.0], [13.5, 122.0], [13.7, 121.0],
+    ],
+    # AAG-MNL-GUM: Manila → Guam
+    # Exits S from Manila Bay through Verde Island Passage, E around Luzon to Philippine Sea
+    "AAG-MNL-GUM": [
+        [14.3, 121.0], [13.7, 121.2], [13.0, 122.5],
+        [12.5, 125.0], [13.0, 132.0], [13.0, 141.0],
+    ],
+    # APRICOT-SIN-BU: Singapore → Philippine Sea BU
+    # NE through South China Sea, west of Luzon, then curves E north of Luzon
+    "APRICOT-SIN-BU": [
+        [3.5, 104.5], [8.0, 110.5], [13.5, 116.5],
+        [18.0, 119.5], [20.5, 121.5], [20.5, 124.5],
+    ],
+    # INDIGO_W-PER-SIN: Perth → Singapore
+    # Exits W from Perth, NW through Indian Ocean, through Sunda Strait to Singapore
+    "INDIGO_W-PER-SIN": [
+        [-32.0, 112.0], [-20.0, 107.0], [-8.0, 103.0], [-5.5, 105.5], [1.0, 103.9],
+    ],
+    # INDIGO_C-PER-JAK: Perth → Jakarta
+    # NW through Indian Ocean, arrives Jakarta via Sunda Strait from SW
+    "INDIGO_C-PER-JAK": [
+        [-32.0, 113.5], [-20.0, 110.0], [-10.0, 106.0], [-7.0, 105.8], [-6.0, 106.5],
+    ],
+    # TOPAZ-TYO-NGO: Tokyo → Nagoya
+    # Exits SE from Tokyo Bay, around Izu Peninsula, W through Suruga Bay to Nagoya
+    "TOPAZ-TYO-NGO": [
+        [34.8, 139.8], [34.4, 138.8], [34.0, 137.5], [34.5, 136.8],
+    ],
+    # SJC2-TYO-ICN: Tokyo → Incheon (Korea)
+    # Exits SE, S around Japan, W through Korea/Tsushima Strait to Incheon
+    "SJC2-TYO-ICN": [
+        [34.8, 139.8], [33.5, 136.5], [33.0, 131.5],
+        [33.0, 129.5], [34.0, 128.5], [35.5, 127.5], [37.0, 127.0],
+    ],
+    # ADC-TYO-TPE: Tokyo → Taipei
+    # Exits SE from Tokyo Bay, S through Ryukyu Islands chain to Taiwan
+    "ADC-TYO-TPE": [
+        [34.8, 139.8], [32.0, 135.0], [29.0, 130.0],
+        [27.0, 126.5], [25.5, 123.0], [25.2, 122.0],
+    ],
+    # APG-TPE-TYO: Taipei → Tokyo
+    # N through Ryukyu chain, arrives at Tokyo from SE
+    "APG-TPE-TYO": [
+        [25.2, 122.5], [27.0, 126.5], [29.0, 131.0],
+        [32.0, 135.5], [34.8, 139.8],
+    ],
+    # SJC2-TPE-TYO: Taipei → Tokyo (same Ryukyu route)
+    "SJC2-TPE-TYO": [
+        [25.2, 122.5], [27.0, 126.5], [29.0, 131.0],
+        [32.0, 135.5], [34.8, 139.8],
+    ],
+    # PPC1-SYD-GUM: Sydney → Guam
+    # Exits E from Sydney, routes east of Papua New Guinea through Coral Sea
+    "PPC1-SYD-GUM": [
+        [-33.5, 154.0], [-20.0, 157.0], [-8.0, 154.0], [3.0, 150.0], [10.0, 147.0],
+    ],
+    # AJC-SYD-GUM: Sydney → Guam (same route)
+    "AJC-SYD-GUM": [
+        [-33.5, 154.0], [-20.0, 157.0], [-8.0, 154.0], [3.0, 150.0], [10.0, 147.0],
+    ],
+    # C2C-S6: Nasugbu (Philippines) → Singapore
+    # Exits W into South China Sea, SW to Singapore
+    "C2C-S6": [
+        [13.8, 120.0], [11.0, 117.0], [7.0, 112.0], [3.5, 107.0], [1.5, 105.0],
+    ],
+    # EAC-2B2: Singapore → Cavite (Philippines)
+    # Exits NE from Changi, through South China Sea to Cavite
+    "EAC-2B2": [
+        [3.0, 105.5], [8.0, 110.0], [12.0, 115.5], [14.0, 119.5], [14.3, 120.5],
+    ],
+    # BIFROST-GUM-CVD: Guam → Davao (Philippines)
+    # Routes south of Philippines to avoid Mindanao east coast
+    "BIFROST-GUM-CVD": [
+        [12.0, 144.0], [9.0, 136.0], [7.5, 131.0], [7.0, 128.0], [7.0, 126.5], [7.0, 125.8],
+    ],
+    # BIFROST-CVD-JAK: Davao → Jakarta
+    # Through Celebes Sea, Makassar Strait, Java Sea to Jakarta
+    "BIFROST-CVD-JAK": [
+        [6.5, 124.5], [3.5, 122.0], [0.0, 119.5],
+        [-3.5, 116.5], [-6.0, 111.0], [-6.0, 108.5],
+    ],
+    # JGA-TYO-GUM: Tokyo → Guam
+    # Exits SE from Tokyo Bay, S through Pacific
+    "JGA-TYO-GUM": [
+        [35.0, 140.0], [28.0, 143.0], [20.0, 144.0],
+    ],
+    # AJC-GUM-TYO: Guam → Tokyo
+    # N through Pacific, arrives at Tokyo from SE
+    "AJC-GUM-TYO": [
+        [16.0, 145.0], [24.0, 143.0], [32.0, 141.5], [34.5, 140.5],
+    ],
+    # TABUA-SYD-BRI: Sydney → Brisbane
+    # Exits E from Sydney, N along east coast to Brisbane
+    "TABUA-SYD-BRI": [
+        [-33.5, 153.0], [-28.0, 154.5],
+    ],
+}
+
+
+def _run_migration_030(cur) -> None:
+    """Add waypoints to APAC wet segments that cross land on a straight line."""
+    for seg_id, wps in _APAC_WET_WAYPOINTS.items():
+        cur.execute(
+            "UPDATE segments SET data = jsonb_set(data, '{waypoints}', %s::jsonb) WHERE id = %s",
+            (json.dumps(wps), seg_id),
+        )
+
+
+# ── Migration 031 ─────────────────────────────────────────────────────────────
+# Populate the city field for branching-unit nodes that have no city set.
+_BU_CITIES: dict[str, str] = {
+    "APRICOTBU1": "Philippine Sea",
+    "BUCT":       "Taiwan Strait",
+    "BUEC":       "East China Sea",
+    "BUEP":       "Pacific Ocean",
+    "BUEY":       "Yellow Sea",
+    "JGABU1":     "Coral Sea",
+    "JUNO-BU1":   "Pacific Ocean",
+    "JUPBU1":     "North Pacific Ocean",
+    "SXNBU1":     "South Pacific Ocean",
+}
+
+
+def _run_migration_031(cur) -> None:
+    """Set city field on branching-unit nodes that currently have none."""
+    for node_id, city in _BU_CITIES.items():
+        cur.execute(
+            "UPDATE nodes SET data = jsonb_set(data, '{city}', %s::jsonb) WHERE id = %s",
+            (json.dumps(city), node_id),
+        )
+
+
+# ── Migration 032 ─────────────────────────────────────────────────────────────
+# Populate the on_net field for all existing nodes.
+# Primary/secondary/extension PoPs are On-Net (your own infrastructure).
+# Landing stations and branching units default to Off-Net.
+def _run_migration_032(cur) -> None:
+    """Set on_net field based on node type for all existing nodes."""
+    cur.execute(
+        """UPDATE nodes
+           SET data = jsonb_set(data, '{on_net}', '"on_net"'::jsonb)
+           WHERE data->>'type' IN ('primary_pop', 'secondary_pop', 'extension_pop')
+             AND data->>'on_net' IS NULL"""
+    )
+    cur.execute(
+        """UPDATE nodes
+           SET data = jsonb_set(data, '{on_net}', '"off_net"'::jsonb)
+           WHERE data->>'type' IN ('landing_station', 'branching_unit')
+             AND data->>'on_net' IS NULL"""
+    )
+
+
+# ── Migration 033 ─────────────────────────────────────────────────────────────
+# Japan PoPs and cable landing stations sourced from CRM export.
+_JAPAN_NODES = [
+    # Digital Realty data centres (Off-Net)
+    {"id": "JHDA", "name": "Digital Realty HND10, Tokyo",    "lat": 35.68528, "lng": 139.5647, "type": "off_net", "country": "JP", "city": "Tokyo",       "owner": "Digital Realty",        "on_net": "off_net", "verification_status": "under_verification", "description": "Digital Realty HND10 Data Centre, Mitaka, Tokyo"},
+    {"id": "JHDB", "name": "Digital Realty HND11, Tokyo",    "lat": 35.68528, "lng": 139.5647, "type": "off_net", "country": "JP", "city": "Tokyo",       "owner": "Digital Realty",        "on_net": "off_net", "verification_status": "under_verification", "description": "Digital Realty HND11 Data Centre, Mitaka, Tokyo"},
+    {"id": "JKXA", "name": "Digital Realty KIX10, Osaka",    "lat": 34.86142, "lng": 135.5159, "type": "off_net", "country": "JP", "city": "Osaka",       "owner": "Digital Realty",        "on_net": "off_net", "verification_status": "under_verification", "description": "Digital Realty KIX10 Data Centre, Ibaraki-shi, Osaka"},
+    {"id": "JKXB", "name": "Digital Realty KIX11, Osaka",    "lat": 34.86159, "lng": 135.5121, "type": "off_net", "country": "JP", "city": "Osaka",       "owner": "Digital Realty",        "on_net": "off_net", "verification_status": "under_verification", "description": "Digital Realty KIX11 Data Centre, Minoh, Osaka"},
+    {"id": "JKXC", "name": "Digital Realty KIX12, Osaka",    "lat": 34.86235, "lng": 135.5137, "type": "off_net", "country": "JP", "city": "Osaka",       "owner": "Digital Realty",        "on_net": "off_net", "verification_status": "under_verification", "description": "Digital Realty KIX12 Data Centre, Minoh, Osaka"},
+    {"id": "JKXD", "name": "Digital Realty KIX13, Osaka",    "lat": 34.86387, "lng": 135.5129, "type": "off_net", "country": "JP", "city": "Osaka",       "owner": "Digital Realty",        "on_net": "off_net", "verification_status": "under_verification", "description": "Digital Realty KIX13 Data Centre, Minoh, Osaka"},
+    {"id": "JNTA", "name": "Digital Realty NRT10, Chiba",    "lat": 35.80987, "lng": 140.1216, "type": "off_net", "country": "JP", "city": "Chiba",       "owner": "Digital Realty",        "on_net": "off_net", "verification_status": "under_verification", "description": "Digital Realty NRT10 Data Centre, Inzai, Chiba"},
+    # Equinix data centres – Off-Net
+    {"id": "JOS2", "name": "Equinix OS2x, Osaka",            "lat": 34.86022, "lng": 135.5073, "type": "off_net", "country": "JP", "city": "Osaka",       "owner": "Equinix",               "on_net": "off_net", "verification_status": "under_verification", "description": "Equinix OS2x Data Centre, Minoo, Osaka"},
+    {"id": "JOS3", "name": "Equinix OS3, Osaka",             "lat": 34.67576, "lng": 135.4956, "type": "off_net", "country": "JP", "city": "Osaka",       "owner": "Equinix",               "on_net": "off_net", "verification_status": "under_verification", "description": "Equinix OS3 Data Centre, OBP Building, Osaka"},
+    {"id": "JTY1", "name": "Equinix TY1, Tokyo",             "lat": 35.57624, "lng": 139.7491, "type": "off_net", "country": "JP", "city": "Tokyo",       "owner": "Equinix",               "on_net": "off_net", "verification_status": "under_verification", "description": "Equinix TY1 Data Centre, Heiwajima, Ota-ku, Tokyo"},
+    {"id": "JTYA", "name": "Equinix TY10, Tokyo",            "lat": 35.70863, "lng": 139.7443, "type": "off_net", "country": "JP", "city": "Tokyo",       "owner": "Equinix",               "on_net": "off_net", "verification_status": "under_verification", "description": "Equinix TY10 Data Centre, Suido, Bunkyo-ku, Tokyo"},
+    {"id": "JTYB", "name": "Equinix TY11, Tokyo",            "lat": 35.63974, "lng": 139.7924, "type": "off_net", "country": "JP", "city": "Tokyo",       "owner": "Equinix",               "on_net": "off_net", "verification_status": "under_verification", "description": "Equinix TY11 Data Centre, Ariake, Koto-ku, Tokyo"},
+    {"id": "JTYC", "name": "Equinix TY12, Tokyo",            "lat": 35.70863, "lng": 139.7443, "type": "off_net", "country": "JP", "city": "Tokyo",       "owner": "Equinix",               "on_net": "off_net", "verification_status": "under_verification", "description": "Equinix TY12 Data Centre, Izumino, Inzai, Chiba"},
+    {"id": "EQ02", "name": "Equinix TY3 (EQ02), Tokyo",      "lat": 35.65663, "lng": 139.8075, "type": "off_net", "country": "JP", "city": "Tokyo",       "owner": "Equinix",               "on_net": "off_net", "verification_status": "under_verification", "description": "Equinix TY3 Data Centre, Edagawa, Koto-ku, Tokyo (cease sale)"},
+    {"id": "JTY5", "name": "Equinix TY5, Tokyo",             "lat": 35.65562, "lng": 139.8042, "type": "off_net", "country": "JP", "city": "Tokyo",       "owner": "Equinix",               "on_net": "off_net", "verification_status": "under_verification", "description": "Equinix TY5 Data Centre, Edagawa, Koto-ku, Tokyo"},
+    {"id": "JTY6", "name": "Equinix TY6, Tokyo",             "lat": 35.62303, "lng": 139.7481, "type": "off_net", "country": "JP", "city": "Tokyo",       "owner": "Equinix",               "on_net": "off_net", "verification_status": "under_verification", "description": "Equinix TY6 Data Centre, Higashi-Shinagawa, Tokyo"},
+    {"id": "JTY7", "name": "Equinix TY7, Tokyo",             "lat": 35.65562, "lng": 139.8042, "type": "off_net", "country": "JP", "city": "Tokyo",       "owner": "Equinix",               "on_net": "off_net", "verification_status": "under_verification", "description": "Equinix TY7 Data Centre, Higashi-Shinagawa, Tokyo"},
+    {"id": "JTY8", "name": "Equinix TY8, Tokyo",             "lat": 35.62207, "lng": 139.7478, "type": "off_net", "country": "JP", "city": "Tokyo",       "owner": "Equinix",               "on_net": "off_net", "verification_status": "under_verification", "description": "Equinix TY8 Data Centre, Higashi-Shinagawa, Tokyo"},
+    {"id": "JTY9", "name": "Equinix TY9, Tokyo",             "lat": 35.70875, "lng": 139.7439, "type": "off_net", "country": "JP", "city": "Tokyo",       "owner": "Equinix",               "on_net": "off_net", "verification_status": "under_verification", "description": "Equinix TY9 Data Centre, Suido, Bunkyo City, Tokyo"},
+    # Equinix / Telstra On-Net PoPs
+    {"id": "JOS1", "name": "Equinix OS1, Osaka",             "lat": 34.67576, "lng": 135.4956, "type": "extension_pop", "country": "JP", "city": "Osaka", "owner": "Telstra International",  "on_net": "on_net",  "verification_status": "under_verification", "description": "Equinix OS1 – Telstra On-Net Extension PoP, Osaka"},
+    {"id": "EQHS", "name": "Equinix TY2, Tokyo",             "lat": 35.62093, "lng": 139.7447, "type": "extension_pop", "country": "JP", "city": "Tokyo", "owner": "Telstra International",  "on_net": "on_net",  "verification_status": "under_verification", "description": "Equinix TY2 – Telstra On-Net Extension PoP, Higashi-Shinagawa, Tokyo"},
+    {"id": "JTY3", "name": "Equinix TY3, Tokyo",             "lat": 35.65663, "lng": 139.8075, "type": "extension_pop", "country": "JP", "city": "Tokyo", "owner": "Telstra International",  "on_net": "on_net",  "verification_status": "under_verification", "description": "Equinix TY3 – Telstra On-Net PoP, Edagawa, Koto-ku, Tokyo"},
+    {"id": "JTY4", "name": "Equinix TY4, Tokyo",             "lat": 35.68857, "lng": 139.7649, "type": "extension_pop", "country": "JP", "city": "Tokyo", "owner": "Telstra International",  "on_net": "on_net",  "verification_status": "under_verification", "description": "Equinix TY4 – Telstra On-Net Extension PoP, Otemachi Financial City, Tokyo"},
+    # Telstra Primary PoPs
+    {"id": "JOUA", "name": "Urban Ace Higashi-Tenma, Osaka", "lat": 34.69603, "lng": 135.5175, "type": "primary_pop",   "country": "JP", "city": "Osaka", "owner": "Telstra International",  "on_net": "on_net",  "verification_status": "under_verification", "description": "Telstra Primary PoP, Urban Ace Higashi-Tenma, Kita-ku, Osaka"},
+    {"id": "JTHA", "name": "Comspace TKDS2, Tokyo",          "lat": 35.68312, "lng": 139.7745, "type": "primary_pop",   "country": "JP", "city": "Tokyo", "owner": "Telstra International",  "on_net": "on_net",  "verification_status": "under_verification", "description": "Telstra Primary PoP, Comspace Nihonbashi, Tokyo (TKDS2)"},
+    {"id": "SIKO", "name": "Shin-Nikko Building, Tokyo",     "lat": 35.6621,  "lng": 139.7433, "type": "primary_pop",   "country": "JP", "city": "Tokyo", "owner": "Telstra International",  "on_net": "on_net",  "verification_status": "under_verification", "description": "Telstra Primary PoP, Shin-Nikko Building, Toranomon, Tokyo"},
+    # Telstra Secondary PoPs
+    {"id": "JTGD", "name": "TIS Gotenyama TKDS3, Tokyo",     "lat": 35.62546, "lng": 139.732,  "type": "secondary_pop", "country": "JP", "city": "Tokyo", "owner": "Telstra International",  "on_net": "on_net",  "verification_status": "under_verification", "description": "Telstra Secondary PoP, TIS Gotenyama, Kitashinagawa, Tokyo (TKDS3, cease sale)"},
+    # Telstra Extension PoPs
+    {"id": "NFP3", "name": "NF-Park, Tokyo",                 "lat": 35.60542, "lng": 139.7241, "type": "extension_pop", "country": "JP", "city": "Tokyo", "owner": "Telstra International",  "on_net": "on_net",  "verification_status": "under_verification", "description": "Telstra Extension PoP, NF-Park Building, Futabacho, Shinagawa-ku, Tokyo"},
+    {"id": "NTOH", "name": "NTT-Data Otemachi, Tokyo",       "lat": 35.694,   "lng": 139.7536, "type": "extension_pop", "country": "JP", "city": "Tokyo", "owner": "Telstra International",  "on_net": "on_net",  "verification_status": "under_verification", "description": "Telstra Extension PoP, NTT-Data Otemachi Building, Chiyoda-ku, Tokyo"},
+    {"id": "KDOH", "name": "KDDI Otemachi, Tokyo",           "lat": 35.68772, "lng": 139.7646, "type": "extension_pop", "country": "JP", "city": "Tokyo", "owner": "Telstra International",  "on_net": "on_net",  "verification_status": "under_verification", "description": "Telstra Extension PoP, KDDI Otemachi Building, Chiyoda-ku, Tokyo"},
+    {"id": "JTAT", "name": "AT Tokyo Toyosu",                "lat": 35.6485,  "lng": 139.7925, "type": "extension_pop", "country": "JP", "city": "Tokyo", "owner": "Telstra International",  "on_net": "on_net",  "verification_status": "under_verification", "description": "Telstra Extension PoP, AT Tokyo Chuo Center, Toyosu, Koto-ku"},
+    {"id": "JOSO", "name": "NTT Sonezaki DC, Osaka",         "lat": 34.70107, "lng": 135.5,    "type": "extension_pop", "country": "JP", "city": "Osaka", "owner": "Telstra International",  "on_net": "on_net",  "verification_status": "under_verification", "description": "Telstra Extension PoP, NTT Sonezaki Data Centre, Kita-ku, Osaka"},
+    {"id": "NTDO", "name": "NTT-Data Dojima, Osaka",         "lat": 34.69667, "lng": 135.4981, "type": "extension_pop", "country": "JP", "city": "Osaka", "owner": "Telstra International",  "on_net": "on_net",  "verification_status": "under_verification", "description": "Telstra Extension PoP, NTT-Data Dojima Building, Kita-ku, Osaka"},
+    {"id": "JTHF", "name": "Comspace TKDS1, Tokyo",          "lat": 35.68747, "lng": 139.7795, "type": "extension_pop", "country": "JP", "city": "Tokyo", "owner": "Telstra International",  "on_net": "on_net",  "verification_status": "under_verification", "description": "Telstra Data Centre, Comspace Nihonbashi, Chuo-ku, Tokyo (TKDS1, cease sale)"},
+    {"id": "JTIS", "name": "TIS Building, Tokyo",            "lat": 35.66262, "lng": 139.8068, "type": "extension_pop", "country": "JP", "city": "Tokyo", "owner": "Telstra International",  "on_net": "on_net",  "verification_status": "under_verification", "description": "Telstra PoP, TIS Dai-san Center, Shiohama, Koto-ku, Tokyo"},
+    {"id": "JTSN", "name": "Microsoft JTSN, Tokyo",          "lat": 35.6673,  "lng": 139.83,   "type": "extension_pop", "country": "JP", "city": "Tokyo", "owner": "Microsoft",              "on_net": "on_net",  "verification_status": "under_verification", "description": "Microsoft Customer PoP, Shinsuna, Koto-ku, Tokyo"},
+    # Telstra On-Net cable landing stations
+    {"id": "JWLS", "name": "Wada Cable Landing Station",     "lat": 35.0202,  "lng": 139.9812, "type": "landing_station", "country": "JP", "city": "Wada",        "owner": "Telstra International", "on_net": "on_net", "verification_status": "under_verification", "description": "Wada CLS, Minamiboso – RNAL cable"},
+    {"id": "JAAJ", "name": "Ajigura Cable Landing Station",  "lat": 36.3822,  "lng": 140.6092, "type": "landing_station", "country": "JP", "city": "Hitachinaka", "owner": "Telstra International", "on_net": "on_net", "verification_status": "under_verification", "description": "Ajigura CLS, Hitachinaka, Ibaraki – EAC cable"},
+    {"id": "CHCC", "name": "Chikura CLS (C2C)",              "lat": 34.97012, "lng": 139.9602, "type": "landing_station", "country": "JP", "city": "Chikura",     "owner": "Telstra International", "on_net": "on_net", "verification_status": "under_verification", "description": "Chikura Cable Landing Station (C2C cable), Minamiboso, Chiba"},
+    {"id": "CKKD", "name": "Chikura CLS (EAC)",              "lat": 34.97012, "lng": 139.9602, "type": "landing_station", "country": "JP", "city": "Chikura",     "owner": "Telstra International", "on_net": "on_net", "verification_status": "under_verification", "description": "Chikura Cable Landing Station (EAC cable), Minamiboso, Chiba"},
+    {"id": "EMIC", "name": "Emi Cable Landing Station",      "lat": 35.47497, "lng": 138.0948, "type": "landing_station", "country": "JP", "city": "Emi",         "owner": "Telstra International", "on_net": "on_net", "verification_status": "under_verification", "description": "Emi CLS, Kamogawa, Chiba – TGN cable"},
+    {"id": "MJLS", "name": "Maruyama Cable Landing Station", "lat": 35.47497, "lng": 138.0948, "type": "landing_station", "country": "JP", "city": "Maruyama",    "owner": "Telstra International", "on_net": "on_net", "verification_status": "under_verification", "description": "Maruyama CLS, Shirako, Minamiboso – AJC cable"},
+    {"id": "JSOM", "name": "Shima CLS (C2C, Arteria)",       "lat": 34.31397, "lng": 136.8689, "type": "landing_station", "country": "JP", "city": "Shima",       "owner": "Telstra International", "on_net": "on_net", "verification_status": "under_verification", "description": "Shima CLS (C2C cable), Ago-cho, Shima City"},
+    {"id": "SMCC", "name": "KDDI Shima CLS (C2C)",           "lat": 34.32816, "lng": 136.8297, "type": "landing_station", "country": "JP", "city": "Shima",       "owner": "Telstra International", "on_net": "on_net", "verification_status": "under_verification", "description": "KDDI Shima CLS (C2C cable), Ago-cho, Shima City"},
+    # Telstra On-Net repeater infrastructure
+    {"id": "JKHF", "name": "Kamisu Repeater",                "lat": 35.90713, "lng": 140.6638, "type": "extension_pop", "country": "JP", "city": "Kamisu",      "owner": "Telstra International", "on_net": "on_net", "verification_status": "under_verification", "description": "Kamisu Repeater Station, Higashi-Fukashiba, Kamisu City"},
+    {"id": "JAAS", "name": "Tokyo Repeater (Abiko)",         "lat": 35.8755,  "lng": 139.9976, "type": "extension_pop", "country": "JP", "city": "Abiko",       "owner": "Telstra International", "on_net": "on_net", "verification_status": "under_verification", "description": "Tokyo Repeater Station, Daida, Abiko City"},
+    # Off-Net third-party infrastructure
+    {"id": "KALS", "name": "Kitaibaraki CLS (NTT)",          "lat": 36.80191, "lng": 140.751,  "type": "off_net",       "country": "JP", "city": "Kitaibaraki", "owner": "NTT",                   "on_net": "off_net", "verification_status": "under_verification", "description": "NTT Kitaibaraki CLS (JUC, APCN2)"},
+    {"id": "KJLS", "name": "Kitaibaraki CLS (NTT-2)",        "lat": 36.80191, "lng": 140.751,  "type": "off_net",       "country": "JP", "city": "Kitaibaraki", "owner": "NTT",                   "on_net": "off_net", "verification_status": "under_verification", "description": "NTT Kitaibaraki CLS 2 (JUC, APCN2)"},
+    {"id": "SSNT", "name": "NTT Shima CLS",                  "lat": 34.32702, "lng": 136.8748, "type": "off_net",       "country": "JP", "city": "Shima",       "owner": "NTT",                   "on_net": "off_net", "verification_status": "under_verification", "description": "NTT Shima CLS, Anori Ago-cho"},
+    {"id": "JOGD", "name": "TIS Osaka",                      "lat": 34.86225, "lng": 135.518,  "type": "off_net",       "country": "JP", "city": "Osaka",       "owner": "TIS",                   "on_net": "off_net", "verification_status": "under_verification", "description": "TIS Saitohamabuki Data Centre, Ibaraki-shi, Osaka"},
+]
+
+
+def _run_migration_033(cur) -> None:
+    """Insert Japan PoP and cable landing station nodes (skips any that already exist)."""
+    psycopg2.extras.execute_values(
+        cur,
+        "INSERT INTO nodes (id, data) VALUES %s ON CONFLICT DO NOTHING",
+        [(n["id"], json.dumps(n)) for n in _JAPAN_NODES],
+    )
 
 
 def _seed_if_empty(conn) -> None:

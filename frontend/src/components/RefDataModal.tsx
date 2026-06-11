@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, InterconnectRule, SegmentCapacity, SegmentOutage, VerificationStatus } from '../types'
+import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, InterconnectRule, OnNet, SegmentCapacity, SegmentOutage, VerificationStatus } from '../types'
 import { useTheme, type Theme } from '../theme'
 function useIsMobile(): boolean {
   const [mobile, setMobile] = useState(() => window.innerWidth < 768)
@@ -27,6 +27,20 @@ const VERIF_LABELS: Record<string, string> = {
   draft: 'Draft',
   under_verification: 'Under Verification',
   verified: 'Verified',
+}
+
+function OnNetBadge({ value }: { value?: OnNet }) {
+  if (!value) return null
+  const isOn = value === 'on_net'
+  const style: React.CSSProperties = {
+    display: 'inline-block', padding: '2px 7px', borderRadius: 10,
+    fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
+    background: isOn ? '#22c55e22' : '#94a3b822',
+    color: isOn ? '#22c55e' : '#94a3b8',
+    border: `1px solid ${isOn ? '#22c55e55' : '#94a3b855'}`,
+    whiteSpace: 'nowrap',
+  }
+  return <span style={style}>{isOn ? 'On-Net' : 'Off-Net'}</span>
 }
 
 function VerifBadge({ status, onClick }: { status?: VerificationStatus; onClick?: () => void }) {
@@ -514,6 +528,12 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     { value: 'secondary_pop',   label: 'Secondary PoP' },
     { value: 'extension_pop',   label: 'Extension PoP' },
     { value: 'branching_unit',  label: 'BU (Branching Unit)' },
+    { value: 'off_net',         label: 'Off-Net Node' },
+  ]
+  const onNetOpts = [
+    { value: '',        label: '— Not set —' },
+    { value: 'on_net',  label: 'On-Net' },
+    { value: 'off_net', label: 'Off-Net' },
   ]
   const segTypeOpts = [{ value: 'wet', label: 'Wet' }, { value: 'terrestrial', label: 'Terrestrial' }]
   const ownerOpts   = [
@@ -546,6 +566,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         <Field label="Name"         k="name"         src={editValues} setSrc={setEditValues} />
         <Field label="Country"      k="country"      src={editValues} setSrc={setEditValues} />
         <Field label="Type"         k="type"         src={editValues} setSrc={setEditValues} options={typeOpts} />
+        <Field label="On-Net Status" k="on_net"      src={editValues} setSrc={setEditValues} options={onNetOpts} />
         <Field label="Owner"        k="owner"        src={editValues} setSrc={setEditValues} />
         <Field label="Lat"          k="lat"          src={editValues} setSrc={setEditValues} type="number" pairedKey="lng" pairedFirst={true} />
         <Field label="Lng"          k="lng"          src={editValues} setSrc={setEditValues} type="number" pairedKey="lat" pairedFirst={false} />
@@ -559,7 +580,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         />
       </div>
     )
-    const editDefaults = (n: CableNode) => ({ name: n.name, country: n.country, type: n.type, lat: n.lat, lng: n.lng, owner: n.owner ?? '', trading_name: n.trading_name ?? '', city: n.city ?? '', street_address: n.street_address ?? '', description: n.description ?? '' })
+    const editDefaults = (n: CableNode) => ({ name: n.name, country: n.country, type: n.type, lat: n.lat, lng: n.lng, owner: n.owner ?? '', trading_name: n.trading_name ?? '', city: n.city ?? '', street_address: n.street_address ?? '', description: n.description ?? '', on_net: n.on_net ?? '' })
     return (
       <>
         {adding && (
@@ -568,6 +589,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             <Field label="Name *"       k="name"         src={addValues} setSrc={setAddValues} />
             <Field label="Country"      k="country"      src={addValues} setSrc={setAddValues} />
             <Field label="Type"         k="type"         src={addValues} setSrc={setAddValues} options={typeOpts} />
+            <Field label="On-Net Status" k="on_net"      src={addValues} setSrc={setAddValues} options={onNetOpts} />
             <Field label="Owner"        k="owner"        src={addValues} setSrc={setAddValues} />
             <Field label="Lat"          k="lat"          src={addValues} setSrc={setAddValues} type="number" pairedKey="lng" pairedFirst={true} />
             <Field label="Lng"          k="lng"          src={addValues} setSrc={setAddValues} type="number" pairedKey="lat" pairedFirst={false} />
@@ -587,8 +609,9 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
               <MobileCard key={n.id}
                 id={n.id}
                 title={n.name}
-                subtitle={<><code style={{ fontSize: 10 }}>{n.id}</code> · {n.country} · {n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : n.type === 'primary_pop' ? '1°PoP' : n.type === 'secondary_pop' ? '2°PoP' : 'ExtPoP'}</>}
+                subtitle={<><code style={{ fontSize: 10 }}>{n.id}</code> · {n.country} · {n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : n.type === 'primary_pop' ? '1°PoP' : n.type === 'secondary_pop' ? '2°PoP' : n.type === 'off_net' ? 'Off-Net' : 'ExtPoP'}</>}
                 fields={[
+                  { label: 'On-Net', value: <OnNetBadge value={n.on_net} /> },
                   { label: 'City', value: n.city ?? '—' },
                   { label: 'Owner', value: n.owner ?? '—' },
                   { label: 'Trading Name', value: n.trading_name ?? '—' },
@@ -608,7 +631,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           <>
             <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
               <div style={colH(1.5)}>ID</div><div style={colH(2)}>Name</div><div style={colH(1)}>Country</div>
-              <div style={colH(1.5)}>City</div><div style={colH(1.5)}>Type</div><div style={colH(2)}>Owner</div>
+              <div style={colH(1.5)}>City</div><div style={colH(1.5)}>Type</div><div style={colH(1)}>On-Net</div><div style={colH(2)}>Owner</div>
               <div style={colH(2)}>Trading Name</div><div style={colH(2)}>Description</div>
               <div style={colH(1)}>Lat</div><div style={colH(1)}>Lng</div>
               <div style={colH(1.5)}>Status</div>
@@ -621,7 +644,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                   <div style={cell(2)}>{n.name}</div>
                   <div style={cell(1)}>{n.country}</div>
                   <div style={cell(1.5)}>{n.city ?? ''}</div>
-                  <div style={cell(1.5)}>{n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : n.type === 'primary_pop' ? '1°PoP' : n.type === 'secondary_pop' ? '2°PoP' : 'ExtPoP'}</div>
+                  <div style={cell(1.5)}>{n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : n.type === 'primary_pop' ? '1°PoP' : n.type === 'secondary_pop' ? '2°PoP' : n.type === 'off_net' ? 'Off-Net' : 'ExtPoP'}</div>
+                  <div style={cell(1)}><OnNetBadge value={n.on_net} /></div>
                   <div style={cell(2)}>{n.owner ?? ''}</div>
                   <div style={cell(2)}>{n.trading_name ?? ''}</div>
                   <div style={cell(2)}>{n.description ?? ''}</div>
