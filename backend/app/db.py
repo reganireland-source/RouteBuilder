@@ -219,6 +219,8 @@ def init_db() -> None:
             _run_migration_033(cur)
             # Migration 034: ensure off_net type nodes have on_net = 'off_net'
             _run_migration_034(cur)
+            # Migration 035: remove old Japan PoPs/CLSs, reroute subsea to new CLSs, drop terrestrial backhaul
+            _run_migration_035(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -1309,6 +1311,75 @@ def _run_migration_034(cur) -> None:
            WHERE data->>'type' = 'off_net'
              AND data->>'on_net' IS NULL"""
     )
+
+
+# ── Migration 035 ─────────────────────────────────────────────────────────────
+# Remove old Japan PoPs and replaced CLSs; reroute subsea segments to the new
+# CLS nodes added in migration 033; delete all Japan terrestrial backhaul.
+
+_OLD_JP_POPS = [
+    'NGO1', 'EQ-TY3', 'EQ-OS1', 'TYO2', 'OSA2',
+    'EQ-TY1', 'EQ-TY2', 'EQ-OS2', 'EQ-NG1',
+]
+
+_JP_CLS_REPLACEMENTS = {
+    'AJIG': 'JAAJ',
+    'CHKR': 'CHCC',
+    'SHMA': 'JSOM',
+    'TYO1': 'MJLS',
+}
+
+
+def _run_migration_035(cur) -> None:
+    """Remove old Japan PoPs/CLSs, reroute their subsea connections to the new
+    CLS equivalents added in migration 033, and delete all JP terrestrial segments."""
+
+    # 1. Reroute subsea segment endpoints from old CLSs to new replacements
+    for old_id, new_id in _JP_CLS_REPLACEMENTS.items():
+        cur.execute(
+            "UPDATE segments SET data = jsonb_set(data, '{start_node_id}', %s::jsonb) "
+            "WHERE data->>'start_node_id' = %s",
+            (json.dumps(new_id), old_id),
+        )
+        cur.execute(
+            "UPDATE segments SET data = jsonb_set(data, '{end_node_id}', %s::jsonb) "
+            "WHERE data->>'end_node_id' = %s",
+            (json.dumps(new_id), old_id),
+        )
+
+    # 2. Delete terrestrial segments where both endpoints are Japan nodes
+    cur.execute("""
+        DELETE FROM capacity
+        WHERE segment_id IN (
+            SELECT id FROM segments
+            WHERE data->>'type' = 'terrestrial'
+              AND data->>'start_node_id' IN (SELECT id FROM nodes WHERE data->>'country' = 'JP')
+              AND data->>'end_node_id'   IN (SELECT id FROM nodes WHERE data->>'country' = 'JP')
+        )
+    """)
+    cur.execute("""
+        DELETE FROM segments
+        WHERE data->>'type' = 'terrestrial'
+          AND data->>'start_node_id' IN (SELECT id FROM nodes WHERE data->>'country' = 'JP')
+          AND data->>'end_node_id'   IN (SELECT id FROM nodes WHERE data->>'country' = 'JP')
+    """)
+
+    # 3. Delete capacity + any remaining segments that still reference deleted PoP node IDs
+    cur.execute(
+        "DELETE FROM capacity WHERE segment_id IN ("
+        "  SELECT id FROM segments WHERE"
+        "  data->>'start_node_id' = ANY(%s) OR data->>'end_node_id' = ANY(%s)"
+        ")",
+        (_OLD_JP_POPS, _OLD_JP_POPS),
+    )
+    cur.execute(
+        "DELETE FROM segments WHERE data->>'start_node_id' = ANY(%s) OR data->>'end_node_id' = ANY(%s)",
+        (_OLD_JP_POPS, _OLD_JP_POPS),
+    )
+
+    # 4. Delete old nodes (replaced CLSs + old PoPs)
+    nodes_to_delete = list(_JP_CLS_REPLACEMENTS.keys()) + _OLD_JP_POPS
+    cur.execute("DELETE FROM nodes WHERE id = ANY(%s)", (nodes_to_delete,))
 
 
 def _seed_if_empty(conn) -> None:

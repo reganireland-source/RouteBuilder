@@ -1,7 +1,7 @@
 [
   {
     "id": "TGA-SYD-AKL",
-    "name": "TGA Sydney–Auckland",
+    "name": "TGA Sydney\u2013Auckland",
     "system_id": "TGA",
     "start_node_id": "SYD1",
     "end_node_id": "AKL1",
@@ -14,7 +14,7 @@
   },
   {
     "id": "AJC-SYD-GUM",
-    "name": "AJC Sydney–Guam",
+    "name": "AJC Sydney\u2013Guam",
     "system_id": "AJC",
     "start_node_id": "SYD1",
     "end_node_id": "GUM1",
@@ -27,10 +27,10 @@
   },
   {
     "id": "AJC-GUM-TYO",
-    "name": "AJC Guam–Tokyo",
+    "name": "AJC Guam\u2013Tokyo",
     "system_id": "AJC",
     "start_node_id": "GUM1",
-    "end_node_id": "TYO1",
+    "end_node_id": "MJLS",
     "type": "wet",
     "length_km": 2700,
     "reliability": 0.9995,
@@ -40,7 +40,7 @@
   },
   {
     "id": "AJC-GUM-OSA",
-    "name": "AJC Guam–Osaka",
+    "name": "AJC Guam\u2013Osaka",
     "system_id": "AJC",
     "start_node_id": "GUM1",
     "end_node_id": "OSA1",
@@ -53,7 +53,7 @@
   },
   {
     "id": "PPC1-SYD-GUM",
-    "name": "PPC-1 Sydney–Guam",
+    "name": "PPC-1 Sydney\u2013Guam",
     "system_id": "PPC1",
     "start_node_id": "SYD1",
     "end_node_id": "GUM1",
@@ -66,7 +66,7 @@
   },
   {
     "id": "PPC1-GUM-HAW",
-    "name": "PPC-1 Guam–Hawaii",
+    "name": "PPC-1 Guam\u2013Hawaii",
     "system_id": "PPC1",
     "start_node_id": "GUM1",
     "end_node_id": "HAW1",
@@ -79,7 +79,7 @@
   },
   {
     "id": "AAG-SIN-HKG",
-    "name": "AAG Singapore–Hong Kong",
+    "name": "AAG Singapore\u2013Hong Kong",
     "system_id": "AAG",
     "start_node_id": "SIN1",
     "end_node_id": "HKG1",
@@ -92,7 +92,7 @@
   },
   {
     "id": "AAG-HKG-MNL",
-    "name": "AAG Hong Kong–Manila",
+    "name": "AAG Hong Kong\u2013Manila",
     "system_id": "AAG",
     "start_node_id": "HKG1",
     "end_node_id": "MNL1",
@@ -105,7 +105,7 @@
   },
   {
     "id": "AAG-MNL-GUM",
-    "name": "AAG Manila–Guam",
+    "name": "AAG Manila\u2013Guam",
     "system_id": "AAG",
     "start_node_id": "MNL1",
     "end_node_id": "GUM1",
@@ -118,7 +118,7 @@
   },
   {
     "id": "AAG-GUM-HAW",
-    "name": "AAG Guam–Hawaii",
+    "name": "AAG Guam\u2013Hawaii",
     "system_id": "AAG",
     "start_node_id": "GUM1",
     "end_node_id": "HAW1",
@@ -131,7 +131,7 @@
   },
   {
     "id": "AAG-HAW-LAX",
-    "name": "AAG Hawaii–Los Angeles",
+    "name": "AAG Hawaii\u2013Los Angeles",
     "system_id": "AAG",
     "start_node_id": "HAW1",
     "end_node_id": "LAX1",
@@ -144,7 +144,7 @@
   },
   {
     "id": "INDIGO_C-PER-JAK",
-    "name": "Indigo Central Perth–Jakarta",
+    "name": "Indigo Central Perth\u2013Jakarta",
     "system_id": "INDIGO_C",
     "start_node_id": "PER1",
     "end_node_id": "JAK1",
@@ -157,7 +157,7 @@
   },
   {
     "id": "INDIGO_C-JAK-SIN",
-    "name": "Indigo Central Jakarta–Singapore",
+    "name": "Indigo Central Jakarta\u2013Singapore",
     "system_id": "INDIGO_C",
     "start_node_id": "JAK1",
     "end_node_id": "SIN1",
@@ -184,7 +184,7 @@
   },
   {
     "id": "INDIGO_W-SIN-BOM",
-    "name": "Indigo West Singapore–Mumbai",
+    "name": "Indigo West Singapore\u2013Mumbai",
     "system_id": "INDIGO_W",
     "start_node_id": "SIN1",
     "end_node_id": "BOM1",
@@ -197,7 +197,7 @@
   },
   {
     "id": "INDIGO_W-PER-SIN",
-    "name": "Indigo West Perth–Singapore",
+    "name": "Indigo West Perth\u2013Singapore",
     "system_id": "INDIGO_W",
     "start_node_id": "PER1",
     "end_node_id": "SIN1",
@@ -210,7 +210,7 @@
   },
   {
     "id": "SMW3-SIN-BOM",
-    "name": "SMW3 Singapore–Mumbai",
+    "name": "SMW3 Singapore\u2013Mumbai",
     "system_id": "SMW3",
     "start_node_id": "SIN1",
     "end_node_id": "BOM1",
@@ -223,7 +223,7 @@
   },
   {
     "id": "SMW3-BOM-DJI",
-    "name": "SMW3 Mumbai–Djibouti",
+    "name": "SMW3 Mumbai\u2013Djibouti",
     "system_id": "SMW3",
     "start_node_id": "BOM1",
     "end_node_id": "DJI1",
@@ -236,7 +236,7 @@
   },
   {
     "id": "SMW3-DJI-DXB",
-    "name": "SMW3 Djibouti–Dubai",
+    "name": "SMW3 Djibouti\u2013Dubai",
     "system_id": "SMW3",
     "start_node_id": "DJI1",
     "end_node_id": "DXB1",
@@ -279,7 +279,7 @@
   },
   {
     "id": "SMW3-DXB-LON",
-    "name": "SMW3 Dubai–London",
+    "name": "SMW3 Dubai\u2013London",
     "system_id": "SMW3",
     "start_node_id": "DXB1",
     "end_node_id": "LON1",
@@ -292,7 +292,7 @@
   },
   {
     "id": "SMW4-SIN-BOM",
-    "name": "SMW4 Singapore–Mumbai",
+    "name": "SMW4 Singapore\u2013Mumbai",
     "system_id": "SMW4",
     "start_node_id": "SIN1",
     "end_node_id": "BOM1",
@@ -305,7 +305,7 @@
   },
   {
     "id": "SMW4-BOM-DXB",
-    "name": "SMW4 Mumbai–Dubai",
+    "name": "SMW4 Mumbai\u2013Dubai",
     "system_id": "SMW4",
     "start_node_id": "BOM1",
     "end_node_id": "DXB1",
@@ -318,7 +318,7 @@
   },
   {
     "id": "SMW4-DXB-LON",
-    "name": "SMW4 Dubai–London",
+    "name": "SMW4 Dubai\u2013London",
     "system_id": "SMW4",
     "start_node_id": "DXB1",
     "end_node_id": "LON1",
@@ -331,7 +331,7 @@
   },
   {
     "id": "APG-HKG-TPE",
-    "name": "APG Hong Kong–Taipei",
+    "name": "APG Hong Kong\u2013Taipei",
     "system_id": "APG",
     "start_node_id": "HKG1",
     "end_node_id": "TPE1",
@@ -344,10 +344,10 @@
   },
   {
     "id": "APG-TPE-TYO",
-    "name": "APG Taipei–Tokyo",
+    "name": "APG Taipei\u2013Tokyo",
     "system_id": "APG",
     "start_node_id": "TPE1",
-    "end_node_id": "TYO1",
+    "end_node_id": "MJLS",
     "type": "wet",
     "length_km": 2200,
     "reliability": 0.9993,
@@ -357,7 +357,7 @@
   },
   {
     "id": "APG-SIN-HKG",
-    "name": "APG Singapore–Hong Kong",
+    "name": "APG Singapore\u2013Hong Kong",
     "system_id": "APG",
     "start_node_id": "SIN1",
     "end_node_id": "HKG1",
@@ -370,7 +370,7 @@
   },
   {
     "id": "TERRESTRIAL_AU01",
-    "name": "Terrestrial Sydney–Melbourne",
+    "name": "Terrestrial Sydney\u2013Melbourne",
     "system_id": "TERRESTRIAL",
     "start_node_id": "SYD1",
     "end_node_id": "MEL1",
@@ -383,7 +383,7 @@
   },
   {
     "id": "TERRESTRIAL_AU02",
-    "name": "Terrestrial Sydney–Brisbane",
+    "name": "Terrestrial Sydney\u2013Brisbane",
     "system_id": "TERRESTRIAL",
     "start_node_id": "SYD1",
     "end_node_id": "BRI1",
@@ -396,7 +396,7 @@
   },
   {
     "id": "TERRESTRIAL_AU03",
-    "name": "Terrestrial Melbourne–Perth",
+    "name": "Terrestrial Melbourne\u2013Perth",
     "system_id": "TERRESTRIAL",
     "start_node_id": "MEL1",
     "end_node_id": "PER1",
@@ -409,7 +409,7 @@
   },
   {
     "id": "TERRESTRIAL_GB01",
-    "name": "Terrestrial London–Frankfurt",
+    "name": "Terrestrial London\u2013Frankfurt",
     "system_id": "TERRESTRIAL",
     "start_node_id": "LON1",
     "end_node_id": "FRA1",
@@ -422,7 +422,7 @@
   },
   {
     "id": "TERRESTRIAL_SG01",
-    "name": "Terrestrial Singapore–Kuala Lumpur",
+    "name": "Terrestrial Singapore\u2013Kuala Lumpur",
     "system_id": "TERRESTRIAL",
     "start_node_id": "SIN1",
     "end_node_id": "KUL1",
@@ -435,7 +435,7 @@
   },
   {
     "id": "TERRESTRIAL_AU04",
-    "name": "Terrestrial Sydney–Canberra",
+    "name": "Terrestrial Sydney\u2013Canberra",
     "system_id": "TERRESTRIAL",
     "start_node_id": "SYD1",
     "end_node_id": "CBR1",
@@ -448,7 +448,7 @@
   },
   {
     "id": "TERRESTRIAL_AU05",
-    "name": "Terrestrial Darwin–Brisbane",
+    "name": "Terrestrial Darwin\u2013Brisbane",
     "system_id": "TERRESTRIAL",
     "start_node_id": "DAR1",
     "end_node_id": "BRI1",
@@ -461,7 +461,7 @@
   },
   {
     "id": "TERRESTRIAL_NZ01",
-    "name": "Terrestrial Auckland–Wellington",
+    "name": "Terrestrial Auckland\u2013Wellington",
     "system_id": "TERRESTRIAL",
     "start_node_id": "AKL1",
     "end_node_id": "WLG1",
@@ -474,7 +474,7 @@
   },
   {
     "id": "TERRESTRIAL_SG02",
-    "name": "Terrestrial Singapore–Jurong",
+    "name": "Terrestrial Singapore\u2013Jurong",
     "system_id": "TERRESTRIAL",
     "start_node_id": "SIN1",
     "end_node_id": "SIN2",
@@ -486,34 +486,8 @@
     "latency": 0.07
   },
   {
-    "id": "TERRESTRIAL_JP01",
-    "name": "Terrestrial Osaka–Nagoya",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "OSA1",
-    "end_node_id": "NGO1",
-    "type": "terrestrial",
-    "length_km": 185,
-    "reliability": 0.9997,
-    "cost_weight": 1,
-    "ownership": "owned",
-    "latency": 0.93
-  },
-  {
-    "id": "TERRESTRIAL_JP02",
-    "name": "Terrestrial Nagoya–Tokyo",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "NGO1",
-    "end_node_id": "TYO1",
-    "type": "terrestrial",
-    "length_km": 350,
-    "reliability": 0.9995,
-    "cost_weight": 1,
-    "ownership": "owned",
-    "latency": 1.75
-  },
-  {
     "id": "TERRESTRIAL_GU01",
-    "name": "Terrestrial Guam–Hagåtña",
+    "name": "Terrestrial Guam\u2013Hag\u00e5t\u00f1a",
     "system_id": "TERRESTRIAL",
     "start_node_id": "GUM1",
     "end_node_id": "GUM2",
@@ -526,7 +500,7 @@
   },
   {
     "id": "TERRESTRIAL_US01",
-    "name": "Terrestrial Los Angeles–San Francisco",
+    "name": "Terrestrial Los Angeles\u2013San Francisco",
     "system_id": "TERRESTRIAL",
     "start_node_id": "LAX1",
     "end_node_id": "SFO1",
@@ -539,7 +513,7 @@
   },
   {
     "id": "TERRESTRIAL_US02",
-    "name": "Terrestrial San Francisco–Seattle",
+    "name": "Terrestrial San Francisco\u2013Seattle",
     "system_id": "TERRESTRIAL",
     "start_node_id": "SFO1",
     "end_node_id": "SEA1",
@@ -552,7 +526,7 @@
   },
   {
     "id": "TERRESTRIAL_US03",
-    "name": "Terrestrial San Francisco–New York",
+    "name": "Terrestrial San Francisco\u2013New York",
     "system_id": "TERRESTRIAL",
     "start_node_id": "SFO1",
     "end_node_id": "NYC1",
@@ -565,7 +539,7 @@
   },
   {
     "id": "TERRESTRIAL_TW01",
-    "name": "Terrestrial Taipei–Kaohsiung",
+    "name": "Terrestrial Taipei\u2013Kaohsiung",
     "system_id": "TERRESTRIAL",
     "start_node_id": "TPE1",
     "end_node_id": "KHH1",
@@ -578,7 +552,7 @@
   },
   {
     "id": "TERRESTRIAL_KR01",
-    "name": "Terrestrial Seoul–Busan",
+    "name": "Terrestrial Seoul\u2013Busan",
     "system_id": "TERRESTRIAL",
     "start_node_id": "ICN1",
     "end_node_id": "PUS1",
@@ -591,7 +565,7 @@
   },
   {
     "id": "TERRESTRIAL_IN01",
-    "name": "Terrestrial Mumbai–New Delhi",
+    "name": "Terrestrial Mumbai\u2013New Delhi",
     "system_id": "TERRESTRIAL",
     "start_node_id": "BOM1",
     "end_node_id": "DEL1",
@@ -604,7 +578,7 @@
   },
   {
     "id": "TERRESTRIAL_IN02",
-    "name": "Terrestrial Chennai–Bangalore",
+    "name": "Terrestrial Chennai\u2013Bangalore",
     "system_id": "TERRESTRIAL",
     "start_node_id": "MAA1",
     "end_node_id": "BLR1",
@@ -617,7 +591,7 @@
   },
   {
     "id": "TERRESTRIAL_DJ01",
-    "name": "Terrestrial Djibouti–Djibouti City Hub",
+    "name": "Terrestrial Djibouti\u2013Djibouti City Hub",
     "system_id": "TERRESTRIAL",
     "start_node_id": "DJI1",
     "end_node_id": "DJI2",
@@ -630,7 +604,7 @@
   },
   {
     "id": "TERRESTRIAL_AE01",
-    "name": "Terrestrial Dubai–Abu Dhabi",
+    "name": "Terrestrial Dubai\u2013Abu Dhabi",
     "system_id": "TERRESTRIAL",
     "start_node_id": "DXB1",
     "end_node_id": "AUH1",
@@ -643,7 +617,7 @@
   },
   {
     "id": "TERRESTRIAL_GB02",
-    "name": "Terrestrial London–Manchester",
+    "name": "Terrestrial London\u2013Manchester",
     "system_id": "TERRESTRIAL",
     "start_node_id": "LON1",
     "end_node_id": "MAN1",
@@ -656,7 +630,7 @@
   },
   {
     "id": "TERRESTRIAL_ID01",
-    "name": "Terrestrial Jakarta–Surabaya",
+    "name": "Terrestrial Jakarta\u2013Surabaya",
     "system_id": "TERRESTRIAL",
     "start_node_id": "JAK1",
     "end_node_id": "SUB1",
@@ -669,7 +643,7 @@
   },
   {
     "id": "TERRESTRIAL_MY01",
-    "name": "Terrestrial Kuala Lumpur–Penang",
+    "name": "Terrestrial Kuala Lumpur\u2013Penang",
     "system_id": "TERRESTRIAL",
     "start_node_id": "KUL1",
     "end_node_id": "PEN1",
@@ -682,7 +656,7 @@
   },
   {
     "id": "TERRESTRIAL_AU06",
-    "name": "Backhaul Perth–Perth Metro",
+    "name": "Backhaul Perth\u2013Perth Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "PER1",
     "end_node_id": "PER2",
@@ -695,7 +669,7 @@
   },
   {
     "id": "TERRESTRIAL_AU07",
-    "name": "Backhaul Sydney–Sydney Metro",
+    "name": "Backhaul Sydney\u2013Sydney Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "SYD1",
     "end_node_id": "SYD2",
@@ -708,7 +682,7 @@
   },
   {
     "id": "TERRESTRIAL_AU08",
-    "name": "Backhaul Melbourne–Melbourne Metro",
+    "name": "Backhaul Melbourne\u2013Melbourne Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "MEL1",
     "end_node_id": "MEL2",
@@ -721,7 +695,7 @@
   },
   {
     "id": "TERRESTRIAL_AU09",
-    "name": "Backhaul Brisbane–Brisbane Metro",
+    "name": "Backhaul Brisbane\u2013Brisbane Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "BRI1",
     "end_node_id": "BRI2",
@@ -734,7 +708,7 @@
   },
   {
     "id": "TERRESTRIAL_AU10",
-    "name": "Backhaul Darwin–Darwin Metro",
+    "name": "Backhaul Darwin\u2013Darwin Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "DAR1",
     "end_node_id": "DAR2",
@@ -747,7 +721,7 @@
   },
   {
     "id": "TERRESTRIAL_NZ02",
-    "name": "Backhaul Auckland–Auckland Metro",
+    "name": "Backhaul Auckland\u2013Auckland Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "AKL1",
     "end_node_id": "AKL2",
@@ -759,34 +733,8 @@
     "latency": 0.01
   },
   {
-    "id": "TERRESTRIAL_JP03",
-    "name": "Backhaul Tokyo–Tokyo Metro",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "TYO1",
-    "end_node_id": "TYO2",
-    "type": "terrestrial",
-    "length_km": 10,
-    "reliability": 0.9999,
-    "cost_weight": 1,
-    "ownership": "owned",
-    "latency": 0.05
-  },
-  {
-    "id": "TERRESTRIAL_JP04",
-    "name": "Backhaul Osaka–Osaka Metro",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "OSA1",
-    "end_node_id": "OSA2",
-    "type": "terrestrial",
-    "length_km": 2,
-    "reliability": 0.9999,
-    "cost_weight": 1,
-    "ownership": "owned",
-    "latency": 0.01
-  },
-  {
     "id": "TERRESTRIAL_US04",
-    "name": "Backhaul Hawaii–Honolulu",
+    "name": "Backhaul Hawaii\u2013Honolulu",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HAW1",
     "end_node_id": "HAW2",
@@ -799,7 +747,7 @@
   },
   {
     "id": "TERRESTRIAL_US05",
-    "name": "Backhaul Los Angeles–Los Angeles Metro",
+    "name": "Backhaul Los Angeles\u2013Los Angeles Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "LAX1",
     "end_node_id": "LAX2",
@@ -812,7 +760,7 @@
   },
   {
     "id": "TERRESTRIAL_US06",
-    "name": "Backhaul Seattle–Seattle Metro",
+    "name": "Backhaul Seattle\u2013Seattle Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "SEA1",
     "end_node_id": "SEA2",
@@ -825,7 +773,7 @@
   },
   {
     "id": "TERRESTRIAL_TW02",
-    "name": "Backhaul Taipei–Taipei Metro",
+    "name": "Backhaul Taipei\u2013Taipei Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "TPE1",
     "end_node_id": "TPE2",
@@ -838,7 +786,7 @@
   },
   {
     "id": "TERRESTRIAL_KR02",
-    "name": "Backhaul Seoul–Seoul Gangnam",
+    "name": "Backhaul Seoul\u2013Seoul Gangnam",
     "system_id": "TERRESTRIAL",
     "start_node_id": "ICN1",
     "end_node_id": "ICN2",
@@ -851,7 +799,7 @@
   },
   {
     "id": "TERRESTRIAL_IN03",
-    "name": "Backhaul Mumbai–Mumbai Metro",
+    "name": "Backhaul Mumbai\u2013Mumbai Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "BOM1",
     "end_node_id": "BOM2",
@@ -864,7 +812,7 @@
   },
   {
     "id": "TERRESTRIAL_IN04",
-    "name": "Backhaul Chennai–Chennai Metro",
+    "name": "Backhaul Chennai\u2013Chennai Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "MAA1",
     "end_node_id": "MAA2",
@@ -877,7 +825,7 @@
   },
   {
     "id": "TERRESTRIAL_AE02",
-    "name": "Backhaul Dubai–Dubai Metro",
+    "name": "Backhaul Dubai\u2013Dubai Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "DXB1",
     "end_node_id": "DXB2",
@@ -890,7 +838,7 @@
   },
   {
     "id": "TERRESTRIAL_GB03",
-    "name": "Backhaul London–London Docklands",
+    "name": "Backhaul London\u2013London Docklands",
     "system_id": "TERRESTRIAL",
     "start_node_id": "LON1",
     "end_node_id": "LON2",
@@ -903,7 +851,7 @@
   },
   {
     "id": "TERRESTRIAL_ID02",
-    "name": "Backhaul Jakarta–Jakarta Metro",
+    "name": "Backhaul Jakarta\u2013Jakarta Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "JAK1",
     "end_node_id": "JAK2",
@@ -916,7 +864,7 @@
   },
   {
     "id": "TERRESTRIAL_MY02",
-    "name": "Backhaul Kuala Lumpur–Kuala Lumpur Metro",
+    "name": "Backhaul Kuala Lumpur\u2013Kuala Lumpur Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "KUL1",
     "end_node_id": "KUL2",
@@ -929,7 +877,7 @@
   },
   {
     "id": "BIFROST-LAX-GUM",
-    "name": "BiFrost Los Angeles–Guam",
+    "name": "BiFrost Los Angeles\u2013Guam",
     "system_id": "BIFROST",
     "start_node_id": "LAX1",
     "end_node_id": "GUM1",
@@ -942,7 +890,7 @@
   },
   {
     "id": "BIFROST-JAK-SIN",
-    "name": "BiFrost Jakarta–Singapore",
+    "name": "BiFrost Jakarta\u2013Singapore",
     "system_id": "BIFROST",
     "start_node_id": "JAK1",
     "end_node_id": "SIN1",
@@ -969,7 +917,7 @@
   },
   {
     "id": "ECHO-SIN-JAK",
-    "name": "Echo Singapore–Jakarta",
+    "name": "Echo Singapore\u2013Jakarta",
     "system_id": "ECHO",
     "start_node_id": "SIN1",
     "end_node_id": "JAK1",
@@ -996,7 +944,7 @@
   },
   {
     "id": "ECHO-JAK-GUM",
-    "name": "Echo Jakarta–Guam",
+    "name": "Echo Jakarta\u2013Guam",
     "system_id": "ECHO",
     "start_node_id": "JAK1",
     "end_node_id": "GUM1",
@@ -1009,7 +957,7 @@
   },
   {
     "id": "ECHO-GUM-SFO",
-    "name": "Echo Guam–San Francisco",
+    "name": "Echo Guam\u2013San Francisco",
     "system_id": "ECHO",
     "start_node_id": "GUM1",
     "end_node_id": "SFO1",
@@ -1022,10 +970,10 @@
   },
   {
     "id": "TOPAZ-SEA-TYO",
-    "name": "Topaz Seattle–Tokyo",
+    "name": "Topaz Seattle\u2013Tokyo",
     "system_id": "TOPAZ",
     "start_node_id": "SEA1",
-    "end_node_id": "TYO1",
+    "end_node_id": "MJLS",
     "type": "wet",
     "length_km": 8500,
     "reliability": 0.9995,
@@ -1034,21 +982,8 @@
     "latency": 42.5
   },
   {
-    "id": "TOPAZ-TYO-NGO",
-    "name": "Topaz Tokyo–Nagoya",
-    "system_id": "TOPAZ",
-    "start_node_id": "TYO1",
-    "end_node_id": "NGO1",
-    "type": "wet",
-    "length_km": 350,
-    "reliability": 0.9995,
-    "cost_weight": 3,
-    "ownership": "consortium",
-    "latency": 1.75
-  },
-  {
     "id": "TABUA-LAX-HAW",
-    "name": "Tabua Los Angeles–Hawaii",
+    "name": "Tabua Los Angeles\u2013Hawaii",
     "system_id": "TABUA",
     "start_node_id": "LAX1",
     "end_node_id": "HAW1",
@@ -1061,7 +996,7 @@
   },
   {
     "id": "TABUA-HAW-FJI",
-    "name": "Tabua Hawaii–Fiji",
+    "name": "Tabua Hawaii\u2013Fiji",
     "system_id": "TABUA",
     "start_node_id": "HAW1",
     "end_node_id": "FJI1",
@@ -1074,7 +1009,7 @@
   },
   {
     "id": "TABUA-FJI-SYD",
-    "name": "Tabua Fiji–Sydney",
+    "name": "Tabua Fiji\u2013Sydney",
     "system_id": "TABUA",
     "start_node_id": "FJI1",
     "end_node_id": "SYD1",
@@ -1087,7 +1022,7 @@
   },
   {
     "id": "TABUA-SYD-BRI",
-    "name": "Tabua Sydney–Brisbane",
+    "name": "Tabua Sydney\u2013Brisbane",
     "system_id": "TABUA",
     "start_node_id": "SYD1",
     "end_node_id": "BRI1",
@@ -1100,9 +1035,9 @@
   },
   {
     "id": "JGA-TYO-GUM",
-    "name": "JGA Tokyo–Guam",
+    "name": "JGA Tokyo\u2013Guam",
     "system_id": "JGA",
-    "start_node_id": "TYO1",
+    "start_node_id": "MJLS",
     "end_node_id": "GUM1",
     "type": "wet",
     "length_km": 2600,
@@ -1113,7 +1048,7 @@
   },
   {
     "id": "SEAUS-GUM-HAW",
-    "name": "SEA-US Guam–Hawaii",
+    "name": "SEA-US Guam\u2013Hawaii",
     "system_id": "SEAUS",
     "start_node_id": "GUM1",
     "end_node_id": "HAW1",
@@ -1126,7 +1061,7 @@
   },
   {
     "id": "SEAUS-HAW-LAX",
-    "name": "SEA-US Hawaii–Los Angeles",
+    "name": "SEA-US Hawaii\u2013Los Angeles",
     "system_id": "SEAUS",
     "start_node_id": "HAW1",
     "end_node_id": "LAX1",
@@ -1139,7 +1074,7 @@
   },
   {
     "id": "SJC2-SIN-MNL",
-    "name": "SJC2 Singapore–Manila",
+    "name": "SJC2 Singapore\u2013Manila",
     "system_id": "SJC2",
     "start_node_id": "SIN1",
     "end_node_id": "MNL1",
@@ -1152,7 +1087,7 @@
   },
   {
     "id": "SJC2-MNL-TPE",
-    "name": "SJC2 Manila–Taipei",
+    "name": "SJC2 Manila\u2013Taipei",
     "system_id": "SJC2",
     "start_node_id": "MNL1",
     "end_node_id": "TPE1",
@@ -1165,10 +1100,10 @@
   },
   {
     "id": "SJC2-TPE-TYO",
-    "name": "SJC2 Taipei–Tokyo",
+    "name": "SJC2 Taipei\u2013Tokyo",
     "system_id": "SJC2",
     "start_node_id": "TPE1",
-    "end_node_id": "TYO1",
+    "end_node_id": "MJLS",
     "type": "wet",
     "length_km": 2100,
     "reliability": 0.9994,
@@ -1178,9 +1113,9 @@
   },
   {
     "id": "SJC2-TYO-ICN",
-    "name": "SJC2 Tokyo–Seoul",
+    "name": "SJC2 Tokyo\u2013Seoul",
     "system_id": "SJC2",
-    "start_node_id": "TYO1",
+    "start_node_id": "MJLS",
     "end_node_id": "ICN1",
     "type": "wet",
     "length_km": 1200,
@@ -1191,9 +1126,9 @@
   },
   {
     "id": "ADC-TYO-TPE",
-    "name": "ADC Tokyo–Taipei",
+    "name": "ADC Tokyo\u2013Taipei",
     "system_id": "ADC",
-    "start_node_id": "TYO1",
+    "start_node_id": "MJLS",
     "end_node_id": "TPE1",
     "type": "wet",
     "length_km": 2100,
@@ -1204,7 +1139,7 @@
   },
   {
     "id": "ADC-TPE-HKG",
-    "name": "ADC Taipei–Hong Kong",
+    "name": "ADC Taipei\u2013Hong Kong",
     "system_id": "ADC",
     "start_node_id": "TPE1",
     "end_node_id": "HKG1",
@@ -1217,7 +1152,7 @@
   },
   {
     "id": "JUNO-MNB-BU",
-    "name": "JUNO Minamiboso–Branching Unit",
+    "name": "JUNO Minamiboso\u2013Branching Unit",
     "system_id": "JUNO",
     "start_node_id": "MNB1",
     "end_node_id": "JUNO-BU1",
@@ -1230,9 +1165,9 @@
   },
   {
     "id": "JUNO-SHM-BU",
-    "name": "JUNO Shima–Branching Unit",
+    "name": "JUNO Shima\u2013Branching Unit",
     "system_id": "JUNO",
-    "start_node_id": "SHMA",
+    "start_node_id": "JSOM",
     "end_node_id": "JUNO-BU1",
     "type": "wet",
     "length_km": 520,
@@ -1243,7 +1178,7 @@
   },
   {
     "id": "JUNO-BU-GRB",
-    "name": "JUNO Branching Unit–Grover Beach",
+    "name": "JUNO Branching Unit\u2013Grover Beach",
     "system_id": "JUNO",
     "start_node_id": "JUNO-BU1",
     "end_node_id": "GRB1",
@@ -1256,7 +1191,7 @@
   },
   {
     "id": "BALIKULA-BRI-VLI",
-    "name": "Balikula Brisbane–Port Vila",
+    "name": "Balikula Brisbane\u2013Port Vila",
     "system_id": "BALIKULA",
     "start_node_id": "BRI1",
     "end_node_id": "VLI1",
@@ -1269,7 +1204,7 @@
   },
   {
     "id": "BALIKULA-VLI-FJI",
-    "name": "Balikula Port Vila–Fiji",
+    "name": "Balikula Port Vila\u2013Fiji",
     "system_id": "BALIKULA",
     "start_node_id": "VLI1",
     "end_node_id": "FJI1",
@@ -1282,7 +1217,7 @@
   },
   {
     "id": "JGA-GUM-BU1",
-    "name": "JGA Guam–Branching Unit",
+    "name": "JGA Guam\u2013Branching Unit",
     "system_id": "JGA",
     "start_node_id": "GUM1",
     "end_node_id": "JGABU1",
@@ -1295,7 +1230,7 @@
   },
   {
     "id": "JGA-BU1-SYD",
-    "name": "JGA Branching Unit–Sydney (Brookvale)",
+    "name": "JGA Branching Unit\u2013Sydney (Brookvale)",
     "system_id": "JGA",
     "start_node_id": "JGABU1",
     "end_node_id": "SYD1",
@@ -1308,7 +1243,7 @@
   },
   {
     "id": "JGA-BU1-BRI",
-    "name": "JGA Branching Unit–Maroochydore (QLD)",
+    "name": "JGA Branching Unit\u2013Maroochydore (QLD)",
     "system_id": "JGA",
     "start_node_id": "JGABU1",
     "end_node_id": "BRI1",
@@ -1321,7 +1256,7 @@
   },
   {
     "id": "SCC-N-SYD-FJI",
-    "name": "SCC North Sydney–Fiji",
+    "name": "SCC North Sydney\u2013Fiji",
     "system_id": "SCC_N",
     "start_node_id": "SYD1",
     "end_node_id": "FJI1",
@@ -1334,7 +1269,7 @@
   },
   {
     "id": "SCC-N-FJI-HAW",
-    "name": "SCC North Fiji–Hawaii",
+    "name": "SCC North Fiji\u2013Hawaii",
     "system_id": "SCC_N",
     "start_node_id": "FJI1",
     "end_node_id": "HAW1",
@@ -1347,7 +1282,7 @@
   },
   {
     "id": "SCC-N-HAW-SEA",
-    "name": "SCC North Hawaii–Oregon",
+    "name": "SCC North Hawaii\u2013Oregon",
     "system_id": "SCC_N",
     "start_node_id": "HAW1",
     "end_node_id": "SEA1",
@@ -1360,7 +1295,7 @@
   },
   {
     "id": "SCC-S-SYD-AKL",
-    "name": "SCC South Sydney–Auckland",
+    "name": "SCC South Sydney\u2013Auckland",
     "system_id": "SCC_S",
     "start_node_id": "SYD1",
     "end_node_id": "AKL1",
@@ -1373,7 +1308,7 @@
   },
   {
     "id": "SCC-S-AKL-HAW",
-    "name": "SCC South Auckland–Hawaii",
+    "name": "SCC South Auckland\u2013Hawaii",
     "system_id": "SCC_S",
     "start_node_id": "AKL1",
     "end_node_id": "HAW1",
@@ -1386,7 +1321,7 @@
   },
   {
     "id": "SCC-S-HAW-SFO",
-    "name": "SCC South Hawaii–Morro Bay",
+    "name": "SCC South Hawaii\u2013Morro Bay",
     "system_id": "SCC_S",
     "start_node_id": "HAW1",
     "end_node_id": "SFO1",
@@ -1399,7 +1334,7 @@
   },
   {
     "id": "SXNEXT-LAX-HAW",
-    "name": "SXNEXT Los Angeles–Hawaii",
+    "name": "SXNEXT Los Angeles\u2013Hawaii",
     "system_id": "SXNEXT",
     "start_node_id": "LAX1",
     "end_node_id": "HAW1",
@@ -1412,7 +1347,7 @@
   },
   {
     "id": "SXNEXT-HAW-BU",
-    "name": "SXNEXT Hawaii–Branching Unit",
+    "name": "SXNEXT Hawaii\u2013Branching Unit",
     "system_id": "SXNEXT",
     "start_node_id": "HAW1",
     "end_node_id": "SXNBU1",
@@ -1425,7 +1360,7 @@
   },
   {
     "id": "SXNEXT-BU-FJI",
-    "name": "SXNEXT Branching Unit–Fiji",
+    "name": "SXNEXT Branching Unit\u2013Fiji",
     "system_id": "SXNEXT",
     "start_node_id": "SXNBU1",
     "end_node_id": "FJI1",
@@ -1438,7 +1373,7 @@
   },
   {
     "id": "SXNEXT-BU-AKL",
-    "name": "SXNEXT Branching Unit–Auckland",
+    "name": "SXNEXT Branching Unit\u2013Auckland",
     "system_id": "SXNEXT",
     "start_node_id": "SXNBU1",
     "end_node_id": "AKL1",
@@ -1451,7 +1386,7 @@
   },
   {
     "id": "SXNEXT-AKL-SYD",
-    "name": "SXNEXT Auckland–Sydney",
+    "name": "SXNEXT Auckland\u2013Sydney",
     "system_id": "SXNEXT",
     "start_node_id": "AKL1",
     "end_node_id": "SYD1",
@@ -1464,7 +1399,7 @@
   },
   {
     "id": "PROA-OSA-TIN",
-    "name": "PROA Shima (Japan)–Tinian",
+    "name": "PROA Shima (Japan)\u2013Tinian",
     "system_id": "PROA",
     "start_node_id": "OSA1",
     "end_node_id": "TIN1",
@@ -1477,7 +1412,7 @@
   },
   {
     "id": "PROA-TIN-GUM",
-    "name": "PROA Tinian–Guam",
+    "name": "PROA Tinian\u2013Guam",
     "system_id": "PROA",
     "start_node_id": "TIN1",
     "end_node_id": "GUM1",
@@ -1506,7 +1441,7 @@
     "name": "Jupiter North Pacific BU to Tokyo",
     "system_id": "JUPITER",
     "start_node_id": "JUPBU1",
-    "end_node_id": "TYO1",
+    "end_node_id": "MJLS",
     "type": "wet",
     "length_km": 2400,
     "reliability": 0.9993,
@@ -1558,7 +1493,7 @@
     "name": "Apricot Philippine Sea BU to Tokyo",
     "system_id": "APRICOT",
     "start_node_id": "APRICOTBU1",
-    "end_node_id": "TYO1",
+    "end_node_id": "MJLS",
     "type": "wet",
     "length_km": 2400,
     "reliability": 0.9993,
@@ -1581,7 +1516,7 @@
   },
   {
     "id": "EAC-2A1",
-    "name": "EAC 2A1 Singapore–Tseung Kwan O",
+    "name": "EAC 2A1 Singapore\u2013Tseung Kwan O",
     "system_id": "EAC",
     "start_node_id": "SIN3",
     "end_node_id": "TKOH",
@@ -1593,7 +1528,7 @@
   },
   {
     "id": "EAC-2B1",
-    "name": "EAC 2B1 Taipei–Capepisa",
+    "name": "EAC 2B1 Taipei\u2013Capepisa",
     "system_id": "EAC",
     "start_node_id": "TPE1",
     "end_node_id": "CPSA",
@@ -1605,7 +1540,7 @@
   },
   {
     "id": "EAC-2B2",
-    "name": "EAC 2B2 Singapore–Capepisa",
+    "name": "EAC 2B2 Singapore\u2013Capepisa",
     "system_id": "EAC",
     "start_node_id": "SIN3",
     "end_node_id": "CPSA",
@@ -1617,10 +1552,10 @@
   },
   {
     "id": "EAC-A",
-    "name": "EAC Segment A BU Pacific–Shima",
+    "name": "EAC Segment A BU Pacific\u2013Shima",
     "system_id": "EAC",
     "start_node_id": "BUEP",
-    "end_node_id": "SHMA",
+    "end_node_id": "JSOM",
     "type": "wet",
     "length_km": 1400,
     "reliability": 0.9994,
@@ -1629,7 +1564,7 @@
   },
   {
     "id": "EAC-B",
-    "name": "EAC Segment B Tamsui–BU Pacific",
+    "name": "EAC Segment B Tamsui\u2013BU Pacific",
     "system_id": "EAC",
     "start_node_id": "TAMS",
     "end_node_id": "BUEP",
@@ -1641,7 +1576,7 @@
   },
   {
     "id": "EAC-C",
-    "name": "EAC Segment C Tseung Kwan O–BU Pacific",
+    "name": "EAC Segment C Tseung Kwan O\u2013BU Pacific",
     "system_id": "EAC",
     "start_node_id": "TKOH",
     "end_node_id": "BUEP",
@@ -1653,7 +1588,7 @@
   },
   {
     "id": "EAC-D",
-    "name": "EAC Segment D Tseung Kwan O–BU China Sea",
+    "name": "EAC Segment D Tseung Kwan O\u2013BU China Sea",
     "system_id": "EAC",
     "start_node_id": "TKOH",
     "end_node_id": "BUEC",
@@ -1665,7 +1600,7 @@
   },
   {
     "id": "EAC-E",
-    "name": "EAC Segment E Taipei–BU China Sea",
+    "name": "EAC Segment E Taipei\u2013BU China Sea",
     "system_id": "EAC",
     "start_node_id": "TPE1",
     "end_node_id": "BUEC",
@@ -1677,7 +1612,7 @@
   },
   {
     "id": "EAC-F1",
-    "name": "EAC Segment F1 BU China Sea–BU Yellow Sea",
+    "name": "EAC Segment F1 BU China Sea\u2013BU Yellow Sea",
     "system_id": "EAC",
     "start_node_id": "BUEC",
     "end_node_id": "BUEY",
@@ -1689,7 +1624,7 @@
   },
   {
     "id": "EAC-F2",
-    "name": "EAC Segment F2 BU Yellow Sea–Shinduri",
+    "name": "EAC Segment F2 BU Yellow Sea\u2013Shinduri",
     "system_id": "EAC",
     "start_node_id": "BUEY",
     "end_node_id": "SDRI",
@@ -1701,10 +1636,10 @@
   },
   {
     "id": "EAC-K",
-    "name": "EAC Segment K Shinduri–Ajigaura",
+    "name": "EAC Segment K Shinduri\u2013Ajigaura",
     "system_id": "EAC",
     "start_node_id": "SDRI",
-    "end_node_id": "AJIG",
+    "end_node_id": "JAAJ",
     "type": "wet",
     "length_km": 1600,
     "reliability": 0.9993,
@@ -1713,10 +1648,10 @@
   },
   {
     "id": "EAC-L",
-    "name": "EAC Segment L Ajigaura–Shima",
+    "name": "EAC Segment L Ajigaura\u2013Shima",
     "system_id": "EAC",
-    "start_node_id": "AJIG",
-    "end_node_id": "SHMA",
+    "start_node_id": "JAAJ",
+    "end_node_id": "JSOM",
     "type": "wet",
     "length_km": 480,
     "reliability": 0.9996,
@@ -1725,7 +1660,7 @@
   },
   {
     "id": "EAC-M",
-    "name": "EAC Segment M BU Yellow Sea–Qingdao",
+    "name": "EAC Segment M BU Yellow Sea\u2013Qingdao",
     "system_id": "EAC",
     "start_node_id": "BUEY",
     "end_node_id": "QDAO",
@@ -1737,7 +1672,7 @@
   },
   {
     "id": "C2C-S1",
-    "name": "C2C Segment S1 Nasugbu–Chung Hom Kok",
+    "name": "C2C Segment S1 Nasugbu\u2013Chung Hom Kok",
     "system_id": "C2C",
     "start_node_id": "NSGU",
     "end_node_id": "CHKK",
@@ -1749,7 +1684,7 @@
   },
   {
     "id": "C2C-S2A",
-    "name": "C2C Segment S2A Chung Hom Kok–BU Taiwan",
+    "name": "C2C Segment S2A Chung Hom Kok\u2013BU Taiwan",
     "system_id": "C2C",
     "start_node_id": "CHKK",
     "end_node_id": "BUCT",
@@ -1761,7 +1696,7 @@
   },
   {
     "id": "C2C-S2B",
-    "name": "C2C Segment S2B BU Taiwan–Fangshan",
+    "name": "C2C Segment S2B BU Taiwan\u2013Fangshan",
     "system_id": "C2C",
     "start_node_id": "BUCT",
     "end_node_id": "FSHA",
@@ -1773,7 +1708,7 @@
   },
   {
     "id": "C2C-S3A",
-    "name": "C2C Segment S3A BU Taiwan–Nanhui",
+    "name": "C2C Segment S3A BU Taiwan\u2013Nanhui",
     "system_id": "C2C",
     "start_node_id": "BUCT",
     "end_node_id": "NHUI",
@@ -1785,7 +1720,7 @@
   },
   {
     "id": "C2C-S3B",
-    "name": "C2C Segment S3B Nanhui–Pusan",
+    "name": "C2C Segment S3B Nanhui\u2013Pusan",
     "system_id": "C2C",
     "start_node_id": "NHUI",
     "end_node_id": "PUS1",
@@ -1797,10 +1732,10 @@
   },
   {
     "id": "C2C-S3C",
-    "name": "C2C Segment S3C Pusan–Shima",
+    "name": "C2C Segment S3C Pusan\u2013Shima",
     "system_id": "C2C",
     "start_node_id": "PUS1",
-    "end_node_id": "SHMA",
+    "end_node_id": "JSOM",
     "type": "wet",
     "length_km": 870,
     "reliability": 0.9995,
@@ -1809,10 +1744,10 @@
   },
   {
     "id": "C2C-S4",
-    "name": "C2C Segment S4 Shima–Chikura",
+    "name": "C2C Segment S4 Shima\u2013Chikura",
     "system_id": "C2C",
-    "start_node_id": "SHMA",
-    "end_node_id": "CHKR",
+    "start_node_id": "JSOM",
+    "end_node_id": "CHCC",
     "type": "wet",
     "length_km": 350,
     "reliability": 0.9997,
@@ -1821,9 +1756,9 @@
   },
   {
     "id": "C2C-S5",
-    "name": "C2C Segment S5 Ajigaura–Nasugbu",
+    "name": "C2C Segment S5 Ajigaura\u2013Nasugbu",
     "system_id": "C2C",
-    "start_node_id": "AJIG",
+    "start_node_id": "JAAJ",
     "end_node_id": "NSGU",
     "type": "wet",
     "length_km": 3300,
@@ -1833,7 +1768,7 @@
   },
   {
     "id": "C2C-S6",
-    "name": "C2C Segment S6 Nasugbu–Singapore",
+    "name": "C2C Segment S6 Nasugbu\u2013Singapore",
     "system_id": "C2C",
     "start_node_id": "NSGU",
     "end_node_id": "SIN4",
@@ -1845,7 +1780,7 @@
   },
   {
     "id": "C2C-S7",
-    "name": "C2C Segment S7 Chung Hom Kok–Singapore",
+    "name": "C2C Segment S7 Chung Hom Kok\u2013Singapore",
     "system_id": "C2C",
     "start_node_id": "CHKK",
     "end_node_id": "SIN4",
@@ -1857,7 +1792,7 @@
   },
   {
     "id": "EQ_AU_SY01",
-    "name": "Equinix SY1 – Sydney Metro",
+    "name": "Equinix SY1 \u2013 Sydney Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-SY1",
     "end_node_id": "SYD2",
@@ -1870,7 +1805,7 @@
   },
   {
     "id": "EQ_AU_SY03",
-    "name": "Equinix SY3 – Sydney Metro",
+    "name": "Equinix SY3 \u2013 Sydney Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-SY3",
     "end_node_id": "SYD2",
@@ -1883,7 +1818,7 @@
   },
   {
     "id": "EQ_AU_SY04",
-    "name": "Equinix SY4 – Equinix SY1",
+    "name": "Equinix SY4 \u2013 Equinix SY1",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-SY4",
     "end_node_id": "EQ-SY1",
@@ -1896,7 +1831,7 @@
   },
   {
     "id": "EQ_AU_ME01",
-    "name": "Equinix ME1 – Melbourne Metro",
+    "name": "Equinix ME1 \u2013 Melbourne Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-ME1",
     "end_node_id": "MEL2",
@@ -1909,7 +1844,7 @@
   },
   {
     "id": "EQ_AU_ME02",
-    "name": "Equinix ME2 – Equinix ME1",
+    "name": "Equinix ME2 \u2013 Equinix ME1",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-ME2",
     "end_node_id": "EQ-ME1",
@@ -1922,7 +1857,7 @@
   },
   {
     "id": "EQ_AU_BQ01",
-    "name": "Equinix BQ1 – Brisbane Metro",
+    "name": "Equinix BQ1 \u2013 Brisbane Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-BQ1",
     "end_node_id": "BRI2",
@@ -1935,7 +1870,7 @@
   },
   {
     "id": "EQ_AU_PE01",
-    "name": "Equinix PE1 – Perth Metro",
+    "name": "Equinix PE1 \u2013 Perth Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-PE1",
     "end_node_id": "PER2",
@@ -1947,86 +1882,8 @@
     "latency": 0.02
   },
   {
-    "id": "EQ_JP_TY01",
-    "name": "Equinix TY1 – Tokyo Metro",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "EQ-TY1",
-    "end_node_id": "TYO2",
-    "type": "terrestrial",
-    "length_km": 6,
-    "reliability": 0.9992,
-    "cost_weight": 1.0,
-    "ownership": "integrated_lit_lease",
-    "latency": 0.03
-  },
-  {
-    "id": "EQ_JP_TY02",
-    "name": "Equinix TY2 – Tokyo Metro",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "EQ-TY2",
-    "end_node_id": "TYO2",
-    "type": "terrestrial",
-    "length_km": 4,
-    "reliability": 0.9992,
-    "cost_weight": 1.0,
-    "ownership": "integrated_lit_lease",
-    "latency": 0.02
-  },
-  {
-    "id": "EQ_JP_TY03",
-    "name": "Equinix TY3 – Equinix TY1",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "EQ-TY3",
-    "end_node_id": "EQ-TY1",
-    "type": "terrestrial",
-    "length_km": 3,
-    "reliability": 0.9992,
-    "cost_weight": 1.0,
-    "ownership": "offnet_resell",
-    "latency": 0.015
-  },
-  {
-    "id": "EQ_JP_OS01",
-    "name": "Equinix OS1 – Osaka Metro",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "EQ-OS1",
-    "end_node_id": "OSA2",
-    "type": "terrestrial",
-    "length_km": 2,
-    "reliability": 0.9992,
-    "cost_weight": 1.0,
-    "ownership": "integrated_lit_lease",
-    "latency": 0.01
-  },
-  {
-    "id": "EQ_JP_OS02",
-    "name": "Equinix OS2 – Equinix OS1",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "EQ-OS2",
-    "end_node_id": "EQ-OS1",
-    "type": "terrestrial",
-    "length_km": 15,
-    "reliability": 0.9992,
-    "cost_weight": 1.0,
-    "ownership": "offnet_resell",
-    "latency": 0.075
-  },
-  {
-    "id": "EQ_JP_NG01",
-    "name": "Equinix NG1 – Nagoya",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "EQ-NG1",
-    "end_node_id": "NGO1",
-    "type": "terrestrial",
-    "length_km": 3,
-    "reliability": 0.9992,
-    "cost_weight": 1.0,
-    "ownership": "integrated_lit_lease",
-    "latency": 0.015
-  },
-  {
     "id": "EQ_KR_SL01",
-    "name": "Equinix SL1 – Seoul Gangnam",
+    "name": "Equinix SL1 \u2013 Seoul Gangnam",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-SL1",
     "end_node_id": "ICN2",
@@ -2039,7 +1896,7 @@
   },
   {
     "id": "EQ_KR_BS01",
-    "name": "Equinix BS1 – Busan",
+    "name": "Equinix BS1 \u2013 Busan",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-BS1",
     "end_node_id": "PUS1",
@@ -2052,7 +1909,7 @@
   },
   {
     "id": "TERRESTRIAL_US07",
-    "name": "Terrestrial Dallas–Los Angeles",
+    "name": "Terrestrial Dallas\u2013Los Angeles",
     "system_id": "TERRESTRIAL",
     "start_node_id": "DAL1",
     "end_node_id": "LAX1",
@@ -2065,7 +1922,7 @@
   },
   {
     "id": "TERRESTRIAL_US08",
-    "name": "Terrestrial Dallas–Chicago",
+    "name": "Terrestrial Dallas\u2013Chicago",
     "system_id": "TERRESTRIAL",
     "start_node_id": "DAL1",
     "end_node_id": "CHI1",
@@ -2078,7 +1935,7 @@
   },
   {
     "id": "TERRESTRIAL_US09",
-    "name": "Terrestrial Chicago–New York",
+    "name": "Terrestrial Chicago\u2013New York",
     "system_id": "TERRESTRIAL",
     "start_node_id": "CHI1",
     "end_node_id": "NYC1",
@@ -2091,7 +1948,7 @@
   },
   {
     "id": "TERRESTRIAL_US10",
-    "name": "Terrestrial Miami–New York",
+    "name": "Terrestrial Miami\u2013New York",
     "system_id": "TERRESTRIAL",
     "start_node_id": "MIA1",
     "end_node_id": "NYC1",
@@ -2104,7 +1961,7 @@
   },
   {
     "id": "TERRESTRIAL_US11",
-    "name": "Terrestrial Miami–Dallas",
+    "name": "Terrestrial Miami\u2013Dallas",
     "system_id": "TERRESTRIAL",
     "start_node_id": "MIA1",
     "end_node_id": "DAL1",
@@ -2117,7 +1974,7 @@
   },
   {
     "id": "EQ_US_LA01",
-    "name": "Equinix LA1 – Los Angeles Metro",
+    "name": "Equinix LA1 \u2013 Los Angeles Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-LA1",
     "end_node_id": "LAX2",
@@ -2130,7 +1987,7 @@
   },
   {
     "id": "EQ_US_LA02",
-    "name": "Equinix LA2 – Equinix LA1",
+    "name": "Equinix LA2 \u2013 Equinix LA1",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-LA2",
     "end_node_id": "EQ-LA1",
@@ -2143,7 +2000,7 @@
   },
   {
     "id": "EQ_US_SE02",
-    "name": "Equinix SE2 – Seattle Metro",
+    "name": "Equinix SE2 \u2013 Seattle Metro",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-SE2",
     "end_node_id": "SEA2",
@@ -2156,7 +2013,7 @@
   },
   {
     "id": "EQ_US_SE03",
-    "name": "Equinix SE3 – Equinix SE2",
+    "name": "Equinix SE3 \u2013 Equinix SE2",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-SE3",
     "end_node_id": "EQ-SE2",
@@ -2169,7 +2026,7 @@
   },
   {
     "id": "EQ_US_CH01",
-    "name": "Equinix CH1 – Chicago",
+    "name": "Equinix CH1 \u2013 Chicago",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-CH1",
     "end_node_id": "CHI1",
@@ -2182,7 +2039,7 @@
   },
   {
     "id": "EQ_US_CH02",
-    "name": "Equinix CH2 – Equinix CH1",
+    "name": "Equinix CH2 \u2013 Equinix CH1",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-CH2",
     "end_node_id": "EQ-CH1",
@@ -2195,7 +2052,7 @@
   },
   {
     "id": "EQ_US_NY01",
-    "name": "Equinix NY1 – New York",
+    "name": "Equinix NY1 \u2013 New York",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-NY1",
     "end_node_id": "NYC1",
@@ -2208,7 +2065,7 @@
   },
   {
     "id": "EQ_US_NY05",
-    "name": "Equinix NY5 – Equinix NY1",
+    "name": "Equinix NY5 \u2013 Equinix NY1",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-NY5",
     "end_node_id": "EQ-NY1",
@@ -2221,7 +2078,7 @@
   },
   {
     "id": "EQ_US_NY09",
-    "name": "Equinix NY9 – Equinix NY1",
+    "name": "Equinix NY9 \u2013 Equinix NY1",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-NY9",
     "end_node_id": "EQ-NY1",
@@ -2234,7 +2091,7 @@
   },
   {
     "id": "EQ_US_DA01",
-    "name": "Equinix DA1 – Dallas",
+    "name": "Equinix DA1 \u2013 Dallas",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-DA1",
     "end_node_id": "DAL1",
@@ -2247,7 +2104,7 @@
   },
   {
     "id": "EQ_US_DA02",
-    "name": "Equinix DA2 – Equinix DA1",
+    "name": "Equinix DA2 \u2013 Equinix DA1",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-DA2",
     "end_node_id": "EQ-DA1",
@@ -2260,7 +2117,7 @@
   },
   {
     "id": "EQ_US_MI01",
-    "name": "Equinix MI1 – Miami",
+    "name": "Equinix MI1 \u2013 Miami",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-MI1",
     "end_node_id": "MIA1",
@@ -2273,7 +2130,7 @@
   },
   {
     "id": "EQ_US_MI03",
-    "name": "Equinix MI3 – Equinix MI1",
+    "name": "Equinix MI3 \u2013 Equinix MI1",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-MI3",
     "end_node_id": "EQ-MI1",
@@ -2286,7 +2143,7 @@
   },
   {
     "id": "TERRESTRIAL_IN05",
-    "name": "Terrestrial Mumbai–Bangalore",
+    "name": "Terrestrial Mumbai\u2013Bangalore",
     "system_id": "TERRESTRIAL",
     "start_node_id": "BOM1",
     "end_node_id": "BLR1",
@@ -2299,7 +2156,7 @@
   },
   {
     "id": "TERRESTRIAL_IN06",
-    "name": "Terrestrial New Delhi–Chennai",
+    "name": "Terrestrial New Delhi\u2013Chennai",
     "system_id": "TERRESTRIAL",
     "start_node_id": "DEL1",
     "end_node_id": "MAA1",
@@ -2312,7 +2169,7 @@
   },
   {
     "id": "TERRESTRIAL_TW03",
-    "name": "Terrestrial Tamsui–Fangshan",
+    "name": "Terrestrial Tamsui\u2013Fangshan",
     "system_id": "TERRESTRIAL",
     "start_node_id": "TAMS",
     "end_node_id": "FSHA",
@@ -2325,7 +2182,7 @@
   },
   {
     "id": "TERRESTRIAL_TW04",
-    "name": "Terrestrial Tamsui–Taipei",
+    "name": "Terrestrial Tamsui\u2013Taipei",
     "system_id": "TERRESTRIAL",
     "start_node_id": "TAMS",
     "end_node_id": "TPE1",
@@ -2338,7 +2195,7 @@
   },
   {
     "id": "TERRESTRIAL_TW05",
-    "name": "Terrestrial Fangshan–Kaohsiung",
+    "name": "Terrestrial Fangshan\u2013Kaohsiung",
     "system_id": "TERRESTRIAL",
     "start_node_id": "FSHA",
     "end_node_id": "KHH1",
@@ -2351,7 +2208,7 @@
   },
   {
     "id": "TERRESTRIAL_KR03",
-    "name": "Terrestrial Shinduri–Seoul",
+    "name": "Terrestrial Shinduri\u2013Seoul",
     "system_id": "TERRESTRIAL",
     "start_node_id": "SDRI",
     "end_node_id": "ICN1",
@@ -2364,7 +2221,7 @@
   },
   {
     "id": "TERRESTRIAL_KR04",
-    "name": "Terrestrial Shinduri–Busan",
+    "name": "Terrestrial Shinduri\u2013Busan",
     "system_id": "TERRESTRIAL",
     "start_node_id": "SDRI",
     "end_node_id": "PUS1",
@@ -2376,47 +2233,8 @@
     "latency": 1.85
   },
   {
-    "id": "TERRESTRIAL_JP05",
-    "name": "Terrestrial Shima–Tokyo",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "SHMA",
-    "end_node_id": "TYO1",
-    "type": "terrestrial",
-    "length_km": 350,
-    "reliability": 0.9991,
-    "cost_weight": 3,
-    "ownership": "owned",
-    "latency": 1.75
-  },
-  {
-    "id": "TERRESTRIAL_JP06",
-    "name": "Terrestrial Ajigaura–Tokyo",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "AJIG",
-    "end_node_id": "TYO1",
-    "type": "terrestrial",
-    "length_km": 135,
-    "reliability": 0.9993,
-    "cost_weight": 2,
-    "ownership": "owned",
-    "latency": 0.675
-  },
-  {
-    "id": "TERRESTRIAL_JP07",
-    "name": "Terrestrial Chikura–Tokyo",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "CHKR",
-    "end_node_id": "TYO1",
-    "type": "terrestrial",
-    "length_km": 92,
-    "reliability": 0.9994,
-    "cost_weight": 1,
-    "ownership": "owned",
-    "latency": 0.46
-  },
-  {
     "id": "TERRESTRIAL_CN01",
-    "name": "Terrestrial Nanhui–Shanghai",
+    "name": "Terrestrial Nanhui\u2013Shanghai",
     "system_id": "TERRESTRIAL",
     "start_node_id": "NHUI",
     "end_node_id": "SHA1",
@@ -2429,7 +2247,7 @@
   },
   {
     "id": "TERRESTRIAL_CN02",
-    "name": "Terrestrial Qingdao–Shanghai",
+    "name": "Terrestrial Qingdao\u2013Shanghai",
     "system_id": "TERRESTRIAL",
     "start_node_id": "QDAO",
     "end_node_id": "SHA1",
@@ -2442,7 +2260,7 @@
   },
   {
     "id": "TERRESTRIAL_SG03",
-    "name": "Terrestrial Changi EAC–Changi C2C",
+    "name": "Terrestrial Changi EAC\u2013Changi C2C",
     "system_id": "TERRESTRIAL",
     "start_node_id": "SIN3",
     "end_node_id": "SIN4",
@@ -2455,7 +2273,7 @@
   },
   {
     "id": "TERRESTRIAL_SG04",
-    "name": "Terrestrial Changi EAC–Singapore",
+    "name": "Terrestrial Changi EAC\u2013Singapore",
     "system_id": "TERRESTRIAL",
     "start_node_id": "SIN3",
     "end_node_id": "SIN1",
@@ -2468,7 +2286,7 @@
   },
   {
     "id": "TERRESTRIAL_SG05",
-    "name": "Terrestrial Changi C2C–Singapore",
+    "name": "Terrestrial Changi C2C\u2013Singapore",
     "system_id": "TERRESTRIAL",
     "start_node_id": "SIN4",
     "end_node_id": "SIN1",
@@ -2481,10 +2299,10 @@
   },
   {
     "id": "FASTER-BDN-CHK",
-    "name": "FASTER Bandon–Chikura",
+    "name": "FASTER Bandon\u2013Chikura",
     "system_id": "FASTER",
     "start_node_id": "BDN1",
-    "end_node_id": "CHKR",
+    "end_node_id": "CHCC",
     "type": "wet",
     "length_km": 9200,
     "reliability": 0.9917,
@@ -2494,10 +2312,10 @@
   },
   {
     "id": "FASTER-BDN-SHM",
-    "name": "FASTER Bandon–Shima",
+    "name": "FASTER Bandon\u2013Shima",
     "system_id": "FASTER",
     "start_node_id": "BDN1",
-    "end_node_id": "SHMA",
+    "end_node_id": "JSOM",
     "type": "wet",
     "length_km": 9600,
     "reliability": 0.9914,
@@ -2507,7 +2325,7 @@
   },
   {
     "id": "FASTER-BDN-TAM",
-    "name": "FASTER Bandon–Tamsui",
+    "name": "FASTER Bandon\u2013Tamsui",
     "system_id": "FASTER",
     "start_node_id": "BDN1",
     "end_node_id": "TAMS",
@@ -2520,10 +2338,10 @@
   },
   {
     "id": "PC1N-HPT-AJI",
-    "name": "PC-1 North Harbour Pointe–Ajigaura",
+    "name": "PC-1 North Harbour Pointe\u2013Ajigaura",
     "system_id": "PC1N",
     "start_node_id": "HPT1",
-    "end_node_id": "AJIG",
+    "end_node_id": "JAAJ",
     "type": "wet",
     "length_km": 10500,
     "reliability": 0.9906,
@@ -2533,10 +2351,10 @@
   },
   {
     "id": "PC1S-GRB-SHM",
-    "name": "PC-1 South Grover Beach–Shima",
+    "name": "PC-1 South Grover Beach\u2013Shima",
     "system_id": "PC1S",
     "start_node_id": "GRB1",
-    "end_node_id": "SHMA",
+    "end_node_id": "JSOM",
     "type": "wet",
     "length_km": 10300,
     "reliability": 0.9907,
@@ -2546,9 +2364,9 @@
   },
   {
     "id": "UNITY-CHK-HAW",
-    "name": "Unity Chikura–Hawaii",
+    "name": "Unity Chikura\u2013Hawaii",
     "system_id": "UNITY",
-    "start_node_id": "CHKR",
+    "start_node_id": "CHCC",
     "end_node_id": "HAW1",
     "type": "wet",
     "length_km": 6200,
@@ -2559,7 +2377,7 @@
   },
   {
     "id": "UNITY-HAW-LAX",
-    "name": "Unity Hawaii–Los Angeles",
+    "name": "Unity Hawaii\u2013Los Angeles",
     "system_id": "UNITY",
     "start_node_id": "HAW1",
     "end_node_id": "LAX1",
@@ -2572,7 +2390,7 @@
   },
   {
     "id": "BBG-FUJ-OMN",
-    "name": "BBG Fujairah–Barka",
+    "name": "BBG Fujairah\u2013Barka",
     "system_id": "BBG",
     "start_node_id": "FUJ1",
     "end_node_id": "OMN1",
@@ -2595,7 +2413,7 @@
   },
   {
     "id": "BBG-OMN-BOM",
-    "name": "BBG Barka–Mumbai",
+    "name": "BBG Barka\u2013Mumbai",
     "system_id": "BBG",
     "start_node_id": "OMN1",
     "end_node_id": "BOM1",
@@ -2608,7 +2426,7 @@
   },
   {
     "id": "BBG-BOM-CMB",
-    "name": "BBG Mumbai–Colombo",
+    "name": "BBG Mumbai\u2013Colombo",
     "system_id": "BBG",
     "start_node_id": "BOM1",
     "end_node_id": "CMB1",
@@ -2643,7 +2461,7 @@
   },
   {
     "id": "BBG-CMB-MAA",
-    "name": "BBG Colombo–Chennai",
+    "name": "BBG Colombo\u2013Chennai",
     "system_id": "BBG",
     "start_node_id": "CMB1",
     "end_node_id": "MAA1",
@@ -2682,7 +2500,7 @@
   },
   {
     "id": "BBG-MAA-PEN",
-    "name": "BBG Chennai–Penang",
+    "name": "BBG Chennai\u2013Penang",
     "system_id": "BBG",
     "start_node_id": "MAA1",
     "end_node_id": "PEN1",
@@ -2695,7 +2513,7 @@
   },
   {
     "id": "AAE1-SIN-VUT",
-    "name": "AAE-1 Singapore–Vung Tau",
+    "name": "AAE-1 Singapore\u2013Vung Tau",
     "system_id": "AAE1",
     "start_node_id": "SIN1",
     "end_node_id": "VUT1",
@@ -2708,7 +2526,7 @@
   },
   {
     "id": "AAE1-HKG-VUT",
-    "name": "AAE-1 Hong Kong–Vung Tau",
+    "name": "AAE-1 Hong Kong\u2013Vung Tau",
     "system_id": "AAE1",
     "start_node_id": "HKG1",
     "end_node_id": "VUT1",
@@ -2721,7 +2539,7 @@
   },
   {
     "id": "AAE1-VUT-SHV",
-    "name": "AAE-1 Vung Tau–Sihanoukville",
+    "name": "AAE-1 Vung Tau\u2013Sihanoukville",
     "system_id": "AAE1",
     "start_node_id": "VUT1",
     "end_node_id": "SHV1",
@@ -2748,7 +2566,7 @@
   },
   {
     "id": "AAE1-SHV-PEN",
-    "name": "AAE-1 Sihanoukville–Penang",
+    "name": "AAE-1 Sihanoukville\u2013Penang",
     "system_id": "AAE1",
     "start_node_id": "SHV1",
     "end_node_id": "PEN1",
@@ -2761,7 +2579,7 @@
   },
   {
     "id": "AAE1-PEN-SAT",
-    "name": "AAE-1 Penang–Satun",
+    "name": "AAE-1 Penang\u2013Satun",
     "system_id": "AAE1",
     "start_node_id": "PEN1",
     "end_node_id": "SAT1",
@@ -2784,7 +2602,7 @@
   },
   {
     "id": "AAE1-SAT-NGW",
-    "name": "AAE-1 Satun–Ngwe Saung",
+    "name": "AAE-1 Satun\u2013Ngwe Saung",
     "system_id": "AAE1",
     "start_node_id": "SAT1",
     "end_node_id": "NGW1",
@@ -2797,7 +2615,7 @@
   },
   {
     "id": "AAE1-NGW-BOM",
-    "name": "AAE-1 Ngwe Saung–Mumbai",
+    "name": "AAE-1 Ngwe Saung\u2013Mumbai",
     "system_id": "AAE1",
     "start_node_id": "NGW1",
     "end_node_id": "BOM1",
@@ -2836,7 +2654,7 @@
   },
   {
     "id": "AAE1-BOM-KHI",
-    "name": "AAE-1 Mumbai–Karachi",
+    "name": "AAE-1 Mumbai\u2013Karachi",
     "system_id": "AAE1",
     "start_node_id": "BOM1",
     "end_node_id": "KHI1",
@@ -2863,7 +2681,7 @@
   },
   {
     "id": "AAE1-KHI-MCT",
-    "name": "AAE-1 Karachi–Muscat",
+    "name": "AAE-1 Karachi\u2013Muscat",
     "system_id": "AAE1",
     "start_node_id": "KHI1",
     "end_node_id": "MCT1",
@@ -2876,7 +2694,7 @@
   },
   {
     "id": "AAE1-MCT-FUJ",
-    "name": "AAE-1 Muscat–Fujairah",
+    "name": "AAE-1 Muscat\u2013Fujairah",
     "system_id": "AAE1",
     "start_node_id": "MCT1",
     "end_node_id": "FUJ1",
@@ -2889,7 +2707,7 @@
   },
   {
     "id": "AAE1-FUJ-DOH",
-    "name": "AAE-1 Fujairah–Doha",
+    "name": "AAE-1 Fujairah\u2013Doha",
     "system_id": "AAE1",
     "start_node_id": "FUJ1",
     "end_node_id": "DOH1",
@@ -2932,7 +2750,7 @@
   },
   {
     "id": "AAE1-FUJ-JED",
-    "name": "AAE-1 Fujairah–Jeddah",
+    "name": "AAE-1 Fujairah\u2013Jeddah",
     "system_id": "AAE1",
     "start_node_id": "FUJ1",
     "end_node_id": "JED1",
@@ -2945,7 +2763,7 @@
   },
   {
     "id": "AAE1-JED-ADN",
-    "name": "AAE-1 Jeddah–Aden",
+    "name": "AAE-1 Jeddah\u2013Aden",
     "system_id": "AAE1",
     "start_node_id": "JED1",
     "end_node_id": "ADN1",
@@ -2980,7 +2798,7 @@
   },
   {
     "id": "AAE1-ADN-DJI",
-    "name": "AAE-1 Aden–Djibouti",
+    "name": "AAE-1 Aden\u2013Djibouti",
     "system_id": "AAE1",
     "start_node_id": "ADN1",
     "end_node_id": "DJI1",
@@ -3003,7 +2821,7 @@
   },
   {
     "id": "AAE1-DJI-EGR",
-    "name": "AAE-1 Djibouti–Zafarana",
+    "name": "AAE-1 Djibouti\u2013Zafarana",
     "system_id": "AAE1",
     "start_node_id": "DJI1",
     "end_node_id": "EGR1",
@@ -3034,7 +2852,7 @@
   },
   {
     "id": "AAE1-EGM-CHN",
-    "name": "AAE-1 Abu Talat–Chania",
+    "name": "AAE-1 Abu Talat\u2013Chania",
     "system_id": "AAE1",
     "start_node_id": "EGM1",
     "end_node_id": "CHN1",
@@ -3047,7 +2865,7 @@
   },
   {
     "id": "AAE1-CHN-BAR",
-    "name": "AAE-1 Chania–Bari",
+    "name": "AAE-1 Chania\u2013Bari",
     "system_id": "AAE1",
     "start_node_id": "CHN1",
     "end_node_id": "BAR1",
@@ -3060,7 +2878,7 @@
   },
   {
     "id": "AAE1-BAR-MRS",
-    "name": "AAE-1 Bari–Marseille",
+    "name": "AAE-1 Bari\u2013Marseille",
     "system_id": "AAE1",
     "start_node_id": "BAR1",
     "end_node_id": "MRS1",
@@ -3073,7 +2891,7 @@
   },
   {
     "id": "TERRESTRIAL_US12",
-    "name": "Terrestrial Bandon–Seattle",
+    "name": "Terrestrial Bandon\u2013Seattle",
     "system_id": "TERRESTRIAL",
     "start_node_id": "BDN1",
     "end_node_id": "SEA1",
@@ -3086,7 +2904,7 @@
   },
   {
     "id": "TERRESTRIAL_US13",
-    "name": "Terrestrial Bandon–San Francisco",
+    "name": "Terrestrial Bandon\u2013San Francisco",
     "system_id": "TERRESTRIAL",
     "start_node_id": "BDN1",
     "end_node_id": "SFO1",
@@ -3099,7 +2917,7 @@
   },
   {
     "id": "TERRESTRIAL_US14",
-    "name": "Terrestrial Grover Beach–Los Angeles",
+    "name": "Terrestrial Grover Beach\u2013Los Angeles",
     "system_id": "TERRESTRIAL",
     "start_node_id": "GRB1",
     "end_node_id": "LAX1",
@@ -3112,7 +2930,7 @@
   },
   {
     "id": "TERRESTRIAL_US15",
-    "name": "Terrestrial Grover Beach–San Francisco",
+    "name": "Terrestrial Grover Beach\u2013San Francisco",
     "system_id": "TERRESTRIAL",
     "start_node_id": "GRB1",
     "end_node_id": "SFO1",
@@ -3125,7 +2943,7 @@
   },
   {
     "id": "TERRESTRIAL_US16",
-    "name": "Terrestrial Harbour Pointe–Seattle",
+    "name": "Terrestrial Harbour Pointe\u2013Seattle",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HPT1",
     "end_node_id": "SEA1",
@@ -3138,7 +2956,7 @@
   },
   {
     "id": "TERRESTRIAL_AE03",
-    "name": "Terrestrial Fujairah–Dubai",
+    "name": "Terrestrial Fujairah\u2013Dubai",
     "system_id": "TERRESTRIAL",
     "start_node_id": "FUJ1",
     "end_node_id": "DXB1",
@@ -3151,7 +2969,7 @@
   },
   {
     "id": "TERRESTRIAL_OM01",
-    "name": "Terrestrial Barka–Dubai",
+    "name": "Terrestrial Barka\u2013Dubai",
     "system_id": "TERRESTRIAL",
     "start_node_id": "OMN1",
     "end_node_id": "DXB1",
@@ -3164,7 +2982,7 @@
   },
   {
     "id": "TERRESTRIAL_OM02",
-    "name": "Terrestrial Muscat–Barka",
+    "name": "Terrestrial Muscat\u2013Barka",
     "system_id": "TERRESTRIAL",
     "start_node_id": "MCT1",
     "end_node_id": "OMN1",
@@ -3177,7 +2995,7 @@
   },
   {
     "id": "TERRESTRIAL_QA01",
-    "name": "Terrestrial Doha–Dubai",
+    "name": "Terrestrial Doha\u2013Dubai",
     "system_id": "TERRESTRIAL",
     "start_node_id": "DOH1",
     "end_node_id": "DXB1",
@@ -3190,7 +3008,7 @@
   },
   {
     "id": "TERRESTRIAL_EG01",
-    "name": "Terrestrial Zafarana–Abu Talat",
+    "name": "Terrestrial Zafarana\u2013Abu Talat",
     "system_id": "TERRESTRIAL",
     "start_node_id": "EGR1",
     "end_node_id": "EGM1",
@@ -3203,7 +3021,7 @@
   },
   {
     "id": "TERRESTRIAL_EU01",
-    "name": "Terrestrial Marseille–London",
+    "name": "Terrestrial Marseille\u2013London",
     "system_id": "TERRESTRIAL",
     "start_node_id": "MRS1",
     "end_node_id": "LON1",
@@ -3216,7 +3034,7 @@
   },
   {
     "id": "TERRESTRIAL_EU02",
-    "name": "Terrestrial Marseille–Frankfurt",
+    "name": "Terrestrial Marseille\u2013Frankfurt",
     "system_id": "TERRESTRIAL",
     "start_node_id": "MRS1",
     "end_node_id": "FRA1",
@@ -3229,7 +3047,7 @@
   },
   {
     "id": "TERRESTRIAL_EU03",
-    "name": "Terrestrial Bari–Marseille",
+    "name": "Terrestrial Bari\u2013Marseille",
     "system_id": "TERRESTRIAL",
     "start_node_id": "BAR1",
     "end_node_id": "MRS1",
@@ -3242,7 +3060,7 @@
   },
   {
     "id": "TERRESTRIAL_PH01",
-    "name": "Terrestrial EAC Cavite–Robinsons Summit",
+    "name": "Terrestrial EAC Cavite\u2013Robinsons Summit",
     "system_id": "TERRESTRIAL",
     "start_node_id": "PCGD",
     "end_node_id": "PMRS",
@@ -3256,7 +3074,7 @@
   },
   {
     "id": "TERRESTRIAL_PH03",
-    "name": "Terrestrial EAC Cavite–C2C Nasugbu",
+    "name": "Terrestrial EAC Cavite\u2013C2C Nasugbu",
     "system_id": "TERRESTRIAL",
     "start_node_id": "PCGD",
     "end_node_id": "PNMA",
@@ -3270,7 +3088,7 @@
   },
   {
     "id": "TERRESTRIAL_PH05",
-    "name": "Terrestrial Robinsons Summit–Reliance Centre",
+    "name": "Terrestrial Robinsons Summit\u2013Reliance Centre",
     "system_id": "TERRESTRIAL",
     "start_node_id": "PMRS",
     "end_node_id": "PMPC",
@@ -3284,7 +3102,7 @@
   },
   {
     "id": "TERRESTRIAL_PH07",
-    "name": "Terrestrial Robinsons Summit–RCBC Tower 2",
+    "name": "Terrestrial Robinsons Summit\u2013RCBC Tower 2",
     "system_id": "TERRESTRIAL",
     "start_node_id": "PMRS",
     "end_node_id": "PHPN",
@@ -3298,7 +3116,7 @@
   },
   {
     "id": "TERRESTRIAL_PH08",
-    "name": "Terrestrial RCBC Tower 2–Reliance Centre",
+    "name": "Terrestrial RCBC Tower 2\u2013Reliance Centre",
     "system_id": "TERRESTRIAL",
     "start_node_id": "PHPN",
     "end_node_id": "PMPC",
@@ -3312,7 +3130,7 @@
   },
   {
     "id": "TERRESTRIAL_PH10",
-    "name": "Terrestrial Robinsons Summit–EPLDT Vitro Makati",
+    "name": "Terrestrial Robinsons Summit\u2013EPLDT Vitro Makati",
     "system_id": "TERRESTRIAL",
     "start_node_id": "PMRS",
     "end_node_id": "PMVR",
@@ -3326,7 +3144,7 @@
   },
   {
     "id": "TERRESTRIAL_PH11",
-    "name": "Terrestrial C2C Nasugbu–Reliance Centre (D)",
+    "name": "Terrestrial C2C Nasugbu\u2013Reliance Centre (D)",
     "system_id": "TERRESTRIAL",
     "start_node_id": "PNMA",
     "end_node_id": "PMPC",
@@ -3340,7 +3158,7 @@
   },
   {
     "id": "TERRESTRIAL_PH103",
-    "name": "Terrestrial Reliance Centre–La Union CLS",
+    "name": "Terrestrial Reliance Centre\u2013La Union CLS",
     "system_id": "TERRESTRIAL",
     "start_node_id": "PMPC",
     "end_node_id": "LAUS",
@@ -3354,7 +3172,7 @@
   },
   {
     "id": "TERRESTRIAL_PH02a",
-    "name": "Terrestrial EAC Cavite–Aguinaldo Cavite",
+    "name": "Terrestrial EAC Cavite\u2013Aguinaldo Cavite",
     "system_id": "TERRESTRIAL",
     "start_node_id": "PCGD",
     "end_node_id": "PCRS",
@@ -3368,7 +3186,7 @@
   },
   {
     "id": "TERRESTRIAL_PH02b",
-    "name": "Terrestrial Aguinaldo Cavite–Robinsons Summit",
+    "name": "Terrestrial Aguinaldo Cavite\u2013Robinsons Summit",
     "system_id": "TERRESTRIAL",
     "start_node_id": "PCRS",
     "end_node_id": "PMRS",
@@ -3382,7 +3200,7 @@
   },
   {
     "id": "TERRESTRIAL_PH06a",
-    "name": "Terrestrial C2C Nasugbu–Aguinaldo Cavite",
+    "name": "Terrestrial C2C Nasugbu\u2013Aguinaldo Cavite",
     "system_id": "TERRESTRIAL",
     "start_node_id": "PNMA",
     "end_node_id": "PCRS",
@@ -3396,7 +3214,7 @@
   },
   {
     "id": "TERRESTRIAL_PH06b",
-    "name": "Terrestrial Aguinaldo Cavite–Reliance Centre",
+    "name": "Terrestrial Aguinaldo Cavite\u2013Reliance Centre",
     "system_id": "TERRESTRIAL",
     "start_node_id": "PCRS",
     "end_node_id": "PMPC",
@@ -3410,7 +3228,7 @@
   },
   {
     "id": "ADC-HKG-BAT",
-    "name": "ADC Hong Kong–Batangas",
+    "name": "ADC Hong Kong\u2013Batangas",
     "system_id": "ADC",
     "start_node_id": "HKG1",
     "end_node_id": "PBAT",
@@ -3423,7 +3241,7 @@
   },
   {
     "id": "ADC-BAT-SIN",
-    "name": "ADC Batangas–Singapore",
+    "name": "ADC Batangas\u2013Singapore",
     "system_id": "ADC",
     "start_node_id": "PBAT",
     "end_node_id": "SIN1",
@@ -3436,7 +3254,7 @@
   },
   {
     "id": "BIFROST-GUM-CVD",
-    "name": "BiFrost Guam–Davao (Converge)",
+    "name": "BiFrost Guam\u2013Davao (Converge)",
     "system_id": "BIFROST",
     "start_node_id": "GUM1",
     "end_node_id": "PCVD",
@@ -3449,7 +3267,7 @@
   },
   {
     "id": "BIFROST-CVD-JAK",
-    "name": "BiFrost Davao–Jakarta",
+    "name": "BiFrost Davao\u2013Jakarta",
     "system_id": "BIFROST",
     "start_node_id": "PCVD",
     "end_node_id": "JAK1",
@@ -3462,7 +3280,7 @@
   },
   {
     "id": "SEAUS-GDV-GUM",
-    "name": "SEA-US Davao–Guam",
+    "name": "SEA-US Davao\u2013Guam",
     "system_id": "SEAUS",
     "start_node_id": "PGDV",
     "end_node_id": "GUM1",
@@ -3475,7 +3293,7 @@
   },
   {
     "id": "APRICOT-SIN-BU",
-    "name": "Apricot Singapore–BU",
+    "name": "Apricot Singapore\u2013BU",
     "system_id": "APRICOT",
     "start_node_id": "SIN1",
     "end_node_id": "APRICOTBU1",
@@ -3488,7 +3306,7 @@
   },
   {
     "id": "APRICOT-BU-BAU",
-    "name": "Apricot BU–Baler Aurora",
+    "name": "Apricot BU\u2013Baler Aurora",
     "system_id": "APRICOT",
     "start_node_id": "APRICOTBU1",
     "end_node_id": "PBAU",
@@ -3501,7 +3319,7 @@
   },
   {
     "id": "APRICOT-BU-DGS",
-    "name": "Apricot BU–Digos",
+    "name": "Apricot BU\u2013Digos",
     "system_id": "APRICOT",
     "start_node_id": "APRICOTBU1",
     "end_node_id": "PDIG",
@@ -3514,7 +3332,7 @@
   },
   {
     "id": "TERRESTRIAL_HK19",
-    "name": "Terrestrial South Lantau CLS–Equinix HK1",
+    "name": "Terrestrial South Lantau CLS\u2013Equinix HK1",
     "system_id": "TERRESTRIAL",
     "start_node_id": "SLTU",
     "end_node_id": "HKGG",
@@ -3528,7 +3346,7 @@
   },
   {
     "id": "TERRESTRIAL_HK09",
-    "name": "Terrestrial Equinix HK1–Equinix HK2",
+    "name": "Terrestrial Equinix HK1\u2013Equinix HK2",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HKGG",
     "end_node_id": "HKKW",
@@ -3542,7 +3360,7 @@
   },
   {
     "id": "TERRESTRIAL_HK08",
-    "name": "Terrestrial Equinix HK2–Telecome House",
+    "name": "Terrestrial Equinix HK2\u2013Telecome House",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HKKW",
     "end_node_id": "HKTH",
@@ -3556,7 +3374,7 @@
   },
   {
     "id": "TERRESTRIAL_HK16",
-    "name": "Terrestrial Telecome House–Tong Fuk CLS",
+    "name": "Terrestrial Telecome House\u2013Tong Fuk CLS",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HKTH",
     "end_node_id": "TGFK",
@@ -3570,7 +3388,7 @@
   },
   {
     "id": "TERRESTRIAL_HK26",
-    "name": "Terrestrial South Lantau CLS–Tong Fuk CLS",
+    "name": "Terrestrial South Lantau CLS\u2013Tong Fuk CLS",
     "system_id": "TERRESTRIAL",
     "start_node_id": "SLTU",
     "end_node_id": "TGFK",
@@ -3584,7 +3402,7 @@
   },
   {
     "id": "TERRESTRIAL_HK13",
-    "name": "Terrestrial Telecome House–Deep Water Bay",
+    "name": "Terrestrial Telecome House\u2013Deep Water Bay",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HKTH",
     "end_node_id": "HKDW",
@@ -3598,7 +3416,7 @@
   },
   {
     "id": "TERRESTRIAL_HK15",
-    "name": "Terrestrial Hermes House–Telstra Stanley Teleport",
+    "name": "Terrestrial Hermes House\u2013Telstra Stanley Teleport",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HKHH",
     "end_node_id": "HKST",
@@ -3612,7 +3430,7 @@
   },
   {
     "id": "TERRESTRIAL_HK14",
-    "name": "Terrestrial Deep Water Bay–Telstra Stanley Teleport",
+    "name": "Terrestrial Deep Water Bay\u2013Telstra Stanley Teleport",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HKDW",
     "end_node_id": "HKST",
@@ -3626,7 +3444,7 @@
   },
   {
     "id": "TERRESTRIAL_HK21",
-    "name": "Terrestrial Telecome House–Chung Hom Kok CLS",
+    "name": "Terrestrial Telecome House\u2013Chung Hom Kok CLS",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HKTH",
     "end_node_id": "HKCC",
@@ -3640,7 +3458,7 @@
   },
   {
     "id": "TERRESTRIAL_HK18",
-    "name": "Terrestrial Telecome House–HKDS1",
+    "name": "Terrestrial Telecome House\u2013HKDS1",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HKTH",
     "end_node_id": "HKMI",
@@ -3654,7 +3472,7 @@
   },
   {
     "id": "TERRESTRIAL_HK05",
-    "name": "Terrestrial Equinix HK1–HKCS2",
+    "name": "Terrestrial Equinix HK1\u2013HKCS2",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HKGG",
     "end_node_id": "HKCK",
@@ -3668,7 +3486,7 @@
   },
   {
     "id": "TERRESTRIAL_HK02",
-    "name": "Terrestrial HKCS2–HKDS1",
+    "name": "Terrestrial HKCS2\u2013HKDS1",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HKCK",
     "end_node_id": "HKMI",
@@ -3682,7 +3500,7 @@
   },
   {
     "id": "TERRESTRIAL_HK03",
-    "name": "Terrestrial HKDS1–Chung Hom Kok CLS",
+    "name": "Terrestrial HKDS1\u2013Chung Hom Kok CLS",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HKMI",
     "end_node_id": "HKCC",
@@ -3696,7 +3514,7 @@
   },
   {
     "id": "TERRESTRIAL_HK23",
-    "name": "Terrestrial HKCS2–Telstra Chai Wan",
+    "name": "Terrestrial HKCS2\u2013Telstra Chai Wan",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HKCK",
     "end_node_id": "HKSF",
@@ -3710,7 +3528,7 @@
   },
   {
     "id": "TERRESTRIAL_HK24",
-    "name": "Terrestrial Telstra Chai Wan–Chung Hom Kok CLS",
+    "name": "Terrestrial Telstra Chai Wan\u2013Chung Hom Kok CLS",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HKSF",
     "end_node_id": "HKCC",
@@ -3724,7 +3542,7 @@
   },
   {
     "id": "TERRESTRIAL_HK07",
-    "name": "Terrestrial Telstra Chai Wan–HKDS1",
+    "name": "Terrestrial Telstra Chai Wan\u2013HKDS1",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HKSF",
     "end_node_id": "HKMI",
@@ -3738,7 +3556,7 @@
   },
   {
     "id": "TERRESTRIAL_HK11",
-    "name": "Terrestrial Telecome House–Hermes House",
+    "name": "Terrestrial Telecome House\u2013Hermes House",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HKTH",
     "end_node_id": "HKHH",
@@ -3752,7 +3570,7 @@
   },
   {
     "id": "TERRESTRIAL_HK20",
-    "name": "Terrestrial South Lantau CLS–Chung Hom Kok CLS",
+    "name": "Terrestrial South Lantau CLS\u2013Chung Hom Kok CLS",
     "system_id": "TERRESTRIAL",
     "start_node_id": "SLTU",
     "end_node_id": "HKCC",
@@ -3766,7 +3584,7 @@
   },
   {
     "id": "TERRESTRIAL_HK12",
-    "name": "Terrestrial South Lantau CLS–Hermes House",
+    "name": "Terrestrial South Lantau CLS\u2013Hermes House",
     "system_id": "TERRESTRIAL",
     "start_node_id": "SLTU",
     "end_node_id": "HKHH",
@@ -3780,7 +3598,7 @@
   },
   {
     "id": "TERRESTRIAL_HK06",
-    "name": "Terrestrial Equinix HK1–Chung Hom Kok CLS",
+    "name": "Terrestrial Equinix HK1\u2013Chung Hom Kok CLS",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HKGG",
     "end_node_id": "HKCC",
@@ -3794,7 +3612,7 @@
   },
   {
     "id": "TERRESTRIAL_HK04A",
-    "name": "Terrestrial HKCS1–HKCS2 (diverse A)",
+    "name": "Terrestrial HKCS1\u2013HKCS2 (diverse A)",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HKEA",
     "end_node_id": "HKCK",
@@ -3808,7 +3626,7 @@
   },
   {
     "id": "TERRESTRIAL_HK04B",
-    "name": "Terrestrial HKCS1–HKCS2 (diverse B)",
+    "name": "Terrestrial HKCS1\u2013HKCS2 (diverse B)",
     "system_id": "TERRESTRIAL",
     "start_node_id": "HKEA",
     "end_node_id": "HKCK",

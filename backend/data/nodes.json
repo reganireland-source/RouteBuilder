@@ -192,30 +192,6 @@
     "city": "Singapore"
   },
   {
-    "id": "TYO1",
-    "name": "Tokyo",
-    "lat": 35.6762,
-    "lng": 139.6503,
-    "type": "landing_station",
-    "country": "JP",
-    "owner": "NTT",
-    "trading_name": "Tokyo NTT",
-    "description": "A CLS location in Tokyo, Japan, owned by NTT",
-    "city": "Tokyo"
-  },
-  {
-    "id": "TYO2",
-    "name": "Tokyo Metro",
-    "lat": 35.688,
-    "lng": 139.763,
-    "type": "primary_pop",
-    "country": "JP",
-    "owner": "Equinix",
-    "trading_name": "Tokyo Metro Equinix",
-    "description": "An Equinix data centre in Tokyo Metro serving as a terrestrial POP",
-    "city": "Tokyo"
-  },
-  {
     "id": "OSA1",
     "name": "Osaka",
     "lat": 34.6937,
@@ -228,30 +204,6 @@
     "city": "Osaka"
   },
   {
-    "id": "OSA2",
-    "name": "Osaka Metro",
-    "lat": 34.677,
-    "lng": 135.502,
-    "type": "primary_pop",
-    "country": "JP",
-    "owner": "NTT",
-    "trading_name": "Osaka Metro NTT",
-    "description": "A terrestrial POP in Osaka Metro owned by NTT",
-    "city": "Osaka"
-  },
-  {
-    "id": "NGO1",
-    "name": "Nagoya",
-    "lat": 35.1815,
-    "lng": 136.9066,
-    "type": "extension_pop",
-    "country": "JP",
-    "owner": "NTT",
-    "trading_name": "Nagoya NTT",
-    "description": "A terrestrial POP in Nagoya, Japan, owned by NTT",
-    "city": "Nagoya"
-  },
-  {
     "id": "GUM1",
     "name": "Guam",
     "lat": 13.4443,
@@ -261,19 +213,19 @@
     "owner": "GTA",
     "trading_name": "Guam GTA",
     "description": "A CLS location in Guam owned by GTA (Guam Telephone Authority)",
-    "city": "Hagåtña"
+    "city": "Hag\u00e5t\u00f1a"
   },
   {
     "id": "GUM2",
-    "name": "Hagåtña",
+    "name": "Hag\u00e5t\u00f1a",
     "lat": 13.4745,
     "lng": 144.7504,
     "type": "primary_pop",
     "country": "GU",
     "owner": "GTA",
-    "trading_name": "Hagåtña GTA",
-    "description": "A terrestrial POP in Hagåtña, Guam, owned by GTA",
-    "city": "Hagåtña"
+    "trading_name": "Hag\u00e5t\u00f1a GTA",
+    "description": "A terrestrial POP in Hag\u00e5t\u00f1a, Guam, owned by GTA",
+    "city": "Hag\u00e5t\u00f1a"
   },
   {
     "id": "HAW1",
@@ -830,15 +782,6 @@
     "city": "Pingtung"
   },
   {
-    "id": "SHMA",
-    "name": "Shima",
-    "lat": 34.33,
-    "lng": 136.83,
-    "type": "landing_station",
-    "country": "JP",
-    "city": "Shima"
-  },
-  {
     "id": "MNB1",
     "name": "Minamiboso",
     "lat": 35.1562,
@@ -860,24 +803,6 @@
     "owner": "Seren Juno",
     "trading_name": "JUNO Pacific BU",
     "description": "JUNO submarine cable branching unit where the Minamiboso and Shima spurs meet before the transpacific trunk"
-  },
-  {
-    "id": "AJIG",
-    "name": "Ajigaura",
-    "lat": 36.39,
-    "lng": 140.63,
-    "type": "landing_station",
-    "country": "JP",
-    "city": "Hitachinaka"
-  },
-  {
-    "id": "CHKR",
-    "name": "Chikura",
-    "lat": 34.92,
-    "lng": 139.95,
-    "type": "landing_station",
-    "country": "JP",
-    "city": "Minamiboso"
   },
   {
     "id": "SDRI",
@@ -964,7 +889,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix SY1 – Mascot",
+    "description": "Equinix SY1 \u2013 Mascot",
     "city": "Sydney"
   },
   {
@@ -975,7 +900,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix SY3 – Sydney Olympic Park",
+    "description": "Equinix SY3 \u2013 Sydney Olympic Park",
     "city": "Sydney"
   },
   {
@@ -986,7 +911,7 @@
     "type": "extension_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix SY4 – Alexandria",
+    "description": "Equinix SY4 \u2013 Alexandria",
     "city": "Sydney"
   },
   {
@@ -997,7 +922,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix ME1 – Port Melbourne",
+    "description": "Equinix ME1 \u2013 Port Melbourne",
     "city": "Melbourne"
   },
   {
@@ -1008,7 +933,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix ME2 – Tullamarine",
+    "description": "Equinix ME2 \u2013 Tullamarine",
     "city": "Melbourne"
   },
   {
@@ -1019,7 +944,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix BQ1 – Eagle Farm",
+    "description": "Equinix BQ1 \u2013 Eagle Farm",
     "city": "Brisbane"
   },
   {
@@ -1030,74 +955,8 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix PE1 – East Perth",
+    "description": "Equinix PE1 \u2013 East Perth",
     "city": "Perth"
-  },
-  {
-    "id": "EQ-TY1",
-    "name": "Equinix TY1 Tokyo",
-    "lat": 35.643,
-    "lng": 139.748,
-    "type": "secondary_pop",
-    "country": "JP",
-    "owner": "Equinix",
-    "description": "Equinix TY1 – Shibaura, Minato",
-    "city": "Tokyo"
-  },
-  {
-    "id": "EQ-TY2",
-    "name": "Equinix TY2 Tokyo",
-    "lat": 35.692,
-    "lng": 139.693,
-    "type": "secondary_pop",
-    "country": "JP",
-    "owner": "Equinix",
-    "description": "Equinix TY2 – Shinjuku",
-    "city": "Tokyo"
-  },
-  {
-    "id": "EQ-TY3",
-    "name": "Equinix TY3 Tokyo",
-    "lat": 35.688,
-    "lng": 139.763,
-    "type": "extension_pop",
-    "country": "JP",
-    "owner": "Equinix",
-    "description": "Equinix TY3 – Otemachi",
-    "city": "Tokyo"
-  },
-  {
-    "id": "EQ-OS1",
-    "name": "Equinix OS1 Osaka",
-    "lat": 34.682,
-    "lng": 135.499,
-    "type": "extension_pop",
-    "country": "JP",
-    "owner": "Equinix",
-    "description": "Equinix OS1 – Hommachi",
-    "city": "Osaka"
-  },
-  {
-    "id": "EQ-OS2",
-    "name": "Equinix OS2 Osaka",
-    "lat": 34.559,
-    "lng": 135.462,
-    "type": "secondary_pop",
-    "country": "JP",
-    "owner": "Equinix",
-    "description": "Equinix OS2 – Sakai",
-    "city": "Osaka"
-  },
-  {
-    "id": "EQ-NG1",
-    "name": "Equinix NG1 Nagoya",
-    "lat": 35.183,
-    "lng": 136.907,
-    "type": "secondary_pop",
-    "country": "JP",
-    "owner": "Equinix",
-    "description": "Equinix NG1 – Nagoya",
-    "city": "Nagoya"
   },
   {
     "id": "EQ-SL1",
@@ -1107,7 +966,7 @@
     "type": "extension_pop",
     "country": "KR",
     "owner": "Equinix",
-    "description": "Equinix SL1 – Mapo-gu",
+    "description": "Equinix SL1 \u2013 Mapo-gu",
     "city": "Seoul"
   },
   {
@@ -1118,7 +977,7 @@
     "type": "secondary_pop",
     "country": "KR",
     "owner": "Equinix",
-    "description": "Equinix BS1 – Busan",
+    "description": "Equinix BS1 \u2013 Busan",
     "city": "Busan"
   },
   {
@@ -1159,7 +1018,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix LA1 – El Segundo",
+    "description": "Equinix LA1 \u2013 El Segundo",
     "city": "Los Angeles"
   },
   {
@@ -1170,7 +1029,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix LA2 – Downtown Los Angeles",
+    "description": "Equinix LA2 \u2013 Downtown Los Angeles",
     "city": "Los Angeles"
   },
   {
@@ -1181,7 +1040,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix SE2 – Seattle",
+    "description": "Equinix SE2 \u2013 Seattle",
     "city": "Seattle"
   },
   {
@@ -1192,7 +1051,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix SE3 – Bellevue",
+    "description": "Equinix SE3 \u2013 Bellevue",
     "city": "Bellevue"
   },
   {
@@ -1203,7 +1062,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix CH1 – Chicago",
+    "description": "Equinix CH1 \u2013 Chicago",
     "city": "Chicago"
   },
   {
@@ -1214,7 +1073,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix CH2 – Elk Grove Village",
+    "description": "Equinix CH2 \u2013 Elk Grove Village",
     "city": "Chicago"
   },
   {
@@ -1225,7 +1084,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix NY1 – Secaucus, NJ",
+    "description": "Equinix NY1 \u2013 Secaucus, NJ",
     "city": "New York"
   },
   {
@@ -1236,7 +1095,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix NY5 – New York City",
+    "description": "Equinix NY5 \u2013 New York City",
     "city": "New York"
   },
   {
@@ -1247,7 +1106,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix NY9 – New York City",
+    "description": "Equinix NY9 \u2013 New York City",
     "city": "New York"
   },
   {
@@ -1258,7 +1117,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix DA1 – Carrollton, TX",
+    "description": "Equinix DA1 \u2013 Carrollton, TX",
     "city": "Dallas"
   },
   {
@@ -1269,7 +1128,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix DA2 – Carrollton, TX",
+    "description": "Equinix DA2 \u2013 Carrollton, TX",
     "city": "Dallas"
   },
   {
@@ -1280,7 +1139,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix MI1 – Miami, FL",
+    "description": "Equinix MI1 \u2013 Miami, FL",
     "city": "Miami"
   },
   {
@@ -1291,7 +1150,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix MI3 – Miami, FL",
+    "description": "Equinix MI3 \u2013 Miami, FL",
     "city": "Miami"
   },
   {
@@ -1876,5 +1735,605 @@
     "city": "Lantau",
     "description": "Tong Fuk cable landing station, Hong Kong",
     "verification_status": "draft"
+  },
+  {
+    "id": "JHDA",
+    "name": "Digital Realty HND10, Tokyo",
+    "lat": 35.68528,
+    "lng": 139.5647,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Digital Realty",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JHDB",
+    "name": "Digital Realty HND11, Tokyo",
+    "lat": 35.68528,
+    "lng": 139.5647,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Digital Realty",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JKXA",
+    "name": "Digital Realty KIX10, Osaka",
+    "lat": 34.86142,
+    "lng": 135.5159,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Osaka",
+    "owner": "Digital Realty",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JKXB",
+    "name": "Digital Realty KIX11, Osaka",
+    "lat": 34.86159,
+    "lng": 135.5121,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Osaka",
+    "owner": "Digital Realty",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JKXC",
+    "name": "Digital Realty KIX12, Osaka",
+    "lat": 34.86235,
+    "lng": 135.5137,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Osaka",
+    "owner": "Digital Realty",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JKXD",
+    "name": "Digital Realty KIX13, Osaka",
+    "lat": 34.86387,
+    "lng": 135.5129,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Osaka",
+    "owner": "Digital Realty",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JNTA",
+    "name": "Digital Realty NRT10, Chiba",
+    "lat": 35.80987,
+    "lng": 140.1216,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Chiba",
+    "owner": "Digital Realty",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JOS2",
+    "name": "Equinix OS2x, Osaka",
+    "lat": 34.86022,
+    "lng": 135.5073,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Osaka",
+    "owner": "Equinix",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JOS3",
+    "name": "Equinix OS3, Osaka",
+    "lat": 34.67576,
+    "lng": 135.4956,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Osaka",
+    "owner": "Equinix",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JTY1",
+    "name": "Equinix TY1, Tokyo",
+    "lat": 35.57624,
+    "lng": 139.7491,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Equinix",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JTYA",
+    "name": "Equinix TY10, Tokyo",
+    "lat": 35.70863,
+    "lng": 139.7443,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Equinix",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JTYB",
+    "name": "Equinix TY11, Tokyo",
+    "lat": 35.63974,
+    "lng": 139.7924,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Equinix",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JTYC",
+    "name": "Equinix TY12, Tokyo",
+    "lat": 35.70863,
+    "lng": 139.7443,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Equinix",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "EQ02",
+    "name": "Equinix TY3 (EQ02), Tokyo",
+    "lat": 35.65663,
+    "lng": 139.8075,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Equinix",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JTY5",
+    "name": "Equinix TY5, Tokyo",
+    "lat": 35.65562,
+    "lng": 139.8042,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Equinix",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JTY6",
+    "name": "Equinix TY6, Tokyo",
+    "lat": 35.62303,
+    "lng": 139.7481,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Equinix",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JTY7",
+    "name": "Equinix TY7, Tokyo",
+    "lat": 35.65562,
+    "lng": 139.8042,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Equinix",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JTY8",
+    "name": "Equinix TY8, Tokyo",
+    "lat": 35.62207,
+    "lng": 139.7478,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Equinix",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JTY9",
+    "name": "Equinix TY9, Tokyo",
+    "lat": 35.70875,
+    "lng": 139.7439,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Equinix",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JOS1",
+    "name": "Equinix OS1, Osaka",
+    "lat": 34.67576,
+    "lng": 135.4956,
+    "type": "extension_pop",
+    "country": "JP",
+    "city": "Osaka",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "EQHS",
+    "name": "Equinix TY2, Tokyo",
+    "lat": 35.62093,
+    "lng": 139.7447,
+    "type": "extension_pop",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JTY3",
+    "name": "Equinix TY3, Tokyo",
+    "lat": 35.65663,
+    "lng": 139.8075,
+    "type": "extension_pop",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JTY4",
+    "name": "Equinix TY4, Tokyo",
+    "lat": 35.68857,
+    "lng": 139.7649,
+    "type": "extension_pop",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JOUA",
+    "name": "Urban Ace Higashi-Tenma, Osaka",
+    "lat": 34.69603,
+    "lng": 135.5175,
+    "type": "primary_pop",
+    "country": "JP",
+    "city": "Osaka",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JTHA",
+    "name": "Comspace TKDS2, Tokyo",
+    "lat": 35.68312,
+    "lng": 139.7745,
+    "type": "primary_pop",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "SIKO",
+    "name": "Shin-Nikko Building, Tokyo",
+    "lat": 35.6621,
+    "lng": 139.7433,
+    "type": "primary_pop",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JTGD",
+    "name": "TIS Gotenyama TKDS3, Tokyo",
+    "lat": 35.62546,
+    "lng": 139.732,
+    "type": "secondary_pop",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "NFP3",
+    "name": "NF-Park, Tokyo",
+    "lat": 35.60542,
+    "lng": 139.7241,
+    "type": "extension_pop",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "NTOH",
+    "name": "NTT-Data Otemachi, Tokyo",
+    "lat": 35.694,
+    "lng": 139.7536,
+    "type": "extension_pop",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "KDOH",
+    "name": "KDDI Otemachi, Tokyo",
+    "lat": 35.68772,
+    "lng": 139.7646,
+    "type": "extension_pop",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JTAT",
+    "name": "AT Tokyo Toyosu",
+    "lat": 35.6485,
+    "lng": 139.7925,
+    "type": "extension_pop",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JOSO",
+    "name": "NTT Sonezaki DC, Osaka",
+    "lat": 34.70107,
+    "lng": 135.5,
+    "type": "extension_pop",
+    "country": "JP",
+    "city": "Osaka",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "NTDO",
+    "name": "NTT-Data Dojima, Osaka",
+    "lat": 34.69667,
+    "lng": 135.4981,
+    "type": "extension_pop",
+    "country": "JP",
+    "city": "Osaka",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JTHF",
+    "name": "Comspace TKDS1, Tokyo",
+    "lat": 35.68747,
+    "lng": 139.7795,
+    "type": "extension_pop",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JTIS",
+    "name": "TIS Building, Tokyo",
+    "lat": 35.66262,
+    "lng": 139.8068,
+    "type": "extension_pop",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JTSN",
+    "name": "Microsoft JTSN, Tokyo",
+    "lat": 35.6673,
+    "lng": 139.83,
+    "type": "extension_pop",
+    "country": "JP",
+    "city": "Tokyo",
+    "owner": "Microsoft",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JWLS",
+    "name": "Wada Cable Landing Station",
+    "lat": 35.0202,
+    "lng": 139.9812,
+    "type": "landing_station",
+    "country": "JP",
+    "city": "Wada",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JAAJ",
+    "name": "Ajigura Cable Landing Station",
+    "lat": 36.3822,
+    "lng": 140.6092,
+    "type": "landing_station",
+    "country": "JP",
+    "city": "Hitachinaka",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "CHCC",
+    "name": "Chikura CLS (C2C)",
+    "lat": 34.97012,
+    "lng": 139.9602,
+    "type": "landing_station",
+    "country": "JP",
+    "city": "Chikura",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "CKKD",
+    "name": "Chikura CLS (EAC)",
+    "lat": 34.97012,
+    "lng": 139.9602,
+    "type": "landing_station",
+    "country": "JP",
+    "city": "Chikura",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "EMIC",
+    "name": "Emi Cable Landing Station",
+    "lat": 35.47497,
+    "lng": 138.0948,
+    "type": "landing_station",
+    "country": "JP",
+    "city": "Emi",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "MJLS",
+    "name": "Maruyama Cable Landing Station",
+    "lat": 35.47497,
+    "lng": 138.0948,
+    "type": "landing_station",
+    "country": "JP",
+    "city": "Maruyama",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JSOM",
+    "name": "Shima CLS (C2C, Arteria)",
+    "lat": 34.31397,
+    "lng": 136.8689,
+    "type": "landing_station",
+    "country": "JP",
+    "city": "Shima",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "SMCC",
+    "name": "KDDI Shima CLS (C2C)",
+    "lat": 34.32816,
+    "lng": 136.8297,
+    "type": "landing_station",
+    "country": "JP",
+    "city": "Shima",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JKHF",
+    "name": "Kamisu Repeater",
+    "lat": 35.90713,
+    "lng": 140.6638,
+    "type": "extension_pop",
+    "country": "JP",
+    "city": "Kamisu",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JAAS",
+    "name": "Tokyo Repeater (Abiko)",
+    "lat": 35.8755,
+    "lng": 139.9976,
+    "type": "extension_pop",
+    "country": "JP",
+    "city": "Abiko",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "KALS",
+    "name": "Kitaibaraki CLS (NTT)",
+    "lat": 36.80191,
+    "lng": 140.751,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Kitaibaraki",
+    "owner": "NTT",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "KJLS",
+    "name": "Kitaibaraki CLS (NTT-2)",
+    "lat": 36.80191,
+    "lng": 140.751,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Kitaibaraki",
+    "owner": "NTT",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "SSNT",
+    "name": "NTT Shima CLS",
+    "lat": 34.32702,
+    "lng": 136.8748,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Shima",
+    "owner": "NTT",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
+  },
+  {
+    "id": "JOGD",
+    "name": "TIS Osaka",
+    "lat": 34.86225,
+    "lng": 135.518,
+    "type": "off_net",
+    "country": "JP",
+    "city": "Osaka",
+    "owner": "TIS",
+    "on_net": "off_net",
+    "verification_status": "under_verification"
   }
 ]
