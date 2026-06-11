@@ -1150,24 +1150,24 @@ export default function App() {
                 onClick={() => setShowNodeDiagram(true)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '8px 16px', borderRadius: 20,
-                  background: 'rgba(6,182,212,0.15)',
-                  border: '1px solid rgba(6,182,212,0.5)',
-                  color: '#22d3ee', cursor: 'pointer', fontSize: 13,
-                  fontFamily: 'inherit', fontWeight: 600,
-                  backdropFilter: 'blur(6px)',
-                  boxShadow: '0 2px 12px rgba(6,182,212,0.2)',
+                  padding: '8px 18px', borderRadius: 20,
+                  background: 'rgba(15,23,42,0.88)',
+                  border: '1.5px solid rgba(6,182,212,0.7)',
+                  color: '#67e8f9', cursor: 'pointer', fontSize: 13,
+                  fontFamily: 'inherit', fontWeight: 700,
+                  backdropFilter: 'blur(8px)',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.45)',
                   transition: 'all 0.15s',
                 }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(6,182,212,0.28)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(6,182,212,0.15)')}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(15,23,42,0.97)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(15,23,42,0.88)')}
               >
                 <svg width={16} height={16} viewBox="0 0 16 16" fill="none">
-                  <circle cx={4} cy={8} r={2.5} stroke="#22d3ee" strokeWidth={1.5} />
-                  <circle cx={12} cy={4} r={2.5} stroke="#22d3ee" strokeWidth={1.5} />
-                  <circle cx={12} cy={12} r={2.5} stroke="#22d3ee" strokeWidth={1.5} />
-                  <line x1={6.5} y1={7} x2={9.5} y2={5} stroke="#22d3ee" strokeWidth={1} />
-                  <line x1={6.5} y1={9} x2={9.5} y2={11} stroke="#22d3ee" strokeWidth={1} />
+                  <circle cx={4} cy={8} r={2.5} stroke="#67e8f9" strokeWidth={1.5} />
+                  <circle cx={12} cy={4} r={2.5} stroke="#67e8f9" strokeWidth={1.5} />
+                  <circle cx={12} cy={12} r={2.5} stroke="#67e8f9" strokeWidth={1.5} />
+                  <line x1={6.5} y1={7} x2={9.5} y2={5} stroke="#67e8f9" strokeWidth={1} />
+                  <line x1={6.5} y1={9} x2={9.5} y2={11} stroke="#67e8f9" strokeWidth={1} />
                 </svg>
                 View {countryHighlight.countryName} as Node Diagram
               </button>
