@@ -156,10 +156,13 @@ export function RouteManual({ nodes, segments, systems, capacity, state, onStart
   }, [currentNodeId, visitedIds, segments, nodesById, systems, capacityBySegId])
 
   const filtered = search.trim()
-    ? candidates.filter(c =>
-        c.node.name.toLowerCase().includes(search.toLowerCase()) ||
-        c.node.country.toLowerCase().includes(search.toLowerCase()) ||
-        c.segment.system_id.toLowerCase().includes(search.toLowerCase()))
+    ? candidates.filter(c => {
+        const q = search.toLowerCase()
+        return c.node.id.toLowerCase().includes(q) ||
+               c.node.name.toLowerCase().includes(q) ||
+               c.node.country.toLowerCase().includes(q) ||
+               c.segment.system_id.toLowerCase().includes(q)
+      })
     : candidates
 
   // Assemble running stats
@@ -319,12 +322,16 @@ export function RouteManual({ nodes, segments, systems, capacity, state, onStart
                   onMouseLeave={e => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.borderLeftColor = dotColor }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
                       {/* Colour dot — matches the map circle */}
                       <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
-                      <div style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{c.node.name}</div>
+                      <div style={{ minWidth: 0 }}>
+                        <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 800, color: t.blue }}>{c.node.id}</span>
+                        <span style={{ fontSize: 11, color: t.textFaint }}> – </span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: t.text }}>{c.node.name}</span>
+                      </div>
                     </div>
-                    <div style={{ fontSize: 10, color: t.textMuted }}>{c.node.country}</div>
+                    <div style={{ fontSize: 10, color: t.textMuted, flexShrink: 0, marginLeft: 6 }}>{c.node.country}</div>
                   </div>
                   <div style={{ fontSize: 10, color: t.blue, marginBottom: 4, paddingLeft: 14 }}>{c.segment.system_id} · {c.segment.name}</div>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', paddingLeft: 14 }}>
@@ -434,9 +441,10 @@ function ManualMetroMap({ nodeIds, segments, nodesById, onNetSet }: {
                 {isBU ? (
                   <span style={{ fontSize: 8, color: t.textFaint, fontFamily: 'monospace' }}>◈ {nodeId}</span>
                 ) : (
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' as const }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: dotColor }}>{node?.name ?? nodeId}</span>
-                    {node?.country && <span style={{ fontSize: 9, color: t.textMuted }}>{node.country}</span>}
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, flexWrap: 'wrap' as const }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 800, color: dotColor }}>{nodeId}</span>
+                    {node?.name && <span style={{ fontSize: 10, color: t.textMuted }}>– {node.name}</span>}
+                    {node?.country && <span style={{ fontSize: 9, color: t.textFaint }}>{node.country}</span>}
                     {isFirst && <span style={{ fontSize: 8, fontWeight: 700, color: '#60a5fa', background: '#60a5fa22', padding: '1px 4px', borderRadius: 3 }}>ORIGIN</span>}
                     {isLast && nodeIds.length > 1 && <span style={{ fontSize: 8, fontWeight: 700, color: '#4ade80', background: '#4ade8022', padding: '1px 4px', borderRadius: 3 }}>HERE</span>}
                   </div>
@@ -507,9 +515,10 @@ function OriginSearch({ nodes, onStart, card }: {
                 onMouseEnter={e => (e.currentTarget.style.background = t.bgDeep)}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
-                <span style={{ fontSize: 12, fontWeight: 700, color: t.text, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.name}</span>
+                <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 800, color: t.blue, flexShrink: 0 }}>{n.id}</span>
+                <span style={{ fontSize: 11, color: t.textFaint, flexShrink: 0 }}>–</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: t.text, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.name}</span>
                 <span style={{ fontSize: 10, color: t.textMuted, flexShrink: 0 }}>{n.country}</span>
-                <span style={{ fontSize: 9, color: t.textFaint, flexShrink: 0, textTransform: 'capitalize' }}>{n.type?.replace('_', ' ')}</span>
               </button>
             ))}
           </div>
@@ -575,10 +584,13 @@ export function RouteManualLeft({ nodes, segments, systems: _systems, capacity: 
   const onNetSet        = useMemo(() => new Set(onNetOwnership), [onNetOwnership])
 
   const filtered = search.trim()
-    ? candidates.filter(c =>
-        c.node.name.toLowerCase().includes(search.toLowerCase()) ||
-        c.node.country.toLowerCase().includes(search.toLowerCase()) ||
-        c.segment.system_id.toLowerCase().includes(search.toLowerCase()))
+    ? candidates.filter(c => {
+        const q = search.toLowerCase()
+        return c.node.id.toLowerCase().includes(q) ||
+               c.node.name.toLowerCase().includes(q) ||
+               c.node.country.toLowerCase().includes(q) ||
+               c.segment.system_id.toLowerCase().includes(q)
+      })
     : candidates
 
   const runningStats = useMemo(() => {
@@ -700,11 +712,15 @@ export function RouteManualLeft({ nodes, segments, systems: _systems, capacity: 
               onMouseLeave={e => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.borderLeftColor = dotColor }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />
-                  <div style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{c.node.name}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 800, color: t.blue }}>{c.node.id}</span>
+                    <span style={{ fontSize: 11, color: t.textFaint }}> – </span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: t.text }}>{c.node.name}</span>
+                  </div>
                 </div>
-                <div style={{ fontSize: 10, color: t.textMuted }}>{c.node.country}</div>
+                <div style={{ fontSize: 10, color: t.textMuted, flexShrink: 0, marginLeft: 6 }}>{c.node.country}</div>
               </div>
               <div style={{ fontSize: 10, color: t.blue, marginBottom: 4, paddingLeft: 14 }}>{c.segment.system_id} · {c.segment.name}</div>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', paddingLeft: 14 }}>
