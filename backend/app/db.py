@@ -221,6 +221,8 @@ def init_db() -> None:
             _run_migration_034(cur)
             # Migration 035: remove old Japan PoPs/CLSs, reroute subsea to new CLSs, drop terrestrial backhaul
             _run_migration_035(cur)
+            # Migration 036: insert Japan terrestrial backhaul segments + fix MJLS coordinates
+            _run_migration_036(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -1380,6 +1382,110 @@ def _run_migration_035(cur) -> None:
     # 4. Delete old nodes (replaced CLSs + old PoPs)
     nodes_to_delete = list(_JP_CLS_REPLACEMENTS.keys()) + _OLD_JP_POPS
     cur.execute("DELETE FROM nodes WHERE id = ANY(%s)", (nodes_to_delete,))
+
+
+# ── Migration 036 ─────────────────────────────────────────────────────────────
+# Japan terrestrial backhaul segments and MJLS coordinate correction.
+
+_JP_TERRESTRIAL_SEGMENTS = [
+    # ── Tokyo metro cross-connects and short hops ────────────────────────────
+    {"id": "TERRESTRIAL_JP09",   "name": "Terrestrial Equinix TY2–Comspace TKDS2",          "system_id": "TERRESTRIAL", "start_node_id": "EQHS", "end_node_id": "JTHA", "type": "terrestrial", "length_km":  9,  "latency": 0.045, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP10",   "name": "Terrestrial Shin-Nikko–Equinix TY2",               "system_id": "TERRESTRIAL", "start_node_id": "SIKO", "end_node_id": "EQHS", "type": "terrestrial", "length_km":  6,  "latency": 0.03,  "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP12",   "name": "Terrestrial Equinix TY2–AT Tokyo Toyosu",          "system_id": "TERRESTRIAL", "start_node_id": "EQHS", "end_node_id": "JTAT", "type": "terrestrial", "length_km":  6,  "latency": 0.03,  "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP15",   "name": "Terrestrial Shin-Nikko–AT Tokyo Toyosu",           "system_id": "TERRESTRIAL", "start_node_id": "SIKO", "end_node_id": "JTAT", "type": "terrestrial", "length_km":  6,  "latency": 0.03,  "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP16",   "name": "Terrestrial KDDI Otemachi–Comspace TKDS2",         "system_id": "TERRESTRIAL", "start_node_id": "KDOH", "end_node_id": "JTHA", "type": "terrestrial", "length_km":  1,  "latency": 0.005, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP18",   "name": "Terrestrial Comspace TKDS2–AT Tokyo Toyosu",       "system_id": "TERRESTRIAL", "start_node_id": "JTHA", "end_node_id": "JTAT", "type": "terrestrial", "length_km":  5,  "latency": 0.025, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP27",   "name": "Terrestrial NF-Park–Equinix TY2",                  "system_id": "TERRESTRIAL", "start_node_id": "NFP3", "end_node_id": "EQHS", "type": "terrestrial", "length_km":  3,  "latency": 0.015, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP28",   "name": "Terrestrial NF-Park–Shin-Nikko Building",          "system_id": "TERRESTRIAL", "start_node_id": "NFP3", "end_node_id": "SIKO", "type": "terrestrial", "length_km":  8,  "latency": 0.04,  "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP30",   "name": "Terrestrial Shin-Nikko–KDDI Otemachi",             "system_id": "TERRESTRIAL", "start_node_id": "SIKO", "end_node_id": "KDOH", "type": "terrestrial", "length_km":  4,  "latency": 0.02,  "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP31",   "name": "Terrestrial Equinix TY4–Shin-Nikko Building",      "system_id": "TERRESTRIAL", "start_node_id": "JTY4", "end_node_id": "SIKO", "type": "terrestrial", "length_km":  4,  "latency": 0.02,  "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP31_IP","name": "Terrestrial KDDI Otemachi–NTT-Data Otemachi",      "system_id": "TERRESTRIAL", "start_node_id": "KDOH", "end_node_id": "NTOH", "type": "terrestrial", "length_km":  1,  "latency": 0.005, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP32",   "name": "Terrestrial Equinix TY4–Comspace TKDS2",           "system_id": "TERRESTRIAL", "start_node_id": "JTY4", "end_node_id": "JTHA", "type": "terrestrial", "length_km":  1,  "latency": 0.005, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP32_IP","name": "Terrestrial Comspace TKDS2–NTT-Data Otemachi",     "system_id": "TERRESTRIAL", "start_node_id": "JTHA", "end_node_id": "NTOH", "type": "terrestrial", "length_km":  3,  "latency": 0.015, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    # ── Tokyo → Ajigura (Hitachinaka) ───────────────────────────────────────
+    {"id": "TERRESTRIAL_JP29",   "name": "Terrestrial Shin-Nikko–Ajigura CLS",               "system_id": "TERRESTRIAL", "start_node_id": "SIKO", "end_node_id": "JAAJ", "type": "terrestrial", "length_km": 128, "latency": 0.64,  "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP17a",  "name": "Terrestrial Ajigura CLS–Kamisu Repeater",          "system_id": "TERRESTRIAL", "start_node_id": "JAAJ", "end_node_id": "JKHF", "type": "terrestrial", "length_km": 61,  "latency": 0.305, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP17b",  "name": "Terrestrial Kamisu Repeater–Comspace TKDS2",       "system_id": "TERRESTRIAL", "start_node_id": "JKHF", "end_node_id": "JTHA", "type": "terrestrial", "length_km": 97,  "latency": 0.485, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    # ── Tokyo → Boso Peninsula CLSs ─────────────────────────────────────────
+    {"id": "TERRESTRIAL_JP11",   "name": "Terrestrial Equinix TY2–Chikura CLS",              "system_id": "TERRESTRIAL", "start_node_id": "EQHS", "end_node_id": "CHCC", "type": "terrestrial", "length_km": 86,  "latency": 0.43,  "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP14",   "name": "Terrestrial AT Tokyo Toyosu–Wada CLS",             "system_id": "TERRESTRIAL", "start_node_id": "JTAT", "end_node_id": "JWLS", "type": "terrestrial", "length_km": 83,  "latency": 0.415, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    # ── Boso Peninsula CLS interconnects ────────────────────────────────────
+    {"id": "TERRESTRIAL_JP22",   "name": "Terrestrial Chikura CLS (C2C)–Wada CLS",          "system_id": "TERRESTRIAL", "start_node_id": "CHCC", "end_node_id": "JWLS", "type": "terrestrial", "length_km":  7,  "latency": 0.035, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP23",   "name": "Terrestrial Chikura CLS (EAC)–Wada CLS",          "system_id": "TERRESTRIAL", "start_node_id": "CKKD", "end_node_id": "JWLS", "type": "terrestrial", "length_km":  7,  "latency": 0.035, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP24",   "name": "Terrestrial Maruyama CLS–Wada CLS",                "system_id": "TERRESTRIAL", "start_node_id": "MJLS", "end_node_id": "JWLS", "type": "terrestrial", "length_km": 10,  "latency": 0.05,  "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP25",   "name": "Terrestrial Chikura CLS (C2C)–Maruyama CLS",      "system_id": "TERRESTRIAL", "start_node_id": "CHCC", "end_node_id": "MJLS", "type": "terrestrial", "length_km":  3,  "latency": 0.015, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "XCONN_JP_CHCC_CKKD", "name": "Chikura CLS Cross-Connect (C2C–EAC)",             "system_id": "TERRESTRIAL", "start_node_id": "CHCC", "end_node_id": "CKKD", "type": "terrestrial", "length_km":  1,  "latency": 0.005, "reliability": 0.9999, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    # ── Subsea short-link (Unity cable, Chikura–Wada) ───────────────────────
+    {"id": "UNITY-CHK-WAD",      "name": "Subsea Link Unity Chikura–Wada",                   "system_id": "UNITY",       "start_node_id": "CKKD", "end_node_id": "JWLS", "type": "wet",         "length_km":  7,  "latency": 0.035, "reliability": 0.9999, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    # ── Osaka metro ─────────────────────────────────────────────────────────
+    {"id": "TERRESTRIAL_JP01",   "name": "Terrestrial Urban Ace–Equinix OS1",                "system_id": "TERRESTRIAL", "start_node_id": "JOUA", "end_node_id": "JOS1", "type": "terrestrial", "length_km":  4,  "latency": 0.02,  "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP04b",  "name": "Terrestrial NTT-Data Dojima–Urban Ace",            "system_id": "TERRESTRIAL", "start_node_id": "NTDO", "end_node_id": "JOUA", "type": "terrestrial", "length_km":  2,  "latency": 0.01,  "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP05",   "name": "Terrestrial NTT-Data Dojima–Equinix OS1",          "system_id": "TERRESTRIAL", "start_node_id": "NTDO", "end_node_id": "JOS1", "type": "terrestrial", "length_km":  3,  "latency": 0.015, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    # ── Osaka → Shima CLSs ──────────────────────────────────────────────────
+    {"id": "TERRESTRIAL_JP02",   "name": "Terrestrial Equinix OS1–KDDI Shima CLS",           "system_id": "TERRESTRIAL", "start_node_id": "JOS1", "end_node_id": "SMCC", "type": "terrestrial", "length_km": 147, "latency": 0.735, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP03",   "name": "Terrestrial Urban Ace–Shima CLS (C2C)",            "system_id": "TERRESTRIAL", "start_node_id": "JOUA", "end_node_id": "JSOM", "type": "terrestrial", "length_km": 151, "latency": 0.755, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP06a",  "name": "Terrestrial Shima CLS–KDDI Shima (diverse A)",    "system_id": "TERRESTRIAL", "start_node_id": "JSOM", "end_node_id": "SMCC", "type": "terrestrial", "length_km":  5,  "latency": 0.025, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP06b",  "name": "Terrestrial Shima CLS–KDDI Shima (diverse B)",    "system_id": "TERRESTRIAL", "start_node_id": "JSOM", "end_node_id": "SMCC", "type": "terrestrial", "length_km":  5,  "latency": 0.025, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "TERRESTRIAL_JP06c",  "name": "Terrestrial Shima CLS–KDDI Shima (diverse C)",    "system_id": "TERRESTRIAL", "start_node_id": "JSOM", "end_node_id": "SMCC", "type": "terrestrial", "length_km":  5,  "latency": 0.025, "reliability": 0.9998, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+    {"id": "XCONN_JP_JSOM_SSNT", "name": "Shima CLS Cross-Connect (Arteria–NTT)",           "system_id": "TERRESTRIAL", "start_node_id": "JSOM", "end_node_id": "SSNT", "type": "terrestrial", "length_km":  2,  "latency": 0.01,  "reliability": 0.9999, "cost_weight": 1, "ownership": "owned", "verification_status": "draft"},
+]
+
+_JP_TERRESTRIAL_CAPACITY = [
+    {"segment_id": "TERRESTRIAL_JP01",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP02",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP03",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP04b",  "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP05",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP06a",  "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP06b",  "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP06c",  "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP09",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP10",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP11",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP12",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP14",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP15",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP16",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP17a",  "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP17b",  "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP18",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP22",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP23",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP24",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP25",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP27",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP28",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP29",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP30",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP31",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP31_IP","total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP32",   "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "TERRESTRIAL_JP32_IP","total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "XCONN_JP_CHCC_CKKD","total_capacity_t": 2.0, "available_capacity_t": 1.0},
+    {"segment_id": "UNITY-CHK-WAD",      "total_capacity_t": 1.0, "available_capacity_t": 0.5},
+    {"segment_id": "XCONN_JP_JSOM_SSNT","total_capacity_t": 2.0, "available_capacity_t": 1.0},
+]
+
+
+def _run_migration_036(cur) -> None:
+    """Insert Japan terrestrial backhaul segments and fix MJLS coordinates."""
+    # Fix MJLS coordinates (was erroneously shared with EMIC; estimated Boso Peninsula location)
+    cur.execute(
+        "UPDATE nodes SET data = jsonb_set(jsonb_set(data, '{lat}', '34.945'::jsonb), '{lng}', '139.955'::jsonb) "
+        "WHERE id = 'MJLS'"
+    )
+    # Insert segments
+    psycopg2.extras.execute_values(
+        cur,
+        "INSERT INTO segments (id, data) VALUES %s ON CONFLICT DO NOTHING",
+        [(s["id"], json.dumps(s)) for s in _JP_TERRESTRIAL_SEGMENTS],
+    )
+    # Insert capacity
+    psycopg2.extras.execute_values(
+        cur,
+        "INSERT INTO capacity (segment_id, data) VALUES %s ON CONFLICT DO NOTHING",
+        [(c["segment_id"], json.dumps(c)) for c in _JP_TERRESTRIAL_CAPACITY],
+    )
 
 
 def _seed_if_empty(conn) -> None:

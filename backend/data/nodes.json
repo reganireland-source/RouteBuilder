@@ -2231,8 +2231,8 @@
   {
     "id": "MJLS",
     "name": "Maruyama Cable Landing Station",
-    "lat": 35.47497,
-    "lng": 138.0948,
+    "lat": 34.945,
+    "lng": 139.955,
     "type": "landing_station",
     "country": "JP",
     "city": "Maruyama",
