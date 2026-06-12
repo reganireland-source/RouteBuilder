@@ -464,6 +464,40 @@ export default function App() {
     }
   }
 
+  function handleCircuitAdded(projectId: string, circuitId: string, circuitLabel?: string) {
+    const pending = addToProjectRoute
+    if (!pending) return
+    setPinnedRoutes(prev => {
+      const wKey = routeKey(pending.route)
+      const alreadyPinned = prev.some(p => routeKey(p.route) === wKey)
+      if (alreadyPinned) {
+        // Route was already in the pin bar — just stamp it with project metadata
+        return prev.map(p => {
+          if (routeKey(p.route) === wKey) return { ...p, projectId, circuitId, circuitLabel }
+          if (pending.protectRoute && routeKey(p.route) === routeKey(pending.protectRoute))
+            return { ...p, projectId, circuitId, circuitLabel: circuitLabel ? `${circuitLabel} (Protect)` : undefined }
+          return p
+        })
+      }
+      // Not yet pinned — auto-pin since we're in project mode
+      if (prev.length >= MAX_PINS) return prev
+      const usedColors = prev.map(p => p.color)
+      const color = PIN_COLORS.find(c => !usedColors.includes(c)) ?? PIN_COLORS[prev.length % PIN_COLORS.length]
+      const { route, protectRoute, searchLabel } = pending
+      const wLabel = protectRoute ? (circuitLabel ? `${circuitLabel} (Worker)` : `${searchLabel} (Worker)`) : (circuitLabel || searchLabel)
+      pinCounter.current += 1
+      const newPins: PinnedRoute[] = [
+        { pinId: `pin-${pinCounter.current}`, route, color, searchLabel: wLabel, projectId, circuitId, circuitLabel: protectRoute ? (circuitLabel ? `${circuitLabel} (Worker)` : undefined) : circuitLabel }
+      ]
+      if (protectRoute && prev.length + 1 < MAX_PINS) {
+        pinCounter.current += 1
+        const pLabel = circuitLabel ? `${circuitLabel} (Protect)` : `${searchLabel} (Protect)`
+        newPins.push({ pinId: `pin-${pinCounter.current}`, route: protectRoute, color, searchLabel: pLabel, projectId, circuitId, circuitLabel: circuitLabel ? `${circuitLabel} (Protect)` : undefined })
+      }
+      return [...prev, ...newPins]
+    })
+  }
+
   function handleToggleSystem(systemId: string) {
     const existing = selectedSystems.find(s => s.systemId === systemId)
     if (existing) {
@@ -631,16 +665,7 @@ export default function App() {
               restorePinsFromProject(project)
             }}
             onRestorePins={(circuits, projectId) => restorePinsFromProject({ id: projectId, circuits } as import('./types').Project)}
-            onCircuitAdded={(projectId, circuitId, circuitLabel) => {
-              setPinnedRoutes(prev => {
-                const route = addToProjectRoute?.route
-                if (!route) return prev
-                return prev.map(p => routeKey(p.route) === routeKey(route)
-                  ? { ...p, projectId, circuitId, circuitLabel }
-                  : p
-                )
-              })
-            }}
+            onCircuitAdded={handleCircuitAdded}
           />
         )}
         {guideOpen && createPortal(
@@ -1250,16 +1275,7 @@ export default function App() {
             restorePinsFromProject(project)
           }}
           onRestorePins={(circuits, projectId) => restorePinsFromProject({ id: projectId, circuits } as import('./types').Project)}
-          onCircuitAdded={(projectId, circuitId, circuitLabel) => {
-            setPinnedRoutes(prev => {
-              const route = addToProjectRoute?.route
-              if (!route) return prev
-              return prev.map(p => routeKey(p.route) === routeKey(route)
-                ? { ...p, projectId, circuitId, circuitLabel }
-                : p
-              )
-            })
-          }}
+          onCircuitAdded={handleCircuitAdded}
         />
       )}
 
