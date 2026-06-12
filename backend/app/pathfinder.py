@@ -14,19 +14,19 @@ _OWNERSHIP_SCORE: dict[str, int] = {
 
 _OPTIMISE_SORT: dict[str, tuple[int, bool]] = {
     # (metrics-tuple index, reverse=True means descending)
+    # metrics = (hops, length_km, latency, ownership_avg, cap_min)
     "hops":      (0, False),
     "distance":  (1, False), "length":   (1, False),
     "latency":   (2, False),
-    "margin":    (3, False), "cost":     (3, False),
-    "ownership": (4, True),
-    "capacity":  (5, True),
+    "ownership": (3, True),
+    "capacity":  (4, True),
 }
 from .graph import validate_interconnect_rules, path_to_segment_ids
 
 
-def _path_cost(G: nx.Graph, node_path: list[str]) -> float:
+def _path_length(G: nx.Graph, node_path: list[str]) -> float:
     return sum(
-        G[node_path[i]][node_path[i + 1]]["cost_weight"]
+        G[node_path[i]][node_path[i + 1]]["length_km"]
         for i in range(len(node_path) - 1)
     )
 
@@ -145,7 +145,7 @@ def _select_candidates(
     if len(candidates) <= k and optimise_for != "outages":
         return candidates
 
-    # Precompute metrics once: (hops, length_km, latency, cost, ownership_avg, cap_min)
+    # Precompute metrics once: (hops, length_km, latency, ownership_avg, cap_min)
     metrics: list[tuple[float, ...]] = []
     all_seg_ids: list[list[str]] = []
     for path in candidates:
@@ -158,7 +158,6 @@ def _select_candidates(
             float(len(segs)),
             sum(s.length_km for s in segs),
             sum(s.latency or 0.0 for s in segs),
-            sum(s.cost_weight for s in segs),
             sum(_OWNERSHIP_SCORE.get(str(s.ownership), 0) for s in segs) / n,
             min(cap_vals) if cap_vals else 0.0,
         ))
@@ -167,8 +166,8 @@ def _select_candidates(
     if optimise_for == "outages" and outage_segment_ids:
         clean = [i for i, sids in enumerate(all_seg_ids) if not any(sid in outage_segment_ids for sid in sids)]
         work = clean if clean else list(range(len(candidates)))
-        cost_order = sorted(work, key=lambda i: metrics[i][3])
-        return [candidates[i] for i in cost_order[:k]]
+        length_order = sorted(work, key=lambda i: metrics[i][1])
+        return [candidates[i] for i in length_order[:k]]
 
     if len(candidates) <= k:
         return candidates
@@ -184,11 +183,10 @@ def _select_candidates(
         sorted(range(len(candidates)), key=lambda i: metrics[i][0]),        # hops asc
         sorted(range(len(candidates)), key=lambda i: metrics[i][1]),        # length asc
         sorted(range(len(candidates)), key=lambda i: metrics[i][2]),        # latency asc
-        sorted(range(len(candidates)), key=lambda i: metrics[i][3]),        # cost/margin asc
-        sorted(range(len(candidates)), key=lambda i: -metrics[i][4]),       # ownership desc
+        sorted(range(len(candidates)), key=lambda i: -metrics[i][3]),       # ownership desc
     ]
-    if any(m[5] > 0 for m in metrics):
-        dims.append(sorted(range(len(candidates)), key=lambda i: -metrics[i][5]))  # capacity desc
+    if any(m[4] > 0 for m in metrics):
+        dims.append(sorted(range(len(candidates)), key=lambda i: -metrics[i][4]))  # capacity desc
 
     per_dim = max(3, math.ceil(k / len(dims)) + 1)
     seen: set[int] = set()
@@ -201,8 +199,8 @@ def _select_candidates(
                 if len(pool) >= k:
                     return [candidates[i] for i in pool]
 
-    # Fill any remaining slots with cost-ordered candidates
-    for idx in dims[3]:
+    # Fill any remaining slots with length-ordered candidates
+    for idx in dims[1]:
         if idx not in seen:
             seen.add(idx)
             pool.append(idx)
@@ -271,7 +269,7 @@ def find_routes(
     diversity: DiversityType,
     segments_by_id: dict[str, CableSegment],
     rules: list[InterconnectRule],
-    k: int = 30,
+    k: int = 50,
     max_wet_hops: int | None = None,
     max_terrestrial_hops: int | None = None,
     capacities_by_id: dict[str, SegmentCapacity] | None = None,
@@ -329,13 +327,15 @@ def find_routes(
     all_waypoints = seg_waypoints + list(must_include_nodes)
 
     # Search a large candidate pool so total_found is meaningful.
-    # System-include filtering is aggressive, so use an even larger pool there.
-    raw_k = 1000 if must_include_systems else 500
+    # Use hop-count ordering when optimising for hops so short-hop routes aren't
+    # excluded by a distance-first search. Otherwise use distance (length_km).
+    raw_k = 1000
+    init_weight: str | None = None if optimise_for == "hops" else "length_km"
     if all_waypoints:
         candidates = _apply_waypoints(working_G, start, end, all_waypoints, rules, set(), k)
     else:
         try:
-            raw = itertools.islice(nx.shortest_simple_paths(working_G, start, end, weight="length_km"), raw_k)
+            raw = itertools.islice(nx.shortest_simple_paths(working_G, start, end, weight=init_weight), raw_k)
             candidates = [p for p in raw if validate_interconnect_rules(working_G, p, rules)]
         except nx.NetworkXNoPath:
             candidates = []
@@ -432,7 +432,7 @@ def find_routes(
 
         if d_cands:
             # Pick best diverse candidate by cost rather than just shortest
-            best_d = min(d_cands, key=lambda p: _path_cost(working_G, p))
+            best_d = min(d_cands, key=lambda p: _path_length(working_G, p))
             paired_primaries.append(primary_path)
             paired_diverse.append(best_d)
 

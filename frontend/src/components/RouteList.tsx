@@ -97,7 +97,7 @@ const SORT_OPTIONS: { key: SortKey; icon: string; label: string; dir: 'asc' | 'd
   { key: 'availability', icon: '🛡', label: 'Avail',     dir: 'desc' },
   { key: 'margin',       icon: '$',  label: 'Margin',    dir: 'desc' },
   { key: 'capacity',     icon: '◈',  label: 'Capacity',  dir: 'desc' },
-  { key: 'ownership',    icon: '◉',  label: 'Own',       dir: 'asc'  },
+  { key: 'ownership',    icon: '◉',  label: 'Own',       dir: 'desc' },
 ]
 
 function computeRouteMargin(route: Route, systemsById: Record<string, CableSystem>): number | null {
@@ -131,21 +131,25 @@ function estimatedCapacity(route: Route, capacityById: Record<string, SegmentCap
   return { cap: min === Infinity ? 0 : min, systemId: bottleneck }
 }
 
-function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, SegmentCapacity>, onNetSet: Set<string>, systemsById: Record<string, CableSystem>): Route[] {
+function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, SegmentCapacity>, onNetSet: Set<string>, systemsById: Record<string, CableSystem>, dirFlipped = false): Route[] {
   return [...routes].sort((a, b) => {
+    let result: number
     switch (key) {
-      case 'hops':         return (a.nodes.length - 1) - (b.nodes.length - 1)
-      case 'distance':     return a.total_length_km - b.total_length_km
-      case 'latency':      return a.total_latency - b.total_latency
-      case 'availability': return b.end_to_end_reliability - a.end_to_end_reliability
-      case 'margin':       return (computeRouteMargin(b, systemsById) ?? 0) - (computeRouteMargin(a, systemsById) ?? 0)
-      case 'capacity':     return estimatedCapacity(b, capacityById).cap - estimatedCapacity(a, capacityById).cap
+      case 'hops':         result = (a.nodes.length - 1) - (b.nodes.length - 1); break
+      case 'distance':     result = a.total_length_km - b.total_length_km; break
+      case 'latency':      result = a.total_latency - b.total_latency; break
+      case 'availability': result = b.end_to_end_reliability - a.end_to_end_reliability; break
+      case 'margin':       result = (computeRouteMargin(b, systemsById) ?? 0) - (computeRouteMargin(a, systemsById) ?? 0); break
+      case 'capacity':     result = estimatedCapacity(b, capacityById).cap - estimatedCapacity(a, capacityById).cap; break
       case 'ownership': {
         const ac = classifyRoute(a, onNetSet), bc = classifyRoute(b, onNetSet)
         const order = NET_ORDER[ac.type] - NET_ORDER[bc.type]
-        return order !== 0 ? order : bc.onNetPct - ac.onNetPct  // within mixed: higher % on-net first
+        result = order !== 0 ? order : bc.onNetPct - ac.onNetPct
+        break
       }
+      default: result = 0
     }
+    return dirFlipped ? -result : result
   })
 }
 
@@ -154,12 +158,13 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
   const onNetSet = new Set(onNetOwnership)
   const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
   const [internalSortKey, setInternalSortKey] = useState<SortKey | null>(null)
+  const [sortDirFlipped, setSortDirFlipped] = useState(false)
   const [internalPushOutagesDown, setInternalPushOutagesDown] = useState(false)
   const [pinsCompressed, setPinsCompressed] = useState(false)
   const [shown, setShown] = useState(DEFAULT_SHOWN)
 
   // Sync from external when provided (e.g. TSABuddy sets the sort)
-  useEffect(() => { if (externalSortKey !== undefined) setInternalSortKey(externalSortKey) }, [externalSortKey])
+  useEffect(() => { if (externalSortKey !== undefined) { setInternalSortKey(externalSortKey); setSortDirFlipped(false) } }, [externalSortKey])
   useEffect(() => { if (externalPushOutagesDown !== undefined) setInternalPushOutagesDown(externalPushOutagesDown) }, [externalPushOutagesDown])
 
   const sortKey = internalSortKey
@@ -188,7 +193,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
         ...routes.filter(r =>  routeHasOutage(r, outagesById)),
       ]
     }
-    const base = sortRoutes(routes, sortKey, capacityById, onNetSet, systemsById)
+    const base = sortRoutes(routes, sortKey, capacityById, onNetSet, systemsById, sortDirFlipped)
     if (!pushOutagesDown) return base
     return [
       ...base.filter(r => !routeHasOutage(r, outagesById)),
@@ -378,11 +383,21 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
           <div className="sort-bar" style={{ display: 'flex', gap: 4, marginBottom: 4, overflowX: 'auto' }}>
             {SORT_OPTIONS.map(opt => {
               const active = sortKey === opt.key
+              const effectiveDir = (active && sortDirFlipped)
+                ? (opt.dir === 'asc' ? 'desc' : 'asc')
+                : opt.dir
               return (
                 <button
                   key={opt.key}
-                  onClick={() => setSortKey(prev => prev === opt.key ? null : opt.key)}
-                  title={`Sort by ${opt.label} (${opt.dir === 'asc' ? 'lowest first' : 'highest first'})`}
+                  onClick={() => {
+                    if (sortKey === opt.key) {
+                      setSortDirFlipped(v => !v)
+                    } else {
+                      setSortKey(opt.key)
+                      setSortDirFlipped(false)
+                    }
+                  }}
+                  title={`Sort by ${opt.label} (${effectiveDir === 'asc' ? 'lowest first' : 'highest first'}) — click again to flip`}
                   style={{
                     flex: '1 0 44px', display: 'flex', flexDirection: 'column', alignItems: 'center',
                     gap: 2, padding: '5px 3px', borderRadius: 6,
@@ -395,7 +410,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                 >
                   <span style={{ fontSize: 15, lineHeight: 1 }}>{opt.icon}</span>
                   <span>{opt.label}</span>
-                  <span style={{ fontSize: 9, opacity: 0.7 }}>{opt.dir === 'asc' ? '↑ least' : '↓ most'}</span>
+                  <span style={{ fontSize: 9, opacity: 0.7 }}>{effectiveDir === 'asc' ? '↑ least' : '↓ most'}</span>
                 </button>
               )
             })}

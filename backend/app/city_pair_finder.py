@@ -127,7 +127,7 @@ def find_city_pair_routes(
 
     try:
         for path in itertools.islice(
-            nx.shortest_simple_paths(G, o_super, d_super, weight="cost_weight"),
+            nx.shortest_simple_paths(G, o_super, d_super, weight="length_km"),
             _MAX_CANDIDATES,
         ):
             if len(routes) >= max_results:
