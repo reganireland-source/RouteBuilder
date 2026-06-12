@@ -98,7 +98,7 @@ def run_all_checks() -> list[CheckResult]:
     # ── Node coordinate sanity ─────────────────────────────────────────────────
     check("Node latitudes in [-90, 90]",   "error", [n.id for n in nodes if not (-90 <= n.lat <= 90)])
     check("Node longitudes in [-180, 180]","error", [n.id for n in nodes if not (-180 <= n.lng <= 180)])
-    valid_node_types = {"landing_station", "primary_pop", "secondary_pop", "extension_pop", "branching_unit"}
+    valid_node_types = {"landing_station", "primary_pop", "secondary_pop", "extension_pop", "branching_unit", "off_net"}
     check("Node types valid",              "error", [n.id for n in nodes if n.type not in valid_node_types])
 
     # ── Outage cross-references ────────────────────────────────────────────────
@@ -117,8 +117,10 @@ def run_all_checks() -> list[CheckResult]:
     check("Wet segment latency consistent with length", "error", bad_latency)
 
     # ── Coverage warnings ──────────────────────────────────────────────────────
+    # Off-net nodes are intentionally not wired into the network; exclude them.
+    on_net_node_ids = {n.id for n in nodes if n.type != "off_net" and n.on_net != "off_net"}
     referenced_nodes = {s.start_node_id for s in segments} | {s.end_node_id for s in segments}
-    isolated = sorted(node_ids - referenced_nodes)
+    isolated = sorted(on_net_node_ids - referenced_nodes)
     check("No isolated nodes",             "warning", isolated)
 
     used_systems = {s.system_id for s in segments}
