@@ -229,6 +229,8 @@ def init_db() -> None:
             _run_migration_038(cur)
             # Migration 039: add waypoints to Japan-touching subsea segments
             _run_migration_039(cur)
+            # Migration 040: add waypoints to Japan terrestrial backhaul segments
+            _run_migration_040(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -1557,6 +1559,60 @@ def _run_migration_039(cur) -> None:
         ("EAC-A",            "[[29,129],[32,134]]"),
         ("EAC-L",            "[[35.8,140.0],[35.2,138.5],[34.7,137.5]]"),
         ("JUPITER-BU-TYO",   "[[35,150]]"),
+    ]
+    for seg_id, wp_json in _WP:
+        cur.execute(
+            "UPDATE segments "
+            "SET data = jsonb_set(data, '{waypoints}', %s::jsonb) "
+            "WHERE id = %s",
+            (wp_json, seg_id),
+        )
+
+
+def _run_migration_040(cur) -> None:
+    """Add waypoints to Japan terrestrial backhaul segments for map readability."""
+    _WP: list[tuple[str, str]] = [
+        # ── Tokyo inner cluster (short arcs to make each link identifiable) ──
+        ("TERRESTRIAL_JP09",   "[[35.65,139.762]]"),          # EQHS→JTHA, bow east
+        ("TERRESTRIAL_JP10",   "[[35.640,139.742]]"),         # SIKO→EQHS, bow west
+        ("TERRESTRIAL_JP12",   "[[35.633,139.771]]"),         # EQHS→JTAT, bow south
+        ("TERRESTRIAL_JP15",   "[[35.656,139.770]]"),         # SIKO→JTAT, bow north
+        ("TERRESTRIAL_JP16",   "[[35.686,139.770]]"),         # KDOH→JTHA, short bow north
+        ("TERRESTRIAL_JP18",   "[[35.664,139.784]]"),         # JTHA→JTAT, bow east
+        ("TERRESTRIAL_JP27",   "[[35.613,139.732]]"),         # NFP3→EQHS, bow west
+        ("TERRESTRIAL_JP28",   "[[35.632,139.730]]"),         # NFP3→SIKO, bow west
+        ("TERRESTRIAL_JP30",   "[[35.675,139.756]]"),         # SIKO→KDOH, bow east
+        ("TERRESTRIAL_JP31",   "[[35.675,139.752]]"),         # JTY4→SIKO, bow west
+        ("TERRESTRIAL_JP31_IP","[[35.691,139.758]]"),         # KDOH→NTOH, bow north
+        ("TERRESTRIAL_JP32",   "[[35.686,139.769]]"),         # JTY4→JTHA, short bow east
+        ("TERRESTRIAL_JP32_IP","[[35.690,139.764]]"),         # JTHA→NTOH, bow east
+        # ── Tokyo → Chikura / Boso Peninsula ──
+        ("TERRESTRIAL_JP11",   "[[35.30,139.85]]"),           # EQHS→CHCC, Boso west coast
+        ("TERRESTRIAL_JP14",   "[[35.28,139.92]]"),           # JTAT→JWLS, Boso east coast
+        # ── Tokyo → Ibaraki / Ajigaura ──
+        ("TERRESTRIAL_JP29",   "[[35.90,139.85],[36.10,140.10],[36.25,140.40]]"),  # SIKO→JAAJ
+        # ── Ajigaura → Tokyo via coast ──
+        ("TERRESTRIAL_JP17a",  "[[36.15,140.64]]"),           # JAAJ→JKHF, Ibaraki coast
+        ("TERRESTRIAL_JP17b",  "[[35.79,140.30],[35.72,140.05]]"), # JKHF→JTHA, SW to Tokyo
+        # ── Chikura cluster (MJLS/CHCC/CKKD/JWLS, offset each run) ──
+        ("TERRESTRIAL_JP22",   "[[34.990,139.944]]"),         # CHCC→JWLS, bow west
+        ("TERRESTRIAL_JP23",   "[[34.998,139.975]]"),         # CKKD→JWLS, bow east
+        ("TERRESTRIAL_JP24",   "[[34.985,139.967]]"),         # MJLS→JWLS
+        ("TERRESTRIAL_JP25",   "[[34.957,139.957]]"),         # CHCC→MJLS, tiny bow south
+        # ── Osaka cluster (tiny arcs) ──
+        ("TERRESTRIAL_JP01",   "[[34.685,135.507]]"),         # JOUA→JOS1, bow south
+        ("TERRESTRIAL_JP04b",  "[[34.697,135.508]]"),         # NTDO→JOUA, bow east
+        ("TERRESTRIAL_JP05",   "[[34.685,135.494]]"),         # NTDO→JOS1, bow west
+        # ── Osaka → Shima (long runs along Kinki/Mie coast) ──
+        ("TERRESTRIAL_JP02",   "[[34.45,135.9],[34.30,136.5]]"),  # JOS1→SMCC
+        ("TERRESTRIAL_JP03",   "[[34.55,136.0],[34.40,136.5]]"),  # JOUA→JSOM (slightly north)
+        # ── Shima cross-connects (fan three JSOM→SMCC runs) ──
+        ("TERRESTRIAL_JP06a",  "[[34.33,136.855]]"),          # center
+        ("TERRESTRIAL_JP06b",  "[[34.34,136.845]]"),          # bow north
+        ("TERRESTRIAL_JP06c",  "[[34.30,136.845]]"),          # bow south
+        # ── Very short cross-connects ──
+        ("XCONN_JP_CHCC_CKKD", "[[34.975,139.965]]"),
+        ("XCONN_JP_JSOM_SSNT", "[[34.320,136.873]]"),
     ]
     for seg_id, wp_json in _WP:
         cur.execute(

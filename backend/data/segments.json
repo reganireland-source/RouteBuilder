@@ -4020,7 +4020,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        35.65,
+        139.762
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP10",
@@ -4034,7 +4040,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        35.64,
+        139.742
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP11",
@@ -4048,7 +4060,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        35.3,
+        139.85
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP12",
@@ -4062,7 +4080,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        35.633,
+        139.771
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP14",
@@ -4076,7 +4100,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        35.28,
+        139.92
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP15",
@@ -4090,7 +4120,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        35.656,
+        139.77
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP16",
@@ -4104,7 +4140,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        35.686,
+        139.77
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP17a",
@@ -4118,7 +4160,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        36.15,
+        140.64
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP17b",
@@ -4132,7 +4180,17 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        35.79,
+        140.3
+      ],
+      [
+        35.72,
+        140.05
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP18",
@@ -4146,7 +4204,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        35.664,
+        139.784
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP22",
@@ -4160,7 +4224,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        34.99,
+        139.944
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP23",
@@ -4174,7 +4244,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        34.998,
+        139.975
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP24",
@@ -4188,7 +4264,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        34.985,
+        139.967
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP25",
@@ -4202,7 +4284,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        34.957,
+        139.957
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP27",
@@ -4216,7 +4304,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        35.613,
+        139.732
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP28",
@@ -4230,7 +4324,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        35.632,
+        139.73
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP29",
@@ -4244,7 +4344,21 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        35.9,
+        139.85
+      ],
+      [
+        36.1,
+        140.1
+      ],
+      [
+        36.25,
+        140.4
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP30",
@@ -4258,7 +4372,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        35.675,
+        139.756
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP31",
@@ -4272,7 +4392,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        35.675,
+        139.752
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP31_IP",
@@ -4286,7 +4412,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        35.691,
+        139.758
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP32",
@@ -4300,7 +4432,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        35.686,
+        139.769
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP32_IP",
@@ -4314,7 +4452,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        35.69,
+        139.764
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP01",
@@ -4328,7 +4472,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        34.685,
+        135.507
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP04b",
@@ -4342,7 +4492,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        34.697,
+        135.508
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP05",
@@ -4356,7 +4512,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        34.685,
+        135.494
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP02",
@@ -4370,7 +4532,17 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        34.45,
+        135.9
+      ],
+      [
+        34.3,
+        136.5
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP03",
@@ -4384,7 +4556,17 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        34.55,
+        136.0
+      ],
+      [
+        34.4,
+        136.5
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP06a",
@@ -4398,7 +4580,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        34.33,
+        136.855
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP06b",
@@ -4412,7 +4600,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        34.34,
+        136.845
+      ]
+    ]
   },
   {
     "id": "TERRESTRIAL_JP06c",
@@ -4426,7 +4620,13 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        34.3,
+        136.845
+      ]
+    ]
   },
   {
     "id": "XCONN_JP_CHCC_CKKD",
@@ -4440,7 +4640,13 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        34.975,
+        139.965
+      ]
+    ]
   },
   {
     "id": "XCONN_JP_JSOM_SSNT",
@@ -4454,7 +4660,13 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        34.32,
+        136.873
+      ]
+    ]
   },
   {
     "id": "UNITY-CHK-WAD",
