@@ -201,5 +201,11 @@
     "name": "AAE-1",
     "description": "Hong Kong\u2013SE Asia\u2013India\u2013Middle East\u2013Europe",
     "margin": 8
+  },
+  {
+    "id": "RNAL",
+    "name": "RNAL",
+    "margin": 7,
+    "description": "Regional NEC Asia Link \u2014 ring topology connecting Hong Kong, Korea, Japan and Taiwan via two paths."
   }
 ]

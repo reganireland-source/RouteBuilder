@@ -233,6 +233,8 @@ def init_db() -> None:
             _run_migration_040(cur)
             # Migration 041: populate missing latency on C2C and EAC wet segments
             _run_migration_041(cur)
+            # Migration 042: add RNAL cable system, nodes and segments
+            _run_migration_042(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -1660,6 +1662,123 @@ def _run_migration_041(cur) -> None:
             "SET data = jsonb_set(data, '{latency}', %s::jsonb) "
             "WHERE id = %s",
             (str(latency), seg_id),
+        )
+
+
+def _run_migration_042(cur) -> None:
+    """Add RNAL cable system, two new landing nodes (KOLS, TUCN),
+    four wet segments (E, F, DC, BA) and initial capacity entries."""
+
+    # ── System ──────────────────────────────────────────────────────────────
+    cur.execute(
+        "INSERT INTO systems (id, data) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING",
+        ("RNAL", json.dumps({"id": "RNAL", "name": "RNAL", "description": "Regional NEC Asia Link — ring topology connecting Hong Kong, Korea, Japan and Taiwan via two paths.", "margin": 7})),
+    )
+
+    # ── Nodes ────────────────────────────────────────────────────────────────
+    _NODES = [
+        {
+            "id": "KOLS",
+            "name": "Pusan Cable Landing Station",
+            "lat": 35.2418,
+            "lng": 129.2228,
+            "type": "landing_station",
+            "country": "KR",
+            "city": "Busan",
+            "owner": "Telstra International",
+            "on_net": "on_net",
+            "verification_status": "draft",
+        },
+        {
+            "id": "TUCN",
+            "name": "Toucheng Cable Landing Station",
+            "lat": 24.8579,
+            "lng": 121.8431,
+            "type": "landing_station",
+            "country": "TW",
+            "city": "Toucheng",
+            "owner": "Telstra International",
+            "on_net": "on_net",
+            "verification_status": "draft",
+        },
+    ]
+    for node in _NODES:
+        cur.execute(
+            "INSERT INTO nodes (id, data) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING",
+            (node["id"], json.dumps(node)),
+        )
+
+    # ── Segments ─────────────────────────────────────────────────────────────
+    _SEGMENTS = [
+        {
+            "id": "RNAL-E",
+            "name": "RNAL Segment E — Hong Kong to Pusan",
+            "system_id": "RNAL",
+            "start_node_id": "TGFK",
+            "end_node_id": "KOLS",
+            "type": "wet",
+            "length_km": 2830,
+            "latency": 14.15,
+            "reliability": 0.9990,
+            "cost_weight": 10,
+            "ownership": "consortium",
+        },
+        {
+            "id": "RNAL-F",
+            "name": "RNAL Segment F — Pusan to Wada",
+            "system_id": "RNAL",
+            "start_node_id": "KOLS",
+            "end_node_id": "JWLS",
+            "type": "wet",
+            "length_km": 2210,
+            "latency": 11.05,
+            "reliability": 0.9990,
+            "cost_weight": 10,
+            "ownership": "consortium",
+        },
+        {
+            "id": "RNAL-DC",
+            "name": "RNAL Segments D,C — Hong Kong to Toucheng",
+            "system_id": "RNAL",
+            "start_node_id": "TGFK",
+            "end_node_id": "TUCN",
+            "type": "wet",
+            "length_km": 1984,
+            "latency": 9.92,
+            "reliability": 0.9990,
+            "cost_weight": 10,
+            "ownership": "consortium",
+        },
+        {
+            "id": "RNAL-BA",
+            "name": "RNAL Segments B,A — Toucheng to Wada",
+            "system_id": "RNAL",
+            "start_node_id": "TUCN",
+            "end_node_id": "JWLS",
+            "type": "wet",
+            "length_km": 2741,
+            "latency": 13.71,
+            "reliability": 0.9990,
+            "cost_weight": 10,
+            "ownership": "consortium",
+        },
+    ]
+    for seg in _SEGMENTS:
+        cur.execute(
+            "INSERT INTO segments (id, data) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING",
+            (seg["id"], json.dumps(seg)),
+        )
+
+    # ── Capacity ─────────────────────────────────────────────────────────────
+    for seg in _SEGMENTS:
+        entry = {
+            "segment_id": seg["id"],
+            "total_capacity_t": 0.64,
+            "available_capacity_t": 0.4,
+        }
+        cur.execute(
+            "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT (segment_id) DO NOTHING",
+            (seg["id"], json.dumps(entry)),
         )
 
 

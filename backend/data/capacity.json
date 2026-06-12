@@ -1533,5 +1533,25 @@
     "segment_id": "BBG-PEN-SIN",
     "total_capacity_t": 2.0,
     "available_capacity_t": 1.1
+  },
+  {
+    "segment_id": "RNAL-E",
+    "total_capacity_t": 0.64,
+    "available_capacity_t": 0.4
+  },
+  {
+    "segment_id": "RNAL-F",
+    "total_capacity_t": 0.64,
+    "available_capacity_t": 0.4
+  },
+  {
+    "segment_id": "RNAL-DC",
+    "total_capacity_t": 0.64,
+    "available_capacity_t": 0.4
+  },
+  {
+    "segment_id": "RNAL-BA",
+    "total_capacity_t": 0.64,
+    "available_capacity_t": 0.4
   }
 ]

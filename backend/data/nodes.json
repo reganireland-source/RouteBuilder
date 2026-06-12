@@ -189,19 +189,19 @@
     "owner": "GTA",
     "trading_name": "Guam GTA",
     "description": "A CLS location in Guam owned by GTA (Guam Telephone Authority)",
-    "city": "Hagåtña"
+    "city": "Hag\u00e5t\u00f1a"
   },
   {
     "id": "GUM2",
-    "name": "Hagåtña",
+    "name": "Hag\u00e5t\u00f1a",
     "lat": 13.4745,
     "lng": 144.7504,
     "type": "primary_pop",
     "country": "GU",
     "owner": "GTA",
-    "trading_name": "Hagåtña GTA",
-    "description": "A terrestrial POP in Hagåtña, Guam, owned by GTA",
-    "city": "Hagåtña"
+    "trading_name": "Hag\u00e5t\u00f1a GTA",
+    "description": "A terrestrial POP in Hag\u00e5t\u00f1a, Guam, owned by GTA",
+    "city": "Hag\u00e5t\u00f1a"
   },
   {
     "id": "HAW1",
@@ -865,7 +865,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix SY1 – Mascot",
+    "description": "Equinix SY1 \u2013 Mascot",
     "city": "Sydney"
   },
   {
@@ -876,7 +876,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix SY3 – Sydney Olympic Park",
+    "description": "Equinix SY3 \u2013 Sydney Olympic Park",
     "city": "Sydney"
   },
   {
@@ -887,7 +887,7 @@
     "type": "extension_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix SY4 – Alexandria",
+    "description": "Equinix SY4 \u2013 Alexandria",
     "city": "Sydney"
   },
   {
@@ -898,7 +898,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix ME1 – Port Melbourne",
+    "description": "Equinix ME1 \u2013 Port Melbourne",
     "city": "Melbourne"
   },
   {
@@ -909,7 +909,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix ME2 – Tullamarine",
+    "description": "Equinix ME2 \u2013 Tullamarine",
     "city": "Melbourne"
   },
   {
@@ -920,7 +920,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix BQ1 – Eagle Farm",
+    "description": "Equinix BQ1 \u2013 Eagle Farm",
     "city": "Brisbane"
   },
   {
@@ -931,7 +931,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix PE1 – East Perth",
+    "description": "Equinix PE1 \u2013 East Perth",
     "city": "Perth"
   },
   {
@@ -942,7 +942,7 @@
     "type": "extension_pop",
     "country": "KR",
     "owner": "Equinix",
-    "description": "Equinix SL1 – Mapo-gu",
+    "description": "Equinix SL1 \u2013 Mapo-gu",
     "city": "Seoul"
   },
   {
@@ -953,7 +953,7 @@
     "type": "secondary_pop",
     "country": "KR",
     "owner": "Equinix",
-    "description": "Equinix BS1 – Busan",
+    "description": "Equinix BS1 \u2013 Busan",
     "city": "Busan"
   },
   {
@@ -994,7 +994,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix LA1 – El Segundo",
+    "description": "Equinix LA1 \u2013 El Segundo",
     "city": "Los Angeles"
   },
   {
@@ -1005,7 +1005,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix LA2 – Downtown Los Angeles",
+    "description": "Equinix LA2 \u2013 Downtown Los Angeles",
     "city": "Los Angeles"
   },
   {
@@ -1016,7 +1016,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix SE2 – Seattle",
+    "description": "Equinix SE2 \u2013 Seattle",
     "city": "Seattle"
   },
   {
@@ -1027,7 +1027,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix SE3 – Bellevue",
+    "description": "Equinix SE3 \u2013 Bellevue",
     "city": "Bellevue"
   },
   {
@@ -1038,7 +1038,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix CH1 – Chicago",
+    "description": "Equinix CH1 \u2013 Chicago",
     "city": "Chicago"
   },
   {
@@ -1049,7 +1049,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix CH2 – Elk Grove Village",
+    "description": "Equinix CH2 \u2013 Elk Grove Village",
     "city": "Chicago"
   },
   {
@@ -1060,7 +1060,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix NY1 – Secaucus, NJ",
+    "description": "Equinix NY1 \u2013 Secaucus, NJ",
     "city": "New York"
   },
   {
@@ -1071,7 +1071,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix NY5 – New York City",
+    "description": "Equinix NY5 \u2013 New York City",
     "city": "New York"
   },
   {
@@ -1082,7 +1082,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix NY9 – New York City",
+    "description": "Equinix NY9 \u2013 New York City",
     "city": "New York"
   },
   {
@@ -1093,7 +1093,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix DA1 – Carrollton, TX",
+    "description": "Equinix DA1 \u2013 Carrollton, TX",
     "city": "Dallas"
   },
   {
@@ -1104,7 +1104,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix DA2 – Carrollton, TX",
+    "description": "Equinix DA2 \u2013 Carrollton, TX",
     "city": "Dallas"
   },
   {
@@ -1115,7 +1115,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix MI1 – Miami, FL",
+    "description": "Equinix MI1 \u2013 Miami, FL",
     "city": "Miami"
   },
   {
@@ -1126,7 +1126,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix MI3 – Miami, FL",
+    "description": "Equinix MI3 \u2013 Miami, FL",
     "city": "Miami"
   },
   {
@@ -2517,5 +2517,29 @@
     "capabilities": null,
     "verification_status": "draft",
     "last_verified_date": null
+  },
+  {
+    "id": "KOLS",
+    "name": "Pusan Cable Landing Station",
+    "lat": 35.2418,
+    "lng": 129.2228,
+    "type": "landing_station",
+    "country": "KR",
+    "city": "Busan",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "draft"
+  },
+  {
+    "id": "TUCN",
+    "name": "Toucheng Cable Landing Station",
+    "lat": 24.8579,
+    "lng": 121.8431,
+    "type": "landing_station",
+    "country": "TW",
+    "city": "Toucheng",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "draft"
   }
 ]
