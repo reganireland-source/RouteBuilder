@@ -91,8 +91,8 @@
     "id": "AAG-SIN-HKG",
     "name": "AAG Singapore–Hong Kong",
     "system_id": "AAG",
-    "start_node_id": "SIN1",
-    "end_node_id": "HKG1",
+    "start_node_id": "SGCL",
+    "end_node_id": "SLTU",
     "type": "wet",
     "length_km": 2600,
     "reliability": 0.9993,
@@ -170,7 +170,7 @@
     "name": "Indigo Central Jakarta–Singapore",
     "system_id": "INDIGO_C",
     "start_node_id": "JAK1",
-    "end_node_id": "SIN1",
+    "end_node_id": "TUAS",
     "type": "wet",
     "length_km": 1100,
     "reliability": 0.9996,
@@ -196,7 +196,7 @@
     "id": "INDIGO_W-SIN-BOM",
     "name": "Indigo West Singapore–Mumbai",
     "system_id": "INDIGO_W",
-    "start_node_id": "SIN1",
+    "start_node_id": "TUAS",
     "end_node_id": "BOM1",
     "type": "wet",
     "length_km": 4200,
@@ -210,7 +210,7 @@
     "name": "Indigo West Perth–Singapore",
     "system_id": "INDIGO_W",
     "start_node_id": "PER1",
-    "end_node_id": "SIN1",
+    "end_node_id": "TUAS",
     "type": "wet",
     "length_km": 3900,
     "reliability": 0.9993,
@@ -222,7 +222,7 @@
     "id": "SMW3-SIN-BOM",
     "name": "SMW3 Singapore–Mumbai",
     "system_id": "SMW3",
-    "start_node_id": "SIN1",
+    "start_node_id": "TUAS",
     "end_node_id": "BOM1",
     "type": "wet",
     "length_km": 4200,
@@ -304,7 +304,7 @@
     "id": "SMW4-SIN-BOM",
     "name": "SMW4 Singapore–Mumbai",
     "system_id": "SMW4",
-    "start_node_id": "SIN1",
+    "start_node_id": "TUAS",
     "end_node_id": "BOM1",
     "type": "wet",
     "length_km": 4100,
@@ -383,8 +383,8 @@
     "id": "APG-SIN-HKG",
     "name": "APG Singapore–Hong Kong",
     "system_id": "APG",
-    "start_node_id": "SIN1",
-    "end_node_id": "HKG1",
+    "start_node_id": "SGCH",
+    "end_node_id": "HKCK",
     "type": "wet",
     "length_km": 2600,
     "reliability": 0.9992,
@@ -917,7 +917,7 @@
     "name": "BiFrost Jakarta–Singapore",
     "system_id": "BIFROST",
     "start_node_id": "JAK1",
-    "end_node_id": "SIN1",
+    "end_node_id": "TUAS",
     "type": "wet",
     "length_km": 1200,
     "reliability": 0.9995,
@@ -943,7 +943,7 @@
     "id": "ECHO-SIN-JAK",
     "name": "Echo Singapore–Jakarta",
     "system_id": "ECHO",
-    "start_node_id": "SIN1",
+    "start_node_id": "SGCN",
     "end_node_id": "JAK1",
     "type": "wet",
     "length_km": 1200,
@@ -1132,7 +1132,7 @@
     "id": "SJC2-SIN-MNL",
     "name": "SJC2 Singapore–Manila",
     "system_id": "SJC2",
-    "start_node_id": "SIN1",
+    "start_node_id": "SGCH",
     "end_node_id": "MNL1",
     "type": "wet",
     "length_km": 2500,
@@ -1708,7 +1708,7 @@
     "id": "EAC-2A1",
     "name": "EAC 2A1 Singapore–Tseung Kwan O",
     "system_id": "EAC",
-    "start_node_id": "SIN3",
+    "start_node_id": "SGCN",
     "end_node_id": "TKOH",
     "type": "wet",
     "length_km": 2600,
@@ -1732,7 +1732,7 @@
     "id": "EAC-2B2",
     "name": "EAC 2B2 Singapore–Capepisa",
     "system_id": "EAC",
-    "start_node_id": "SIN3",
+    "start_node_id": "SGCN",
     "end_node_id": "CPSA",
     "type": "wet",
     "length_km": 2800,
@@ -2027,7 +2027,7 @@
     "name": "C2C Segment S6 Nasugbu–Singapore",
     "system_id": "C2C",
     "start_node_id": "NSGU",
-    "end_node_id": "SIN4",
+    "end_node_id": "SGCH",
     "type": "wet",
     "length_km": 2340,
     "reliability": 0.9991,
@@ -2039,7 +2039,7 @@
     "name": "C2C Segment S7 Chung Hom Kok–Singapore",
     "system_id": "C2C",
     "start_node_id": "CHKK",
-    "end_node_id": "SIN4",
+    "end_node_id": "SGCH",
     "type": "wet",
     "length_km": 2600,
     "reliability": 0.9992,
@@ -2885,7 +2885,7 @@
     "id": "AAE1-SIN-VUT",
     "name": "AAE-1 Singapore–Vung Tau",
     "system_id": "AAE1",
-    "start_node_id": "SIN1",
+    "start_node_id": "IST1",
     "end_node_id": "VUT1",
     "type": "wet",
     "length_km": 1500,
@@ -3614,7 +3614,7 @@
     "name": "ADC Batangas–Singapore",
     "system_id": "ADC",
     "start_node_id": "PBAT",
-    "end_node_id": "SIN1",
+    "end_node_id": "TUAS",
     "type": "wet",
     "length_km": 2909,
     "reliability": 0.9995,
@@ -3665,7 +3665,7 @@
     "id": "APRICOT-SIN-BU",
     "name": "Apricot Singapore–BU",
     "system_id": "APRICOT",
-    "start_node_id": "SIN1",
+    "start_node_id": "TUAS",
     "end_node_id": "APRICOTBU1",
     "type": "wet",
     "length_km": 4079,
@@ -4680,6 +4680,351 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
+    "verification_status": "draft"
+  },
+  {
+    "id": "TERRESTRIAL_SG31",
+    "name": "Terrestrial Tuas CLS–Equinix SG1",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "TUAS",
+    "end_node_id": "IST1",
+    "type": "terrestrial",
+    "length_km": 18.9,
+    "latency": 0.095,
+    "reliability": 0.9998,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        1.31,
+        103.717
+      ]
+    ]
+  },
+  {
+    "id": "TERRESTRIAL_SG28",
+    "name": "Terrestrial Tuas CLS–SGDS1",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "TUAS",
+    "end_node_id": "SGGS",
+    "type": "terrestrial",
+    "length_km": 33.1,
+    "latency": 0.166,
+    "reliability": 0.9997,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        1.31,
+        103.717
+      ],
+      [
+        1.342,
+        103.75
+      ]
+    ]
+  },
+  {
+    "id": "TERRESTRIAL_SG25",
+    "name": "Terrestrial Equinix SG1–Starhub Changi CLS",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "IST1",
+    "end_node_id": "SGCL",
+    "type": "terrestrial",
+    "length_km": 26.3,
+    "latency": 0.132,
+    "reliability": 0.9997,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        1.305,
+        103.848
+      ],
+      [
+        1.326,
+        103.937
+      ]
+    ]
+  },
+  {
+    "id": "TERRESTRIAL_SG39",
+    "name": "Terrestrial Equinix SG1–SGCS1 (diverse A)",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "IST1",
+    "end_node_id": "SGCN",
+    "type": "terrestrial",
+    "length_km": 26.1,
+    "latency": 0.131,
+    "reliability": 0.9997,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        1.305,
+        103.848
+      ],
+      [
+        1.322,
+        103.937
+      ]
+    ]
+  },
+  {
+    "id": "TERRESTRIAL_SG11",
+    "name": "Terrestrial SGCS2–Equinix SG1",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "SGPL",
+    "end_node_id": "IST1",
+    "type": "terrestrial",
+    "length_km": 14.7,
+    "latency": 0.073,
+    "reliability": 0.9998,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "verification_status": "draft",
+    "waypoints": null
+  },
+  {
+    "id": "TERRESTRIAL_SG35",
+    "name": "Terrestrial Equinix SG1–SingTel Katong",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "IST1",
+    "end_node_id": "KTLS",
+    "type": "terrestrial",
+    "length_km": 15.0,
+    "latency": 0.075,
+    "reliability": 0.9998,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        1.305,
+        103.848
+      ]
+    ]
+  },
+  {
+    "id": "TERRESTRIAL_SG36",
+    "name": "Terrestrial SingTel Katong–SGDS1",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "KTLS",
+    "end_node_id": "SGGS",
+    "type": "terrestrial",
+    "length_km": 5.1,
+    "latency": 0.025,
+    "reliability": 0.9998,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "verification_status": "draft",
+    "waypoints": null
+  },
+  {
+    "id": "TERRESTRIAL_SG10",
+    "name": "Terrestrial SGCS2–SGDS1",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "SGPL",
+    "end_node_id": "SGGS",
+    "type": "terrestrial",
+    "length_km": 2.1,
+    "latency": 0.011,
+    "reliability": 0.9999,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "verification_status": "draft",
+    "waypoints": null
+  },
+  {
+    "id": "TERRESTRIAL_SG08",
+    "name": "Terrestrial SGCS2–Changi C2C CLS",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "SGPL",
+    "end_node_id": "SGCH",
+    "type": "terrestrial",
+    "length_km": 9.5,
+    "latency": 0.048,
+    "reliability": 0.9998,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        1.315,
+        103.93
+      ]
+    ]
+  },
+  {
+    "id": "TERRESTRIAL_SG09",
+    "name": "Terrestrial SGCS2–SGCS1",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "SGPL",
+    "end_node_id": "SGCN",
+    "type": "terrestrial",
+    "length_km": 11.4,
+    "latency": 0.057,
+    "reliability": 0.9998,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        1.315,
+        103.93
+      ]
+    ]
+  },
+  {
+    "id": "TERRESTRIAL_SG41",
+    "name": "Terrestrial Equinix SG5–SGDS1",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "SSG5",
+    "end_node_id": "SGGS",
+    "type": "terrestrial",
+    "length_km": 26.8,
+    "latency": 0.134,
+    "reliability": 0.9997,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        1.342,
+        103.75
+      ]
+    ]
+  },
+  {
+    "id": "TERRESTRIAL_SG42",
+    "name": "Terrestrial Equinix SG5–SGCS1",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "SSG5",
+    "end_node_id": "SGCN",
+    "type": "terrestrial",
+    "length_km": 37.6,
+    "latency": 0.188,
+    "reliability": 0.9997,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        1.342,
+        103.75
+      ],
+      [
+        1.344,
+        103.94
+      ]
+    ]
+  },
+  {
+    "id": "TERRESTRIAL_SG40",
+    "name": "Terrestrial SGX–SGCS1",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "SKGX",
+    "end_node_id": "SGCN",
+    "type": "terrestrial",
+    "length_km": 13.9,
+    "latency": 0.07,
+    "reliability": 0.9998,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        1.358,
+        103.935
+      ]
+    ]
+  },
+  {
+    "id": "TERRESTRIAL_SG06",
+    "name": "Terrestrial SGX–Changi C2C CLS",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "SKGX",
+    "end_node_id": "SGCH",
+    "type": "terrestrial",
+    "length_km": 12.8,
+    "latency": 0.064,
+    "reliability": 0.9998,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        1.358,
+        103.935
+      ]
+    ]
+  },
+  {
+    "id": "TERRESTRIAL_SG23",
+    "name": "Terrestrial SGX–SGDS1",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "SKGX",
+    "end_node_id": "SGGS",
+    "type": "terrestrial",
+    "length_km": 5.7,
+    "latency": 0.029,
+    "reliability": 0.9998,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "verification_status": "draft",
+    "waypoints": null
+  },
+  {
+    "id": "TERRESTRIAL_SG30",
+    "name": "Terrestrial SGDS1–SGCS1 (diverse C)",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "SGGS",
+    "end_node_id": "SGCN",
+    "type": "terrestrial",
+    "length_km": 10.7,
+    "latency": 0.053,
+    "reliability": 0.9998,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "verification_status": "draft",
+    "waypoints": [
+      [
+        1.342,
+        103.943
+      ]
+    ]
+  },
+  {
+    "id": "TERRESTRIAL_SG22",
+    "name": "Terrestrial SGCS1–Starhub Changi CLS",
+    "system_id": "TERRESTRIAL",
+    "start_node_id": "SGCN",
+    "end_node_id": "SGCL",
+    "type": "terrestrial",
+    "length_km": 0.3,
+    "latency": 0.002,
+    "reliability": 0.9999,
+    "cost_weight": 1,
+    "ownership": "owned",
+    "verification_status": "draft",
+    "waypoints": null
+  },
+  {
+    "id": "BBG-PEN-SIN",
+    "name": "BBG Penang–Singapore",
+    "system_id": "BBG",
+    "start_node_id": "PEN1",
+    "end_node_id": "IST1",
+    "type": "wet",
+    "length_km": 747,
+    "latency": 3.74,
+    "reliability": 0.9994,
+    "cost_weight": 1,
+    "ownership": "consortium",
     "verification_status": "draft"
   }
 ]

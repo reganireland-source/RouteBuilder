@@ -168,30 +168,6 @@
     "city": "Wellington"
   },
   {
-    "id": "SIN1",
-    "name": "Singapore",
-    "lat": 1.3521,
-    "lng": 103.8198,
-    "type": "landing_station",
-    "country": "SG",
-    "owner": "Singtel",
-    "trading_name": "Singapore Singtel",
-    "description": "A CLS location in Singapore owned by Singtel",
-    "city": "Singapore"
-  },
-  {
-    "id": "SIN2",
-    "name": "Jurong",
-    "lat": 1.3399,
-    "lng": 103.7011,
-    "type": "primary_pop",
-    "country": "SG",
-    "owner": "Equinix",
-    "trading_name": "Jurong Equinix",
-    "description": "An Equinix data centre in Jurong, Singapore, serving as a terrestrial POP",
-    "city": "Singapore"
-  },
-  {
     "id": "OSA1",
     "name": "Osaka",
     "lat": 34.6937,
@@ -213,19 +189,19 @@
     "owner": "GTA",
     "trading_name": "Guam GTA",
     "description": "A CLS location in Guam owned by GTA (Guam Telephone Authority)",
-    "city": "Hag\u00e5t\u00f1a"
+    "city": "Hagåtña"
   },
   {
     "id": "GUM2",
-    "name": "Hag\u00e5t\u00f1a",
+    "name": "Hagåtña",
     "lat": 13.4745,
     "lng": 144.7504,
     "type": "primary_pop",
     "country": "GU",
     "owner": "GTA",
-    "trading_name": "Hag\u00e5t\u00f1a GTA",
-    "description": "A terrestrial POP in Hag\u00e5t\u00f1a, Guam, owned by GTA",
-    "city": "Hag\u00e5t\u00f1a"
+    "trading_name": "Hagåtña GTA",
+    "description": "A terrestrial POP in Hagåtña, Guam, owned by GTA",
+    "city": "Hagåtña"
   },
   {
     "id": "HAW1",
@@ -889,7 +865,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix SY1 \u2013 Mascot",
+    "description": "Equinix SY1 – Mascot",
     "city": "Sydney"
   },
   {
@@ -900,7 +876,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix SY3 \u2013 Sydney Olympic Park",
+    "description": "Equinix SY3 – Sydney Olympic Park",
     "city": "Sydney"
   },
   {
@@ -911,7 +887,7 @@
     "type": "extension_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix SY4 \u2013 Alexandria",
+    "description": "Equinix SY4 – Alexandria",
     "city": "Sydney"
   },
   {
@@ -922,7 +898,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix ME1 \u2013 Port Melbourne",
+    "description": "Equinix ME1 – Port Melbourne",
     "city": "Melbourne"
   },
   {
@@ -933,7 +909,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix ME2 \u2013 Tullamarine",
+    "description": "Equinix ME2 – Tullamarine",
     "city": "Melbourne"
   },
   {
@@ -944,7 +920,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix BQ1 \u2013 Eagle Farm",
+    "description": "Equinix BQ1 – Eagle Farm",
     "city": "Brisbane"
   },
   {
@@ -955,7 +931,7 @@
     "type": "secondary_pop",
     "country": "AU",
     "owner": "Equinix",
-    "description": "Equinix PE1 \u2013 East Perth",
+    "description": "Equinix PE1 – East Perth",
     "city": "Perth"
   },
   {
@@ -966,7 +942,7 @@
     "type": "extension_pop",
     "country": "KR",
     "owner": "Equinix",
-    "description": "Equinix SL1 \u2013 Mapo-gu",
+    "description": "Equinix SL1 – Mapo-gu",
     "city": "Seoul"
   },
   {
@@ -977,7 +953,7 @@
     "type": "secondary_pop",
     "country": "KR",
     "owner": "Equinix",
-    "description": "Equinix BS1 \u2013 Busan",
+    "description": "Equinix BS1 – Busan",
     "city": "Busan"
   },
   {
@@ -1018,7 +994,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix LA1 \u2013 El Segundo",
+    "description": "Equinix LA1 – El Segundo",
     "city": "Los Angeles"
   },
   {
@@ -1029,7 +1005,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix LA2 \u2013 Downtown Los Angeles",
+    "description": "Equinix LA2 – Downtown Los Angeles",
     "city": "Los Angeles"
   },
   {
@@ -1040,7 +1016,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix SE2 \u2013 Seattle",
+    "description": "Equinix SE2 – Seattle",
     "city": "Seattle"
   },
   {
@@ -1051,7 +1027,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix SE3 \u2013 Bellevue",
+    "description": "Equinix SE3 – Bellevue",
     "city": "Bellevue"
   },
   {
@@ -1062,7 +1038,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix CH1 \u2013 Chicago",
+    "description": "Equinix CH1 – Chicago",
     "city": "Chicago"
   },
   {
@@ -1073,7 +1049,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix CH2 \u2013 Elk Grove Village",
+    "description": "Equinix CH2 – Elk Grove Village",
     "city": "Chicago"
   },
   {
@@ -1084,7 +1060,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix NY1 \u2013 Secaucus, NJ",
+    "description": "Equinix NY1 – Secaucus, NJ",
     "city": "New York"
   },
   {
@@ -1095,7 +1071,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix NY5 \u2013 New York City",
+    "description": "Equinix NY5 – New York City",
     "city": "New York"
   },
   {
@@ -1106,7 +1082,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix NY9 \u2013 New York City",
+    "description": "Equinix NY9 – New York City",
     "city": "New York"
   },
   {
@@ -1117,7 +1093,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix DA1 \u2013 Carrollton, TX",
+    "description": "Equinix DA1 – Carrollton, TX",
     "city": "Dallas"
   },
   {
@@ -1128,7 +1104,7 @@
     "type": "extension_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix DA2 \u2013 Carrollton, TX",
+    "description": "Equinix DA2 – Carrollton, TX",
     "city": "Dallas"
   },
   {
@@ -1139,7 +1115,7 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix MI1 \u2013 Miami, FL",
+    "description": "Equinix MI1 – Miami, FL",
     "city": "Miami"
   },
   {
@@ -1150,26 +1126,8 @@
     "type": "secondary_pop",
     "country": "US",
     "owner": "Equinix",
-    "description": "Equinix MI3 \u2013 Miami, FL",
+    "description": "Equinix MI3 – Miami, FL",
     "city": "Miami"
-  },
-  {
-    "id": "SIN3",
-    "name": "Changi (EAC)",
-    "lat": 1.3535,
-    "lng": 103.982,
-    "type": "landing_station",
-    "country": "SG",
-    "city": "Singapore"
-  },
-  {
-    "id": "SIN4",
-    "name": "Changi (C2C)",
-    "lat": 1.3545,
-    "lng": 103.983,
-    "type": "landing_station",
-    "country": "SG",
-    "city": "Singapore"
   },
   {
     "id": "SHA1",
@@ -2335,5 +2293,229 @@
     "owner": "TIS",
     "on_net": "off_net",
     "verification_status": "under_verification"
+  },
+  {
+    "id": "IST1",
+    "name": "Equinix SG1, Singapore",
+    "lat": 1.295231,
+    "lng": 103.7898,
+    "type": "extension_pop",
+    "country": "SG",
+    "owner": "Equinix",
+    "trading_name": null,
+    "city": "Singapore",
+    "street_address": null,
+    "description": null,
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "KTLS",
+    "name": "SingTel Katong Exchange",
+    "lat": 1.30256,
+    "lng": 103.8974,
+    "type": "landing_station",
+    "country": "SG",
+    "owner": "Singtel",
+    "trading_name": null,
+    "city": "Singapore",
+    "street_address": null,
+    "description": null,
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "SGCH",
+    "name": "Changi C2C CLS, Singapore",
+    "lat": 1.337551,
+    "lng": 103.9585,
+    "type": "landing_station",
+    "country": "SG",
+    "owner": "Telstra",
+    "trading_name": null,
+    "city": "Singapore",
+    "street_address": null,
+    "description": null,
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "6NTP",
+    "name": "Epsilon, Singapore",
+    "lat": 1.352115,
+    "lng": 103.8607,
+    "type": "extension_pop",
+    "country": "SG",
+    "owner": "Epsilon",
+    "trading_name": null,
+    "city": "Singapore",
+    "street_address": null,
+    "description": null,
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "SKGX",
+    "name": "Singapore Stock Exchange",
+    "lat": 1.375236,
+    "lng": 103.8748,
+    "type": "extension_pop",
+    "country": "SG",
+    "owner": "Singapore Stock Exchange",
+    "trading_name": null,
+    "city": "Singapore",
+    "street_address": null,
+    "description": null,
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "SGCL",
+    "name": "Starhub Changi Cable Station",
+    "lat": 1.349119,
+    "lng": 103.9714,
+    "type": "landing_station",
+    "country": "SG",
+    "owner": "StarHub",
+    "trading_name": null,
+    "city": "Singapore",
+    "street_address": null,
+    "description": null,
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "SGCN",
+    "name": "SGCS1, Singapore",
+    "lat": 1.347041,
+    "lng": 103.9707,
+    "type": "extension_pop",
+    "country": "SG",
+    "owner": "Telstra",
+    "trading_name": null,
+    "city": "Singapore",
+    "street_address": null,
+    "description": null,
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "SGGS",
+    "name": "SGDS1, Singapore",
+    "lat": 1.338723,
+    "lng": 103.8938,
+    "type": "primary_pop",
+    "country": "SG",
+    "owner": "Telstra",
+    "trading_name": null,
+    "city": "Singapore",
+    "street_address": null,
+    "description": null,
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "SGNT",
+    "name": "NTT Singapore PoP",
+    "lat": 1.37608,
+    "lng": 103.8748,
+    "type": "extension_pop",
+    "country": "SG",
+    "owner": "NTT",
+    "trading_name": null,
+    "city": "Singapore",
+    "street_address": null,
+    "description": null,
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "SGPL",
+    "name": "SGCS2, Singapore",
+    "lat": 1.323929,
+    "lng": 103.8917,
+    "type": "primary_pop",
+    "country": "SG",
+    "owner": "BDX",
+    "trading_name": null,
+    "city": "Singapore",
+    "street_address": null,
+    "description": null,
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "SSG2",
+    "name": "Equinix SG2, Singapore",
+    "lat": 1.321822,
+    "lng": 103.6953,
+    "type": "extension_pop",
+    "country": "SG",
+    "owner": "Equinix",
+    "trading_name": null,
+    "city": "Singapore",
+    "street_address": null,
+    "description": null,
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "SSG3",
+    "name": "Equinix SG3, Singapore",
+    "lat": 1.296184,
+    "lng": 103.7909,
+    "type": "extension_pop",
+    "country": "SG",
+    "owner": "Equinix",
+    "trading_name": null,
+    "city": "Singapore",
+    "street_address": null,
+    "description": null,
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "SSG5",
+    "name": "Equinix SG5, Singapore",
+    "lat": 1.31728,
+    "lng": 103.7021,
+    "type": "extension_pop",
+    "country": "SG",
+    "owner": "Equinix",
+    "trading_name": null,
+    "city": "Singapore",
+    "street_address": null,
+    "description": null,
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
+  },
+  {
+    "id": "TUAS",
+    "name": "SMW3 (2) CLS, Singapore",
+    "lat": 1.321318,
+    "lng": 103.656,
+    "type": "landing_station",
+    "country": "SG",
+    "owner": "Singtel",
+    "trading_name": null,
+    "city": "Singapore",
+    "street_address": null,
+    "description": null,
+    "capabilities": null,
+    "verification_status": "draft",
+    "last_verified_date": null
   }
 ]
