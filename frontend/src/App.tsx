@@ -566,6 +566,16 @@ export default function App() {
 
   const hasPins    = pinnedRoutes.length > 0
   const hasResults = response !== null || manualResults.length > 0
+  // Count visible circuits (deduplicate worker+protect pairs sharing a circuitId)
+  const pinnedCircuitCount = (() => {
+    const seen = new Set<string>()
+    let count = 0
+    for (const p of pinnedRoutes) {
+      const key = p.circuitId ?? p.pinId
+      if (!seen.has(key)) { seen.add(key); count++ }
+    }
+    return count
+  })()
 
   // ── Mobile layout ────────────────────────────────────────────────────────
   if (isMobile) {
@@ -1085,7 +1095,7 @@ export default function App() {
                 {searchDuration !== null && <span> · {searchDuration < 1 ? `${(searchDuration * 1000).toFixed(0)}ms` : `${searchDuration.toFixed(2)}s`}</span>}
               </span>
             )}
-            {hasPins    && <span style={{ fontSize: 11, color: theme.textFaintest }}>· {pinnedRoutes.length} pinned</span>}
+            {hasPins    && <span style={{ fontSize: 11, color: theme.textFaintest }}>· {pinnedCircuitCount} pinned</span>}
             {loading    && <span style={{ fontSize: 11, color: theme.blue }}>Searching…</span>}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
               {hasPins    && <button onClick={() => { setSldVersion(''); setSldVersionPrompt(true) }} title="Export SLD" style={clearBtnStyle(theme)}>⬡ SLD</button>}

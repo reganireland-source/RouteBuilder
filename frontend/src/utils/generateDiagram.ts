@@ -7,6 +7,7 @@ type RGB = [number, number, number]
 
 // ── Colour palette ────────────────────────────────────────────────────────────
 const BLUE:      RGB = [0,   100, 190]
+const GREEN:     RGB = [0,   140,  70]
 const TEAL:      RGB = [0,   150, 170]
 const LT_GRAY:   RGB = [238, 238, 238]
 const MID_GRAY:  RGB = [170, 170, 170]
@@ -265,6 +266,7 @@ function drawPanels(
   circuit: ProjectCircuit | undefined,
   pin: PinnedRoute,
   nodesById: Record<string, CableNode>,
+  protectView?: RouteView,
 ) {
   const route      = pin.route
   const aEndNode   = nodesById[route.nodes[0]]
@@ -305,26 +307,45 @@ function drawPanels(
 
   // ── Legend (center column top) ─────────────────────────────────────────────
   const legBoxY = PNL_Y + 3
-  setStroke(doc, BLUE, 1.0)
-  doc.line(COL_C + 3, legBoxY + 3, COL_C + 18, legBoxY + 3)
-  doc.setFontSize(6.5); setColor(doc, DK_GRAY)
-  doc.text('Main Path - Estimated RTD', COL_C + 20, legBoxY + 4.5)
-
-  setStroke(doc, BLUE, 0.5); doc.setLineDashPattern([3, 2], 0)
-  doc.line(COL_C + 3, legBoxY + 9, COL_C + 18, legBoxY + 9)
-  doc.setLineDashPattern([], 0)
-  doc.text('Dedicated DWDM Channel', COL_C + 20, legBoxY + 10.5)
+  if (protectView) {
+    setStroke(doc, BLUE, 1.0)
+    doc.line(COL_C + 3, legBoxY + 3, COL_C + 18, legBoxY + 3)
+    doc.setFontSize(6.5); setColor(doc, DK_GRAY)
+    doc.text('Worker Path', COL_C + 20, legBoxY + 4.5)
+    setStroke(doc, GREEN, 1.0)
+    doc.line(COL_C + 3, legBoxY + 9, COL_C + 18, legBoxY + 9)
+    doc.text('Protect Path', COL_C + 20, legBoxY + 10.5)
+  } else {
+    setStroke(doc, BLUE, 1.0)
+    doc.line(COL_C + 3, legBoxY + 3, COL_C + 18, legBoxY + 3)
+    doc.setFontSize(6.5); setColor(doc, DK_GRAY)
+    doc.text('Main Path - Estimated RTD', COL_C + 20, legBoxY + 4.5)
+    setStroke(doc, BLUE, 0.5); doc.setLineDashPattern([3, 2], 0)
+    doc.line(COL_C + 3, legBoxY + 9, COL_C + 18, legBoxY + 9)
+    doc.setLineDashPattern([], 0)
+    doc.text('Dedicated DWDM Channel', COL_C + 20, legBoxY + 10.5)
+  }
 
   // ── Service table (center column, below legend) ────────────────────────────
   const svcY = PNL_Y + addrH - ROW_H * 5
-  const rows: [string, string | undefined][] = [
-    ['SERVICE TYPE', circuit?.service_type],
-    ['CABLE SYSTEM', buildRouteView(pin.route).systems.join(', ') || undefined],
-    ['BANDWIDTH',    circuit?.bandwidth],
-    ['PROTECTION',   circuit?.protection],
-    ['FRAME SIZE',   circuit?.frame_size],
-    ['L1 SETTINGS',  circuit?.l1_settings],
-  ]
+  const workerView = buildRouteView(pin.route)
+  const rows: [string, string | undefined][] = protectView
+    ? [
+        ['SERVICE TYPE', circuit?.service_type],
+        ['WORKER PATH',  `${workerView.systems.join(', ')}  ·  ${workerView.totalKm.toLocaleString()} km  ·  RTD ${workerView.totalLatency != null ? (workerView.totalLatency * 2).toFixed(1) : '—'} ms`],
+        ['PROTECT PATH', `${protectView.systems.join(', ')}  ·  ${protectView.totalKm.toLocaleString()} km  ·  RTD ${protectView.totalLatency != null ? (protectView.totalLatency * 2).toFixed(1) : '—'} ms`],
+        ['BANDWIDTH',    circuit?.bandwidth],
+        ['PROTECTION',   circuit?.protection],
+        ['FRAME SIZE',   circuit?.frame_size],
+      ]
+    : [
+        ['SERVICE TYPE', circuit?.service_type],
+        ['CABLE SYSTEM', workerView.systems.join(', ') || undefined],
+        ['BANDWIDTH',    circuit?.bandwidth],
+        ['PROTECTION',   circuit?.protection],
+        ['FRAME SIZE',   circuit?.frame_size],
+        ['L1 SETTINGS',  circuit?.l1_settings],
+      ]
   rows.forEach(([label, value], i) => {
     attrRow(doc, COL_C, svcY + i * ROW_H, COL_W, LABEL_W_SVC, label, value)
   })
@@ -446,6 +467,152 @@ function drawFooter(
   doc.text('Telco RouteBuilder', PW - M - 2, FTR_Y + fH - 3, { align: 'right' })
 }
 
+// ── Draw one route band on a horizontal line (inner nodes only) ───────────────
+function drawRouteOnLine(
+  doc: jsPDF,
+  route: RouteView,
+  lineY: number,
+  lineColor: RGB,
+  innerL: number,
+  innerR: number,
+  nodesById: Record<string, CableNode>,
+  sldConfig: { show_distance?: boolean; show_segment_latency?: boolean } | undefined,
+  labelsAbove: boolean,
+) {
+  const { nodes, segments, totalKm } = route
+  const innerW = innerR - innerL
+
+  interface NodePos { x: number; nodeId: string }
+  const positions: NodePos[] = []
+  positions.push({ x: innerL, nodeId: nodes[0] })
+  let cum = 0
+  for (const seg of segments) {
+    cum += seg.length_km
+    positions.push({ x: innerL + (cum / totalKm) * innerW, nodeId: seg.end_node_id })
+  }
+
+  setStroke(doc, lineColor, 1.0)
+  doc.line(innerL, lineY, innerR, lineY)
+
+  segments.forEach((seg, i) => {
+    const x1   = positions[i].x
+    const x2   = positions[i + 1].x
+    const mid  = (x1 + x2) / 2
+    const segW = x2 - x1
+
+    setStroke(doc, MID_GRAY, 0.3)
+    doc.line(x1, lineY - 3, x1, lineY + 3)
+
+    if (segW > 12) {
+      doc.setFontSize(Math.min(6.5, Math.max(4.5, segW / 9)))
+      setColor(doc, lineColor)
+      const sysY = labelsAbove ? lineY - 6 : lineY + 9
+      doc.text(clamp(seg.system_id, 20), mid, sysY, { align: 'center', maxWidth: segW - 2 })
+    }
+    if (segW > 22 && sldConfig?.show_segment_latency !== false) {
+      doc.setFontSize(5.5); setColor(doc, DK_GRAY)
+      const parts: string[] = []
+      if (sldConfig?.show_distance !== false) parts.push(`${seg.length_km.toLocaleString()} km`)
+      if (seg.latency != null) parts.push(`${seg.latency.toFixed(1)} ms`)
+      const distY = labelsAbove ? lineY - 2 : lineY + 5
+      if (parts.length) doc.text(parts.join(' · '), mid, distY, { align: 'center', maxWidth: segW - 2 })
+    }
+
+    if (seg.type === 'terrestrial') {
+      setStroke(doc, [160, 100, 40] as RGB, 0.8)
+      doc.setLineDashPattern([2, 2], 0)
+      doc.line(x1, lineY, x2, lineY)
+      doc.setLineDashPattern([], 0)
+    }
+  })
+
+  setStroke(doc, MID_GRAY, 0.3)
+  doc.line(innerR, lineY - 3, innerR, lineY + 3)
+
+  // Inner node icons and labels (skip shared endpoints at index 0 and last)
+  for (let i = 1; i < positions.length - 1; i++) {
+    const np       = positions[i]
+    const node     = nodesById[np.nodeId]
+    const iconType = iconTypeForNode(node)
+    drawNodeIcon(doc, np.x, lineY, iconType)
+
+    const row   = (i % 2 === 0) ? 1 : 0
+    const baseY = labelsAbove
+      ? lineY + 5 + row * 5
+      : lineY - 8 - row * 5
+
+    doc.setFontSize(5.5); setColor(doc, MID_GRAY)
+    doc.text(np.nodeId, np.x, baseY, { align: 'center' })
+    doc.setFontSize(5.5); setColor(doc, DK_GRAY)
+    doc.text(clamp(node?.name, 14), np.x, baseY + 3.5, { align: 'center' })
+  }
+}
+
+// ── Draw the protected (diamond/lens) node diagram ────────────────────────────
+function drawDiagramProtected(
+  doc: jsPDF,
+  worker: RouteView,
+  protect: RouteView,
+  nodesById: Record<string, CableNode>,
+  sldConfig?: { show_rtd?: boolean; show_distance?: boolean; show_segment_latency?: boolean },
+) {
+  const Y_W = DIAG_Y + 10   // ≈ 39  Worker path line
+  const Y_C = DIAG_Y + 33   // ≈ 62  Shared endpoint centre
+  const Y_P = DIAG_Y + 55   // ≈ 84  Protect path line
+
+  const boxW = 52
+  const boxY = DIAG_Y + 2
+  const boxH = DIAG_BOT - boxY - 2
+
+  setFill(doc, [252, 252, 252] as RGB); setStroke(doc, MID_GRAY, 0.3)
+  doc.setLineDashPattern([3, 2], 0)
+  doc.rect(M, boxY, boxW, boxH, 'FD')
+  doc.rect(PW - M - boxW, boxY, boxW, boxH, 'FD')
+  doc.setLineDashPattern([], 0)
+
+  doc.setFontSize(6); setColor(doc, MID_GRAY)
+  doc.text('CUSTOMER SITE', M + boxW / 2, boxY + 4, { align: 'center' })
+  doc.text('CUSTOMER SITE', PW - M - boxW / 2, boxY + 4, { align: 'center' })
+
+  const innerL = M + boxW + 3   // ≈ 65
+  const innerR = PW - M - boxW - 3  // ≈ 232
+  const aX = M + boxW / 2       // A-End icon centre X ≈ 36
+  const zX = PW - M - boxW / 2  // Z-End icon centre X ≈ 261
+
+  // Diamond connecting lines
+  setStroke(doc, BLUE, 0.8)
+  doc.line(aX, Y_C, innerL, Y_W)
+  doc.line(zX, Y_C, innerR, Y_W)
+  setStroke(doc, GREEN, 0.8)
+  doc.line(aX, Y_C, innerL, Y_P)
+  doc.line(zX, Y_C, innerR, Y_P)
+
+  // Endpoint customer icons at centre Y
+  drawNodeIcon(doc, aX, Y_C, 'customer')
+  drawNodeIcon(doc, zX, Y_C, 'customer')
+
+  // Endpoint labels below the icons
+  const aNode = nodesById[worker.nodes[0]]
+  const zNode = nodesById[worker.nodes[worker.nodes.length - 1]]
+  doc.setFontSize(5.5); setColor(doc, MID_GRAY)
+  doc.text(worker.nodes[0], aX, Y_C + 6, { align: 'center' })
+  doc.setFontSize(6); setColor(doc, DK_GRAY)
+  doc.text(clamp(aNode?.name, 14), aX, Y_C + 10, { align: 'center' })
+  doc.setFontSize(5.5); setColor(doc, MID_GRAY)
+  doc.text(worker.nodes[worker.nodes.length - 1], zX, Y_C + 6, { align: 'center' })
+  doc.setFontSize(6); setColor(doc, DK_GRAY)
+  doc.text(clamp(zNode?.name, 14), zX, Y_C + 10, { align: 'center' })
+
+  // Role badges inside customer boxes
+  doc.setFontSize(6); setColor(doc, BLUE)
+  doc.text('WORKER', M + 3, Y_W + 1)
+  setColor(doc, GREEN)
+  doc.text('PROTECT', M + 3, Y_P + 1)
+
+  drawRouteOnLine(doc, worker,  Y_W, BLUE,  innerL, innerR, nodesById, sldConfig, true)
+  drawRouteOnLine(doc, protect, Y_P, GREEN, innerL, innerR, nodesById, sldConfig, false)
+}
+
 // ── Helper: extract a compact route view ─────────────────────────────────────
 interface RouteView {
   nodes:       string[]
@@ -486,9 +653,11 @@ function drawCircuitPage(
   pageNum: number,
   totalPages: number,
   version: string | undefined,
+  protectView?: RouteView,
 ) {
-  const rv       = buildRouteView(pin.route)
-  const label    = pin.circuitLabel ?? pin.searchLabel
+  // Strip "(Worker)" suffix for the title when it's a protected circuit
+  const rawLabel = pin.circuitLabel ?? pin.searchLabel
+  const label    = rawLabel.replace(/\s*\(Worker\)$/, '')
 
   // ── Circuit label box (top center) ─────────────────────────────────────────
   const boxW = 100
@@ -505,16 +674,19 @@ function drawCircuitPage(
   doc.text('CUSTOMER SITE', M + 25, ZONE_Y + ZONE_H * 0.7, { align: 'center' })
   doc.text('INTERNATIONAL TELCO NETWORK', PW / 2, ZONE_Y + ZONE_H * 0.7, { align: 'center' })
   doc.text('CUSTOMER SITE', PW - M - 25, ZONE_Y + ZONE_H * 0.7, { align: 'center' })
-  // Zone dividers
   setStroke(doc, TEAL, 0.3)
   doc.line(M + 50, ZONE_Y, M + 50, ZONE_Y + ZONE_H)
   doc.line(PW - M - 50, ZONE_Y, PW - M - 50, ZONE_Y + ZONE_H)
 
   // ── Node diagram ────────────────────────────────────────────────────────────
-  drawDiagram(doc, rv, nodesById, /* showDwdm */ false, project?.sld_config)
+  if (protectView) {
+    drawDiagramProtected(doc, buildRouteView(pin.route), protectView, nodesById, project?.sld_config)
+  } else {
+    drawDiagram(doc, buildRouteView(pin.route), nodesById, false, project?.sld_config)
+  }
 
   // ── Bottom panels + tables ──────────────────────────────────────────────────
-  drawPanels(doc, circuit, pin, nodesById)
+  drawPanels(doc, circuit, pin, nodesById, protectView)
 
   // ── Legend bar ──────────────────────────────────────────────────────────────
   drawLegendBar(doc)
@@ -649,14 +821,28 @@ export function generateSldFromProject(
   if (pinnedRoutes.length === 0) return
   const doc       = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
-  const total     = pinnedRoutes.length + 1
 
-  drawCover(doc, pinnedRoutes, nodesById, project, version)
+  // Deduplicate: protected circuits have two pins (Worker + Protect) with the same circuitId.
+  // We want one page per circuit, using the worker pin (always added first).
+  const seen = new Set<string>()
+  const circuitPins: PinnedRoute[] = []
+  for (const pin of pinnedRoutes) {
+    const key = pin.circuitId ?? pin.pinId
+    if (seen.has(key)) continue
+    seen.add(key)
+    circuitPins.push(pin)
+  }
 
-  pinnedRoutes.forEach((pin, i) => {
+  const total = circuitPins.length + 1
+  drawCover(doc, circuitPins, nodesById, project, version)
+
+  circuitPins.forEach((pin, i) => {
     doc.addPage()
-    const circuit = project.circuits.find(c => c.circuit_id === pin.circuitId)
-    drawCircuitPage(doc, pin, nodesById, circuit, project, i + 2, total, version)
+    const circuit     = project.circuits.find(c => c.circuit_id === pin.circuitId)
+    const protectView = circuit?.protect_route_snapshot
+      ? buildRouteView(circuit.protect_route_snapshot)
+      : undefined
+    drawCircuitPage(doc, pin, nodesById, circuit, project, i + 2, total, version, protectView)
   })
 
   const safeName = (project.name ?? 'Project').replace(/[^a-z0-9]/gi, '-').slice(0, 30)
