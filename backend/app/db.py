@@ -231,6 +231,8 @@ def init_db() -> None:
             _run_migration_039(cur)
             # Migration 040: add waypoints to Japan terrestrial backhaul segments
             _run_migration_040(cur)
+            # Migration 041: populate missing latency on C2C and EAC wet segments
+            _run_migration_041(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -1620,6 +1622,44 @@ def _run_migration_040(cur) -> None:
             "SET data = jsonb_set(data, '{waypoints}', %s::jsonb) "
             "WHERE id = %s",
             (wp_json, seg_id),
+        )
+
+
+def _run_migration_041(cur) -> None:
+    """Populate missing latency values for C2C and EAC wet segments (length_km / 200 ms)."""
+    _LATENCY: list[tuple[str, float]] = [
+        # C2C segments
+        ("C2C-S1",   5.75),   # 1150 km
+        ("C2C-S2A",  2.0),    # 400 km
+        ("C2C-S2B",  2.3),    # 460 km
+        ("C2C-S3A",  5.6),    # 1120 km
+        ("C2C-S3B",  4.65),   # 930 km
+        ("C2C-S3C",  4.35),   # 870 km
+        ("C2C-S4",   1.75),   # 350 km
+        ("C2C-S5",   16.5),   # 3300 km
+        ("C2C-S6",   11.7),   # 2340 km
+        ("C2C-S7",   13.0),   # 2600 km
+        # EAC segments
+        ("EAC-2A1",  13.0),   # 2600 km
+        ("EAC-2B1",  3.65),   # 730 km
+        ("EAC-2B2",  14.0),   # 2800 km
+        ("EAC-A",    7.0),    # 1400 km
+        ("EAC-B",    3.0),    # 600 km
+        ("EAC-C",    7.25),   # 1450 km
+        ("EAC-D",    1.9),    # 380 km
+        ("EAC-E",    2.65),   # 530 km
+        ("EAC-F1",   7.0),    # 1400 km
+        ("EAC-F2",   2.3),    # 460 km
+        ("EAC-K",    8.0),    # 1600 km
+        ("EAC-L",    2.4),    # 480 km
+        ("EAC-M",    1.85),   # 370 km
+    ]
+    for seg_id, latency in _LATENCY:
+        cur.execute(
+            "UPDATE segments "
+            "SET data = jsonb_set(data, '{latency}', %s::jsonb) "
+            "WHERE id = %s",
+            (str(latency), seg_id),
         )
 
 
