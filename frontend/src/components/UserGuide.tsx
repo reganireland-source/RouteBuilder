@@ -12,8 +12,8 @@ const STEPS = [
   { title: 'Set Diversity', desc: 'Choose a diversity type if required. Wet isolates submarine segments only. Full means no shared segments end-to-end. Full-Node adds node isolation on top. Terrestrial variants isolate backhaul at the origin end, destination end, or both. Leave as None for a single best-path search.' },
   { title: 'Add Constraints (optional)', desc: 'Expand Advanced Constraints to force via or avoid on specific nodes, segments, cable systems or entire countries. Country constraints are a hard geopolitical filter — no landing node in an avoided country will appear on any result.' },
   { title: 'Search', desc: 'Press Find Routes. The animated button indicates the search is running. Results appear in seconds.' },
-  { title: 'Review & Sort', desc: 'Route cards show the path, margin badge, on-net classification and capacity. Sort by RTD, Availability, Margin, Capacity or On-Net. Toggle "UP" to push outage-affected routes down. Use the − / + stepper to show 1–10 routes (default 5).' },
-  { title: 'Flip, Pin & Export', desc: 'In a diversity pair, click ⇅ to swap Worker and Protect roles — the route data (path, stats, map colour) trades places completely. Pin up to 5 routes using 📍, then export a straight-line diagram PDF.' },
+  { title: 'Review & Sort', desc: 'Route cards show the path, margin badge, on-net classification and capacity. Sort by Hops, Distance, RTD, Availability, Margin, Capacity or On-Net. Click any sort button to activate it; clicking the active button again flips the sort direction. Toggle "UP" to push outage-affected routes down. Use the − / + stepper to show 1–10 routes (default 5).' },
+  { title: 'Flip, Pin & Export', desc: 'In a diversity pair, click ⇅ to swap Worker and Protect roles — the route data (path, stats, map colour) trades places completely. Pin up to 5 routes using 📍, then export a straight-line diagram. Click ⬡ SLD → choose a version label (Proposal / Draft / Final) → Export PDF for a branded diagram, or Export DrawIO for an editable DrawIO / Visio XML file.' },
 ]
 
 const ROADMAP = [
@@ -113,13 +113,15 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     { icon: '🔍', title: 'Node Search',
       desc: `Enter a customer address or lat/lng coordinates to find the nearest landing stations and PoPs. Results show owner, trading name, node type and straight-line distance — with one-click Set Origin / Set Dest to jump straight into a route search.` },
     { icon: '📌', title: 'Pinned Routes & SLD Export',
-      desc: 'Pin up to 5 routes for comparison, then export a professional branded straight-line diagram PDF — a cover page plus per-route diagrams with proportional segment layout — ready for customer delivery.' },
+      desc: 'Pin up to 5 routes for comparison, then export a straight-line diagram. Choose a version label (Proposal / Draft / Final) and export as PDF (branded, customer-ready cover page plus per-route diagrams with proportional segment layout) or DrawIO / Visio XML for collaborative editing.' },
     { icon: '🗄', title: 'Ref Data Management',
       desc: 'Full CRUD for nodes, segments, systems, capacity, outages and interconnect rules. Nodes carry city, address and description fields. Verification status (Draft / Under Verification / Verified) is tracked per node and segment — click the status badge in any row to change it without opening the full edit form. Bulk CSV import/export includes all fields.' },
     { icon: '🚨', title: 'Live Outage Awareness',
       desc: 'Active segment outages appear on route cards with repair date estimates. Push outage-affected routes to the bottom with one click — keeping viable options front and centre during a network incident.' },
     { icon: '📱', title: 'Mobile-First Design',
       desc: 'Full feature parity on phones and tablets — including Country Viewer, Manual Route Builder, City Pairs, Node Search and Outages. Demo routes, answer customer questions and build proposals from anywhere.' },
+    { icon: '🎨', title: 'Theme Cycling',
+      desc: 'Click the theme button in the top-right control bar to cycle through available colour themes. The theme applies globally — including map tiles, route cards, diagrams and all panels.' },
   ]
 
   const card = (style?: Record<string, unknown>): Record<string, unknown> => ({
@@ -583,11 +585,11 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         <div style={{ ...card() as React.CSSProperties, marginBottom: 24, padding: '22px 20px' }}>
           <div style={sectionLabel as React.CSSProperties}>The Four-Stage Pipeline</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', marginBottom: 16 }}>
-            {pipeBox('1', '#3b82f6', '🔍', 'Graph Search', 'NetworkX walks the cable network finding all valid shortest paths', 'up to 500')}
+            {pipeBox('1', '#3b82f6', '🔍', 'Graph Search', 'NetworkX walks the cable network finding all valid shortest paths', 'up to 1 000')}
             {algoArrow}
             {pipeBox('2', '#f59e0b', '⚖️', 'Apply Constraints', 'Hard rules remove every path that breaks any active constraint', 'varies')}
             {algoArrow}
-            {pipeBox('3', '#8b5cf6', '🎯', 'Select Pool', 'Best 30 chosen across 6 dimensions — or all 30 by one Optimise For metric', '30 kept')}
+            {pipeBox('3', '#8b5cf6', '🎯', 'Select Pool', 'Best 50 chosen across 5 dimensions — or all 50 by one Optimise For metric', '50 kept')}
             {algoArrow}
             {pipeBox('4', '#10b981', '📊', 'Sort & Display', 'Pool sorted by chosen metric; use − / + stepper to show 1–10 results (default 5)', '1–10 shown')}
           </div>
@@ -626,13 +628,12 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           <div style={{ ...card() as React.CSSProperties, padding: '22px 20px' }}>
             <div style={sectionLabel as React.CSSProperties}>Default Weighting — Step 3 (Auto)</div>
             <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.65, margin: '0 0 16px' }}>
-              When no Optimise For is set, the pool is built by taking the top 3–4 routes from each of 6 dimensions, deduplicating, and filling remaining slots with the lowest-cost routes. This ensures the pool always contains strong candidates across every metric.
+              When no Optimise For is set, the pool is built by taking the top routes from each of 5 dimensions, deduplicating, and filling remaining slots by shortest distance. This ensures the pool always contains strong candidates across every metric.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {dimChip('○', 'Hops', 'fewest segments')}
               {dimChip('↔', 'Distance', 'shortest km')}
               {dimChip('⚡', 'Latency', 'lowest delay')}
-              {dimChip('$', 'Margin', 'best cost weight')}
               {dimChip('◉', 'Ownership', 'most on-net')}
               {dimChip('◈', 'Capacity', 'highest bottleneck')}
             </div>
@@ -641,16 +642,15 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           <div style={{ ...card() as React.CSSProperties, padding: '22px 20px' }}>
             <div style={sectionLabel as React.CSSProperties}>Optimise For — Step 3 (Override)</div>
             <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.65, margin: '0 0 14px' }}>
-              Setting an Optimise For dimension replaces the multi-dimension pool entirely. All 30 slots are filled with the best routes for that single metric. Use when you have a clear commercial priority.
+              Setting an Optimise For dimension replaces the multi-dimension pool entirely. All 50 slots are filled with the best routes for that single metric. Use when you have a clear commercial priority.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {[
-                ['○', 'Hops',      'Fill 30 with fewest-hop routes',       '↓ fewer is better'],
-                ['↔', 'Distance',  'Fill 30 with shortest routes',          '↓ fewer km is better'],
-                ['⚡', 'Latency',  'Fill 30 with lowest latency',           '↓ fewer ms is better'],
-                ['$', 'Margin',    'Fill 30 with best commercial margin',   '↑ higher is better'],
-                ['◈', 'Capacity',  'Fill 30 with highest bottleneck Tbps',  '↑ more is better'],
-                ['◉', 'Ownership', 'Fill 30 with most on-net routes',       '↑ more on-net is better'],
+                ['○', 'Hops',      'Fill 50 with fewest-hop routes',       '↓ fewer is better'],
+                ['↔', 'Distance',  'Fill 50 with shortest routes',          '↓ fewer km is better'],
+                ['⚡', 'Latency',  'Fill 50 with lowest latency',           '↓ fewer ms is better'],
+                ['◈', 'Capacity',  'Fill 50 with highest bottleneck Tbps',  '↑ more is better'],
+                ['◉', 'Ownership', 'Fill 50 with most on-net routes',       '↑ more on-net is better'],
                 ['🚢', 'No Outages', 'Exclude any route with active outage', '✓ all segments healthy'],
               ].map(([icon, label, desc, dir]) => (
                 <div key={label} style={{
@@ -705,8 +705,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         <div style={{ ...card() as React.CSSProperties, padding: '22px 20px', marginBottom: 24 }}>
           <div style={sectionLabel as React.CSSProperties}>Display Sort — Step 4</div>
           <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.65, margin: '0 0 16px' }}>
-            Sort buttons reorder the top 5 shown from your 30-route pool. Clicking an active button toggles it off, returning to pool order.
-            Sorting never removes routes — it only changes <em>which</em> 5 are displayed. You can combine Optimise For (pool composition) with a different sort (display order).
+            Sort buttons reorder the routes shown from your 50-route pool. Click any button to activate it — the active sort is highlighted. Clicking the active button again <em>flips</em> the direction (e.g. fewest-first ↔ most-first).
+            Sorting never removes routes — it only changes which are shown. Use the − / + stepper to control how many are displayed (default 5, up to 10). You can combine Optimise For (pool composition) with a different display sort.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
             {sortChip('⬡', 'HOPS',     '↑ fewest first',  'Fewest cable segment hops')}
@@ -728,11 +728,11 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
         }}>
           {[
-            { num: '500',  label: 'routes found',         color: '#3b82f6' },
-            { num: '·',    label: '',                     color: t.textFaint },
-            { num: '30',   label: 'filtered by pool',     color: '#8b5cf6' },
-            { num: '·',    label: '',                     color: t.textFaint },
-            { num: '1–10', label: 'shown · sorted by',   color: '#10b981' },
+            { num: '1 000', label: 'routes found',         color: '#3b82f6' },
+            { num: '·',     label: '',                     color: t.textFaint },
+            { num: '50',    label: 'filtered by pool',     color: '#8b5cf6' },
+            { num: '·',     label: '',                     color: t.textFaint },
+            { num: '1–10',  label: 'shown · sorted by',   color: '#10b981' },
           ].map((s, i) => (
             <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ fontSize: s.num === '·' ? 18 : 22, fontWeight: 800, color: s.color }}>{s.num}</span>
@@ -1261,8 +1261,9 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     { title: 'Verification Status Badges',    category: 'Data Management',           desc: 'Draft / Under Verification / Verified status per node and segment — click badge to update inline.' },
     { title: 'Customer Solution Projects',    category: 'Customer Solutions & SLD',  desc: 'Full project management for customer solutions — circuits, enrichment, SLD export in one workflow.' },
     { title: 'A-End/Z-End Circuit Enrichment',category: 'Customer Solutions & SLD', desc: 'Per-endpoint technical detail including access type, supplier, interface and protection scheme.' },
-    { title: 'Quick SLD Export (PDF)',        category: 'Reporting & Export',        desc: 'Instant branded straight-line diagram PDF from any pinned routes — cover page + per-circuit diagrams.' },
+    { title: 'Quick SLD Export',              category: 'Reporting & Export',        desc: 'Instant branded straight-line diagram from any pinned routes — choose version label (Proposal / Draft / Final) then export as PDF or DrawIO / Visio XML.' },
     { title: 'Customer SLD Export',           category: 'Reporting & Export',        desc: 'Customer-ready enriched SLD PDF with cover page, A/Z-End panels and DrawIO XML export option.' },
+    { title: 'Theme Cycling',                 category: 'UI/UX & Design',            desc: 'Cycle through available colour themes (dark, light, and variants) via the top-right control button — map tiles update automatically.' },
     { title: 'Dark / Light Theme',            category: 'UI/UX & Design',            desc: 'Full dark and light theme support throughout the entire application.' },
     { title: 'Mobile-First Design',           category: 'UI/UX & Design',            desc: 'Full feature parity on phones and tablets — demo routes and answer customer questions from anywhere.' },
     { title: 'White Node Diagram Panel',      category: 'UI/UX & Design',            desc: 'Clean all-white panel for the country node diagram — no dark bands, muted professional colour palette.' },
@@ -1282,7 +1283,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     { title: 'AI-Driven Recommendations',          category: 'AI & Intelligence',         desc: 'TSABuddy evolves to proactively surface market intelligence and optimise route recommendations.' },
     { title: 'Customer-Facing Self-Serve Portal',  category: 'UI/UX & Design',            desc: 'Enterprise customers explore routes, model options and initiate enquiries independently.' },
     { title: 'Network Health Dashboard',           category: 'Network Visualization',     desc: 'Real-time health view across the network with fault, utilisation and latency indicators.' },
-    { title: 'DrawIO / Visio Export from Projects',category: 'Reporting & Export',        desc: 'Export enriched SLDs as DrawIO XML or Visio VSDX for collaborative editing and custom annotations.' },
+    { title: 'Visio VSDX Export',               category: 'Reporting & Export',        desc: 'Export enriched SLDs directly as Visio VSDX files in addition to DrawIO XML — for teams working primarily in Visio.' },
     { title: 'Route Versioning & History',         category: 'Customer Solutions & SLD',  desc: 'Track changes to routes and circuits over time — compare versions and restore previous designs.' },
     { title: 'Pricing Engine Integration',         category: 'Route Search & Discovery',  desc: 'Auto-derive margin from live IRU/lease cost data and commercial agreements.' },
   ]
@@ -1845,6 +1846,11 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               icon: '↔ 🏙 🌊 🌍 🔍 📖',
               title: 'Mode Tabs',
               desc: 'Two top-level tabs — RouteBuilder (RouteFinder + RouteManual sub-tabs) and NetworkExplorer (Country, City Pairs, Systems, Node Search). Each tab clears unrelated highlights so the map stays uncluttered.',
+            },
+            {
+              icon: '🎨',
+              title: 'Theme Cycling',
+              desc: 'The theme button in the top-right control bar cycles through available colour themes (dark, light, and variants). The theme applies globally — map tiles change automatically to match.',
             },
           ].map(f => (
             <div key={f.title} style={card({ display: 'flex', flexDirection: 'column', gap: 8 })}>
