@@ -247,6 +247,8 @@ def init_db() -> None:
             _run_migration_047(cur)
             # Migration 048: rename KO01 typo to KR01
             _run_migration_048(cur)
+            # Migration 049: reconnect Taiwan wet cables; retire C2C-S3A/3B
+            _run_migration_049(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -2216,6 +2218,58 @@ def _run_migration_048(cur) -> None:
     )
     cur.execute("DELETE FROM capacity WHERE segment_id = 'KO01'")
     cur.execute("DELETE FROM segments WHERE id = 'KO01'")
+
+
+def _run_migration_049(cur) -> None:
+    """Reconnect Taiwan wet cable segments to new CRM nodes; retire C2C-S3A/S3B.
+
+    - C2C-S3A (BUCT→NHUI) and C2C-S3B (NHUI→PUCC) are permanently retired
+    - C2C-S2B reconnected: BUCT→FGCC (Fangshan C2C CLS, south Taiwan)
+    - C2C-S2C created:     BUCT→TTTJ (Tanshui CLS, north Taiwan)
+    - EAC-2B1 reconnected: TPEA→CPSA
+    - EAC-B   reconnected: TPEA→BUEP
+    - EAC-E   reconnected: TPEA→BUEC
+    """
+
+    # ── Retire C2C-S3A and C2C-S3B ────────────────────────────────────────
+    for seg_id in ("C2C-S3A", "C2C-S3B"):
+        cur.execute("DELETE FROM capacity WHERE segment_id = %s", (seg_id,))
+        cur.execute("DELETE FROM segments WHERE id = %s", (seg_id,))
+
+    # ── Reconnect / create wet segments ───────────────────────────────────
+    wet_segments = [
+        ("C2C-S2B", "C2C Segment S2B BU Taiwan–Fangshan", "C2C", "BUCT", "FGCC", 557, 2.785),
+        ("C2C-S2C", "C2C Segment S2C BU Taiwan–Tanshui", "C2C", "BUCT", "TTTJ", 618, 3.09),
+        ("EAC-2B1", "EAC 2B1 Pali–Capepisa", "EAC", "TPEA", "CPSA", 1547, 7.735),
+        ("EAC-B",   "EAC Segment B Pali–BU Pacific", "EAC", "TPEA", "BUEP", 701, 3.505),
+        ("EAC-E",   "EAC Segment E Pali–BU China Sea", "EAC", "TPEA", "BUEC", 651, 3.255),
+    ]
+
+    for seg_id, name, system_id, start, end, km, latency in wet_segments:
+        cur.execute(
+            "INSERT INTO segments (id, data) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+            (seg_id, json.dumps({
+                "id": seg_id,
+                "name": name,
+                "system_id": system_id,
+                "start_node_id": start,
+                "end_node_id": end,
+                "type": "wet",
+                "length_km": km,
+                "latency": latency,
+                "reliability": 0.9994,
+                "cost_weight": 5,
+                "ownership": "consortium",
+            })),
+        )
+        cur.execute(
+            "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT (segment_id) DO UPDATE SET data = EXCLUDED.data",
+            (seg_id, json.dumps({
+                "segment_id": seg_id,
+                "total_capacity_t": 2.0,
+                "available_capacity_t": 1.3,
+            })),
+        )
 
 
 def _seed_if_empty(conn) -> None:

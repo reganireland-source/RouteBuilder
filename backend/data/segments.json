@@ -1704,32 +1704,6 @@
     "latency": 2.0
   },
   {
-    "id": "C2C-S3A",
-    "name": "C2C Segment S3A BU Taiwan\u2013Nanhui",
-    "system_id": "C2C",
-    "start_node_id": "BUCT",
-    "end_node_id": "NHUI",
-    "type": "wet",
-    "length_km": 1120,
-    "reliability": 0.9994,
-    "cost_weight": 5,
-    "ownership": "consortium",
-    "latency": 5.6
-  },
-  {
-    "id": "C2C-S3B",
-    "name": "C2C Segment S3B Nanhui\u2013Pusan",
-    "system_id": "C2C",
-    "start_node_id": "NHUI",
-    "end_node_id": "PUCC",
-    "type": "wet",
-    "length_km": 930,
-    "reliability": 0.9994,
-    "cost_weight": 5,
-    "ownership": "consortium",
-    "latency": 4.65
-  },
-  {
     "id": "C2C-S3C",
     "name": "C2C Segment S3C Pusan\u2013Shima",
     "system_id": "C2C",
@@ -5062,5 +5036,70 @@
     "reliability": 0.9995,
     "cost_weight": 1,
     "ownership": "owned"
+  },
+  {
+    "id": "C2C-S2B",
+    "name": "C2C Segment S2B BU Taiwan\u2013Fangshan",
+    "system_id": "C2C",
+    "start_node_id": "BUCT",
+    "end_node_id": "FGCC",
+    "type": "wet",
+    "length_km": 557,
+    "latency": 2.785,
+    "reliability": 0.9994,
+    "cost_weight": 5,
+    "ownership": "consortium"
+  },
+  {
+    "id": "C2C-S2C",
+    "name": "C2C Segment S2C BU Taiwan\u2013Tanshui",
+    "system_id": "C2C",
+    "start_node_id": "BUCT",
+    "end_node_id": "TTTJ",
+    "type": "wet",
+    "length_km": 618,
+    "latency": 3.09,
+    "reliability": 0.9994,
+    "cost_weight": 5,
+    "ownership": "consortium"
+  },
+  {
+    "id": "EAC-2B1",
+    "name": "EAC 2B1 Pali\u2013Capepisa",
+    "system_id": "EAC",
+    "start_node_id": "TPEA",
+    "end_node_id": "CPSA",
+    "type": "wet",
+    "length_km": 1547,
+    "latency": 7.735,
+    "reliability": 0.9994,
+    "cost_weight": 5,
+    "ownership": "consortium"
+  },
+  {
+    "id": "EAC-B",
+    "name": "EAC Segment B Pali\u2013BU Pacific",
+    "system_id": "EAC",
+    "start_node_id": "TPEA",
+    "end_node_id": "BUEP",
+    "type": "wet",
+    "length_km": 701,
+    "latency": 3.505,
+    "reliability": 0.9994,
+    "cost_weight": 5,
+    "ownership": "consortium"
+  },
+  {
+    "id": "EAC-E",
+    "name": "EAC Segment E Pali\u2013BU China Sea",
+    "system_id": "EAC",
+    "start_node_id": "TPEA",
+    "end_node_id": "BUEC",
+    "type": "wet",
+    "length_km": 651,
+    "latency": 3.255,
+    "reliability": 0.9994,
+    "cost_weight": 5,
+    "ownership": "consortium"
   }
 ]
