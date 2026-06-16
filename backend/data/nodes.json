@@ -2570,5 +2570,17 @@
     "owner": "KINX",
     "on_net": "on_net",
     "verification_status": "draft"
+  },
+  {
+    "id": "KSEQ",
+    "name": "Seoul Equinix DMC",
+    "lat": 37.58268,
+    "lng": 126.88698,
+    "type": "extension_pop",
+    "country": "KR",
+    "city": "Seoul",
+    "owner": "Equinix",
+    "on_net": "on_net",
+    "verification_status": "draft"
   }
 ]

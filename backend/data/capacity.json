@@ -1518,5 +1518,65 @@
     "segment_id": "RNAL-BA",
     "total_capacity_t": 0.64,
     "available_capacity_t": 0.4
+  },
+  {
+    "segment_id": "KR02",
+    "total_capacity_t": 3.0,
+    "available_capacity_t": 1.5
+  },
+  {
+    "segment_id": "KR03",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 1.0
+  },
+  {
+    "segment_id": "KR04",
+    "total_capacity_t": 3.0,
+    "available_capacity_t": 1.5
+  },
+  {
+    "segment_id": "KR05",
+    "total_capacity_t": 3.0,
+    "available_capacity_t": 1.5
+  },
+  {
+    "segment_id": "KR06",
+    "total_capacity_t": 3.0,
+    "available_capacity_t": 1.5
+  },
+  {
+    "segment_id": "KR07",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 1.0
+  },
+  {
+    "segment_id": "KR08",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 1.0
+  },
+  {
+    "segment_id": "KR09",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 1.0
+  },
+  {
+    "segment_id": "KR10",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 1.0
+  },
+  {
+    "segment_id": "KR11",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 1.0
+  },
+  {
+    "segment_id": "KO01",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 1.0
+  },
+  {
+    "segment_id": "KR_IP_Lease",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 1.0
   }
 ]

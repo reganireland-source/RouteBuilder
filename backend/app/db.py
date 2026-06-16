@@ -237,6 +237,8 @@ def init_db() -> None:
             _run_migration_042(cur)
             # Migration 043: replace Korea nodes with corrected POPs/CLSs; re-wire C2C and EAC
             _run_migration_043(cur)
+            # Migration 044: add KSEQ node + Korea terrestrial backhaul segments
+            _run_migration_044(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -1894,6 +1896,58 @@ def _run_migration_043(cur) -> None:
     cur.execute(
         "UPDATE segments SET data = jsonb_set(data, '{start_node_id}', '\"KSSR\"') WHERE id = 'EAC-K'",
     )
+
+
+def _run_migration_044(cur) -> None:
+    """Add Equinix Seoul (KSEQ) node and all Korea terrestrial backhaul segments."""
+
+    # ── New node: KSEQ ────────────────────────────────────────────────────────
+    cur.execute(
+        "INSERT INTO nodes (id, data) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+        ("KSEQ", json.dumps({
+            "id": "KSEQ", "name": "Seoul Equinix DMC",
+            "lat": 37.58268, "lng": 126.88698,
+            "type": "extension_pop", "country": "KR", "city": "Seoul",
+            "owner": "Equinix", "on_net": "on_net", "verification_status": "draft",
+        })),
+    )
+
+    # ── Terrestrial backhaul segments ─────────────────────────────────────────
+    _SEGS = [
+        ("KR02",        "PUCC",  "KSYD", 411,  2.054, "Terrestrial Busan–Seoul (C2C CLS–Yeoksam)"),
+        ("KR03",        "KSYD",  "KSSD",   5,  0.025, "Terrestrial Seoul Yeoksam–LGU+"),
+        ("KR04",        "KOLS",  "KSSD", 419,  2.093, "Terrestrial Busan KT–Seoul LGU+"),
+        ("KR05",        "KSSR",  "KSSD", 133,  0.663, "Terrestrial Taean–Seoul (Primary)"),
+        ("KR06",        "KSSR",  "KSSD", 133,  0.663, "Terrestrial Taean–Seoul (Diverse)"),
+        ("KR07",        "KSSD",  "KSGG",  17,  0.085, "Terrestrial Seoul LGU+–LG CNS"),
+        ("KR08",        "KSGG",  "KSEQ",  14,  0.072, "Terrestrial Seoul LG CNS–Equinix DMC"),
+        ("KR09",        "KSEQ",  "KSYD",  21,  0.104, "Terrestrial Seoul Equinix DMC–Yeoksam"),
+        ("KR10",        "KSSD",  "KBGG",  16,  0.078, "Terrestrial Seoul LGU+–Bundang KINX"),
+        ("KR11",        "KBGG",  "KSYD",  17,  0.085, "Terrestrial Bundang KINX–Seoul Yeoksam"),
+        ("KO01",        "PUCC",  "KOLS",  14,  0.072, "Terrestrial Busan C2C CLS–KT Songjeong"),
+        ("KR_IP_Lease", "KSSD",  "DDGG",   5,  0.025, "Terrestrial Seoul LGU+–Daelim (IP Lease)"),
+    ]
+    for seg_id, start, end, km, lat, name in _SEGS:
+        cur.execute(
+            "INSERT INTO segments (id, data) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+            (seg_id, json.dumps({
+                "id": seg_id, "name": name,
+                "system_id": "TERRESTRIAL",
+                "start_node_id": start, "end_node_id": end,
+                "type": "terrestrial",
+                "length_km": km, "latency": lat,
+                "reliability": 0.999, "cost_weight": 3, "ownership": "owned",
+            })),
+        )
+        total = 3.0 if km > 100 else 2.0
+        cur.execute(
+            "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT (segment_id) DO UPDATE SET data = EXCLUDED.data",
+            (seg_id, json.dumps({
+                "segment_id": seg_id,
+                "total_capacity_t": total,
+                "available_capacity_t": round(total * 0.5, 1),
+            })),
+        )
 
 
 def _seed_if_empty(conn) -> None:
