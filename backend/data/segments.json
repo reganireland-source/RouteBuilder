@@ -4736,7 +4736,17 @@
     "latency": 2.054,
     "reliability": 0.999,
     "cost_weight": 3,
-    "ownership": "owned"
+    "ownership": "owned",
+    "waypoints": [
+      [
+        35.87,
+        128.6
+      ],
+      [
+        36.35,
+        127.38
+      ]
+    ]
   },
   {
     "id": "KR03",
@@ -4762,7 +4772,17 @@
     "latency": 2.093,
     "reliability": 0.999,
     "cost_weight": 3,
-    "ownership": "owned"
+    "ownership": "owned",
+    "waypoints": [
+      [
+        35.5,
+        129.3
+      ],
+      [
+        36.5,
+        128.0
+      ]
+    ]
   },
   {
     "id": "KR05",
@@ -4775,7 +4795,13 @@
     "latency": 0.663,
     "reliability": 0.999,
     "cost_weight": 3,
-    "ownership": "owned"
+    "ownership": "owned",
+    "waypoints": [
+      [
+        37.0,
+        126.4
+      ]
+    ]
   },
   {
     "id": "KR06",
@@ -4788,7 +4814,13 @@
     "latency": 0.663,
     "reliability": 0.999,
     "cost_weight": 3,
-    "ownership": "owned"
+    "ownership": "owned",
+    "waypoints": [
+      [
+        37.3,
+        126.1
+      ]
+    ]
   },
   {
     "id": "KR07",
@@ -4905,7 +4937,13 @@
     "latency": 0.03,
     "reliability": 0.9995,
     "cost_weight": 1,
-    "ownership": "owned"
+    "ownership": "owned",
+    "waypoints": [
+      [
+        25.05,
+        121.54
+      ]
+    ]
   },
   {
     "id": "TW02",
@@ -4918,7 +4956,13 @@
     "latency": 0.03,
     "reliability": 0.9995,
     "cost_weight": 1,
-    "ownership": "owned"
+    "ownership": "owned",
+    "waypoints": [
+      [
+        25.05,
+        121.62
+      ]
+    ]
   },
   {
     "id": "TW03",
@@ -4931,7 +4975,13 @@
     "latency": 1.075,
     "reliability": 0.9995,
     "cost_weight": 1,
-    "ownership": "owned"
+    "ownership": "owned",
+    "waypoints": [
+      [
+        24.5,
+        121.4
+      ]
+    ]
   },
   {
     "id": "TW04",
@@ -4957,7 +5007,13 @@
     "latency": 1.045,
     "reliability": 0.9995,
     "cost_weight": 1,
-    "ownership": "owned"
+    "ownership": "owned",
+    "waypoints": [
+      [
+        24.4,
+        121.0
+      ]
+    ]
   },
   {
     "id": "TW07",
@@ -4983,7 +5039,13 @@
     "latency": 0.185,
     "reliability": 0.9995,
     "cost_weight": 1,
-    "ownership": "owned"
+    "ownership": "owned",
+    "waypoints": [
+      [
+        25.1,
+        121.73
+      ]
+    ]
   },
   {
     "id": "TW09",
@@ -4996,7 +5058,13 @@
     "latency": 0.21,
     "reliability": 0.9995,
     "cost_weight": 1,
-    "ownership": "owned"
+    "ownership": "owned",
+    "waypoints": [
+      [
+        24.99,
+        121.73
+      ]
+    ]
   },
   {
     "id": "TW10",
@@ -5009,7 +5077,17 @@
     "latency": 1.975,
     "reliability": 0.9995,
     "cost_weight": 1,
-    "ownership": "owned"
+    "ownership": "owned",
+    "waypoints": [
+      [
+        24.0,
+        120.7
+      ],
+      [
+        23.3,
+        120.4
+      ]
+    ]
   },
   {
     "id": "TW11",
@@ -5022,7 +5100,17 @@
     "latency": 2.1,
     "reliability": 0.9995,
     "cost_weight": 1,
-    "ownership": "owned"
+    "ownership": "owned",
+    "waypoints": [
+      [
+        24.0,
+        121.6
+      ],
+      [
+        23.0,
+        121.3
+      ]
+    ]
   },
   {
     "id": "TW12",

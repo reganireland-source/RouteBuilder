@@ -253,6 +253,8 @@ def init_db() -> None:
             _run_migration_050(cur)
             # Migration 051: remove all APCN2 references (EOL)
             _run_migration_051(cur)
+            # Migration 052: add waypoints to KR/TW backhauls to minimise map overlaps
+            _run_migration_052(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -2336,6 +2338,57 @@ def _run_migration_051(cur) -> None:
         cur.execute(
             "UPDATE nodes SET data = jsonb_set(data, '{description}', to_jsonb(replace(data->>'description', ', APCN2', ''))) WHERE id = %s",
             (node_id,),
+        )
+
+
+def _run_migration_052(cur) -> None:
+    """Add waypoints to Korea and Taiwan terrestrial backhauls to reduce map overlaps.
+
+    Korea:
+      KR02/KR04 both run Busan→Seoul — routed on different corridors
+        KR02 via Daegu+Daejeon (highway spine)
+        KR04 via east coast then inland
+      KR05/KR06 share KSSR→KSSD endpoints (diverse pair) — fanned apart
+    Taiwan:
+      TW01/TW02 share TPEA→TPEI (diverse pair) — fanned west/east
+      TW03/TW05 both run TTTJ→north Taipei — east-coast vs central spine
+      TW08/TW09 both terminate at TUCN — fanned slightly apart
+      TW10 routed via west-coast spine (Taipei→Kaohsiung)
+      TW11 routed via east-coast spine (Toucheng→Fangshan)
+    """
+
+    waypoints: dict[str, list[list[float]]] = {
+        # ── Korea ─────────────────────────────────────────────────────────
+        # KR02 PUCC→KSYD: Gyeongbu highway corridor via Daegu, Daejeon
+        "KR02": [[35.87, 128.60], [36.35, 127.38]],
+        # KR04 KOLS→KSSD: east-coast jog then central corridor
+        "KR04": [[35.50, 129.30], [36.50, 128.00]],
+        # KR05 KSSR→KSSD: south arc from west coast
+        "KR05": [[37.00, 126.40]],
+        # KR06 KSSR→KSSD diverse: north arc from west coast
+        "KR06": [[37.30, 126.10]],
+        # ── Taiwan ────────────────────────────────────────────────────────
+        # TW01/TW02 TPEA→TPEI diverse: west vs east curve through Taipei
+        "TW01": [[25.05, 121.54]],
+        "TW02": [[25.05, 121.62]],
+        # TW03 TTTJ→TTRG: east spine (Suao corridor)
+        "TW03": [[24.50, 121.40]],
+        # TW05 TTTJ→TPEA: central spine (Puli/Nantou corridor)
+        "TW05": [[24.40, 121.00]],
+        # TW08 TTAK→TUCN: slight north arc to Toucheng
+        "TW08": [[25.10, 121.73]],
+        # TW09 TPEI→TUCN: slight south arc to Toucheng
+        "TW09": [[24.99, 121.73]],
+        # TW10 TPEI→TKDC: west-coast spine (Taichung → Chiayi → Kaohsiung)
+        "TW10": [[24.00, 120.70], [23.30, 120.40]],
+        # TW11 TUCN→FGCC: east-coast spine (Hualien → Taitung → Pingtung)
+        "TW11": [[24.00, 121.60], [23.00, 121.30]],
+    }
+
+    for seg_id, wps in waypoints.items():
+        cur.execute(
+            "UPDATE segments SET data = jsonb_set(data, '{waypoints}', %s::jsonb) WHERE id = %s",
+            (json.dumps(wps), seg_id),
         )
 
 
