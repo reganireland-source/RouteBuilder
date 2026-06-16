@@ -372,42 +372,6 @@
     "city": "Kaohsiung"
   },
   {
-    "id": "ICN1",
-    "name": "Seoul",
-    "lat": 37.5665,
-    "lng": 126.978,
-    "type": "landing_station",
-    "country": "KR",
-    "owner": "KT Corporation",
-    "trading_name": "Seoul KT Corporation",
-    "description": "A CLS location in Seoul, South Korea, owned by KT Corporation",
-    "city": "Seoul"
-  },
-  {
-    "id": "ICN2",
-    "name": "Seoul Gangnam",
-    "lat": 37.497,
-    "lng": 127.028,
-    "type": "primary_pop",
-    "country": "KR",
-    "owner": "Equinix",
-    "trading_name": "Seoul Gangnam Equinix",
-    "description": "An Equinix data centre in Gangnam, Seoul, serving as a terrestrial POP",
-    "city": "Seoul"
-  },
-  {
-    "id": "PUS1",
-    "name": "Busan",
-    "lat": 35.1796,
-    "lng": 129.0756,
-    "type": "extension_pop",
-    "country": "KR",
-    "owner": "KT Corporation",
-    "trading_name": "Busan KT Corporation",
-    "description": "A terrestrial POP in Busan, South Korea, owned by KT Corporation",
-    "city": "Busan"
-  },
-  {
     "id": "BOM1",
     "name": "Mumbai",
     "lat": 19.076,
@@ -781,15 +745,6 @@
     "description": "JUNO submarine cable branching unit where the Minamiboso and Shima spurs meet before the transpacific trunk"
   },
   {
-    "id": "SDRI",
-    "name": "Shinduri",
-    "lat": 36.7,
-    "lng": 126.15,
-    "type": "landing_station",
-    "country": "KR",
-    "city": "Seosan"
-  },
-  {
     "id": "QDAO",
     "name": "Qingdao",
     "lat": 36.07,
@@ -933,28 +888,6 @@
     "owner": "Equinix",
     "description": "Equinix PE1 \u2013 East Perth",
     "city": "Perth"
-  },
-  {
-    "id": "EQ-SL1",
-    "name": "Equinix SL1 Seoul",
-    "lat": 37.554,
-    "lng": 126.928,
-    "type": "extension_pop",
-    "country": "KR",
-    "owner": "Equinix",
-    "description": "Equinix SL1 \u2013 Mapo-gu",
-    "city": "Seoul"
-  },
-  {
-    "id": "EQ-BS1",
-    "name": "Equinix BS1 Busan",
-    "lat": 35.151,
-    "lng": 129.074,
-    "type": "secondary_pop",
-    "country": "KR",
-    "owner": "Equinix",
-    "description": "Equinix BS1 \u2013 Busan",
-    "city": "Busan"
   },
   {
     "id": "CHI1",
@@ -2520,10 +2453,10 @@
   },
   {
     "id": "KOLS",
-    "name": "Pusan Cable Landing Station",
-    "lat": 35.2418,
-    "lng": 129.2228,
-    "type": "landing_station",
+    "name": "Busan KT Songjeong",
+    "lat": 35.1782,
+    "lng": 129.1958,
+    "type": "extension_pop",
     "country": "KR",
     "city": "Busan",
     "owner": "Telstra International",
@@ -2539,6 +2472,102 @@
     "country": "TW",
     "city": "Toucheng",
     "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "draft"
+  },
+  {
+    "id": "KRBX",
+    "name": "KRX Data Center Busan",
+    "lat": 35.13825,
+    "lng": 129.0641,
+    "type": "extension_pop",
+    "country": "KR",
+    "city": "Busan",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "draft"
+  },
+  {
+    "id": "PUCC",
+    "name": "Busan C2C CLS",
+    "lat": 35.17955,
+    "lng": 129.0756,
+    "type": "landing_station",
+    "country": "KR",
+    "city": "Busan",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "draft"
+  },
+  {
+    "id": "KSSD",
+    "name": "Seoul LGU+",
+    "lat": 37.48329,
+    "lng": 127.0221,
+    "type": "primary_pop",
+    "country": "KR",
+    "city": "Seoul",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "draft"
+  },
+  {
+    "id": "DDGG",
+    "name": "Seoul Daelim Acrotel",
+    "lat": 37.48814,
+    "lng": 127.0512,
+    "type": "extension_pop",
+    "country": "KR",
+    "city": "Seoul",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "draft"
+  },
+  {
+    "id": "KSYD",
+    "name": "Seoul Yeoksam",
+    "lat": 37.50028,
+    "lng": 127.034,
+    "type": "primary_pop",
+    "country": "KR",
+    "city": "Seoul",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "draft"
+  },
+  {
+    "id": "KSSR",
+    "name": "Taean CLS",
+    "lat": 36.83669,
+    "lng": 126.2088,
+    "type": "landing_station",
+    "country": "KR",
+    "city": "Taean",
+    "owner": "Telstra International",
+    "on_net": "on_net",
+    "verification_status": "draft"
+  },
+  {
+    "id": "KBGG",
+    "name": "Bundang KINX",
+    "lat": 37.41346,
+    "lng": 127.1245,
+    "type": "extension_pop",
+    "country": "KR",
+    "city": "Seoul",
+    "owner": "KINX",
+    "on_net": "on_net",
+    "verification_status": "draft"
+  },
+  {
+    "id": "KSGG",
+    "name": "Seoul LG CNS",
+    "lat": 37.4821,
+    "lng": 126.8797,
+    "type": "extension_pop",
+    "country": "KR",
+    "city": "Seoul",
+    "owner": "KINX",
     "on_net": "on_net",
     "verification_status": "draft"
   }

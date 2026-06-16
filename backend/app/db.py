@@ -235,6 +235,8 @@ def init_db() -> None:
             _run_migration_041(cur)
             # Migration 042: add RNAL cable system, nodes and segments
             _run_migration_042(cur)
+            # Migration 043: replace Korea nodes with corrected POPs/CLSs; re-wire C2C and EAC
+            _run_migration_043(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -1780,6 +1782,118 @@ def _run_migration_042(cur) -> None:
             "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT (segment_id) DO NOTHING",
             (seg["id"], json.dumps(entry)),
         )
+
+
+def _run_migration_043(cur) -> None:
+    """Replace Korea nodes with corrected set from CRM data.
+
+    Deletes legacy nodes (ICN1, ICN2, PUS1, SDRI, EQ-SL1, EQ-BS1) and their
+    dependent terrestrial/Equinix segments, then:
+      - Updates KOLS (corrected coords, name, type → extension_pop)
+      - Inserts 8 new KR nodes: KRBX, PUCC, KSSD, DDGG, KSYD, KSSR, KBGG, KSGG
+      - Re-wires C2C wet segments: PUS1 → PUCC
+      - Re-wires EAC wet segments: SDRI → KSSR
+    Terrestrial backhauls will be reconnected in a subsequent migration.
+    """
+
+    # ── Remove segments that reference deleted nodes ─────────────────────────
+    _DEL_SEGS = [
+        "TERRESTRIAL_KR01", "TERRESTRIAL_KR02", "TERRESTRIAL_KR03", "TERRESTRIAL_KR04",
+        "EQ_KR_SL01", "EQ_KR_BS01",
+        "SJC2-TYO-ICN",   # stranded — SJC2 Korea branch will be reconnected later
+    ]
+    for sid in _DEL_SEGS:
+        cur.execute("DELETE FROM segments WHERE id = %s", (sid,))
+        cur.execute("DELETE FROM capacity WHERE segment_id = %s", (sid,))
+
+    # ── Delete legacy Korea nodes ─────────────────────────────────────────────
+    for nid in ("ICN1", "ICN2", "PUS1", "SDRI", "EQ-SL1", "EQ-BS1"):
+        cur.execute("DELETE FROM nodes WHERE id = %s", (nid,))
+
+    # ── Update KOLS: corrected coordinates, name and type ────────────────────
+    cur.execute(
+        "UPDATE nodes SET data = data || %s::jsonb WHERE id = 'KOLS'",
+        (json.dumps({
+            "name": "Busan KT Songjeong",
+            "lat":  35.1782,
+            "lng":  129.1958,
+            "type": "extension_pop",
+            "city": "Busan",
+        }),),
+    )
+
+    # ── Insert 8 new Korea nodes ──────────────────────────────────────────────
+    _NEW_KR_NODES = [
+        {
+            "id": "KRBX", "name": "KRX Data Center Busan",
+            "lat": 35.13825, "lng": 129.0641,
+            "type": "extension_pop", "country": "KR", "city": "Busan",
+            "owner": "Telstra International", "on_net": "on_net", "verification_status": "draft",
+        },
+        {
+            "id": "PUCC", "name": "Busan C2C CLS",
+            "lat": 35.17955, "lng": 129.0756,
+            "type": "landing_station", "country": "KR", "city": "Busan",
+            "owner": "Telstra International", "on_net": "on_net", "verification_status": "draft",
+        },
+        {
+            "id": "KSSD", "name": "Seoul LGU+",
+            "lat": 37.48329, "lng": 127.0221,
+            "type": "primary_pop", "country": "KR", "city": "Seoul",
+            "owner": "Telstra International", "on_net": "on_net", "verification_status": "draft",
+        },
+        {
+            "id": "DDGG", "name": "Seoul Daelim Acrotel",
+            "lat": 37.48814, "lng": 127.0512,
+            "type": "extension_pop", "country": "KR", "city": "Seoul",
+            "owner": "Telstra International", "on_net": "on_net", "verification_status": "draft",
+        },
+        {
+            "id": "KSYD", "name": "Seoul Yeoksam",
+            "lat": 37.50028, "lng": 127.034,
+            "type": "primary_pop", "country": "KR", "city": "Seoul",
+            "owner": "Telstra International", "on_net": "on_net", "verification_status": "draft",
+        },
+        {
+            "id": "KSSR", "name": "Taean CLS",
+            "lat": 36.83669, "lng": 126.2088,
+            "type": "landing_station", "country": "KR", "city": "Taean",
+            "owner": "Telstra International", "on_net": "on_net", "verification_status": "draft",
+        },
+        {
+            "id": "KBGG", "name": "Bundang KINX",
+            "lat": 37.41346, "lng": 127.1245,
+            "type": "extension_pop", "country": "KR", "city": "Seoul",
+            "owner": "KINX", "on_net": "on_net", "verification_status": "draft",
+        },
+        {
+            "id": "KSGG", "name": "Seoul LG CNS",
+            "lat": 37.4821, "lng": 126.8797,
+            "type": "extension_pop", "country": "KR", "city": "Seoul",
+            "owner": "KINX", "on_net": "on_net", "verification_status": "draft",
+        },
+    ]
+    for node in _NEW_KR_NODES:
+        cur.execute(
+            "INSERT INTO nodes (id, data) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+            (node["id"], json.dumps(node)),
+        )
+
+    # ── Re-wire C2C wet segments: PUS1 → PUCC ────────────────────────────────
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{end_node_id}',   '\"PUCC\"') WHERE id = 'C2C-S3B'",
+    )
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{start_node_id}', '\"PUCC\"') WHERE id = 'C2C-S3C'",
+    )
+
+    # ── Re-wire EAC wet segments: SDRI → KSSR ────────────────────────────────
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{end_node_id}',   '\"KSSR\"') WHERE id = 'EAC-F2'",
+    )
+    cur.execute(
+        "UPDATE segments SET data = jsonb_set(data, '{start_node_id}', '\"KSSR\"') WHERE id = 'EAC-K'",
+    )
 
 
 def _seed_if_empty(conn) -> None:

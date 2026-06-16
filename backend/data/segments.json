@@ -575,19 +575,6 @@
     "latency": 1.75
   },
   {
-    "id": "TERRESTRIAL_KR01",
-    "name": "Terrestrial Seoul\u2013Busan",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "ICN1",
-    "end_node_id": "PUS1",
-    "type": "terrestrial",
-    "length_km": 450,
-    "reliability": 0.9994,
-    "cost_weight": 1,
-    "ownership": "owned",
-    "latency": 2.25
-  },
-  {
     "id": "TERRESTRIAL_IN01",
     "name": "Terrestrial Mumbai\u2013New Delhi",
     "system_id": "TERRESTRIAL",
@@ -807,19 +794,6 @@
     "cost_weight": 1,
     "ownership": "owned",
     "latency": 0.03
-  },
-  {
-    "id": "TERRESTRIAL_KR02",
-    "name": "Backhaul Seoul\u2013Seoul Gangnam",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "ICN1",
-    "end_node_id": "ICN2",
-    "type": "terrestrial",
-    "length_km": 8,
-    "reliability": 0.9999,
-    "cost_weight": 1,
-    "ownership": "owned",
-    "latency": 0.04
   },
   {
     "id": "TERRESTRIAL_IN03",
@@ -1178,29 +1152,6 @@
       [
         33,
         135
-      ]
-    ]
-  },
-  {
-    "id": "SJC2-TYO-ICN",
-    "name": "SJC2 Tokyo\u2013Seoul",
-    "system_id": "SJC2",
-    "start_node_id": "MJLS",
-    "end_node_id": "ICN1",
-    "type": "wet",
-    "length_km": 1200,
-    "reliability": 0.9995,
-    "cost_weight": 4,
-    "ownership": "offnet_resell",
-    "latency": 6.0,
-    "waypoints": [
-      [
-        36,
-        136
-      ],
-      [
-        37,
-        131
       ]
     ]
   },
@@ -1836,7 +1787,7 @@
     "name": "EAC Segment F2 BU Yellow Sea\u2013Shinduri",
     "system_id": "EAC",
     "start_node_id": "BUEY",
-    "end_node_id": "SDRI",
+    "end_node_id": "KSSR",
     "type": "wet",
     "length_km": 460,
     "reliability": 0.9996,
@@ -1848,7 +1799,7 @@
     "id": "EAC-K",
     "name": "EAC Segment K Shinduri\u2013Ajigaura",
     "system_id": "EAC",
-    "start_node_id": "SDRI",
+    "start_node_id": "KSSR",
     "end_node_id": "JAAJ",
     "type": "wet",
     "length_km": 1600,
@@ -1968,7 +1919,7 @@
     "name": "C2C Segment S3B Nanhui\u2013Pusan",
     "system_id": "C2C",
     "start_node_id": "NHUI",
-    "end_node_id": "PUS1",
+    "end_node_id": "PUCC",
     "type": "wet",
     "length_km": 930,
     "reliability": 0.9994,
@@ -1980,7 +1931,7 @@
     "id": "C2C-S3C",
     "name": "C2C Segment S3C Pusan\u2013Shima",
     "system_id": "C2C",
-    "start_node_id": "PUS1",
+    "start_node_id": "PUCC",
     "end_node_id": "SMCC",
     "type": "wet",
     "length_km": 870,
@@ -2153,32 +2104,6 @@
     "system_id": "TERRESTRIAL",
     "start_node_id": "EQ-PE1",
     "end_node_id": "PER2",
-    "type": "terrestrial",
-    "length_km": 4,
-    "reliability": 0.9992,
-    "cost_weight": 1.0,
-    "ownership": "integrated_lit_lease",
-    "latency": 0.02
-  },
-  {
-    "id": "EQ_KR_SL01",
-    "name": "Equinix SL1 \u2013 Seoul Gangnam",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "EQ-SL1",
-    "end_node_id": "ICN2",
-    "type": "terrestrial",
-    "length_km": 8,
-    "reliability": 0.9992,
-    "cost_weight": 1.0,
-    "ownership": "integrated_lit_lease",
-    "latency": 0.04
-  },
-  {
-    "id": "EQ_KR_BS01",
-    "name": "Equinix BS1 \u2013 Busan",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "EQ-BS1",
-    "end_node_id": "PUS1",
     "type": "terrestrial",
     "length_km": 4,
     "reliability": 0.9992,
@@ -2484,32 +2409,6 @@
     "cost_weight": 1,
     "ownership": "owned",
     "latency": 0.15
-  },
-  {
-    "id": "TERRESTRIAL_KR03",
-    "name": "Terrestrial Shinduri\u2013Seoul",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "SDRI",
-    "end_node_id": "ICN1",
-    "type": "terrestrial",
-    "length_km": 140,
-    "reliability": 0.9993,
-    "cost_weight": 2,
-    "ownership": "owned",
-    "latency": 0.7
-  },
-  {
-    "id": "TERRESTRIAL_KR04",
-    "name": "Terrestrial Shinduri\u2013Busan",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "SDRI",
-    "end_node_id": "PUS1",
-    "type": "terrestrial",
-    "length_km": 370,
-    "reliability": 0.9991,
-    "cost_weight": 3,
-    "ownership": "owned",
-    "latency": 1.85
   },
   {
     "id": "TERRESTRIAL_CN01",
