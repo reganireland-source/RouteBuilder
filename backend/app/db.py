@@ -277,6 +277,8 @@ def init_db() -> None:
             _run_migration_054(cur)
             # Migration 055: convert solution_notes/note_categories from JSONB to proper columns
             _run_migration_055(cur)
+            # Migration 056: upsert expanded default note categories
+            _run_migration_056(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -2546,42 +2548,63 @@ def _seed_if_empty(conn) -> None:
 
 
 _DEFAULT_NOTE_CATEGORIES: list[dict] = [
-    # ── Node categories ─────────────────────────────────────────
-    {"id": "node-site-access",    "label": "Site Access",           "applies_to": "node", "order": 10},
-    {"id": "node-meet-me-room",   "label": "Meet Me Room",          "applies_to": "node", "order": 20},
-    {"id": "node-equipment",      "label": "Equipment Notes",       "applies_to": "node", "order": 30},
-    {"id": "node-commercial",     "label": "Commercial Guidance",   "applies_to": "node", "order": 40},
-    {"id": "node-handoff",        "label": "Handoff Notes",         "applies_to": "node", "order": 50},
-    {"id": "node-power-space",    "label": "Power / Space",         "applies_to": "node", "order": 60},
-    {"id": "node-floor-rack",     "label": "Floor / Rack",          "applies_to": "node", "order": 70},
-    {"id": "node-other-operator", "label": "Other Operator Notes",  "applies_to": "node", "order": 80},
-    {"id": "node-customs",        "label": "Customs / Regulatory",  "applies_to": "node", "order": 90},
-    {"id": "node-security",       "label": "Security Requirements", "applies_to": "node", "order": 100},
-    {"id": "node-cross-connect",  "label": "Cross-Connect Info",    "applies_to": "node", "order": 110},
-    {"id": "node-fibre-mgmt",     "label": "Fibre Management",      "applies_to": "node", "order": 120},
-    {"id": "node-contacts",       "label": "Key Contacts",          "applies_to": "node", "order": 130},
-    {"id": "node-site-experts",   "label": "Site Experts",          "applies_to": "node", "order": 133},
-    {"id": "node-lead-time",      "label": "Lead Time / Ordering",  "applies_to": "node", "order": 140},
-    {"id": "node-lifespan",       "label": "Lifespan Notes",        "applies_to": "node", "order": 145},
-    {"id": "node-cease-exit",     "label": "Cease / Exit Notes",    "applies_to": "node", "order": 150},
-    {"id": "node-other",          "label": "Other",                 "applies_to": "node", "order": 999},
-    # ── Segment categories ───────────────────────────────────────
-    {"id": "seg-fibre-pair",      "label": "Fibre Pair Info",       "applies_to": "segment", "order": 10},
-    {"id": "seg-landing",         "label": "Landing Information",   "applies_to": "segment", "order": 20},
-    {"id": "seg-route-notes",     "label": "Route Notes",           "applies_to": "segment", "order": 30},
-    {"id": "seg-capacity",        "label": "Capacity Notes",        "applies_to": "segment", "order": 40},
-    {"id": "seg-performance",     "label": "Performance Notes",     "applies_to": "segment", "order": 50},
-    {"id": "seg-fibre-operator",  "label": "Fibre Operator",        "applies_to": "segment", "order": 60},
-    {"id": "seg-maintenance",     "label": "Maintenance Windows",   "applies_to": "segment", "order": 70},
-    {"id": "seg-known-issues",    "label": "Known Issues",          "applies_to": "segment", "order": 80},
-    {"id": "seg-sla",             "label": "SLA / Protection",      "applies_to": "segment", "order": 90},
-    {"id": "seg-diversity",       "label": "Diversity Notes",       "applies_to": "segment", "order": 100},
-    {"id": "seg-latency",         "label": "Latency Variance",      "applies_to": "segment", "order": 110},
-    {"id": "seg-iru-lease",       "label": "IRU / Lease Terms",     "applies_to": "segment", "order": 120},
-    {"id": "seg-repair-history",  "label": "Repair History",        "applies_to": "segment", "order": 130},
-    {"id": "seg-lifespan",        "label": "Lifespan Notes",        "applies_to": "segment", "order": 135},
-    {"id": "seg-cease-exit",      "label": "Cease / Exit Notes",    "applies_to": "segment", "order": 140},
-    {"id": "seg-other",           "label": "Other",                 "applies_to": "segment", "order": 999},
+    # ── Node categories ─────────────────────────────────────────────────────────
+    {"id": "node-site-access",         "label": "Site Access",                "applies_to": "node",    "order": 10},
+    {"id": "node-access-requirements", "label": "Access Requirements",        "applies_to": "node",    "order": 15},
+    {"id": "node-meet-me-room",        "label": "Meet Me Room",               "applies_to": "node",    "order": 20},
+    {"id": "node-colocation",          "label": "Colocation Terms",           "applies_to": "node",    "order": 25},
+    {"id": "node-equipment",           "label": "Equipment Notes",            "applies_to": "node",    "order": 30},
+    {"id": "node-backhaul",            "label": "Backhaul Options",           "applies_to": "node",    "order": 35},
+    {"id": "node-commercial",          "label": "Commercial Guidance",        "applies_to": "node",    "order": 40},
+    {"id": "node-env-risk",            "label": "Environmental Risk",         "applies_to": "node",    "order": 45},
+    {"id": "node-handoff",             "label": "Handoff Notes",              "applies_to": "node",    "order": 50},
+    {"id": "node-landing-party",       "label": "Landing Party / CLS Op.",    "applies_to": "node",    "order": 55},
+    {"id": "node-power-space",         "label": "Power / Space",              "applies_to": "node",    "order": 60},
+    {"id": "node-competitive",         "label": "Competitor Presence",        "applies_to": "node",    "order": 65},
+    {"id": "node-floor-rack",          "label": "Floor / Rack",               "applies_to": "node",    "order": 70},
+    {"id": "node-legal",               "label": "Legal / Import Duties",      "applies_to": "node",    "order": 75},
+    {"id": "node-other-operator",      "label": "Other Operator Notes",       "applies_to": "node",    "order": 80},
+    {"id": "node-sla",                 "label": "SLA / Protection",           "applies_to": "node",    "order": 85},
+    {"id": "node-customs",             "label": "Customs / Regulatory",       "applies_to": "node",    "order": 90},
+    {"id": "node-security",            "label": "Security Requirements",      "applies_to": "node",    "order": 100},
+    {"id": "node-monitoring",          "label": "Monitoring / Alarms",        "applies_to": "node",    "order": 105},
+    {"id": "node-cross-connect",       "label": "Cross-Connect Info",         "applies_to": "node",    "order": 110},
+    {"id": "node-fibre-mgmt",          "label": "Fibre Management",           "applies_to": "node",    "order": 120},
+    {"id": "node-contacts",            "label": "Key Contacts",               "applies_to": "node",    "order": 130},
+    {"id": "node-site-experts",        "label": "Site Experts",               "applies_to": "node",    "order": 133},
+    {"id": "node-lead-time",           "label": "Lead Time / Ordering",       "applies_to": "node",    "order": 140},
+    {"id": "node-lifespan",            "label": "Lifespan Notes",             "applies_to": "node",    "order": 145},
+    {"id": "node-commissioning",       "label": "Commissioning Notes",        "applies_to": "node",    "order": 148},
+    {"id": "node-cease-exit",          "label": "Cease / Exit Notes",         "applies_to": "node",    "order": 150},
+    {"id": "node-other",               "label": "Other",                      "applies_to": "node",    "order": 999},
+    # ── Segment categories ───────────────────────────────────────────────────────
+    {"id": "seg-fibre-pair",           "label": "Fibre Pair Info",            "applies_to": "segment", "order": 10},
+    {"id": "seg-system-age",           "label": "System Age / RFS",           "applies_to": "segment", "order": 15},
+    {"id": "seg-landing",              "label": "Landing Information",        "applies_to": "segment", "order": 20},
+    {"id": "seg-ownership",            "label": "Ownership / Consortium",     "applies_to": "segment", "order": 25},
+    {"id": "seg-route-notes",          "label": "Route Notes",                "applies_to": "segment", "order": 30},
+    {"id": "seg-commercial",           "label": "Commercial Terms",           "applies_to": "segment", "order": 35},
+    {"id": "seg-capacity",             "label": "Capacity Notes",             "applies_to": "segment", "order": 40},
+    {"id": "seg-restoration",          "label": "Restoration / Spares",       "applies_to": "segment", "order": 45},
+    {"id": "seg-performance",          "label": "Performance Notes",          "applies_to": "segment", "order": 50},
+    {"id": "seg-regulatory",           "label": "Regulatory / Licences",      "applies_to": "segment", "order": 55},
+    {"id": "seg-fibre-operator",       "label": "Fibre Operator",             "applies_to": "segment", "order": 60},
+    {"id": "seg-burial",               "label": "Burial / Route Protection",  "applies_to": "segment", "order": 65},
+    {"id": "seg-maintenance",          "label": "Maintenance Windows",        "applies_to": "segment", "order": 70},
+    {"id": "seg-significant-faults",   "label": "Significant Faults",         "applies_to": "segment", "order": 75},
+    {"id": "seg-known-issues",         "label": "Known Issues",               "applies_to": "segment", "order": 80},
+    {"id": "seg-system-design",        "label": "System Design",              "applies_to": "segment", "order": 85},
+    {"id": "seg-sla",                  "label": "SLA / Protection",           "applies_to": "segment", "order": 90},
+    {"id": "seg-diversity",            "label": "Diversity Notes",            "applies_to": "segment", "order": 100},
+    {"id": "seg-latency",              "label": "Latency Variance",           "applies_to": "segment", "order": 110},
+    {"id": "seg-iru-lease",            "label": "IRU / Lease Terms",          "applies_to": "segment", "order": 120},
+    {"id": "seg-repair-history",       "label": "Repair History",             "applies_to": "segment", "order": 130},
+    {"id": "seg-lifespan",             "label": "Lifespan Notes",             "applies_to": "segment", "order": 135},
+    {"id": "seg-cease-exit",           "label": "Cease / Exit Notes",         "applies_to": "segment", "order": 140},
+    {"id": "seg-handback",             "label": "Handback Conditions",        "applies_to": "segment", "order": 145},
+    {"id": "seg-env-notes",            "label": "Environmental Notes",        "applies_to": "segment", "order": 150},
+    {"id": "seg-billing",              "label": "Billing Notes",              "applies_to": "segment", "order": 155},
+    {"id": "seg-other",                "label": "Other",                      "applies_to": "segment", "order": 999},
 ]
 
 
@@ -2664,4 +2687,13 @@ def _run_migration_055(cur) -> None:
         cur.execute(
             "INSERT INTO note_categories (id, label, applies_to, order_num) VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING",
             (cat["id"], cat.get("label",""), cat.get("applies_to","node"), cat.get("order", 0)),
+        )
+
+
+def _run_migration_056(cur) -> None:
+    """Insert any missing default note categories (expanded set) into existing databases."""
+    for cat in _DEFAULT_NOTE_CATEGORIES:
+        cur.execute(
+            "INSERT INTO note_categories (id, label, applies_to, order_num) VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+            (cat["id"], cat.get("label", ""), cat.get("applies_to", "node"), cat.get("order", 0)),
         )

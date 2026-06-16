@@ -119,13 +119,14 @@ function VerifPrompt({ onChoice, onDismiss, theme }: {
 // on every render. Defining them inside the parent causes remount on each
 // keystroke, which kills input focus.
 
-function Field({ label, val, k, src, setSrc, readOnly = false, type = 'text', options, placeholder, pairedKey, pairedFirst }: {
+function Field({ label, val, k, src, setSrc, readOnly = false, type = 'text', options, placeholder, pairedKey, pairedFirst, multiline }: {
   label: string; val?: unknown; k: string
   src: Record<string, unknown>; setSrc: (v: Record<string, unknown>) => void
   readOnly?: boolean; type?: string; options?: { value: string; label: string }[]
   placeholder?: string
   pairedKey?: string    // sibling field key for lat/lng pair paste
   pairedFirst?: boolean // true if this field holds the first value (lat) in the pair
+  multiline?: boolean   // renders a full-width textarea spanning all columns
 }) {
   const t = useTheme()
   const inputStyle: React.CSSProperties = {
@@ -163,10 +164,18 @@ function Field({ label, val, k, src, setSrc, readOnly = false, type = 'text', op
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, ...(multiline ? { gridColumn: '1 / -1' } : {}) }}>
       <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
       {readOnly ? (
         <input style={roStyle} value={String(val ?? '')} readOnly autoComplete="off" />
+      ) : multiline ? (
+        <textarea
+          style={{ ...inputStyle, resize: 'vertical', minHeight: 64, lineHeight: 1.5 }}
+          rows={3}
+          placeholder={placeholder}
+          value={String(src[k] ?? '')}
+          onChange={e => setSrc({ ...src, [k]: e.target.value })}
+        />
       ) : options ? (
         <select style={inputStyle} value={String(src[k] ?? '')} onChange={e => setSrc({ ...src, [k]: e.target.value })}>
           {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -1803,7 +1812,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                   <Field label="Severity" k="severity" src={lAddVals} setSrc={setLAddVals}
                     options={SEVERITIES.map(s => ({ value: s.value, label: s.label }))} />
                   <Field label="Title *" k="title" src={lAddVals} setSrc={setLAddVals} />
-                  <Field label="Notes *" k="text" src={lAddVals} setSrc={setLAddVals} />
+                  <Field label="Notes *" k="text" src={lAddVals} setSrc={setLAddVals} multiline />
                   <SaveCancel onSave={saveNote} onCancel={() => { setLAdding(false); setLAddVals({}) }} disabled={lSaving} />
                 </div>
               )}
@@ -1865,7 +1874,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                         <Field label="Severity" k="severity" src={lEditVals} setSrc={setLEditVals}
                           options={SEVERITIES.map(s => ({ value: s.value, label: s.label }))} />
                         <Field label="Title" k="title" src={lEditVals} setSrc={setLEditVals} />
-                        <Field label="Notes" k="text" src={lEditVals} setSrc={setLEditVals} />
+                        <Field label="Notes" k="text" src={lEditVals} setSrc={setLEditVals} multiline />
                         <SaveCancel onSave={() => updateNote(note.id)} onCancel={() => setLEditId(null)} disabled={lSaving} />
                       </div>
                     )}
