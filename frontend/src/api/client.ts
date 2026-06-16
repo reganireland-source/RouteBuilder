@@ -1,4 +1,4 @@
-import type { AppConfig, CableNode, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, NlpParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, TechLookupItem, TechLookupTable } from '../types'
+import type { AppConfig, CableNode, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, NlpParseResponse, NoteCategory, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -145,6 +145,18 @@ export const api = {
   createTechItem:   (table: TechLookupTable, item: TechLookupItem)        => post<TechLookupItem>(`/api/tech-lookups/${table}`, item),
   updateTechItem:   (table: TechLookupTable, id: string, data: Partial<TechLookupItem>) => put<TechLookupItem>(`/api/tech-lookups/${table}/${id}`, data),
   deleteTechItem:   (table: TechLookupTable, id: string)                  => del(`/api/tech-lookups/${table}/${id}`),
+
+  // Solution Notes
+  getSolutionNotes:     ()                                                   => get<SolutionNote[]>('/api/solution-notes'),
+  createSolutionNote:   (data: SolutionNote)                                 => post<SolutionNote>('/api/solution-notes', data),
+  updateSolutionNote:   (id: string, data: Partial<SolutionNote>)            => put<SolutionNote>(`/api/solution-notes/${id}`, data),
+  deleteSolutionNote:   (id: string)                                         => del(`/api/solution-notes/${id}`),
+
+  // Note Categories
+  getNoteCategories:    ()                                                   => get<NoteCategory[]>('/api/note-categories'),
+  createNoteCategory:   (data: NoteCategory)                                 => post<NoteCategory>('/api/note-categories', data),
+  updateNoteCategory:   (id: string, data: Partial<NoteCategory>)            => put<NoteCategory>(`/api/note-categories/${id}`, data),
+  deleteNoteCategory:   (id: string)                                         => del(`/api/note-categories/${id}`),
 
   // Feature Requests
   getFeatureRequests:    ()                                                         => get<FeatureRequest[]>('/api/feature-requests'),

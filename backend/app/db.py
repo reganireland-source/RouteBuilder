@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS tech_access_types  (id          TEXT PRIMARY KEY, dat
 CREATE TABLE IF NOT EXISTS tech_arranged_by   (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
 CREATE TABLE IF NOT EXISTS tech_l1_settings   (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
 CREATE TABLE IF NOT EXISTS feature_requests   (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
+CREATE TABLE IF NOT EXISTS solution_notes     (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
+CREATE TABLE IF NOT EXISTS note_categories    (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
 """
 
 _DEFAULT_INTERFACES = [
@@ -257,6 +259,8 @@ def init_db() -> None:
             _run_migration_052(cur)
             # Migration 053: fix subsea waypoints to prevent landmass crossings
             _run_migration_053(cur)
+            # Migration 054: create solution_notes + note_categories tables; seed defaults
+            _run_migration_054(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -2523,3 +2527,54 @@ def _seed_if_empty(conn) -> None:
                 )
 
     conn.commit()
+
+
+_DEFAULT_NOTE_CATEGORIES: list[dict] = [
+    # ── Node categories ─────────────────────────────────────────
+    {"id": "node-site-access",    "label": "Site Access",           "applies_to": "node", "order": 10},
+    {"id": "node-meet-me-room",   "label": "Meet Me Room",          "applies_to": "node", "order": 20},
+    {"id": "node-equipment",      "label": "Equipment Notes",       "applies_to": "node", "order": 30},
+    {"id": "node-commercial",     "label": "Commercial Guidance",   "applies_to": "node", "order": 40},
+    {"id": "node-handoff",        "label": "Handoff Notes",         "applies_to": "node", "order": 50},
+    {"id": "node-power-space",    "label": "Power / Space",         "applies_to": "node", "order": 60},
+    {"id": "node-floor-rack",     "label": "Floor / Rack",          "applies_to": "node", "order": 70},
+    {"id": "node-other-operator", "label": "Other Operator Notes",  "applies_to": "node", "order": 80},
+    {"id": "node-customs",        "label": "Customs / Regulatory",  "applies_to": "node", "order": 90},
+    {"id": "node-security",       "label": "Security Requirements", "applies_to": "node", "order": 100},
+    {"id": "node-cross-connect",  "label": "Cross-Connect Info",    "applies_to": "node", "order": 110},
+    {"id": "node-fibre-mgmt",     "label": "Fibre Management",      "applies_to": "node", "order": 120},
+    {"id": "node-contacts",       "label": "Key Contacts",          "applies_to": "node", "order": 130},
+    {"id": "node-lead-time",      "label": "Lead Time / Ordering",  "applies_to": "node", "order": 140},
+    {"id": "node-lifespan",       "label": "Lifespan Notes",        "applies_to": "node", "order": 145},
+    {"id": "node-cease-exit",     "label": "Cease / Exit Notes",    "applies_to": "node", "order": 150},
+    {"id": "node-other",          "label": "Other",                 "applies_to": "node", "order": 999},
+    # ── Segment categories ───────────────────────────────────────
+    {"id": "seg-fibre-pair",      "label": "Fibre Pair Info",       "applies_to": "segment", "order": 10},
+    {"id": "seg-landing",         "label": "Landing Information",   "applies_to": "segment", "order": 20},
+    {"id": "seg-route-notes",     "label": "Route Notes",           "applies_to": "segment", "order": 30},
+    {"id": "seg-capacity",        "label": "Capacity Notes",        "applies_to": "segment", "order": 40},
+    {"id": "seg-performance",     "label": "Performance Notes",     "applies_to": "segment", "order": 50},
+    {"id": "seg-fibre-operator",  "label": "Fibre Operator",        "applies_to": "segment", "order": 60},
+    {"id": "seg-maintenance",     "label": "Maintenance Windows",   "applies_to": "segment", "order": 70},
+    {"id": "seg-known-issues",    "label": "Known Issues",          "applies_to": "segment", "order": 80},
+    {"id": "seg-sla",             "label": "SLA / Protection",      "applies_to": "segment", "order": 90},
+    {"id": "seg-diversity",       "label": "Diversity Notes",       "applies_to": "segment", "order": 100},
+    {"id": "seg-latency",         "label": "Latency Variance",      "applies_to": "segment", "order": 110},
+    {"id": "seg-iru-lease",       "label": "IRU / Lease Terms",     "applies_to": "segment", "order": 120},
+    {"id": "seg-repair-history",  "label": "Repair History",        "applies_to": "segment", "order": 130},
+    {"id": "seg-lifespan",        "label": "Lifespan Notes",        "applies_to": "segment", "order": 135},
+    {"id": "seg-cease-exit",      "label": "Cease / Exit Notes",    "applies_to": "segment", "order": 140},
+    {"id": "seg-other",           "label": "Other",                 "applies_to": "segment", "order": 999},
+]
+
+
+def _run_migration_054(cur) -> None:
+    """Create solution_notes and note_categories tables; seed default categories."""
+    # Tables already created by _CREATE_SQL — just seed defaults if empty
+    cur.execute("SELECT COUNT(*) AS n FROM note_categories")
+    if cur.fetchone()["n"] == 0:
+        psycopg2.extras.execute_values(
+            cur,
+            "INSERT INTO note_categories (id, data) VALUES %s ON CONFLICT DO NOTHING",
+            [(cat["id"], json.dumps(cat)) for cat in _DEFAULT_NOTE_CATEGORIES],
+        )

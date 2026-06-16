@@ -247,6 +247,39 @@ class SegmentOutage(BaseModel):
     description: str
 
 
+class SolutionNote(BaseModel):
+    id: str
+    node_id: Optional[str] = None
+    segment_id: Optional[str] = None
+    category_id: str
+    title: str
+    text: str
+    severity: str = "info"  # 'info' | 'warning' | 'critical'
+    created_at: Optional[str] = None
+
+
+class SolutionNoteUpdate(BaseModel):
+    node_id: Optional[str] = None
+    segment_id: Optional[str] = None
+    category_id: Optional[str] = None
+    title: Optional[str] = None
+    text: Optional[str] = None
+    severity: Optional[str] = None
+
+
+class NoteCategory(BaseModel):
+    id: str
+    label: str
+    applies_to: str  # 'node' | 'segment'
+    order: int = 0
+
+
+class NoteCategoryUpdate(BaseModel):
+    label: Optional[str] = None
+    applies_to: Optional[str] = None
+    order: Optional[int] = None
+
+
 class SegmentOutageUpdate(BaseModel):
     fault_id: Optional[str] = None
     fault_date: Optional[str] = None

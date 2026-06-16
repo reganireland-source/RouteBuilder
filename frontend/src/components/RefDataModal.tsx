@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, AllowedHandoffSegment, InterconnectRule, OnNet, SegmentCapacity, SegmentOutage, VerificationStatus } from '../types'
+import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, AllowedHandoffSegment, InterconnectRule, NoteCategory, NoteSeverity, OnNet, SegmentCapacity, SegmentOutage, SolutionNote, VerificationStatus } from '../types'
 import { useTheme, type Theme } from '../theme'
 function useIsMobile(): boolean {
   const [mobile, setMobile] = useState(() => window.innerWidth < 768)
@@ -294,7 +294,7 @@ const OWNERSHIP_LABEL: Record<string, string> = {
 const DEFAULT_ONNET = ['owned', 'consortium', 'iru']
 
 type DataTab = 'nodes' | 'segments' | 'systems' | 'capacity' | 'outages' | 'rules'
-type Tab = DataTab | 'checks' | 'config' | 'coverage' | 'bulk' | 'tech'
+type Tab = DataTab | 'checks' | 'config' | 'coverage' | 'bulk' | 'tech' | 'notes'
 
 interface CheckResult {
   name: string
@@ -1474,6 +1474,385 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     )
   }
 
+  // ── Solution Notes panel ─────────────────────────────────────────────────────
+
+  function SolutionNotesPanel({ nodes: panelNodes, segments: panelSegments }: { nodes: CableNode[]; segments: CableSegment[] }) {
+    const [notes, setNotes] = useState<SolutionNote[]>([])
+    const [categories, setCategories] = useState<NoteCategory[]>([])
+    const [loading, setLoading] = useState(true)
+    const [subTab, setSubTab] = useState<'notes' | 'categories'>('notes')
+    const [lFilter, setLFilter] = useState('')
+    const [lEditId, setLEditId] = useState<string | null>(null)
+    const [lEditVals, setLEditVals] = useState<Record<string, unknown>>({})
+    const [lAdding, setLAdding] = useState(false)
+    const [lAddVals, setLAddVals] = useState<Record<string, unknown>>({})
+    const [lSaving, setLSaving] = useState(false)
+    const [lError, setLError] = useState<string | null>(null)
+    const [lDelConfirm, setLDelConfirm] = useState<string | null>(null)
+
+    useEffect(() => {
+      Promise.all([api.getSolutionNotes(), api.getNoteCategories()])
+        .then(([n, c]) => { setNotes(n); setCategories(c) })
+        .finally(() => setLoading(false))
+    }, [])
+
+    const categoryById = Object.fromEntries(categories.map(c => [c.id, c]))
+    const nodeById = Object.fromEntries(panelNodes.map(n => [n.id, n]))
+    const segById  = Object.fromEntries(panelSegments.map(s => [s.id, s]))
+
+    const SEVERITIES: { value: NoteSeverity; label: string }[] = [
+      { value: 'info',     label: 'Info' },
+      { value: 'warning',  label: 'Warning' },
+      { value: 'critical', label: 'Critical' },
+    ]
+    const SEVERITY_COLORS: Record<NoteSeverity, string> = { info: t.blue, warning: t.orange, critical: t.red }
+
+    const addTargetKind = String(lAddVals.target_kind || 'node')
+    const addCatOpts = categories
+      .filter(c => c.applies_to === addTargetKind)
+      .sort((a, b) => a.order - b.order)
+      .map(c => ({ value: c.id, label: c.label }))
+
+    const editTargetKind = lEditId
+      ? (notes.find(n => n.id === lEditId)?.node_id ? 'node' : 'segment')
+      : 'node'
+    const editCatOpts = categories
+      .filter(c => c.applies_to === editTargetKind)
+      .sort((a, b) => a.order - b.order)
+      .map(c => ({ value: c.id, label: c.label }))
+
+    async function saveNote() {
+      setLSaving(true); setLError(null)
+      try {
+        const kind = String(lAddVals.target_kind || 'node')
+        const newNote: SolutionNote = {
+          id: '',
+          node_id:    kind === 'node'    ? String(lAddVals.target_id || '') : undefined,
+          segment_id: kind === 'segment' ? String(lAddVals.target_id || '') : undefined,
+          category_id: String(lAddVals.category_id || ''),
+          title: String(lAddVals.title || ''),
+          text: String(lAddVals.text || ''),
+          severity: (lAddVals.severity as NoteSeverity) || 'info',
+        }
+        const created = await api.createSolutionNote(newNote)
+        setNotes(prev => [...prev, created])
+        setLAdding(false); setLAddVals({})
+      } catch (e) { setLError(String(e)) }
+      finally { setLSaving(false) }
+    }
+
+    async function updateNote(id: string) {
+      setLSaving(true); setLError(null)
+      try {
+        const updated = await api.updateSolutionNote(id, lEditVals as Partial<SolutionNote>)
+        setNotes(prev => prev.map(n => n.id === id ? updated : n))
+        setLEditId(null)
+      } catch (e) { setLError(String(e)) }
+      finally { setLSaving(false) }
+    }
+
+    async function deleteNote(id: string) {
+      setLSaving(true); setLError(null)
+      try {
+        await api.deleteSolutionNote(id)
+        setNotes(prev => prev.filter(n => n.id !== id))
+        setLDelConfirm(null)
+      } catch (e) { setLError(String(e)) }
+      finally { setLSaving(false) }
+    }
+
+    async function saveCat() {
+      setLSaving(true); setLError(null)
+      try {
+        const cat: NoteCategory = {
+          id: String(lAddVals.id || '').replace(/\s+/g, '-').toLowerCase(),
+          label: String(lAddVals.label || ''),
+          applies_to: String(lAddVals.applies_to || 'node') as 'node' | 'segment',
+          order: Number(lAddVals.order || 0),
+        }
+        const created = await api.createNoteCategory(cat)
+        setCategories(prev => [...prev, created].sort((a, b) => a.applies_to.localeCompare(b.applies_to) || a.order - b.order))
+        setLAdding(false); setLAddVals({})
+      } catch (e) { setLError(String(e)) }
+      finally { setLSaving(false) }
+    }
+
+    async function updateCat(id: string) {
+      setLSaving(true); setLError(null)
+      try {
+        const updated = await api.updateNoteCategory(id, lEditVals as Partial<NoteCategory>)
+        setCategories(prev => prev.map(c => c.id === id ? updated : c))
+        setLEditId(null)
+      } catch (e) { setLError(String(e)) }
+      finally { setLSaving(false) }
+    }
+
+    async function deleteCat(id: string) {
+      setLSaving(true); setLError(null)
+      try {
+        await api.deleteNoteCategory(id)
+        setCategories(prev => prev.filter(c => c.id !== id))
+        setLDelConfirm(null)
+      } catch (e) { setLError(String(e)) }
+      finally { setLSaving(false) }
+    }
+
+    const filteredNotes = notes.filter(n => {
+      if (!lFilter) return true
+      const q = lFilter.toLowerCase()
+      return (n.node_id ?? '').toLowerCase().includes(q)
+        || (n.segment_id ?? '').toLowerCase().includes(q)
+        || n.title.toLowerCase().includes(q)
+        || n.text.toLowerCase().includes(q)
+        || (categoryById[n.category_id]?.label ?? '').toLowerCase().includes(q)
+    })
+
+    const filteredCats = categories.filter(c =>
+      !lFilter || c.label.toLowerCase().includes(lFilter.toLowerCase()) || c.applies_to.includes(lFilter.toLowerCase())
+    )
+
+    function SeverityBadge({ sev }: { sev: string }) {
+      const color = SEVERITY_COLORS[sev as NoteSeverity] ?? t.blue
+      return (
+        <span style={{
+          fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
+          letterSpacing: '0.05em', textTransform: 'uppercase' as const,
+          background: color + '22', color, border: `1px solid ${color}55`,
+          whiteSpace: 'nowrap' as const,
+        }}>
+          {sev}
+        </span>
+      )
+    }
+
+    function ActionBtns({ id, onEdit, onDelete }: { id: string; onEdit: () => void; onDelete: () => void }) {
+      return (
+        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+          {lDelConfirm === id ? (
+            <>
+              <button style={actionBtn('confirm')} disabled={lSaving} onClick={onDelete}>Confirm</button>
+              <button style={actionBtn('cancel')} onClick={() => setLDelConfirm(null)}>Cancel</button>
+            </>
+          ) : (
+            <>
+              <button style={actionBtn('edit')} onClick={onEdit}>Edit</button>
+              <button style={actionBtn('delete')} onClick={() => { setLEditId(null); setLDelConfirm(id) }}>Delete</button>
+            </>
+          )}
+        </div>
+      )
+    }
+
+    if (loading) {
+      return <div style={{ padding: 20, color: t.textFaint, fontSize: 13 }}>Loading solution notes…</div>
+    }
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {/* Sub-tab bar */}
+        <div style={{ display: 'flex', gap: 2, padding: '8px 12px 0', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
+          {(['notes', 'categories'] as const).map(st => (
+            <button key={st} onClick={() => { setSubTab(st); setLAdding(false); setLAddVals({}); setLFilter('') }}
+              style={{
+                padding: '5px 14px', borderRadius: '4px 4px 0 0', fontSize: 12, fontWeight: subTab === st ? 700 : 400,
+                border: `1px solid ${subTab === st ? t.border : 'transparent'}`, borderBottom: 'none',
+                background: subTab === st ? t.bgPanel : 'transparent',
+                color: subTab === st ? t.text : t.textFaint, cursor: 'pointer',
+              }}>
+              {st === 'notes' ? `Notes (${notes.length})` : `Categories (${categories.length})`}
+            </button>
+          ))}
+        </div>
+
+        {/* Filter + Add bar */}
+        <div style={{ display: 'flex', gap: 8, padding: '6px 12px', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
+          <input
+            placeholder={`Filter ${subTab}…`}
+            value={lFilter} onChange={e => setLFilter(e.target.value)}
+            style={{ ...inputStyle, flex: 1, padding: '5px 8px' }}
+          />
+          <button onClick={() => { setLAdding(v => !v); setLAddVals({}) }}
+            style={{ ...actionBtn('add'), padding: '5px 12px', flexShrink: 0 }}>
+            {lAdding ? 'Cancel' : `+ Add ${subTab === 'notes' ? 'note' : 'category'}`}
+          </button>
+        </div>
+
+        {lError && (
+          <div style={{ padding: '6px 12px', fontSize: 12, color: t.red, background: t.red + '11', borderBottom: `1px solid ${t.border}` }}>
+            {lError}
+          </div>
+        )}
+
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {/* ── Notes sub-tab ── */}
+          {subTab === 'notes' && (
+            <>
+              {lAdding && (
+                <div style={{ ...editFormRow, margin: '8px 12px' }}>
+                  <Field label="Target *" k="target_kind" src={lAddVals} setSrc={setLAddVals}
+                    options={[{ value: 'node', label: 'Node' }, { value: 'segment', label: 'Segment' }]} />
+                  <Field label={addTargetKind === 'node' ? 'Node ID *' : 'Segment ID *'} k="target_id" src={lAddVals} setSrc={setLAddVals}
+                    options={addTargetKind === 'node'
+                      ? panelNodes.sort((a, b) => a.id.localeCompare(b.id)).map(n => ({ value: n.id, label: `${n.id} — ${n.name}` }))
+                      : panelSegments.sort((a, b) => a.id.localeCompare(b.id)).map(s => ({ value: s.id, label: `${s.id} — ${s.name}` }))} />
+                  <Field label="Category *" k="category_id" src={lAddVals} setSrc={setLAddVals} options={addCatOpts} />
+                  <Field label="Severity" k="severity" src={lAddVals} setSrc={setLAddVals}
+                    options={SEVERITIES.map(s => ({ value: s.value, label: s.label }))} />
+                  <Field label="Title *" k="title" src={lAddVals} setSrc={setLAddVals} />
+                  <Field label="Notes *" k="text" src={lAddVals} setSrc={setLAddVals} />
+                  <SaveCancel onSave={saveNote} onCancel={() => { setLAdding(false); setLAddVals({}) }} disabled={lSaving} />
+                </div>
+              )}
+              {!isMobile && (
+                <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
+                  <div style={colH(0.8)}>Sev</div>
+                  <div style={colH(1)}>Target</div>
+                  <div style={colH(2)}>Category</div>
+                  <div style={colH(2)}>Title</div>
+                  <div style={colH(4)}>Notes</div>
+                  <div style={colH(1)}>Date</div>
+                  <div style={{ width: 140, flexShrink: 0 }} />
+                </div>
+              )}
+              {filteredNotes.length === 0 && (
+                <div style={{ padding: '20px 16px', color: t.textFaintest, fontSize: 13 }}>No solution notes. Add one above.</div>
+              )}
+              {filteredNotes.map(note => {
+                const targetId = note.node_id ?? note.segment_id ?? ''
+                const targetKind = note.node_id ? 'node' : 'segment'
+                const targetName = note.node_id
+                  ? (nodeById[note.node_id]?.name ?? note.node_id)
+                  : (segById[note.segment_id ?? '']?.name ?? note.segment_id ?? '')
+                const catLabel = categoryById[note.category_id]?.label ?? note.category_id
+                return (
+                  <div key={note.id} style={rowStyle(lEditId === note.id)}>
+                    <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
+                      {isMobile ? (
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', gap: 6, marginBottom: 3, flexWrap: 'wrap' }}>
+                            <SeverityBadge sev={note.severity} />
+                            <code style={{ fontSize: 11 }}>{targetId}</code>
+                            <span style={{ fontSize: 10, color: t.textFaint }}>{catLabel}</span>
+                          </div>
+                          <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{note.title}</div>
+                          <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>{note.text}</div>
+                        </div>
+                      ) : (
+                        <>
+                          <div style={cell(0.8)}><SeverityBadge sev={note.severity} /></div>
+                          <div style={cell(1)}>
+                            <span style={{ fontSize: 9, color: targetKind === 'node' ? t.blue : t.green, fontWeight: 700, marginRight: 3, textTransform: 'uppercase' }}>{targetKind}</span>
+                            <code style={{ fontSize: 11 }}>{targetId}</code>
+                            {targetName !== targetId && <span style={{ fontSize: 9, color: t.textFaint, marginLeft: 3 }}>{targetName}</span>}
+                          </div>
+                          <div style={{ ...cell(2), color: t.textMuted, fontSize: 11 }}>{catLabel}</div>
+                          <div style={{ ...cell(2) }}>{note.title}</div>
+                          <div style={{ ...cell(4), color: t.textMuted, fontSize: 11, whiteSpace: 'normal' }}>{note.text}</div>
+                          <div style={{ ...cell(1), fontSize: 10, color: t.textFaintest }}>{note.created_at ?? '—'}</div>
+                        </>
+                      )}
+                      <ActionBtns id={note.id}
+                        onEdit={() => lEditId === note.id ? setLEditId(null) : (() => { setLEditId(note.id); setLEditVals({ category_id: note.category_id, title: note.title, text: note.text, severity: note.severity }) })()}
+                        onDelete={() => deleteNote(note.id)} />
+                    </div>
+                    {lEditId === note.id && (
+                      <div style={{ ...editFormRow }}>
+                        <Field label="Category" k="category_id" src={lEditVals} setSrc={setLEditVals} options={editCatOpts} />
+                        <Field label="Severity" k="severity" src={lEditVals} setSrc={setLEditVals}
+                          options={SEVERITIES.map(s => ({ value: s.value, label: s.label }))} />
+                        <Field label="Title" k="title" src={lEditVals} setSrc={setLEditVals} />
+                        <Field label="Notes" k="text" src={lEditVals} setSrc={setLEditVals} />
+                        <SaveCancel onSave={() => updateNote(note.id)} onCancel={() => setLEditId(null)} disabled={lSaving} />
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              <div style={{ padding: '6px 16px', fontSize: 11, color: t.textFaintest, borderTop: `1px solid ${t.borderSubtle}` }}>
+                {notes.length} note{notes.length !== 1 ? 's' : ''}
+                {' · '}
+                {notes.filter(n => n.node_id).length} on nodes
+                {' · '}
+                {notes.filter(n => n.segment_id).length} on segments
+              </div>
+            </>
+          )}
+
+          {/* ── Categories sub-tab ── */}
+          {subTab === 'categories' && (
+            <>
+              {lAdding && (
+                <div style={{ ...editFormRow, margin: '8px 12px' }}>
+                  <Field label="ID (slug) *" k="id" src={lAddVals} setSrc={setLAddVals} placeholder="e.g. node-custom" />
+                  <Field label="Label *" k="label" src={lAddVals} setSrc={setLAddVals} />
+                  <Field label="Applies To *" k="applies_to" src={lAddVals} setSrc={setLAddVals}
+                    options={[{ value: 'node', label: 'Node' }, { value: 'segment', label: 'Segment' }]} />
+                  <Field label="Order" k="order" src={lAddVals} setSrc={setLAddVals} type="number" />
+                  <SaveCancel onSave={saveCat} onCancel={() => { setLAdding(false); setLAddVals({}) }} disabled={lSaving} />
+                </div>
+              )}
+              {!isMobile && (
+                <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
+                  <div style={colH(2)}>ID</div>
+                  <div style={colH(3)}>Label</div>
+                  <div style={colH(1.5)}>Applies To</div>
+                  <div style={colH(1)}>Order</div>
+                  <div style={{ width: 140, flexShrink: 0 }} />
+                </div>
+              )}
+              {filteredCats.length === 0 && (
+                <div style={{ padding: '20px 16px', color: t.textFaintest, fontSize: 13 }}>No categories found.</div>
+              )}
+              {filteredCats.map(cat => (
+                <div key={cat.id} style={rowStyle(lEditId === cat.id)}>
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
+                    {isMobile ? (
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{cat.label}</div>
+                        <div style={{ fontSize: 10, color: t.textFaint }}>{cat.applies_to} · order {cat.order}</div>
+                        <code style={{ fontSize: 10, color: t.textFaintest }}>{cat.id}</code>
+                      </div>
+                    ) : (
+                      <>
+                        <div style={cell(2)}><code style={{ fontSize: 11 }}>{cat.id}</code></div>
+                        <div style={cell(3)}>{cat.label}</div>
+                        <div style={cell(1.5)}>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
+                            background: cat.applies_to === 'node' ? t.blue + '22' : t.green + '22',
+                            color: cat.applies_to === 'node' ? t.blue : t.green,
+                          }}>{cat.applies_to}</span>
+                        </div>
+                        <div style={{ ...cell(1), color: t.textFaint }}>{cat.order}</div>
+                      </>
+                    )}
+                    <ActionBtns id={cat.id}
+                      onEdit={() => lEditId === cat.id ? setLEditId(null) : (() => { setLEditId(cat.id); setLEditVals({ label: cat.label, applies_to: cat.applies_to, order: cat.order }) })()}
+                      onDelete={() => deleteCat(cat.id)} />
+                  </div>
+                  {lEditId === cat.id && (
+                    <div style={{ ...editFormRow }}>
+                      <Field label="Label" k="label" src={lEditVals} setSrc={setLEditVals} />
+                      <Field label="Applies To" k="applies_to" src={lEditVals} setSrc={setLEditVals}
+                        options={[{ value: 'node', label: 'Node' }, { value: 'segment', label: 'Segment' }]} />
+                      <Field label="Order" k="order" src={lEditVals} setSrc={setLEditVals} type="number" />
+                      <SaveCancel onSave={() => updateCat(cat.id)} onCancel={() => setLEditId(null)} disabled={lSaving} />
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div style={{ padding: '6px 16px', fontSize: 11, color: t.textFaintest, borderTop: `1px solid ${t.borderSubtle}` }}>
+                {categories.filter(c => c.applies_to === 'node').length} node categories
+                {' · '}
+                {categories.filter(c => c.applies_to === 'segment').length} segment categories
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   // ── Checks tab ────────────────────────────────────────────────────────────────
 
   const [checkResults, setCheckResults] = useState<CheckResult[] | null>(null)
@@ -1720,6 +2099,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             { id: 'coverage', label: '🟢 Coverage', count: null },
             { id: 'outages',  label: 'Outages',    count: counts.outages },
             { id: 'rules',    label: 'Rules',      count: counts.rules },
+            { id: 'notes',    label: '📋 Notes',   count: null },
             { id: 'tech',     label: '🔧 Tech',    count: null },
             { id: 'config',   label: '⚙ Config',   count: null },
             { id: 'checks',   label: '⚡ Checks',  count: null },
@@ -1742,7 +2122,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         </div>
 
         {/* Filter + add bar — only for data tabs */}
-        {tab !== 'checks' && tab !== 'config' && tab !== 'coverage' && tab !== 'bulk' && tab !== 'tech' && (
+        {tab !== 'checks' && tab !== 'config' && tab !== 'coverage' && tab !== 'bulk' && tab !== 'tech' && tab !== 'notes' && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: isMobile ? '8px 12px' : '6px 20px', borderBottom: `1px solid ${t.border}`, flexShrink: 0, background: t.bgPanel }}>
             <input
               placeholder={`Filter ${tab}…`}
@@ -1768,6 +2148,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           {tab === 'config'   && ConfigTab()}
           {tab === 'coverage' && <ProductCoveragePanel nodes={nodes} onDataChange={onDataChange} />}
           {tab === 'tech'     && <TechEnrichmentPanel />}
+          {tab === 'notes'    && <SolutionNotesPanel nodes={nodes} segments={segments} />}
           {tab === 'bulk' && (
             <BulkImportPanel
               counts={{

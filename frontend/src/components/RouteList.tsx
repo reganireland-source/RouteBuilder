@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import type { Route, CableNode, CableSystem, SegmentCapacity, SegmentOutage, PinnedRoute, Project, ProjectCircuit, EndpointConfig } from '../types'
 import { useTheme } from '../theme'
+import { SolutionNotesOverlay } from './SolutionNotesOverlay'
 
 type EnrichLevel = 'none' | 'partial' | 'full'
 
@@ -175,6 +176,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
   const outagesById = Object.fromEntries(outages.map(o => [o.segment_id, o]))
+  const [notesRoute, setNotesRoute] = useState<Route | null>(null)
   const pinnedKeys = new Set(pinnedRoutes.map(p => routeKey(p.route)))
   const canPin = pinnedRoutes.length < MAX_PINS
 
@@ -246,6 +248,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
     : 'Default'
 
   return (
+    <>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
 
       {/* Pinned routes section */}
@@ -326,6 +329,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                     onEnrichCircuit={onEnrichCircuit ? () => onEnrichCircuit(p) : undefined}
                     onAddToProject={onAddToProject ? () => onAddToProject(p.route) : undefined}
                     activeProject={activeProject}
+                    onShowNotes={setNotesRoute}
                   />
                 ))
           })()}
@@ -495,6 +499,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                       onNetSet={onNetSet}
                       systemsById={systemsById}
                       onAddToProject={onAddToProject ? (route) => onAddToProject(route) : undefined}
+                      onShowNotes={setNotesRoute}
                     />
                   ))}
                 </div>
@@ -517,6 +522,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                       onNetSet={onNetSet}
                       systemsById={systemsById}
                       onAddToProject={onAddToProject ? (route) => onAddToProject(route) : undefined}
+                      onShowNotes={setNotesRoute}
                     />
                   ))}
                 </div>
@@ -544,6 +550,15 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
         </>
       )}
     </div>
+    {notesRoute && createPortal(
+      <SolutionNotesOverlay
+        route={notesRoute}
+        nodesById={nodesById}
+        onClose={() => setNotesRoute(null)}
+      />,
+      document.body
+    )}
+    </>
   )
 }
 
@@ -730,7 +745,7 @@ function CompressedPinCard({ pinned, onUnpin, systemsById }: {
   )
 }
 
-function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, onNetSet, systemsById, onEnrichCircuit, onAddToProject, activeProject, protectPin }: {
+function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, onNetSet, systemsById, onEnrichCircuit, onAddToProject, activeProject, protectPin, onShowNotes }: {
   pinned: PinnedRoute
   onUnpin: () => void
   nodesById: Record<string, { name: string; type?: string }>
@@ -742,6 +757,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   onAddToProject?: () => void
   activeProject?: Project | null
   protectPin?: PinnedRoute
+  onShowNotes?: (route: Route) => void
 }) {
   const t = useTheme()
   const isMobile = useIsMobile()
@@ -844,6 +860,17 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
               }} />
             )}
           </button>
+          {onShowNotes && (
+            <button
+              onClick={() => onShowNotes(route)}
+              title="View Solution Notes for this route"
+              style={{
+                fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 4, flexShrink: 0,
+                border: `1px solid ${t.border}`, background: t.bgDeep,
+                color: t.textMuted, cursor: 'pointer',
+              }}
+            >📋 Notes</button>
+          )}
           <button
             onClick={onUnpin}
             title="Unpin route"
@@ -967,7 +994,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   )
 }
 
-function RouteCard({ route, selected, onSelect, nodesById, capacityById, outagesById, color, isPinned, canPin, onPin, onNetSet, systemsById, onAddToProject }: {
+function RouteCard({ route, selected, onSelect, nodesById, capacityById, outagesById, color, isPinned, canPin, onPin, onNetSet, systemsById, onAddToProject, onShowNotes }: {
   route: Route
   selected: boolean
   onSelect: (id: string) => void
@@ -981,6 +1008,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
   onNetSet: Set<string>
   systemsById: Record<string, CableSystem>
   onAddToProject?: (route: Route) => void
+  onShowNotes?: (route: Route) => void
 }) {
   const t = useTheme()
   const isMobile = useIsMobile()
@@ -1038,6 +1066,17 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
                 color: t.textFaint, transition: 'color 0.15s',
               }}
             >📁</button>
+          )}
+          {onShowNotes && (
+            <button
+              onClick={e => { e.stopPropagation(); onShowNotes(route) }}
+              title="View Solution Notes for this route"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 11, lineHeight: 1, padding: '1px 3px', borderRadius: 3,
+                color: t.textFaint, transition: 'color 0.15s',
+              }}
+            >📋</button>
           )}
           <button
             onClick={e => { e.stopPropagation(); onPin(route) }}

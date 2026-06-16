@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from .models import Node, CableSystem, CableSegment, InterconnectRule, SegmentCapacity, SegmentOutage, InterfaceType, TechLookupItem, Project
+from .models import Node, CableSystem, CableSegment, InterconnectRule, SegmentCapacity, SegmentOutage, InterfaceType, TechLookupItem, Project, SolutionNote, NoteCategory
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
@@ -303,6 +303,53 @@ def save_projects(projects: list[Project]) -> None:
         _db_replace_all("projects", "id", "id", projects)
         return
     _write(DATA_DIR / "projects.json", [p.model_dump() for p in projects])
+
+
+def load_solution_notes() -> list[SolutionNote]:
+    cached = _get("solution_notes")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+    if _use_db():
+        result = _db_load_all("solution_notes", "id", SolutionNote)
+    else:
+        path = DATA_DIR / "solution_notes.json"
+        if not path.exists():
+            return []
+        with open(path) as f:
+            result = [SolutionNote(**item) for item in json.load(f)]
+    _set("solution_notes", result)
+    return result
+
+def save_solution_notes(notes: list[SolutionNote]) -> None:
+    _bust("solution_notes")
+    if _use_db():
+        _db_replace_all("solution_notes", "id", "id", notes)
+        return
+    _write(DATA_DIR / "solution_notes.json", [n.model_dump() for n in notes])
+
+
+def load_note_categories() -> list[NoteCategory]:
+    cached = _get("note_categories")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+    if _use_db():
+        result = _db_load_all("note_categories", "id", NoteCategory)
+    else:
+        path = DATA_DIR / "note_categories.json"
+        if not path.exists():
+            return []
+        with open(path) as f:
+            result = [NoteCategory(**item) for item in json.load(f)]
+    result.sort(key=lambda x: (x.applies_to, x.order))
+    _set("note_categories", result)
+    return result
+
+def save_note_categories(categories: list[NoteCategory]) -> None:
+    _bust("note_categories")
+    if _use_db():
+        _db_replace_all("note_categories", "id", "id", categories)
+        return
+    _write(DATA_DIR / "note_categories.json", [c.model_dump() for c in categories])
 
 
 def save_config(config: dict) -> None:

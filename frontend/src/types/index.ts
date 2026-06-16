@@ -348,6 +348,29 @@ export const TECH_LOOKUP_LABELS: Record<TechLookupTable, string> = {
   tech_l1_settings:   'L1 / Optical Settings',
 }
 
+// ── Solution Notes ────────────────────────────────────────────────────────────
+
+export type NoteSeverity = 'info' | 'warning' | 'critical'
+export type NoteAppliesTo = 'node' | 'segment'
+
+export interface SolutionNote {
+  id: string
+  node_id?: string
+  segment_id?: string
+  category_id: string
+  title: string
+  text: string
+  severity: NoteSeverity
+  created_at?: string
+}
+
+export interface NoteCategory {
+  id: string
+  label: string
+  applies_to: NoteAppliesTo
+  order: number
+}
+
 export interface FeatureRequest {
   id: string
   title: string

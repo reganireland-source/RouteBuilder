@@ -2,7 +2,7 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI  # noqa: F401
 from fastapi.middleware.cors import CORSMiddleware
-from .api import nodes, segments, systems, routes, capacity, rules, health, config, city_pairs, outages, bulk, interfaces, projects, tech_lookups, feature_requests
+from .api import nodes, segments, systems, routes, capacity, rules, health, config, city_pairs, outages, bulk, interfaces, projects, tech_lookups, feature_requests, solution_notes
 from .db import init_db
 
 
@@ -36,6 +36,7 @@ app.include_router(interfaces.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
 app.include_router(tech_lookups.router, prefix="/api")
 app.include_router(feature_requests.router, prefix="/api")
+app.include_router(solution_notes.router, prefix="/api")
 
 # NLP route parsing — only registered when NLP_ENABLED=true
 if os.getenv("NLP_ENABLED", "").lower() == "true":
