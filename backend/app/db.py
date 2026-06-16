@@ -245,6 +245,8 @@ def init_db() -> None:
             _run_migration_046(cur)
             # Migration 047: add Taiwan terrestrial backhaul segments
             _run_migration_047(cur)
+            # Migration 048: rename KO01 typo to KR01
+            _run_migration_048(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -2202,6 +2204,18 @@ def _run_migration_047(cur) -> None:
                 "available_capacity_t": 8.0,
             })),
         )
+
+
+def _run_migration_048(cur) -> None:
+    """Rename segment KO01 (typo) to KR01 (Busan C2C CLS–KT Songjeong backhaul)."""
+    cur.execute(
+        "INSERT INTO segments (id, data) SELECT 'KR01', data || '{\"id\":\"KR01\"}'::jsonb FROM segments WHERE id = 'KO01' ON CONFLICT (id) DO NOTHING"
+    )
+    cur.execute(
+        "INSERT INTO capacity (segment_id, data) SELECT 'KR01', data || '{\"segment_id\":\"KR01\"}'::jsonb FROM capacity WHERE segment_id = 'KO01' ON CONFLICT (segment_id) DO NOTHING"
+    )
+    cur.execute("DELETE FROM capacity WHERE segment_id = 'KO01'")
+    cur.execute("DELETE FROM segments WHERE id = 'KO01'")
 
 
 def _seed_if_empty(conn) -> None:
