@@ -1578,5 +1578,10 @@
     "segment_id": "KR_IP_Lease",
     "total_capacity_t": 2.0,
     "available_capacity_t": 1.0
+  },
+  {
+    "segment_id": "SJC2-TYO-PUS",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 1.3
   }
 ]

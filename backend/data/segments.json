@@ -5156,5 +5156,18 @@
     "reliability": 0.999,
     "cost_weight": 3,
     "ownership": "owned"
+  },
+  {
+    "id": "SJC2-TYO-PUS",
+    "name": "SJC2 Miura\u2013Busan",
+    "system_id": "SJC2",
+    "start_node_id": "MJLS",
+    "end_node_id": "PUCC",
+    "type": "wet",
+    "length_km": 990,
+    "latency": 4.95,
+    "reliability": 0.9992,
+    "cost_weight": 8,
+    "ownership": "consortium"
   }
 ]

@@ -239,6 +239,8 @@ def init_db() -> None:
             _run_migration_043(cur)
             # Migration 044: add KSEQ node + Korea terrestrial backhaul segments
             _run_migration_044(cur)
+            # Migration 045: land SJC2 Korea branch at PUCC (Busan C2C CLS)
+            _run_migration_045(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -1948,6 +1950,34 @@ def _run_migration_044(cur) -> None:
                 "available_capacity_t": round(total * 0.5, 1),
             })),
         )
+
+
+def _run_migration_045(cur) -> None:
+    """Land SJC2 Korea branch at PUCC (Busan C2C CLS), replacing the deleted SJC2-TYO-ICN."""
+    cur.execute(
+        "INSERT INTO segments (id, data) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+        ("SJC2-TYO-PUS", json.dumps({
+            "id": "SJC2-TYO-PUS",
+            "name": "SJC2 Miura–Busan",
+            "system_id": "SJC2",
+            "start_node_id": "MJLS",
+            "end_node_id": "PUCC",
+            "type": "wet",
+            "length_km": 990,
+            "latency": 4.95,
+            "reliability": 0.9992,
+            "cost_weight": 8,
+            "ownership": "consortium",
+        })),
+    )
+    cur.execute(
+        "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT (segment_id) DO UPDATE SET data = EXCLUDED.data",
+        ("SJC2-TYO-PUS", json.dumps({
+            "segment_id": "SJC2-TYO-PUS",
+            "total_capacity_t": 2.0,
+            "available_capacity_t": 1.3,
+        })),
+    )
 
 
 def _seed_if_empty(conn) -> None:
