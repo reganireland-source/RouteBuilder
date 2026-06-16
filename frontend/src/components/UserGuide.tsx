@@ -115,7 +115,11 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     { icon: '📌', title: 'Pinned Routes & SLD Export',
       desc: 'Pin up to 5 routes for comparison, then export a straight-line diagram. Choose a version label (Proposal / Draft / Final) and export as PDF (branded, customer-ready cover page plus per-route diagrams with proportional segment layout) or DrawIO / Visio XML for collaborative editing.' },
     { icon: '🗄', title: 'Ref Data Management',
-      desc: 'Full CRUD for nodes, segments, systems, capacity, outages and interconnect rules. Nodes carry city, address and description fields. Verification status (Draft / Under Verification / Verified) is tracked per node and segment — click the status badge in any row to change it without opening the full edit form. Bulk CSV import/export includes all fields.' },
+      desc: 'Full CRUD for nodes, segments, systems, capacity, outages, interconnect rules and solution notes. Nodes carry city, address and description fields. Verification status (Draft / Under Verification / Verified) is tracked per node and segment — click the status badge in any row to change it without opening the full edit form. Bulk CSV import/export includes all fields.' },
+    { icon: '⇄', title: 'Node Handoff Rules',
+      desc: 'Four rule types per node — Disallowed Pair, Allowed Pair, No Handoff, and Restricted Handoff Segments. "No Handoff" prevents a node from being used as a circuit endpoint (e.g. where anticompetitive restrictions apply at a CLS). "Restricted Handoff Segments" limits which physical segments may terminate at a node — only those explicitly listed are permitted. All rules are hard constraints that remove non-compliant paths before any result is returned.' },
+    { icon: '📋', title: 'Solution Notes — Knowledge Repository',
+      desc: 'Capture local expertise, site-specific guidance and operational context against any node or segment in the network. Notes are permanent reference data — raised once, visible on every route that includes that asset. Each note carries a category (Site Access, Handoff Notes, Customs/Regulatory, SLA/Protection, IRU/Lease Terms and more), a severity (Info / Warning / Critical), a title and free-text body. Click the 📋 button on any route card to open the Solution Notes overlay — a metro map view on the left with severity indicators, and all notes in route order on the right. Click "+ Add Note" on any node or segment to jump directly to the Ref Data form pre-filled for that asset.' },
     { icon: '🚨', title: 'Live Outage Awareness',
       desc: 'Active segment outages appear on route cards with repair date estimates. Push outage-affected routes to the bottom with one click — keeping viable options front and centre during a network incident.' },
     { icon: '📱', title: 'Mobile-First Design',
@@ -621,6 +625,19 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             {constraintRowAlgo('🌊', 'Max Wet Hops', 'LIMIT', t.orange, 'Maximum submarine cable segments. Each subsea segment = 1 wet hop. Blank = no limit.')}
             {constraintRowAlgo('⛰️', 'Max Terrestrial Hops', 'LIMIT', t.orange, 'Maximum land cable segments. Each terrestrial segment = 1 land hop. Blank = no limit.')}
           </div>
+          <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 8, background: t.bgDeep, border: `1px solid ${t.orange}33` }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: t.orange, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Node-Level Structural Rules (Ref Data)</div>
+            <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.65, margin: '0 0 10px' }}>
+              Beyond search-time constraints, <strong style={{ color: t.text }}>Interconnect Rules</strong> encode permanent structural restrictions about how specific nodes may be used.
+              These are applied automatically on every route calculation — they cannot be overridden by a search.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {constraintRowAlgo('🚫', 'Disallowed Pair', 'BLOCK', t.red, 'Two named cable systems may not interconnect at this node. Prevents physically impossible or commercially prohibited connections.')}
+              {constraintRowAlgo('✅', 'Allowed Pair', 'ALLOW', t.green, 'Only specifically listed system pairs may interconnect at this node — all other combinations are implicitly blocked.')}
+              {constraintRowAlgo('🔒', 'No Handoff', 'ENDPOINT', t.red, 'This node cannot be the destination of any circuit. Use where anticompetitive restrictions or access agreements prevent the operator from terminating service at a CLS or PoP.')}
+              {constraintRowAlgo('🔗', 'Restricted Handoff Segments', 'ENDPOINT', t.orange, 'Only specific physical segments (selected from a dropdown of all segments landing at this node) may be used as the final hop. Any other segment arriving at this node is blocked as an endpoint.')}
+            </div>
+          </div>
         </div>
 
         {/* Pool selection + Optimise For */}
@@ -829,8 +846,14 @@ export function UserGuide({ nodes, segments, systems }: Props) {
                 fields: 'segment_id · fault_id · fault_date · estimated_repair_date · description',
                 role: 'Flags affected segments on route cards with repair estimates. Drives the "UP" outage-push sort button.' },
               { icon: '⇄', name: 'Interconnect Rules', color: t.orange,
-                fields: 'node_id · disallowed_pairs · allowed_pairs',
-                role: 'Defines which cable systems may or may not connect at a given node — a hard structural constraint applied during graph validation.' },
+                fields: 'node_id · disallowed_pairs · allowed_pairs · no_handoff · allowed_handoff_segments',
+                role: 'Four rule types per node: Disallowed Pair (two systems may not interconnect), Allowed Pair (only these systems may interconnect), No Handoff (node cannot be a circuit endpoint), Restricted Handoff Segments (only specific segments may terminate here). All are hard constraints applied before any route is returned.' },
+              { icon: '📋', name: 'Solution Notes', color: '#89b4fa',
+                fields: 'id · node_id | segment_id · category_id · title · text · severity · created_at',
+                role: 'Persistent advisory notes raised against a specific node or segment — not project-specific. Captured once, visible on every route that includes that node or segment. Severity: Info / Warning / Critical.' },
+              { icon: '🏷', name: 'Note Categories', color: '#a6e3a1',
+                fields: 'id · label · applies_to (node|segment) · order',
+                role: 'Configurable category taxonomy for Solution Notes. Separate category lists for nodes (e.g. Site Access, Handoff Notes, Customs/Regulatory) and segments (e.g. Landing Information, SLA/Protection, IRU/Lease Terms). Fully editable via Ref Data → Notes → Categories.' },
             ].map(({ icon, name, color, fields, role }) => (
               <div key={name} style={{
                 ...card() as React.CSSProperties,
@@ -846,6 +869,60 @@ export function UserGuide({ nodes, segments, systems }: Props) {
                 <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{role}</div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Solution Notes deep-dive */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={sectionLabel}>Solution Notes — Knowledge Repository</div>
+          <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.65, margin: '0 0 14px' }}>
+            Solution Notes capture local expertise and operational context about specific nodes and segments — the kind of knowledge that lives in engineers' heads and gets lost when people move on. Notes are permanent reference data stored in the database, not linked to any project or circuit. They are raised once and automatically surfaced on every route that includes the relevant asset.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+            {[
+              { title: 'Per-Node Note Categories', color: '#89b4fa', items: ['Site Access', 'Meet Me Room', 'Equipment Notes', 'Commercial Guidance', 'Handoff Notes', 'Power / Space', 'Floor / Rack', 'Customs / Regulatory', 'Security Requirements', 'Cross-Connect Info', 'Fibre Management', 'Key Contacts', 'Site Experts', 'Lead Time / Ordering', 'Lifespan Notes', 'Cease / Exit Notes', 'Other'] },
+              { title: 'Per-Segment Note Categories', color: '#a6e3a1', items: ['Fibre Pair Info', 'Landing Information', 'Route Notes', 'Capacity Notes', 'Performance Notes', 'Fibre Operator', 'Maintenance Windows', 'Known Issues', 'SLA / Protection', 'Diversity Notes', 'Latency Variance', 'IRU / Lease Terms', 'Repair History', 'Lifespan Notes', 'Cease / Exit Notes', 'Other'] },
+            ].map(({ title, color, items }) => (
+              <div key={title} style={{ ...card() as React.CSSProperties, borderTop: `3px solid ${color}` }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color, marginBottom: 8 }}>{title}</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {items.map(i => (
+                    <span key={i} style={{ fontSize: 9, padding: '2px 6px', borderRadius: 10, background: color + '18', color, border: `1px solid ${color}33` }}>{i}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 10 }}>
+            {[
+              { sev: 'Info', color: '#89b4fa', desc: 'Background context, helpful tips, or general guidance that the architect should be aware of.' },
+              { sev: 'Warning', color: '#fab387', desc: 'Something that requires attention — a process step, a restriction, or a cost/lead-time consideration.' },
+              { sev: 'Critical', color: '#f38ba8', desc: 'A hard constraint or known issue that could block the deal — must be resolved before submission.' },
+            ].map(({ sev, color, desc }) => (
+              <div key={sev} style={{ ...card() as React.CSSProperties, borderLeft: `3px solid ${color}` }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color, marginBottom: 4 }}>{sev}</div>
+                <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ ...card() as React.CSSProperties, background: t.bgDeep, padding: '14px 16px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: t.blue, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Workflow</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {[
+                ['1', 'Add a note', 'Go to Ref Data → Notes → Add note. Select whether it applies to a node or segment, pick the target from the dropdown, choose a category and severity, enter a title and description.'],
+                ['2', 'Or add from a route', 'Open any route\'s Solution Notes overlay (📋 button on the route card). Click "+ Add Note" next to any node or segment — the Ref Data form opens pre-filled with that asset selected.'],
+                ['3', 'Check your route', 'After a route search, look for the 📋 button on each route card. A blue illuminated badge means notes exist for at least one node or segment on that route. Click to open the full overlay.'],
+                ['4', 'Review in route order', 'The overlay shows a metro-map of the route on the left with colour-coded severity indicators, and all notes listed in sequence on the right. Long notes collapse to 160 characters — click "Show more" to expand.'],
+              ].map(([num, title, desc]) => (
+                <div key={num} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <div style={{ width: 20, height: 20, borderRadius: '50%', background: t.blue, color: '#fff', fontSize: 10, fontWeight: 800, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{num}</div>
+                  <div>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: t.text }}>{title} — </span>
+                    <span style={{ fontSize: 11, color: t.textMuted }}>{desc}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -1256,9 +1333,11 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     { title: 'Segment Labels Toggle',         category: 'Network Visualization',     desc: 'Show segment IDs directly on the map for active and highlighted routes.' },
     { title: 'Capacity Dashboard',            category: 'Data Management',           desc: 'Full-network capacity view across all segments with utilisation colour-coding.' },
     { title: 'Live Outage Awareness',         category: 'Data Management',           desc: 'Active outage flagging on route cards with repair date estimates and outage-push sort.' },
-    { title: 'Ref Data Management',           category: 'Data Management',           desc: 'Full CRUD for nodes, segments, systems, capacity, outages and interconnect rules.' },
+    { title: 'Ref Data Management',           category: 'Data Management',           desc: 'Full CRUD for nodes, segments, systems, capacity, outages, interconnect rules and solution notes.' },
     { title: 'Bulk CSV Import/Export',        category: 'Data Management',           desc: 'Bulk import and export of all ref data entities via CSV including all fields.' },
     { title: 'Verification Status Badges',    category: 'Data Management',           desc: 'Draft / Under Verification / Verified status per node and segment — click badge to update inline.' },
+    { title: 'Node Handoff Rules',            category: 'Data Management',           desc: 'Four hard-constraint rule types per node — Disallowed Pair, Allowed Pair, No Handoff, and Restricted Handoff Segments — applied as pre-filters before any route is returned.' },
+    { title: 'Solution Notes — Knowledge Repository', category: 'Data Management',  desc: 'Permanent notes (site access, customs, SLA, IRU terms, handoff guidance, lifespan and more) attached to any node or segment, visible in a metro-map overlay on every route that includes that asset.' },
     { title: 'Customer Solution Projects',    category: 'Customer Solutions & SLD',  desc: 'Full project management for customer solutions — circuits, enrichment, SLD export in one workflow.' },
     { title: 'A-End/Z-End Circuit Enrichment',category: 'Customer Solutions & SLD', desc: 'Per-endpoint technical detail including access type, supplier, interface and protection scheme.' },
     { title: 'Quick SLD Export',              category: 'Reporting & Export',        desc: 'Instant branded straight-line diagram from any pinned routes — choose version label (Proposal / Draft / Final) then export as PDF or DrawIO / Visio XML.' },
