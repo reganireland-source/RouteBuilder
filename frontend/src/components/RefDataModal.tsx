@@ -215,10 +215,12 @@ function NodeSearchField({ label, k, src, setSrc, nodes }: {
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  const hits = query.trim().length === 0 ? [] : nodes.filter(n => {
-    const q = query.toLowerCase()
-    return n.id.toLowerCase().includes(q) || n.name.toLowerCase().includes(q)
-  }).slice(0, 20)
+  const q = query.trim().toLowerCase()
+  const hits = nodes.filter(n =>
+    q === '' || n.id.toLowerCase().includes(q) || n.name.toLowerCase().includes(q) ||
+    (n.city ?? '').toLowerCase().includes(q) || (n.country ?? '').toLowerCase().includes(q) ||
+    (n.trading_name ?? '').toLowerCase().includes(q)
+  ).slice(0, 20)
 
   const isValid = !!currentNode
   const isEmpty = currentId === ''
@@ -230,14 +232,14 @@ function NodeSearchField({ label, k, src, setSrc, nodes }: {
       <input
         style={{ ...inputStyle, borderColor, paddingRight: isValid ? 22 : undefined }}
         value={query}
-        placeholder="Search node ID or name…"
+        placeholder="Search ID, name, city, country…"
         autoComplete="off"
         onChange={e => {
           setQuery(e.target.value)
           setOpen(true)
           if (e.target.value !== currentId) setSrc({ ...src, [k]: '' })
         }}
-        onFocus={() => { if (query.trim().length > 0) setOpen(true) }}
+        onFocus={() => setOpen(true)}
       />
       {isValid && (
         <span style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(25%)', fontSize: 10, color: t.green, pointerEvents: 'none' }}>✓</span>
@@ -268,7 +270,7 @@ function NodeSearchField({ label, k, src, setSrc, nodes }: {
             >
               <code style={{ fontSize: 11, color: t.blue, flexShrink: 0 }}>{n.id}</code>
               <span style={{ color: t.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.name}</span>
-              <span style={{ color: t.textFaint, fontSize: 10, flexShrink: 0 }}>{n.country}</span>
+              <span style={{ color: t.textFaint, fontSize: 10, flexShrink: 0 }}>{n.city ?? n.country}</span>
             </div>
           ))}
         </div>
@@ -278,6 +280,104 @@ function NodeSearchField({ label, k, src, setSrc, nodes }: {
       )}
       {isValid && currentNode && (
         <span style={{ fontSize: 10, color: t.textFaint, marginTop: 1 }}>{currentNode.name} · {currentNode.country}</span>
+      )}
+    </div>
+  )
+}
+
+function SegmentSearchField({ label, k, src, setSrc, segments }: {
+  label: string; k: string
+  src: Record<string, unknown>; setSrc: (v: Record<string, unknown>) => void
+  segments: CableSegment[]
+}) {
+  const t = useTheme()
+  const inputStyle: React.CSSProperties = {
+    background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 3,
+    color: t.text, fontSize: 12, padding: '3px 6px', width: '100%', boxSizing: 'border-box',
+    fontFamily: 'inherit',
+  }
+  const currentId = String(src[k] ?? '')
+  const currentSeg = segments.find(s => s.id === currentId)
+  const [query, setQuery] = useState(currentId)
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => { setQuery(currentId) }, [currentId])
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const q = query.trim().toLowerCase()
+  const hits = segments.filter(s =>
+    q === '' || s.id.toLowerCase().includes(q) || s.name.toLowerCase().includes(q) ||
+    s.system_id.toLowerCase().includes(q) ||
+    s.start_node_id.toLowerCase().includes(q) || s.end_node_id.toLowerCase().includes(q)
+  ).slice(0, 20)
+
+  const isValid = !!currentSeg
+  const isEmpty = currentId === ''
+  const borderColor = isEmpty ? t.border : isValid ? t.green : t.red
+
+  return (
+    <div ref={wrapRef} style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
+      <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+      <input
+        style={{ ...inputStyle, borderColor, paddingRight: isValid ? 22 : undefined }}
+        value={query}
+        placeholder="Search ID, name, system or end nodes…"
+        autoComplete="off"
+        onChange={e => {
+          setQuery(e.target.value)
+          setOpen(true)
+          if (e.target.value !== currentId) setSrc({ ...src, [k]: '' })
+        }}
+        onFocus={() => setOpen(true)}
+      />
+      {isValid && (
+        <span style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(25%)', fontSize: 10, color: t.green, pointerEvents: 'none' }}>✓</span>
+      )}
+      {open && hits.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 9999,
+          background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 4,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.4)', maxHeight: 220, overflowY: 'auto',
+        }}>
+          {hits.map(s => (
+            <div
+              key={s.id}
+              onMouseDown={e => {
+                e.preventDefault()
+                setSrc({ ...src, [k]: s.id })
+                setQuery(s.id)
+                setOpen(false)
+              }}
+              style={{
+                padding: '5px 9px', cursor: 'pointer', fontSize: 12,
+                borderBottom: `1px solid ${t.border}`,
+                background: s.id === currentId ? `${t.green}22` : 'transparent',
+                display: 'flex', gap: 8, alignItems: 'baseline',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = `${t.green}33`)}
+              onMouseLeave={e => (e.currentTarget.style.background = s.id === currentId ? `${t.green}22` : 'transparent')}
+            >
+              <code style={{ fontSize: 11, color: t.green, flexShrink: 0 }}>{s.id}</code>
+              <span style={{ color: t.textFaint, fontSize: 10, flexShrink: 0 }}>{s.system_id}</span>
+              <span style={{ color: t.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {!isEmpty && !isValid && (
+        <span style={{ fontSize: 10, color: t.red, marginTop: 1 }}>No segment with ID "{currentId || query}" found</span>
+      )}
+      {isValid && currentSeg && (
+        <span style={{ fontSize: 10, color: t.textFaint, marginTop: 1 }}>{currentSeg.system_id} · {currentSeg.name}</span>
       )}
     </div>
   )
@@ -1692,12 +1792,13 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             <>
               {lAdding && (
                 <div style={{ ...editFormRow, margin: '8px 12px' }}>
-                  <Field label="Target *" k="target_kind" src={lAddVals} setSrc={setLAddVals}
+                  <Field label="Target *" k="target_kind" src={lAddVals}
+                    setSrc={v => setLAddVals({ ...v, target_id: '' })}
                     options={[{ value: 'node', label: 'Node' }, { value: 'segment', label: 'Segment' }]} />
-                  <Field label={addTargetKind === 'node' ? 'Node ID *' : 'Segment ID *'} k="target_id" src={lAddVals} setSrc={setLAddVals}
-                    options={addTargetKind === 'node'
-                      ? panelNodes.sort((a, b) => a.id.localeCompare(b.id)).map(n => ({ value: n.id, label: `${n.id} — ${n.name}` }))
-                      : panelSegments.sort((a, b) => a.id.localeCompare(b.id)).map(s => ({ value: s.id, label: `${s.id} — ${s.name}` }))} />
+                  {addTargetKind === 'node'
+                    ? <NodeSearchField label="Node *" k="target_id" src={lAddVals} setSrc={setLAddVals} nodes={panelNodes} />
+                    : <SegmentSearchField label="Segment *" k="target_id" src={lAddVals} setSrc={setLAddVals} segments={panelSegments} />
+                  }
                   <Field label="Category *" k="category_id" src={lAddVals} setSrc={setLAddVals} options={addCatOpts} />
                   <Field label="Severity" k="severity" src={lAddVals} setSrc={setLAddVals}
                     options={SEVERITIES.map(s => ({ value: s.value, label: s.label }))} />
