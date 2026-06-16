@@ -1088,6 +1088,14 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     | { node_id: string; idx: number; segment: AllowedHandoffSegment; kind: 'handoff_segment' }
 
   function RulesTab() {
+    function segmentOptsForNode(nodeId: string) {
+      if (!nodeId) return []
+      return segments
+        .filter(s => s.start_node_id === nodeId || s.end_node_id === nodeId)
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map(s => ({ value: s.id, label: `${s.id} — ${s.name}` }))
+    }
+
     const flat: FlatRule[] = rules.flatMap(r => [
       ...r.disallowed_pairs.map((pair, idx) => ({ node_id: r.node_id, idx, pair, kind: 'blacklist' as const })),
       ...(r.allowed_pairs ?? []).map((pair, idx) => ({ node_id: r.node_id, idx, pair, kind: 'whitelist' as const })),
@@ -1297,7 +1305,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
               <Field label="Reason"      k="reason"    src={addValues} setSrc={setAddValues} />
             </>}
             {addKind === 'handoff_segment' && <>
-              <Field label="Segment ID *" k="segment_id" src={addValues} setSrc={setAddValues} />
+              <Field label="Segment ID *" k="segment_id" src={addValues} setSrc={setAddValues}
+                options={segmentOptsForNode(String(addValues.node_id || ''))} />
               <Field label="Reason"       k="reason"     src={addValues} setSrc={setAddValues} />
             </>}
             <SaveCancel onSave={addRule} onCancel={() => { setAdding(false); setAddValues({}) }} />
@@ -1323,7 +1332,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                 const segRule = fp as { node_id: string; idx: number; segment: AllowedHandoffSegment; kind: 'handoff_segment' }
                 const ruleEditForm = (
                   <div style={{ ...editFormRow }}>
-                    <Field label="Segment ID" k="segment_id" src={editValues} setSrc={setEditValues} />
+                    <Field label="Segment ID" k="segment_id" src={editValues} setSrc={setEditValues}
+                      options={segmentOptsForNode(fp.node_id)} />
                     <Field label="Reason"     k="reason"     src={editValues} setSrc={setEditValues} />
                     <SaveCancel onSave={() => saveHandoffSegEdit(fp.node_id, segRule.idx)} onCancel={() => setEditId(null)} />
                   </div>
@@ -1411,7 +1421,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                     </div>
                     {editId === key && (
                       <div style={{ ...editFormRow }}>
-                        <Field label="Segment ID" k="segment_id" src={editValues} setSrc={setEditValues} />
+                        <Field label="Segment ID" k="segment_id" src={editValues} setSrc={setEditValues}
+                          options={segmentOptsForNode(fp.node_id)} />
                         <Field label="Reason"     k="reason"     src={editValues} setSrc={setEditValues} />
                         <SaveCancel onSave={() => saveHandoffSegEdit(fp.node_id, segFp.idx)} onCancel={() => setEditId(null)} />
                       </div>
