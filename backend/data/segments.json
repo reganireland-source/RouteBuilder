@@ -1533,7 +1533,17 @@
     "reliability": 0.9992,
     "cost_weight": 11,
     "ownership": "consortium",
-    "latency": 14.0
+    "latency": 14.0,
+    "waypoints": [
+      [
+        8.0,
+        112.0
+      ],
+      [
+        13.0,
+        119.0
+      ]
+    ]
   },
   {
     "id": "EAC-A",
@@ -1595,7 +1605,17 @@
     "reliability": 0.9994,
     "cost_weight": 6,
     "ownership": "consortium",
-    "latency": 7.0
+    "latency": 7.0,
+    "waypoints": [
+      [
+        26.0,
+        120.0
+      ],
+      [
+        30.0,
+        122.5
+      ]
+    ]
   },
   {
     "id": "EAC-F2",
@@ -1624,16 +1644,20 @@
     "ownership": "consortium",
     "waypoints": [
       [
-        36.8,
-        130
+        35.5,
+        128.0
       ],
       [
-        37,
-        135
+        33.5,
+        133.0
       ],
       [
-        37,
-        139
+        33.0,
+        137.0
+      ],
+      [
+        35.0,
+        140.5
       ]
     ]
   },
@@ -1757,16 +1781,24 @@
     "latency": 16.5,
     "waypoints": [
       [
-        30,
-        135
+        28.0,
+        132.0
       ],
       [
-        24,
-        130
+        20.0,
+        128.0
       ],
       [
-        19,
-        126
+        15.0,
+        124.5
+      ],
+      [
+        12.0,
+        122.0
+      ],
+      [
+        11.0,
+        120.0
       ]
     ]
   },
@@ -3318,7 +3350,25 @@
     "reliability": 0.9993,
     "cost_weight": 9,
     "ownership": "offnet_resell",
-    "latency": 20.39
+    "latency": 20.39,
+    "waypoints": [
+      [
+        5.0,
+        110.0
+      ],
+      [
+        10.0,
+        115.0
+      ],
+      [
+        15.0,
+        125.0
+      ],
+      [
+        18.0,
+        126.0
+      ]
+    ]
   },
   {
     "id": "APRICOT-BU-BAU",
@@ -4684,7 +4734,17 @@
     "latency": 14.15,
     "reliability": 0.999,
     "cost_weight": 10,
-    "ownership": "consortium"
+    "ownership": "consortium",
+    "waypoints": [
+      [
+        23.0,
+        118.0
+      ],
+      [
+        29.0,
+        124.0
+      ]
+    ]
   },
   {
     "id": "RNAL-F",
@@ -4697,7 +4757,21 @@
     "latency": 11.05,
     "reliability": 0.999,
     "cost_weight": 10,
-    "ownership": "consortium"
+    "ownership": "consortium",
+    "waypoints": [
+      [
+        33.5,
+        130.5
+      ],
+      [
+        32.0,
+        134.0
+      ],
+      [
+        33.5,
+        139.0
+      ]
+    ]
   },
   {
     "id": "RNAL-DC",
@@ -4710,7 +4784,21 @@
     "latency": 9.92,
     "reliability": 0.999,
     "cost_weight": 10,
-    "ownership": "consortium"
+    "ownership": "consortium",
+    "waypoints": [
+      [
+        20.5,
+        117.0
+      ],
+      [
+        21.0,
+        122.5
+      ],
+      [
+        23.5,
+        123.0
+      ]
+    ]
   },
   {
     "id": "RNAL-BA",
@@ -4723,7 +4811,21 @@
     "latency": 13.71,
     "reliability": 0.999,
     "cost_weight": 10,
-    "ownership": "consortium"
+    "ownership": "consortium",
+    "waypoints": [
+      [
+        27.0,
+        127.5
+      ],
+      [
+        31.0,
+        132.5
+      ],
+      [
+        34.0,
+        138.0
+      ]
+    ]
   },
   {
     "id": "KR02",
@@ -4924,7 +5026,21 @@
     "latency": 4.95,
     "reliability": 0.9992,
     "cost_weight": 8,
-    "ownership": "consortium"
+    "ownership": "consortium",
+    "waypoints": [
+      [
+        33.5,
+        138.0
+      ],
+      [
+        31.5,
+        133.5
+      ],
+      [
+        33.0,
+        130.5
+      ]
+    ]
   },
   {
     "id": "TW01",
@@ -5162,7 +5278,25 @@
     "latency": 7.735,
     "reliability": 0.9994,
     "cost_weight": 5,
-    "ownership": "consortium"
+    "ownership": "consortium",
+    "waypoints": [
+      [
+        25.5,
+        122.5
+      ],
+      [
+        22.0,
+        124.0
+      ],
+      [
+        17.0,
+        123.0
+      ],
+      [
+        15.0,
+        122.0
+      ]
+    ]
   },
   {
     "id": "EAC-B",
@@ -5188,7 +5322,21 @@
     "latency": 3.255,
     "reliability": 0.9994,
     "cost_weight": 5,
-    "ownership": "consortium"
+    "ownership": "consortium",
+    "waypoints": [
+      [
+        25.5,
+        121.0
+      ],
+      [
+        25.0,
+        119.5
+      ],
+      [
+        23.0,
+        118.0
+      ]
+    ]
   },
   {
     "id": "APG-HKG-TUC",
@@ -5201,7 +5349,21 @@
     "latency": 5.455,
     "reliability": 0.9994,
     "cost_weight": 7,
-    "ownership": "consortium"
+    "ownership": "consortium",
+    "waypoints": [
+      [
+        21.0,
+        117.0
+      ],
+      [
+        21.0,
+        122.0
+      ],
+      [
+        23.5,
+        123.0
+      ]
+    ]
   },
   {
     "id": "APG-TUC-TYO",
@@ -5241,7 +5403,25 @@
     "latency": 6.575,
     "reliability": 0.9994,
     "cost_weight": 7,
-    "ownership": "consortium"
+    "ownership": "consortium",
+    "waypoints": [
+      [
+        15.0,
+        123.0
+      ],
+      [
+        18.5,
+        123.0
+      ],
+      [
+        21.5,
+        122.5
+      ],
+      [
+        23.0,
+        121.5
+      ]
+    ]
   },
   {
     "id": "SJC2-TAM-TYO",
@@ -5281,6 +5461,28 @@
     "latency": 65.21,
     "reliability": 0.9994,
     "cost_weight": 7,
-    "ownership": "consortium"
+    "ownership": "consortium",
+    "waypoints": [
+      [
+        46.0,
+        -145.0
+      ],
+      [
+        50.0,
+        -175.0
+      ],
+      [
+        48.0,
+        170.0
+      ],
+      [
+        38.0,
+        145.0
+      ],
+      [
+        24.0,
+        122.0
+      ]
+    ]
   }
 ]

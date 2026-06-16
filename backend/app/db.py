@@ -255,6 +255,8 @@ def init_db() -> None:
             _run_migration_051(cur)
             # Migration 052: add waypoints to KR/TW backhauls to minimise map overlaps
             _run_migration_052(cur)
+            # Migration 053: fix subsea waypoints to prevent landmass crossings
+            _run_migration_053(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -2383,6 +2385,87 @@ def _run_migration_052(cur) -> None:
         "TW10": [[24.00, 120.70], [23.30, 120.40]],
         # TW11 TUCN→FGCC: east-coast spine (Hualien → Taitung → Pingtung)
         "TW11": [[24.00, 121.60], [23.00, 121.30]],
+    }
+
+    for seg_id, wps in waypoints.items():
+        cur.execute(
+            "UPDATE segments SET data = jsonb_set(data, '{waypoints}', %s::jsonb) WHERE id = %s",
+            (json.dumps(wps), seg_id),
+        )
+
+
+def _run_migration_053(cur) -> None:
+    """Fix subsea cable waypoints to route through open water.
+
+    Issues fixed:
+    - RNAL-DC / APG-HKG-TUC: straight line HKG→Toucheng crosses Taiwan island;
+      rerouted south through Luzon Strait then east to approach TUCN from Pacific.
+    - EAC-E: straight line TPEA→BUEC exits southwest through Taiwan landmass;
+      exits north of Taiwan then swings west through Taiwan Strait.
+    - EAC-2B1: TPEA→Capepisa goes through Luzon; rerouted east of Luzon via
+      Philippine Sea.
+    - SJC2-MNL-TAM: Manila→Tanshui goes north through Luzon island; rerouted
+      east of Luzon.
+    - RNAL-BA: TUCN→Wada straight line clips Ryukyu islands; routed east of
+      Ryukyus through open Pacific.
+    - SJC2-TYO-PUS: Miura→Busan straight line crosses central Japan (Honshu);
+      routed south around Kyushu.
+    - RNAL-F: Busan→Wada straight line crosses Honshu; routed south around
+      Kyushu then northeast to Pacific coast.
+    - RNAL-E: HKG→Busan straight line clips Fujian/Zhejiang coast; routed
+      through open East China Sea.
+    - EAC-K: existing waypoints cross Honshu at 37°N; rerouted south around
+      Kyushu through open Pacific.
+    - C2C-S5: existing waypoints cross Luzon on final approach to Nasugbu;
+      extended route east then south of Philippines.
+    - APRICOT-SIN-BU: straight line clips western Luzon; rerouted via South
+      China Sea east of Palawan then Philippine Sea.
+    - EAC-2B2: SIN→Capepisa clips Palawan; slight eastern nudge.
+    - FASTER-BDN-TAM: no waypoints on trans-Pacific route; added consistent
+      with FASTER-BDN-CHK routing.
+    - EAC-F1: BUEC→BUEY straight line clips Fujian/Zhejiang coast; routed
+      east through open ECS.
+    """
+
+    waypoints: dict[str, list[list[float]]] = {
+        # ── Taiwan crossings ──────────────────────────────────────────────
+        # HKG→Toucheng: south through Luzon Strait, east of Taiwan, approach from Pacific
+        "RNAL-DC":     [[20.5, 117.0], [21.0, 122.5], [23.5, 123.0]],
+        "APG-HKG-TUC": [[21.0, 117.0], [21.0, 122.0], [23.5, 123.0]],
+        # TPEA→BUEC: exit north of Taiwan then west through Taiwan Strait
+        "EAC-E":       [[25.5, 121.0], [25.0, 119.5], [23.0, 118.0]],
+        # TUCN→Wada: east of Ryukyus through open Pacific
+        "RNAL-BA":     [[27.0, 127.5], [31.0, 132.5], [34.0, 138.0]],
+
+        # ── Luzon crossings ───────────────────────────────────────────────
+        # TPEA→Capepisa: east of Taiwan, east of Luzon through Philippine Sea
+        "EAC-2B1":      [[25.5, 122.5], [22.0, 124.0], [17.0, 123.0], [15.0, 122.0]],
+        # Manila→Tanshui: east of Luzon, approach via Luzon Strait
+        "SJC2-MNL-TAM": [[15.0, 123.0], [18.5, 123.0], [21.5, 122.5], [23.0, 121.5]],
+        # Singapore→APRICOT BU: south/east of Philippines via Philippine Sea
+        "APRICOT-SIN-BU": [[5.0, 110.0], [10.0, 115.0], [15.0, 125.0], [18.0, 126.0]],
+        # SIN→Capepisa: slight eastern arc to clear Palawan
+        "EAC-2B2":      [[8.0, 112.0], [13.0, 119.0]],
+        # Japan→Nasugbu: extended south/east of Philippines, approach from west
+        "C2C-S5":       [[28.0, 132.0], [20.0, 128.0], [15.0, 124.5], [12.0, 122.0], [11.0, 120.0]],
+
+        # ── Japan/Honshu crossings ────────────────────────────────────────
+        # Miura→Busan: south around Kyushu, Bungo Channel approach
+        "SJC2-TYO-PUS": [[33.5, 138.0], [31.5, 133.5], [33.0, 130.5]],
+        # Busan→Wada: south around Kyushu, northeast through Pacific
+        "RNAL-F":       [[33.5, 130.5], [32.0, 134.0], [33.5, 139.0]],
+        # HKG→Busan: east China Sea route clear of Fujian coast
+        "RNAL-E":       [[23.0, 118.0], [29.0, 124.0]],
+        # KSSR→JAAJ: south around Kyushu through Pacific, existing waypoints crossed Honshu
+        "EAC-K":        [[35.5, 128.0], [33.5, 133.0], [33.0, 137.0], [35.0, 140.5]],
+
+        # ── China coast clipping ──────────────────────────────────────────
+        # BUEC→BUEY: routed east of Fujian/Zhejiang through open ECS
+        "EAC-F1":       [[26.0, 120.0], [30.0, 122.5]],
+
+        # ── Trans-Pacific ─────────────────────────────────────────────────
+        # BDN1→Tanshui: north Pacific arc consistent with FASTER-BDN-CHK
+        "FASTER-BDN-TAM": [[46.0, -145.0], [50.0, -175.0], [48.0, 170.0], [38.0, 145.0], [24.0, 122.0]],
     }
 
     for seg_id, wps in waypoints.items():
