@@ -495,7 +495,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   // ── Styles ──────────────────────────────────────────────────────────────────
 
   const modalBg: React.CSSProperties = {
-    position: 'fixed', inset: 0, zIndex: 2000,
+    position: 'fixed', inset: 0, zIndex: 11000,
     background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
   }
 
