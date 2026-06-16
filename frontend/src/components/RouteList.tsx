@@ -890,10 +890,12 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
               onClick={() => onShowNotes(route)}
               title={hasNotes ? 'View Solution Notes for this route' : 'No notes — click to open Solution Notes'}
               style={{
-                fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 4, flexShrink: 0,
-                border: `1px solid ${hasNotes ? t.blue + '55' : t.border}`,
-                background: hasNotes ? t.blue + '22' : t.bgDeep,
-                color: hasNotes ? t.blue : t.textFaintest, cursor: 'pointer',
+                fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, flexShrink: 0,
+                border: `1px solid ${hasNotes ? t.blue + '99' : 'transparent'}`,
+                background: hasNotes ? t.blue + '28' : 'transparent',
+                color: hasNotes ? t.blue : t.textFaintest,
+                opacity: hasNotes ? 1 : 0.3,
+                cursor: 'pointer',
               }}
             >📋 Notes</button>
           )}
@@ -1099,11 +1101,13 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
               onClick={e => { e.stopPropagation(); onShowNotes(route) }}
               title={hasNotes ? 'View Solution Notes for this route' : 'No notes — click to open Solution Notes'}
               style={{
-                background: hasNotes ? t.blue + '22' : 'none',
-                border: hasNotes ? `1px solid ${t.blue}55` : 'none',
+                background: hasNotes ? t.blue + '28' : 'none',
+                border: hasNotes ? `1px solid ${t.blue}99` : 'none',
                 cursor: 'pointer',
                 fontSize: 11, lineHeight: 1, padding: '1px 3px', borderRadius: 3,
-                color: hasNotes ? t.blue : t.textFaintest, transition: 'color 0.15s',
+                color: hasNotes ? t.blue : t.textFaintest,
+                opacity: hasNotes ? 1 : 0.3,
+                transition: 'color 0.15s',
               }}
             >📋</button>
           )}
