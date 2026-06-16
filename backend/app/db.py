@@ -243,6 +243,8 @@ def init_db() -> None:
             _run_migration_045(cur)
             # Migration 046: replace all Taiwan nodes with corrected CRM data; strand wet cables
             _run_migration_046(cur)
+            # Migration 047: add Taiwan terrestrial backhaul segments
+            _run_migration_047(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -2155,6 +2157,50 @@ def _run_migration_046(cur) -> None:
         cur.execute(
             "INSERT INTO nodes (id, data) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
             (node["id"], json.dumps(node)),
+        )
+
+
+def _run_migration_047(cur) -> None:
+    """Add Taiwan terrestrial backhaul segments between new CRM nodes."""
+
+    segments = [
+        ("TW01", "Backhaul Pali–TPDS1", "TPEA", "TPEI", 6, 0.03),
+        ("TW02", "Backhaul Pali–TPDS1 (diverse)", "TPEA", "TPEI", 6, 0.03),
+        ("TW03", "Backhaul Tanshui–Neihu TTRG", "TTTJ", "TTRG", 215, 1.075),
+        ("TW04", "Backhaul TTRG–TPDS1", "TTRG", "TPEI", 1, 0.005),
+        ("TW05", "Backhaul Tanshui–Pali", "TTTJ", "TPEA", 209, 1.045),
+        ("TW07", "Backhaul TPDS1–Fareastone Ankang", "TPEI", "TTAK", 5, 0.025),
+        ("TW08", "Backhaul Fareastone Ankang–Toucheng", "TTAK", "TUCN", 37, 0.185),
+        ("TW09", "Backhaul TPDS1–Toucheng", "TPEI", "TUCN", 42, 0.210),
+        ("TW10", "Backhaul TPDS1–Kaohsiung", "TPEI", "TKDC", 395, 1.975),
+        ("TW11", "Backhaul Toucheng–Fangshan", "TUCN", "FGCC", 420, 2.100),
+        ("TW12", "Backhaul Fangshan–Kaohsiung", "FGCC", "TKDC", 67, 0.335),
+    ]
+
+    for seg_id, name, start, end, km, latency in segments:
+        cur.execute(
+            "INSERT INTO segments (id, data) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+            (seg_id, json.dumps({
+                "id": seg_id,
+                "name": name,
+                "system_id": "TERRESTRIAL",
+                "start_node_id": start,
+                "end_node_id": end,
+                "type": "terrestrial",
+                "length_km": km,
+                "latency": latency,
+                "reliability": 0.9995,
+                "cost_weight": 1,
+                "ownership": "owned",
+            })),
+        )
+        cur.execute(
+            "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT (segment_id) DO UPDATE SET data = EXCLUDED.data",
+            (seg_id, json.dumps({
+                "segment_id": seg_id,
+                "total_capacity_t": 10.0,
+                "available_capacity_t": 8.0,
+            })),
         )
 
 
