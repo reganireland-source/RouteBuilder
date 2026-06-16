@@ -241,6 +241,8 @@ def init_db() -> None:
             _run_migration_044(cur)
             # Migration 045: land SJC2 Korea branch at PUCC (Busan C2C CLS)
             _run_migration_045(cur)
+            # Migration 046: replace all Taiwan nodes with corrected CRM data; strand wet cables
+            _run_migration_046(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -1978,6 +1980,182 @@ def _run_migration_045(cur) -> None:
             "available_capacity_t": 1.3,
         })),
     )
+
+
+def _run_migration_046(cur) -> None:
+    """Replace all Taiwan nodes with corrected CRM data.
+
+    Deletes legacy TW nodes (TPE1, TPE2, KHH1, TAMS, FSHA) and all segments
+    that reference them.  Updates TUCN with corrected coordinates and owner.
+    Inserts 9 new TW nodes from CRM: FGCC, TKDC, TTHY, TTRG, TTEX, TPEA,
+    TPEI, TTAK, TTTJ.  Wet cable segments are left stranded here; the user
+    will reconnect backhauls and subsea cables separately.
+    """
+
+    # ── 1. Delete stranded segments and their capacity ─────────────────────
+    stranded_segments = [
+        # TW terrestrial backhauls
+        "TERRESTRIAL_TW01", "TERRESTRIAL_TW02", "TERRESTRIAL_TW03",
+        "TERRESTRIAL_TW04", "TERRESTRIAL_TW05",
+        # APG
+        "APG-HKG-TPE", "APG-TPE-TYO",
+        # SJC2
+        "SJC2-MNL-TPE", "SJC2-TPE-TYO",
+        # ADC
+        "ADC-TYO-TPE", "ADC-TPE-HKG",
+        # EAC
+        "EAC-2B1", "EAC-B", "EAC-E",
+        # C2C
+        "C2C-S2B",
+        # FASTER
+        "FASTER-BDN-TAM",
+    ]
+    for seg_id in stranded_segments:
+        cur.execute("DELETE FROM capacity WHERE segment_id = %s", (seg_id,))
+        cur.execute("DELETE FROM segments WHERE id = %s", (seg_id,))
+
+    # ── 2. Delete legacy TW nodes ──────────────────────────────────────────
+    for node_id in ("TPE1", "TPE2", "KHH1", "TAMS", "FSHA"):
+        cur.execute("DELETE FROM nodes WHERE id = %s", (node_id,))
+
+    # ── 3. Update TUCN with corrected CRM data ─────────────────────────────
+    cur.execute(
+        "UPDATE nodes SET data = data || %s::jsonb WHERE id = 'TUCN'",
+        (json.dumps({
+            "name": "Toucheng Cable Station",
+            "lat": 24.94401,
+            "lng": 121.867646,
+            "city": "Toucheng",
+            "owner": "Reach",
+            "on_net": "on_net",
+        }),),
+    )
+
+    # ── 4. Insert 9 new TW nodes ───────────────────────────────────────────
+    new_tw_nodes = [
+        {
+            "id": "FGCC",
+            "name": "Fangshan C2C CLS",
+            "lat": 22.26064,
+            "lng": 120.657378,
+            "type": "landing_station",
+            "country": "TW",
+            "city": "Fangshan",
+            "owner": "Telstra International",
+            "trading_name": "Fangshan C2C CLS, Taiwan",
+            "on_net": "on_net",
+            "verification_status": "draft",
+        },
+        {
+            "id": "TKDC",
+            "name": "DCT Data Center Kaohsiung",
+            "lat": 22.59708,
+            "lng": 120.3147208,
+            "type": "extension_pop",
+            "country": "TW",
+            "city": "Kaohsiung",
+            "owner": "Dynamic Computing Technology",
+            "trading_name": "DCT Data Center, Kaohsiung",
+            "on_net": "on_net",
+            "verification_status": "draft",
+        },
+        {
+            "id": "TTHY",
+            "name": "Taipei Offnet TTHY",
+            "lat": 25.03683,
+            "lng": 121.562683,
+            "type": "extension_pop",
+            "country": "TW",
+            "city": "Taipei",
+            "owner": "TBC",
+            "trading_name": "Taipei Offnet TTHY",
+            "on_net": "off_net",
+            "verification_status": "draft",
+        },
+        {
+            "id": "TTRG",
+            "name": "Taipei Offnet TTRG",
+            "lat": 25.07835,
+            "lng": 121.569943,
+            "type": "extension_pop",
+            "country": "TW",
+            "city": "Taipei",
+            "owner": "TBC",
+            "trading_name": "Taipei Offnet TTRG",
+            "on_net": "on_net",
+            "verification_status": "draft",
+        },
+        {
+            "id": "TTEX",
+            "name": "eASPNet Xizhi",
+            "lat": 25.06147,
+            "lng": 121.64864,
+            "type": "extension_pop",
+            "country": "TW",
+            "city": "Taipei",
+            "owner": "eASPNet",
+            "trading_name": "eASPNet Xizhi, Taiwan",
+            "on_net": "off_net",
+            "verification_status": "draft",
+        },
+        {
+            "id": "TPEA",
+            "name": "Pali Cable Station",
+            "lat": 25.03297,
+            "lng": 121.565418,
+            "type": "landing_station",
+            "country": "TW",
+            "city": "Taipei",
+            "owner": "Telstra International",
+            "trading_name": "Pali Cable Station, Taiwan",
+            "on_net": "on_net",
+            "verification_status": "draft",
+        },
+        {
+            "id": "TPEI",
+            "name": "TPDS1 eASPNet",
+            "lat": 25.07351,
+            "lng": 121.577712,
+            "type": "primary_pop",
+            "country": "TW",
+            "city": "Taipei",
+            "owner": "eASPNet",
+            "trading_name": "TPDS1, Taiwan",
+            "on_net": "on_net",
+            "verification_status": "draft",
+        },
+        {
+            "id": "TTAK",
+            "name": "Fareastone Ankang",
+            "lat": 25.06829,
+            "lng": 121.6165147,
+            "type": "primary_pop",
+            "country": "TW",
+            "city": "Taipei",
+            "owner": "Telstra International",
+            "trading_name": "TTAK",
+            "on_net": "on_net",
+            "verification_status": "draft",
+        },
+        {
+            "id": "TTTJ",
+            "name": "Tanshui CLS",
+            "lat": 23.69781,
+            "lng": 120.960515,
+            "type": "landing_station",
+            "country": "TW",
+            "city": "Taipei",
+            "owner": "Telstra International",
+            "trading_name": "TANSHUI CLS (TTTJ)",
+            "on_net": "on_net",
+            "verification_status": "draft",
+        },
+    ]
+    for node in new_tw_nodes:
+        cur.execute(
+            "INSERT INTO nodes (id, data) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+            (node["id"], json.dumps(node)),
+        )
 
 
 def _seed_if_empty(conn) -> None:

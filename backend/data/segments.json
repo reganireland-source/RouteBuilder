@@ -340,46 +340,6 @@
     "latency": 30.5
   },
   {
-    "id": "APG-HKG-TPE",
-    "name": "APG Hong Kong\u2013Taipei",
-    "system_id": "APG",
-    "start_node_id": "HKG1",
-    "end_node_id": "TPE1",
-    "type": "wet",
-    "length_km": 750,
-    "reliability": 0.9994,
-    "cost_weight": 4,
-    "ownership": "consortium",
-    "latency": 3.75
-  },
-  {
-    "id": "APG-TPE-TYO",
-    "name": "APG Taipei\u2013Tokyo",
-    "system_id": "APG",
-    "start_node_id": "TPE1",
-    "end_node_id": "MJLS",
-    "type": "wet",
-    "length_km": 2200,
-    "reliability": 0.9993,
-    "cost_weight": 9,
-    "ownership": "consortium",
-    "latency": 11.0,
-    "waypoints": [
-      [
-        28,
-        126
-      ],
-      [
-        31,
-        131
-      ],
-      [
-        33,
-        137
-      ]
-    ]
-  },
-  {
     "id": "APG-SIN-HKG",
     "name": "APG Singapore\u2013Hong Kong",
     "system_id": "APG",
@@ -560,19 +520,6 @@
     "cost_weight": 10,
     "ownership": "owned",
     "latency": 20.5
-  },
-  {
-    "id": "TERRESTRIAL_TW01",
-    "name": "Terrestrial Taipei\u2013Kaohsiung",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "TPE1",
-    "end_node_id": "KHH1",
-    "type": "terrestrial",
-    "length_km": 350,
-    "reliability": 0.9995,
-    "cost_weight": 1,
-    "ownership": "owned",
-    "latency": 1.75
   },
   {
     "id": "TERRESTRIAL_IN01",
@@ -781,19 +728,6 @@
     "cost_weight": 1,
     "ownership": "owned",
     "latency": 0.01
-  },
-  {
-    "id": "TERRESTRIAL_TW02",
-    "name": "Backhaul Taipei\u2013Taipei Metro",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "TPE1",
-    "end_node_id": "TPE2",
-    "type": "terrestrial",
-    "length_km": 5,
-    "reliability": 0.9999,
-    "cost_weight": 1,
-    "ownership": "owned",
-    "latency": 0.03
   },
   {
     "id": "TERRESTRIAL_IN03",
@@ -1114,86 +1048,6 @@
     "cost_weight": 8,
     "ownership": "offnet_resell",
     "latency": 12.5
-  },
-  {
-    "id": "SJC2-MNL-TPE",
-    "name": "SJC2 Manila\u2013Taipei",
-    "system_id": "SJC2",
-    "start_node_id": "MNL1",
-    "end_node_id": "TPE1",
-    "type": "wet",
-    "length_km": 1200,
-    "reliability": 0.9995,
-    "cost_weight": 4,
-    "ownership": "offnet_resell",
-    "latency": 6.0
-  },
-  {
-    "id": "SJC2-TPE-TYO",
-    "name": "SJC2 Taipei\u2013Tokyo",
-    "system_id": "SJC2",
-    "start_node_id": "TPE1",
-    "end_node_id": "MJLS",
-    "type": "wet",
-    "length_km": 2100,
-    "reliability": 0.9994,
-    "cost_weight": 7,
-    "ownership": "offnet_resell",
-    "latency": 10.5,
-    "waypoints": [
-      [
-        27,
-        124
-      ],
-      [
-        30,
-        129
-      ],
-      [
-        33,
-        135
-      ]
-    ]
-  },
-  {
-    "id": "ADC-TYO-TPE",
-    "name": "ADC Tokyo\u2013Taipei",
-    "system_id": "ADC",
-    "start_node_id": "MJLS",
-    "end_node_id": "TPE1",
-    "type": "wet",
-    "length_km": 2100,
-    "reliability": 0.9994,
-    "cost_weight": 7,
-    "ownership": "offnet_resell",
-    "latency": 10.5,
-    "waypoints": [
-      [
-        32,
-        137
-      ],
-      [
-        29,
-        133
-      ],
-      [
-        26,
-        127
-      ]
-    ]
-  },
-  {
-    "id": "ADC-TPE-HKG",
-    "name": "ADC Taipei\u2013Hong Kong",
-    "system_id": "ADC",
-    "start_node_id": "TPE1",
-    "end_node_id": "HKG1",
-    "type": "wet",
-    "length_km": 800,
-    "reliability": 0.9996,
-    "cost_weight": 3,
-    "ownership": "offnet_resell",
-    "latency": 4.0
   },
   {
     "id": "JUNO-MNB-BU",
@@ -1669,19 +1523,6 @@
     "latency": 13.0
   },
   {
-    "id": "EAC-2B1",
-    "name": "EAC 2B1 Taipei\u2013Capepisa",
-    "system_id": "EAC",
-    "start_node_id": "TPE1",
-    "end_node_id": "CPSA",
-    "type": "wet",
-    "length_km": 730,
-    "reliability": 0.9996,
-    "cost_weight": 3,
-    "ownership": "consortium",
-    "latency": 3.65
-  },
-  {
     "id": "EAC-2B2",
     "name": "EAC 2B2 Singapore\u2013Capepisa",
     "system_id": "EAC",
@@ -1718,19 +1559,6 @@
     ]
   },
   {
-    "id": "EAC-B",
-    "name": "EAC Segment B Tamsui\u2013BU Pacific",
-    "system_id": "EAC",
-    "start_node_id": "TAMS",
-    "end_node_id": "BUEP",
-    "type": "wet",
-    "length_km": 600,
-    "reliability": 0.9996,
-    "cost_weight": 3,
-    "ownership": "consortium",
-    "latency": 3.0
-  },
-  {
     "id": "EAC-C",
     "name": "EAC Segment C Tseung Kwan O\u2013BU Pacific",
     "system_id": "EAC",
@@ -1755,19 +1583,6 @@
     "cost_weight": 2,
     "ownership": "consortium",
     "latency": 1.9
-  },
-  {
-    "id": "EAC-E",
-    "name": "EAC Segment E Taipei\u2013BU China Sea",
-    "system_id": "EAC",
-    "start_node_id": "TPE1",
-    "end_node_id": "BUEC",
-    "type": "wet",
-    "length_km": 530,
-    "latency": 2.65,
-    "reliability": 0.9996,
-    "cost_weight": 3,
-    "ownership": "consortium"
   },
   {
     "id": "EAC-F1",
@@ -1887,19 +1702,6 @@
     "cost_weight": 2,
     "ownership": "consortium",
     "latency": 2.0
-  },
-  {
-    "id": "C2C-S2B",
-    "name": "C2C Segment S2B BU Taiwan\u2013Fangshan",
-    "system_id": "C2C",
-    "start_node_id": "BUCT",
-    "end_node_id": "FSHA",
-    "type": "wet",
-    "length_km": 460,
-    "reliability": 0.9996,
-    "cost_weight": 3,
-    "ownership": "consortium",
-    "latency": 2.3
   },
   {
     "id": "C2C-S3A",
@@ -2372,45 +2174,6 @@
     "latency": 10.5
   },
   {
-    "id": "TERRESTRIAL_TW03",
-    "name": "Terrestrial Tamsui\u2013Fangshan",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "TAMS",
-    "end_node_id": "FSHA",
-    "type": "terrestrial",
-    "length_km": 340,
-    "reliability": 0.9991,
-    "cost_weight": 3,
-    "ownership": "owned",
-    "latency": 1.7
-  },
-  {
-    "id": "TERRESTRIAL_TW04",
-    "name": "Terrestrial Tamsui\u2013Taipei",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "TAMS",
-    "end_node_id": "TPE1",
-    "type": "terrestrial",
-    "length_km": 20,
-    "reliability": 0.9997,
-    "cost_weight": 1,
-    "ownership": "owned",
-    "latency": 0.1
-  },
-  {
-    "id": "TERRESTRIAL_TW05",
-    "name": "Terrestrial Fangshan\u2013Kaohsiung",
-    "system_id": "TERRESTRIAL",
-    "start_node_id": "FSHA",
-    "end_node_id": "KHH1",
-    "type": "terrestrial",
-    "length_km": 30,
-    "reliability": 0.9996,
-    "cost_weight": 1,
-    "ownership": "owned",
-    "latency": 0.15
-  },
-  {
     "id": "TERRESTRIAL_CN01",
     "name": "Terrestrial Nanhui\u2013Shanghai",
     "system_id": "TERRESTRIAL",
@@ -2544,19 +2307,6 @@
         144
       ]
     ]
-  },
-  {
-    "id": "FASTER-BDN-TAM",
-    "name": "FASTER Bandon\u2013Tamsui",
-    "system_id": "FASTER",
-    "start_node_id": "BDN1",
-    "end_node_id": "TAMS",
-    "type": "wet",
-    "length_km": 11200,
-    "reliability": 0.9899,
-    "cost_weight": 16,
-    "ownership": "integrated_lit_lease",
-    "latency": 56.0
   },
   {
     "id": "PC1N-HPT-AJI",
