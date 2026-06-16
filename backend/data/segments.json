@@ -5101,5 +5101,98 @@
     "reliability": 0.9994,
     "cost_weight": 5,
     "ownership": "consortium"
+  },
+  {
+    "id": "APG-HKG-TUC",
+    "name": "APG Hong Kong\u2013Toucheng",
+    "system_id": "APG",
+    "start_node_id": "HKGG",
+    "end_node_id": "TUCN",
+    "type": "wet",
+    "length_km": 1091,
+    "latency": 5.455,
+    "reliability": 0.9994,
+    "cost_weight": 7,
+    "ownership": "consortium"
+  },
+  {
+    "id": "APG-TUC-TYO",
+    "name": "APG Toucheng\u2013Tokyo",
+    "system_id": "APG",
+    "start_node_id": "TUCN",
+    "end_node_id": "MJLS",
+    "type": "wet",
+    "length_km": 2681,
+    "latency": 13.405,
+    "reliability": 0.9994,
+    "cost_weight": 7,
+    "ownership": "consortium",
+    "waypoints": [
+      [
+        28,
+        126
+      ],
+      [
+        31,
+        131
+      ],
+      [
+        33,
+        137
+      ]
+    ]
+  },
+  {
+    "id": "SJC2-MNL-TAM",
+    "name": "SJC2 Manila\u2013Tanshui",
+    "system_id": "SJC2",
+    "start_node_id": "MNL1",
+    "end_node_id": "TTTJ",
+    "type": "wet",
+    "length_km": 1315,
+    "latency": 6.575,
+    "reliability": 0.9994,
+    "cost_weight": 7,
+    "ownership": "consortium"
+  },
+  {
+    "id": "SJC2-TAM-TYO",
+    "name": "SJC2 Tanshui\u2013Tokyo",
+    "system_id": "SJC2",
+    "start_node_id": "TTTJ",
+    "end_node_id": "MJLS",
+    "type": "wet",
+    "length_km": 2885,
+    "latency": 14.425,
+    "reliability": 0.9994,
+    "cost_weight": 7,
+    "ownership": "consortium",
+    "waypoints": [
+      [
+        27,
+        124
+      ],
+      [
+        30,
+        129
+      ],
+      [
+        33,
+        135
+      ]
+    ]
+  },
+  {
+    "id": "FASTER-BDN-TAM",
+    "name": "FASTER Bandon\u2013Tanshui",
+    "system_id": "FASTER",
+    "start_node_id": "BDN1",
+    "end_node_id": "TTTJ",
+    "type": "wet",
+    "length_km": 13042,
+    "latency": 65.21,
+    "reliability": 0.9994,
+    "cost_weight": 7,
+    "ownership": "consortium"
   }
 ]

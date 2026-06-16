@@ -1573,5 +1573,30 @@
     "segment_id": "EAC-E",
     "total_capacity_t": 2.0,
     "available_capacity_t": 1.3
+  },
+  {
+    "segment_id": "APG-HKG-TUC",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 1.3
+  },
+  {
+    "segment_id": "APG-TUC-TYO",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 1.3
+  },
+  {
+    "segment_id": "SJC2-MNL-TAM",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 1.3
+  },
+  {
+    "segment_id": "SJC2-TAM-TYO",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 1.3
+  },
+  {
+    "segment_id": "FASTER-BDN-TAM",
+    "total_capacity_t": 2.0,
+    "available_capacity_t": 1.3
   }
 ]

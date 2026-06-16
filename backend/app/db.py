@@ -249,6 +249,8 @@ def init_db() -> None:
             _run_migration_048(cur)
             # Migration 049: reconnect Taiwan wet cables; retire C2C-S3A/3B
             _run_migration_049(cur)
+            # Migration 050: reconnect APG/SJC2/FASTER Taiwan landings; ADC has no Taiwan segment
+            _run_migration_050(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -2261,6 +2263,57 @@ def _run_migration_049(cur) -> None:
                 "cost_weight": 5,
                 "ownership": "consortium",
             })),
+        )
+        cur.execute(
+            "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT (segment_id) DO UPDATE SET data = EXCLUDED.data",
+            (seg_id, json.dumps({
+                "segment_id": seg_id,
+                "total_capacity_t": 2.0,
+                "available_capacity_t": 1.3,
+            })),
+        )
+
+
+def _run_migration_050(cur) -> None:
+    """Reconnect APG, SJC2, and FASTER Taiwan landings to new CRM nodes.
+
+    ADC has no Taiwan landing — those segments remain deleted.
+    APG lands at TUCN (Toucheng).
+    SJC2 and FASTER land at TTTJ (Tanshui).
+    """
+
+    wet_segments = [
+        # APG
+        ("APG-HKG-TUC", "APG Hong Kong–Toucheng", "APG", "HKGG", "TUCN", 1091, 5.455, None),
+        ("APG-TUC-TYO", "APG Toucheng–Tokyo", "APG", "TUCN", "MJLS", 2681, 13.405,
+         [[28, 126], [31, 131], [33, 137]]),
+        # SJC2
+        ("SJC2-MNL-TAM", "SJC2 Manila–Tanshui", "SJC2", "MNL1", "TTTJ", 1315, 6.575, None),
+        ("SJC2-TAM-TYO", "SJC2 Tanshui–Tokyo", "SJC2", "TTTJ", "MJLS", 2885, 14.425,
+         [[27, 124], [30, 129], [33, 135]]),
+        # FASTER
+        ("FASTER-BDN-TAM", "FASTER Bandon–Tanshui", "FASTER", "BDN1", "TTTJ", 13042, 65.21, None),
+    ]
+
+    for seg_id, name, system_id, start, end, km, latency, waypoints in wet_segments:
+        data = {
+            "id": seg_id,
+            "name": name,
+            "system_id": system_id,
+            "start_node_id": start,
+            "end_node_id": end,
+            "type": "wet",
+            "length_km": km,
+            "latency": latency,
+            "reliability": 0.9994,
+            "cost_weight": 7,
+            "ownership": "consortium",
+        }
+        if waypoints:
+            data["waypoints"] = waypoints
+        cur.execute(
+            "INSERT INTO segments (id, data) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+            (seg_id, json.dumps(data)),
         )
         cur.execute(
             "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT (segment_id) DO UPDATE SET data = EXCLUDED.data",
