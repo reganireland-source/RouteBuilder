@@ -251,6 +251,8 @@ def init_db() -> None:
             _run_migration_049(cur)
             # Migration 050: reconnect APG/SJC2/FASTER Taiwan landings; ADC has no Taiwan segment
             _run_migration_050(cur)
+            # Migration 051: remove all APCN2 references (EOL)
+            _run_migration_051(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -1317,8 +1319,8 @@ _JAPAN_NODES = [
     {"id": "JKHF", "name": "Kamisu Repeater",                "lat": 35.90713, "lng": 140.6638, "type": "extension_pop", "country": "JP", "city": "Kamisu",      "owner": "Telstra International", "on_net": "on_net", "verification_status": "under_verification", "description": "Kamisu Repeater Station, Higashi-Fukashiba, Kamisu City"},
     {"id": "JAAS", "name": "Tokyo Repeater (Abiko)",         "lat": 35.8755,  "lng": 139.9976, "type": "extension_pop", "country": "JP", "city": "Abiko",       "owner": "Telstra International", "on_net": "on_net", "verification_status": "under_verification", "description": "Tokyo Repeater Station, Daida, Abiko City"},
     # Off-Net third-party infrastructure
-    {"id": "KALS", "name": "Kitaibaraki CLS (NTT)",          "lat": 36.80191, "lng": 140.751,  "type": "off_net",       "country": "JP", "city": "Kitaibaraki", "owner": "NTT",                   "on_net": "off_net", "verification_status": "under_verification", "description": "NTT Kitaibaraki CLS (JUC, APCN2)"},
-    {"id": "KJLS", "name": "Kitaibaraki CLS (NTT-2)",        "lat": 36.80191, "lng": 140.751,  "type": "off_net",       "country": "JP", "city": "Kitaibaraki", "owner": "NTT",                   "on_net": "off_net", "verification_status": "under_verification", "description": "NTT Kitaibaraki CLS 2 (JUC, APCN2)"},
+    {"id": "KALS", "name": "Kitaibaraki CLS (NTT)",          "lat": 36.80191, "lng": 140.751,  "type": "off_net",       "country": "JP", "city": "Kitaibaraki", "owner": "NTT",                   "on_net": "off_net", "verification_status": "under_verification", "description": "NTT Kitaibaraki CLS (JUC)"},
+    {"id": "KJLS", "name": "Kitaibaraki CLS (NTT-2)",        "lat": 36.80191, "lng": 140.751,  "type": "off_net",       "country": "JP", "city": "Kitaibaraki", "owner": "NTT",                   "on_net": "off_net", "verification_status": "under_verification", "description": "NTT Kitaibaraki CLS 2 (JUC)"},
     {"id": "SSNT", "name": "NTT Shima CLS",                  "lat": 34.32702, "lng": 136.8748, "type": "off_net",       "country": "JP", "city": "Shima",       "owner": "NTT",                   "on_net": "off_net", "verification_status": "under_verification", "description": "NTT Shima CLS, Anori Ago-cho"},
     {"id": "JOGD", "name": "TIS Osaka",                      "lat": 34.86225, "lng": 135.518,  "type": "off_net",       "country": "JP", "city": "Osaka",       "owner": "TIS",                   "on_net": "off_net", "verification_status": "under_verification", "description": "TIS Saitohamabuki Data Centre, Ibaraki-shi, Osaka"},
 ]
@@ -2322,6 +2324,18 @@ def _run_migration_050(cur) -> None:
                 "total_capacity_t": 2.0,
                 "available_capacity_t": 1.3,
             })),
+        )
+
+
+def _run_migration_051(cur) -> None:
+    """Remove all APCN2 references — cable is End of Life.
+
+    APCN2 had no segments in the DB; only two JP node descriptions mentioned it.
+    """
+    for node_id in ("KALS", "KJLS"):
+        cur.execute(
+            "UPDATE nodes SET data = jsonb_set(data, '{description}', to_jsonb(replace(data->>'description', ', APCN2', ''))) WHERE id = %s",
+            (node_id,),
         )
 
 
