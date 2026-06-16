@@ -116,6 +116,11 @@ class AllowedPair(BaseModel):
     reason: str = "Only this pair is allowed at this node"
 
 
+class AllowedHandoffSegment(BaseModel):
+    segment_id: str
+    reason: str = "Segment is allowed to terminate at this node"
+
+
 class InterconnectRule(BaseModel):
     node_id: str
     # Blacklist: these system pairs are always rejected at this node
@@ -123,11 +128,17 @@ class InterconnectRule(BaseModel):
     # Whitelist: for any system named here, ONLY the listed transitions are
     # permitted. Systems not mentioned in allowed_pairs are unaffected.
     allowed_pairs: list[AllowedPair] = []
+    # No handoff: this node cannot be the circuit endpoint (destination)
+    no_handoff: bool = False
+    # Restricted handoff: if non-empty, only these segments may terminate here
+    allowed_handoff_segments: list[AllowedHandoffSegment] = []
 
 
 class InterconnectRuleUpdate(BaseModel):
     disallowed_pairs: Optional[list[DisallowedPair]] = None
     allowed_pairs: Optional[list[AllowedPair]] = None
+    no_handoff: Optional[bool] = None
+    allowed_handoff_segments: Optional[list[AllowedHandoffSegment]] = None
 
 
 class SegmentCapacity(BaseModel):

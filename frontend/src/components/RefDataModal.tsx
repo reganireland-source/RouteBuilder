@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, InterconnectRule, OnNet, SegmentCapacity, SegmentOutage, VerificationStatus } from '../types'
+import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, AllowedHandoffSegment, InterconnectRule, OnNet, SegmentCapacity, SegmentOutage, VerificationStatus } from '../types'
 import { useTheme, type Theme } from '../theme'
 function useIsMobile(): boolean {
   const [mobile, setMobile] = useState(() => window.innerWidth < 768)
@@ -438,9 +438,9 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     borderBottom: `1px solid ${t.border}`, background: t.bgDeep,
   }
 
-  function ActionsCell({ id, onEdit, onDelete }: { id: string; onEdit: () => void; onDelete: () => void }) {
+  function ActionsCell({ id, onEdit, onDelete }: { id: string; onEdit?: () => void; onDelete: () => void }) {
     return (
-      <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', padding: '0 6px', flexShrink: 0 }}>
+      <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', padding: '0 6px', flexShrink: 0, minWidth: 140 }}>
         {deleteConfirmId === id ? (
           <>
             <button style={actionBtn('confirm')} disabled={saving} onClick={onDelete}>Confirm</button>
@@ -448,7 +448,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           </>
         ) : (
           <>
-            <button style={actionBtn('edit')} onClick={onEdit}>Edit</button>
+            {onEdit && <button style={actionBtn('edit')} onClick={onEdit}>Edit</button>}
             <button style={actionBtn('delete')} onClick={() => { setEditId(null); setDeleteConfirmId(id) }}>Delete</button>
           </>
         )}
@@ -474,7 +474,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     title: React.ReactNode
     subtitle?: React.ReactNode
     fields?: { label: string; value: React.ReactNode }[]
-    onEdit: () => void
+    onEdit?: () => void
     onDelete: () => void
     children?: React.ReactNode
   }) {
@@ -500,7 +500,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                 </>
               ) : (
                 <>
-                  <button style={{ ...actionBtn('edit'), padding: '5px 12px' }} onClick={onEdit}>{isEditing ? '✕' : 'Edit'}</button>
+                  {onEdit && <button style={{ ...actionBtn('edit'), padding: '5px 12px' }} onClick={onEdit}>{isEditing ? '✕' : 'Edit'}</button>}
                   {!isEditing && <button style={{ ...actionBtn('delete'), padding: '5px 10px' }} onClick={() => { setEditId(null); setDeleteConfirmId(id) }}>✕</button>}
                 </>
               )}
@@ -1082,37 +1082,62 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   // ── Rules tab ────────────────────────────────────────────────────────────────
 
-  type FlatPair = { node_id: string; idx: number; pair: DisallowedPair | AllowedPair; kind: 'blacklist' | 'whitelist' }
+  type FlatRule =
+    | { node_id: string; idx: number; pair: DisallowedPair | AllowedPair; kind: 'blacklist' | 'whitelist' }
+    | { node_id: string; kind: 'no_handoff' }
+    | { node_id: string; idx: number; segment: AllowedHandoffSegment; kind: 'handoff_segment' }
 
   function RulesTab() {
-    const flat: FlatPair[] = rules.flatMap(r => [
+    const flat: FlatRule[] = rules.flatMap(r => [
       ...r.disallowed_pairs.map((pair, idx) => ({ node_id: r.node_id, idx, pair, kind: 'blacklist' as const })),
       ...(r.allowed_pairs ?? []).map((pair, idx) => ({ node_id: r.node_id, idx, pair, kind: 'whitelist' as const })),
+      ...(r.no_handoff ? [{ node_id: r.node_id, kind: 'no_handoff' as const }] : []),
+      ...(r.allowed_handoff_segments ?? []).map((segment, idx) => ({ node_id: r.node_id, idx, segment, kind: 'handoff_segment' as const })),
     ])
-    const filtered = flat.filter(fp =>
-      !filter ||
-      fp.node_id.toLowerCase().includes(filter.toLowerCase()) ||
-      fp.pair.system_a.toLowerCase().includes(filter.toLowerCase()) ||
-      fp.pair.system_b.toLowerCase().includes(filter.toLowerCase())
-    )
 
-    function pairKey(node_id: string, kind: string, idx: number) { return `${node_id}::${kind}::${idx}` }
+    const filtered = flat.filter(fp => {
+      if (!filter) return true
+      if (fp.node_id.toLowerCase().includes(filter.toLowerCase())) return true
+      if (fp.kind === 'blacklist' || fp.kind === 'whitelist') {
+        const p = (fp as { pair: DisallowedPair | AllowedPair }).pair
+        return p.system_a.toLowerCase().includes(filter.toLowerCase()) || p.system_b.toLowerCase().includes(filter.toLowerCase())
+      }
+      if (fp.kind === 'handoff_segment') {
+        return (fp as { segment: AllowedHandoffSegment }).segment.segment_id.toLowerCase().includes(filter.toLowerCase())
+      }
+      return false
+    })
+
+    function ruleKey(fp: FlatRule) {
+      if (fp.kind === 'no_handoff') return `${fp.node_id}::no_handoff`
+      return `${fp.node_id}::${fp.kind}::${(fp as { idx: number }).idx}`
+    }
 
     const kindOpts = [
-      { value: 'blacklist', label: 'Blacklist — block this pair' },
-      { value: 'whitelist', label: 'Whitelist — only allow this pair' },
+      { value: 'blacklist',       label: 'Blacklist — block this system pair' },
+      { value: 'whitelist',       label: 'Whitelist — only allow this system pair' },
+      { value: 'no_handoff',      label: 'No Handoff — node cannot be circuit endpoint' },
+      { value: 'handoff_segment', label: 'Handoff Segment — restrict which segments can terminate here' },
     ]
 
-    function typeBadge(kind: 'blacklist' | 'whitelist') {
-      const wl = kind === 'whitelist'
+    const addKind = (addValues.kind as string) || 'blacklist'
+    const isPairKind   = addKind === 'blacklist' || addKind === 'whitelist'
+    const isEditPairKind = (editValues.kind as string) === 'blacklist' || (editValues.kind as string) === 'whitelist'
+
+    function typeBadge(kind: FlatRule['kind']) {
+      const cfg: Record<FlatRule['kind'], { label: string; bg: string; color: string }> = {
+        whitelist:       { label: 'Whitelist',   bg: 'rgba(166,227,161,0.15)', color: t.green },
+        blacklist:       { label: 'Blacklist',   bg: 'rgba(243,139,168,0.15)', color: t.red },
+        no_handoff:      { label: 'No Handoff',  bg: 'rgba(250,179,135,0.15)', color: t.orange },
+        handoff_segment: { label: 'Handoff Seg', bg: 'rgba(137,180,250,0.15)', color: t.blue },
+      }
+      const { label, bg, color } = cfg[kind]
       return (
         <span style={{
           display: 'inline-block', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
-          background: wl ? 'rgba(166,227,161,0.15)' : 'rgba(243,139,168,0.15)',
-          color: wl ? t.green : t.red,
-          letterSpacing: '0.04em', textTransform: 'uppercase',
+          background: bg, color, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap',
         }}>
-          {wl ? 'Whitelist' : 'Blacklist'}
+          {label}
         </span>
       )
     }
@@ -1129,7 +1154,6 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           await saveEdit(() => api.updateRule(node_id, { allowed_pairs: (rule.allowed_pairs ?? []).map((p, i) => i === idx ? newPair : p) }))
         }
       } else {
-        // Kind changed — move pair between lists
         const newDisallowed = kind === 'blacklist'
           ? rule.disallowed_pairs.filter((_, i) => i !== idx)
           : [...rule.disallowed_pairs, newPair]
@@ -1140,23 +1164,75 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       }
     }
 
-    async function deletePair(node_id: string, idx: number, kind: 'blacklist' | 'whitelist') {
+    async function saveHandoffSegEdit(node_id: string, idx: number) {
       const rule = rules.find(r => r.node_id === node_id)!
+      const updated = { segment_id: String(editValues.segment_id), reason: String(editValues.reason) }
+      const newSegs = (rule.allowed_handoff_segments ?? []).map((s, i) => i === idx ? updated : s)
+      await saveEdit(() => api.updateRule(node_id, { allowed_handoff_segments: newSegs }))
+    }
+
+    async function deleteRule(fp: FlatRule) {
+      const rule = rules.find(r => r.node_id === fp.node_id)!
+
+      if (fp.kind === 'no_handoff') {
+        const remaining = rule.disallowed_pairs.length + (rule.allowed_pairs?.length ?? 0) + (rule.allowed_handoff_segments?.length ?? 0)
+        if (remaining === 0) {
+          await confirmDelete(() => api.deleteRule(fp.node_id))
+        } else {
+          await confirmDelete(() => api.updateRule(fp.node_id, { no_handoff: false }).then(() => {}))
+        }
+        return
+      }
+
+      if (fp.kind === 'handoff_segment') {
+        const { idx } = fp as { idx: number }
+        const newSegs = (rule.allowed_handoff_segments ?? []).filter((_, i) => i !== idx)
+        const remaining = rule.disallowed_pairs.length + (rule.allowed_pairs?.length ?? 0) + (rule.no_handoff ? 1 : 0) + newSegs.length
+        if (remaining === 0) {
+          await confirmDelete(() => api.deleteRule(fp.node_id))
+        } else {
+          await confirmDelete(() => api.updateRule(fp.node_id, { allowed_handoff_segments: newSegs }).then(() => {}))
+        }
+        return
+      }
+
+      const { idx, kind } = fp as { idx: number; kind: 'blacklist' | 'whitelist' }
       const newDisallowed = kind === 'blacklist' ? rule.disallowed_pairs.filter((_, i) => i !== idx) : rule.disallowed_pairs
       const newAllowed    = kind === 'whitelist' ? (rule.allowed_pairs ?? []).filter((_, i) => i !== idx) : (rule.allowed_pairs ?? [])
-      if (newDisallowed.length === 0 && newAllowed.length === 0) {
-        await confirmDelete(() => api.deleteRule(node_id))
+      const remaining = newDisallowed.length + newAllowed.length + (rule.no_handoff ? 1 : 0) + (rule.allowed_handoff_segments?.length ?? 0)
+      if (remaining === 0) {
+        await confirmDelete(() => api.deleteRule(fp.node_id))
       } else {
-        await confirmDelete(() => api.updateRule(node_id, { disallowed_pairs: newDisallowed, allowed_pairs: newAllowed }).then(() => {}))
+        await confirmDelete(() => api.updateRule(fp.node_id, { disallowed_pairs: newDisallowed, allowed_pairs: newAllowed }).then(() => {}))
       }
     }
 
-    async function addPair() {
-      const { node_id, system_a, system_b, reason, kind } = addValues as Record<string, string>
-      const ruleKind = (kind || 'blacklist') as 'blacklist' | 'whitelist'
+    async function addRule() {
+      const { node_id, kind, system_a, system_b, reason, segment_id } = addValues as Record<string, string>
+      const ruleKind = (kind || 'blacklist') as FlatRule['kind']
+      const existing = rules.find(r => r.node_id === node_id)
+
+      if (ruleKind === 'no_handoff') {
+        if (existing) {
+          await saveAdd(() => api.updateRule(node_id, { no_handoff: true }))
+        } else {
+          await saveAdd(() => api.createRule({ node_id, disallowed_pairs: [], allowed_pairs: [], no_handoff: true, allowed_handoff_segments: [] }))
+        }
+        return
+      }
+
+      if (ruleKind === 'handoff_segment') {
+        const newSeg: AllowedHandoffSegment = { segment_id, reason: reason || 'Segment is allowed to terminate at this node' }
+        if (existing) {
+          await saveAdd(() => api.updateRule(node_id, { allowed_handoff_segments: [...(existing.allowed_handoff_segments ?? []), newSeg] }))
+        } else {
+          await saveAdd(() => api.createRule({ node_id, disallowed_pairs: [], allowed_pairs: [], no_handoff: false, allowed_handoff_segments: [newSeg] }))
+        }
+        return
+      }
+
       const defaultReason = ruleKind === 'blacklist' ? 'Pair is not allowed' : 'Only this pair is allowed at this node'
       const newPair = { system_a, system_b, reason: reason || defaultReason }
-      const existing = rules.find(r => r.node_id === node_id)
       if (existing) {
         if (ruleKind === 'blacklist') {
           await saveAdd(() => api.updateRule(node_id, { disallowed_pairs: [...existing.disallowed_pairs, newPair] }))
@@ -1172,8 +1248,10 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       }
     }
 
-    const blacklistCount = rules.reduce((n, r) => n + r.disallowed_pairs.length, 0)
-    const whitelistCount = rules.reduce((n, r) => n + (r.allowed_pairs?.length ?? 0), 0)
+    const blacklistCount      = rules.reduce((n, r) => n + r.disallowed_pairs.length, 0)
+    const whitelistCount      = rules.reduce((n, r) => n + (r.allowed_pairs?.length ?? 0), 0)
+    const noHandoffCount      = rules.filter(r => r.no_handoff).length
+    const handoffSegCount     = rules.reduce((n, r) => n + (r.allowed_handoff_segments?.length ?? 0), 0)
 
     return (
       <>
@@ -1184,71 +1262,103 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
               <button onClick={() => setShowRulesHelp(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textFaint, fontSize: 16, padding: '0 4px', lineHeight: 1 }}>×</button>
             </div>
             <div style={{ fontSize: 11, color: t.textFaint, marginBottom: 10, lineHeight: 1.5 }}>
-              Rules control which cable systems can transit through a node together. Whitelist and blacklist rules are independent and can coexist on the same node.
+              Rules control how circuits may use a node. System pair rules apply at intermediate transit nodes. Handoff rules apply when the node is the circuit endpoint.
             </div>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
               <thead>
                 <tr style={{ borderBottom: `1px solid ${t.border}` }}>
-                  <th style={{ textAlign: 'left', padding: '4px 8px', color: t.textFaint, fontWeight: 600 }}>Scenario at node</th>
-                  <th style={{ textAlign: 'left', padding: '4px 8px', color: t.textFaint, fontWeight: 600 }}>Result</th>
-                  <th style={{ textAlign: 'left', padding: '4px 8px', color: t.textFaint, fontWeight: 600 }}>Why</th>
+                  <th style={{ textAlign: 'left', padding: '4px 8px', color: t.textFaint, fontWeight: 600 }}>Rule type</th>
+                  <th style={{ textAlign: 'left', padding: '4px 8px', color: t.textFaint, fontWeight: 600 }}>Effect</th>
                 </tr>
               </thead>
               <tbody>
                 {([
-                  { scenario: 'Whitelisted system → its whitelisted partner', result: '✓ Allowed', pass: true,  why: 'Explicitly permitted' },
-                  { scenario: 'Whitelisted system → any other system',        result: '✗ Blocked', pass: false, why: 'System is whitelisted; unlisted transition rejected' },
-                  { scenario: 'Blacklisted pair',                             result: '✗ Blocked', pass: false, why: 'Explicitly forbidden' },
-                  { scenario: 'Any other combination',                        result: '✓ Allowed', pass: true,  why: 'No rule applies' },
+                  { rule: 'Blacklist (pair)',      effect: 'Block a specific system pair from transiting together through this node', color: t.red },
+                  { rule: 'Whitelist (pair)',      effect: 'For whitelisted systems, only explicitly listed transitions are permitted at this node', color: t.green },
+                  { rule: 'No Handoff',            effect: 'This node cannot be the circuit endpoint — routes ending here are rejected', color: t.orange },
+                  { rule: 'Handoff Segment',       effect: 'Only the listed segments may deliver a circuit to this node — all others are rejected', color: t.blue },
                 ] as const).map(row => (
-                  <tr key={row.scenario} style={{ borderBottom: `1px solid ${t.borderSubtle}` }}>
-                    <td style={{ padding: '5px 8px', color: t.text,      fontSize: 11 }}>{row.scenario}</td>
-                    <td style={{ padding: '5px 8px', color: row.pass ? t.green : t.red, fontWeight: 700, fontSize: 11 }}>{row.result}</td>
-                    <td style={{ padding: '5px 8px', color: t.textFaint, fontSize: 11 }}>{row.why}</td>
+                  <tr key={row.rule} style={{ borderBottom: `1px solid ${t.borderSubtle}` }}>
+                    <td style={{ padding: '5px 8px', color: t.text, fontSize: 11, fontWeight: 600 }}>{row.rule}</td>
+                    <td style={{ padding: '5px 8px', color: row.color, fontSize: 11 }}>{row.effect}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div style={{ fontSize: 11, color: t.textFaint, marginTop: 8, lineHeight: 1.5 }}>
-              <strong style={{ color: t.text }}>Example</strong> — GUM1 with BIFROST whitelist + PPC1↔AAG blacklist:&nbsp;
-              BIFROST→BIFROST <span style={{ color: t.green }}>allowed</span> ·&nbsp;
-              BIFROST→AJC <span style={{ color: t.red }}>blocked</span> ·&nbsp;
-              PPC1→AAG <span style={{ color: t.red }}>blocked</span> ·&nbsp;
-              PPC1→AJC <span style={{ color: t.green }}>allowed</span>
-            </div>
           </div>
         )}
         {adding && (
           <div style={{ ...editFormRow, margin: isMobile ? '8px 12px' : undefined }}>
-            <Field label="Node ID *"   k="node_id"   src={addValues} setSrc={setAddValues} />
-            <Field label="Rule Type *" k="kind"      src={addValues} setSrc={setAddValues} options={kindOpts} />
-            <Field label="System A *"  k="system_a"  src={addValues} setSrc={setAddValues} />
-            <Field label="System B *"  k="system_b"  src={addValues} setSrc={setAddValues} />
-            <Field label="Reason"      k="reason"    src={addValues} setSrc={setAddValues} />
-            <SaveCancel onSave={addPair} onCancel={() => { setAdding(false); setAddValues({}) }} />
+            <Field label="Node ID *"   k="node_id" src={addValues} setSrc={setAddValues} />
+            <Field label="Rule Type *" k="kind"    src={addValues} setSrc={setAddValues} options={kindOpts} />
+            {isPairKind && <>
+              <Field label="System A *"  k="system_a"  src={addValues} setSrc={setAddValues} />
+              <Field label="System B *"  k="system_b"  src={addValues} setSrc={setAddValues} />
+              <Field label="Reason"      k="reason"    src={addValues} setSrc={setAddValues} />
+            </>}
+            {addKind === 'handoff_segment' && <>
+              <Field label="Segment ID *" k="segment_id" src={addValues} setSrc={setAddValues} />
+              <Field label="Reason"       k="reason"     src={addValues} setSrc={setAddValues} />
+            </>}
+            <SaveCancel onSave={addRule} onCancel={() => { setAdding(false); setAddValues({}) }} />
           </div>
         )}
         {isMobile ? (
           <div style={{ padding: '8px 0 32px' }}>
             {filtered.length === 0 && <div style={{ padding: '20px 16px', color: t.textFaintest, fontSize: 13 }}>No rules defined.</div>}
-            {filtered.map(({ node_id, idx, pair, kind }) => {
-              const key = pairKey(node_id, kind, idx)
+            {filtered.map(fp => {
+              const key = ruleKey(fp)
+              if (fp.kind === 'no_handoff') {
+                return (
+                  <MobileCard key={key} id={key}
+                    title={<>{typeBadge(fp.kind)} <code style={{ fontSize: 11 }}>{fp.node_id}</code></>}
+                    subtitle="Node cannot be used as circuit endpoint"
+                    fields={[]}
+                    onEdit={undefined}
+                    onDelete={() => deleteRule(fp)}
+                  />
+                )
+              }
+              if (fp.kind === 'handoff_segment') {
+                const segRule = fp as { node_id: string; idx: number; segment: AllowedHandoffSegment; kind: 'handoff_segment' }
+                const ruleEditForm = (
+                  <div style={{ ...editFormRow }}>
+                    <Field label="Segment ID" k="segment_id" src={editValues} setSrc={setEditValues} />
+                    <Field label="Reason"     k="reason"     src={editValues} setSrc={setEditValues} />
+                    <SaveCancel onSave={() => saveHandoffSegEdit(fp.node_id, segRule.idx)} onCancel={() => setEditId(null)} />
+                  </div>
+                )
+                return (
+                  <MobileCard key={key} id={key}
+                    title={<>{typeBadge(fp.kind)} <code style={{ fontSize: 11 }}>{fp.node_id}</code></>}
+                    subtitle={<><code style={{ fontSize: 11 }}>{segRule.segment.segment_id}</code></>}
+                    fields={[{ label: 'Reason', value: segRule.segment.reason }]}
+                    onEdit={() => editId === key ? setEditId(null) : startEdit(key, { segment_id: segRule.segment.segment_id, reason: segRule.segment.reason })}
+                    onDelete={() => deleteRule(fp)}
+                  >
+                    {editId === key && ruleEditForm}
+                  </MobileCard>
+                )
+              }
+              const pairFp = fp as { node_id: string; idx: number; pair: DisallowedPair | AllowedPair; kind: 'blacklist' | 'whitelist' }
               const ruleEditForm = (
                 <div style={{ ...editFormRow }}>
-                  <Field label="Rule Type" k="kind"     src={editValues} setSrc={setEditValues} options={kindOpts} />
-                  <Field label="System A"  k="system_a" src={editValues} setSrc={setEditValues} />
-                  <Field label="System B"  k="system_b" src={editValues} setSrc={setEditValues} />
-                  <Field label="Reason"    k="reason"   src={editValues} setSrc={setEditValues} />
-                  <SaveCancel onSave={() => savePairEdit(node_id, idx, kind)} onCancel={() => setEditId(null)} />
+                  <Field label="Rule Type" k="kind"     src={editValues} setSrc={setEditValues} options={kindOpts.slice(0, 2)} />
+                  {isEditPairKind && <>
+                    <Field label="System A"  k="system_a" src={editValues} setSrc={setEditValues} />
+                    <Field label="System B"  k="system_b" src={editValues} setSrc={setEditValues} />
+                    <Field label="Reason"    k="reason"   src={editValues} setSrc={setEditValues} />
+                  </>}
+                  <SaveCancel onSave={() => savePairEdit(fp.node_id, pairFp.idx, pairFp.kind)} onCancel={() => setEditId(null)} />
                 </div>
               )
               return (
                 <MobileCard key={key} id={key}
-                  title={<>{typeBadge(kind)} <code style={{ fontSize: 11 }}>{node_id}</code></>}
-                  subtitle={<><code style={{ fontSize: 11 }}>{pair.system_a}</code> ↔ <code style={{ fontSize: 11 }}>{pair.system_b}</code></>}
-                  fields={[{ label: 'Reason', value: pair.reason }]}
-                  onEdit={() => editId === key ? setEditId(null) : startEdit(key, { system_a: pair.system_a, system_b: pair.system_b, reason: pair.reason, kind })}
-                  onDelete={() => deletePair(node_id, idx, kind)}
+                  title={<>{typeBadge(pairFp.kind)} <code style={{ fontSize: 11 }}>{fp.node_id}</code></>}
+                  subtitle={<><code style={{ fontSize: 11 }}>{pairFp.pair.system_a}</code> ↔ <code style={{ fontSize: 11 }}>{pairFp.pair.system_b}</code></>}
+                  fields={[{ label: 'Reason', value: pairFp.pair.reason }]}
+                  onEdit={() => editId === key ? setEditId(null) : startEdit(key, { system_a: pairFp.pair.system_a, system_b: pairFp.pair.system_b, reason: pairFp.pair.reason, kind: pairFp.kind })}
+                  onDelete={() => deleteRule(fp)}
                 >
                   {editId === key && ruleEditForm}
                 </MobileCard>
@@ -1258,34 +1368,81 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         ) : (
           <>
             <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep, alignItems: 'center' }}>
-              <div style={colH(1)}>Type</div><div style={colH(1.5)}>Node</div>
-              <div style={colH(1.5)}>System A</div><div style={colH(1.5)}>System B</div>
+              <div style={colH(1.2)}>Type</div><div style={colH(1.5)}>Node</div>
+              <div style={colH(1.5)}>System A / Seg ID</div><div style={colH(1.5)}>System B</div>
               <div style={colH(4)}>Reason</div>
               <div style={{ width: 140, flexShrink: 0 }} />
               <button onClick={() => setShowRulesHelp(v => !v)} title="How do Node Rules behave?"
                 style={{ background: 'none', border: `1px solid ${t.border}`, borderRadius: 3, cursor: 'pointer', color: showRulesHelp ? t.blue : t.textFaint, fontSize: 11, padding: '1px 7px', marginLeft: 4, flexShrink: 0 }}>ℹ</button>
             </div>
             {filtered.length === 0 && <div style={{ padding: '20px 16px', color: t.textFaintest, fontSize: 13 }}>No rules defined.</div>}
-            {filtered.map(({ node_id, idx, pair, kind }) => {
-              const key = pairKey(node_id, kind, idx)
-              const isDefaultReason = pair.reason === 'Pair is not allowed' || pair.reason === 'Only this pair is allowed at this node'
+            {filtered.map(fp => {
+              const key = ruleKey(fp)
+
+              if (fp.kind === 'no_handoff') {
+                return (
+                  <div key={key} style={rowStyle(false)}>
+                    <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
+                      <div style={cell(1.2)}>{typeBadge(fp.kind)}</div>
+                      <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{fp.node_id}</code></div>
+                      <div style={{ ...cell(1.5), color: t.textFaintest, fontStyle: 'italic' }}>—</div>
+                      <div style={{ ...cell(1.5), color: t.textFaintest, fontStyle: 'italic' }}>—</div>
+                      <div style={{ ...cell(4), color: t.textMuted, fontStyle: 'italic' }}>Node cannot be used as circuit endpoint</div>
+                      <ActionsCell id={key} onEdit={undefined} onDelete={() => deleteRule(fp)} />
+                    </div>
+                  </div>
+                )
+              }
+
+              if (fp.kind === 'handoff_segment') {
+                const segFp = fp as { node_id: string; idx: number; segment: AllowedHandoffSegment; kind: 'handoff_segment' }
+                const isDefaultReason = segFp.segment.reason === 'Segment is allowed to terminate at this node'
+                return (
+                  <div key={key} style={rowStyle(editId === key)}>
+                    <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
+                      <div style={cell(1.2)}>{typeBadge(fp.kind)}</div>
+                      <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{fp.node_id}</code></div>
+                      <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{segFp.segment.segment_id}</code></div>
+                      <div style={{ ...cell(1.5), color: t.textFaintest, fontStyle: 'italic' }}>—</div>
+                      <div style={{ ...cell(4), color: t.textMuted, fontStyle: isDefaultReason ? 'italic' : 'normal' }}>{segFp.segment.reason}</div>
+                      <ActionsCell id={key}
+                        onEdit={() => editId === key ? setEditId(null) : startEdit(key, { segment_id: segFp.segment.segment_id, reason: segFp.segment.reason })}
+                        onDelete={() => deleteRule(fp)} />
+                    </div>
+                    {editId === key && (
+                      <div style={{ ...editFormRow }}>
+                        <Field label="Segment ID" k="segment_id" src={editValues} setSrc={setEditValues} />
+                        <Field label="Reason"     k="reason"     src={editValues} setSrc={setEditValues} />
+                        <SaveCancel onSave={() => saveHandoffSegEdit(fp.node_id, segFp.idx)} onCancel={() => setEditId(null)} />
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+
+              const pairFp = fp as { node_id: string; idx: number; pair: DisallowedPair | AllowedPair; kind: 'blacklist' | 'whitelist' }
+              const isDefaultReason = pairFp.pair.reason === 'Pair is not allowed' || pairFp.pair.reason === 'Only this pair is allowed at this node'
               return (
                 <div key={key} style={rowStyle(editId === key)}>
                   <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
-                    <div style={cell(1)}>{typeBadge(kind)}</div>
-                    <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{node_id}</code></div>
-                    <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{pair.system_a}</code></div>
-                    <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{pair.system_b}</code></div>
-                    <div style={{ ...cell(4), color: t.textMuted, fontStyle: isDefaultReason ? 'italic' : 'normal' }}>{pair.reason}</div>
-                    <ActionsCell id={key} onEdit={() => startEdit(key, { system_a: pair.system_a, system_b: pair.system_b, reason: pair.reason, kind })} onDelete={() => deletePair(node_id, idx, kind)} />
+                    <div style={cell(1.2)}>{typeBadge(pairFp.kind)}</div>
+                    <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{fp.node_id}</code></div>
+                    <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{pairFp.pair.system_a}</code></div>
+                    <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{pairFp.pair.system_b}</code></div>
+                    <div style={{ ...cell(4), color: t.textMuted, fontStyle: isDefaultReason ? 'italic' : 'normal' }}>{pairFp.pair.reason}</div>
+                    <ActionsCell id={key}
+                      onEdit={() => editId === key ? setEditId(null) : startEdit(key, { system_a: pairFp.pair.system_a, system_b: pairFp.pair.system_b, reason: pairFp.pair.reason, kind: pairFp.kind })}
+                      onDelete={() => deleteRule(fp)} />
                   </div>
                   {editId === key && (
                     <div style={{ ...editFormRow }}>
-                      <Field label="Rule Type" k="kind"     src={editValues} setSrc={setEditValues} options={kindOpts} />
-                      <Field label="System A"  k="system_a" src={editValues} setSrc={setEditValues} />
-                      <Field label="System B"  k="system_b" src={editValues} setSrc={setEditValues} />
-                      <Field label="Reason"    k="reason"   src={editValues} setSrc={setEditValues} />
-                      <SaveCancel onSave={() => savePairEdit(node_id, idx, kind)} onCancel={() => setEditId(null)} />
+                      <Field label="Rule Type" k="kind"     src={editValues} setSrc={setEditValues} options={kindOpts.slice(0, 2)} />
+                      {isEditPairKind && <>
+                        <Field label="System A"  k="system_a" src={editValues} setSrc={setEditValues} />
+                        <Field label="System B"  k="system_b" src={editValues} setSrc={setEditValues} />
+                        <Field label="Reason"    k="reason"   src={editValues} setSrc={setEditValues} />
+                      </>}
+                      <SaveCancel onSave={() => savePairEdit(fp.node_id, pairFp.idx, pairFp.kind)} onCancel={() => setEditId(null)} />
                     </div>
                   )}
                 </div>
@@ -1293,9 +1450,13 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             })}
           </>
         )}
-        {(blacklistCount + whitelistCount) > 0 && (
+        {flat.length > 0 && (
           <div style={{ padding: '8px 16px', fontSize: 11, color: t.textFaintest, borderTop: `1px solid ${t.borderSubtle}` }}>
-            {rules.length} node rule{rules.length !== 1 ? 's' : ''} · {blacklistCount} blacklist pair{blacklistCount !== 1 ? 's' : ''} · {whitelistCount} whitelist pair{whitelistCount !== 1 ? 's' : ''}
+            {rules.length} node rule{rules.length !== 1 ? 's' : ''}
+            {blacklistCount > 0 && ` · ${blacklistCount} blacklist pair${blacklistCount !== 1 ? 's' : ''}`}
+            {whitelistCount > 0 && ` · ${whitelistCount} whitelist pair${whitelistCount !== 1 ? 's' : ''}`}
+            {noHandoffCount > 0 && ` · ${noHandoffCount} no-handoff node${noHandoffCount !== 1 ? 's' : ''}`}
+            {handoffSegCount > 0 && ` · ${handoffSegCount} handoff segment${handoffSegCount !== 1 ? 's' : ''}`}
           </div>
         )}
       </>

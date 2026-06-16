@@ -21,7 +21,7 @@ _OPTIMISE_SORT: dict[str, tuple[int, bool]] = {
     "ownership": (3, True),
     "capacity":  (4, True),
 }
-from .graph import validate_interconnect_rules, path_to_segment_ids
+from .graph import validate_interconnect_rules, validate_handoff_rules, path_to_segment_ids
 
 
 def _path_length(G: nx.Graph, node_path: list[str]) -> float:
@@ -315,6 +315,11 @@ def find_routes(
     if start not in working_G or end not in working_G:
         return RouteResponse(routes=[], primary_routes=[], diverse_routes=[])
 
+    # Early exit if the destination node has a no_handoff rule
+    _rules_by_node = {r.node_id: r for r in rules}
+    if end in _rules_by_node and _rules_by_node[end].no_handoff:
+        return RouteResponse(routes=[], primary_routes=[], diverse_routes=[], total_found=0)
+
     # Expand must_include_segments into node waypoints so the pathfinder
     # routes *through* those edges rather than post-filtering short paths.
     required_seg_ids = set(must_include_segments)
@@ -333,10 +338,15 @@ def find_routes(
     init_weight: str | None = None if optimise_for == "hops" else "length_km"
     if all_waypoints:
         candidates = _apply_waypoints(working_G, start, end, all_waypoints, rules, set(), k)
+        candidates = [p for p in candidates if validate_handoff_rules(working_G, p, rules)]
     else:
         try:
             raw = itertools.islice(nx.shortest_simple_paths(working_G, start, end, weight=init_weight), raw_k)
-            candidates = [p for p in raw if validate_interconnect_rules(working_G, p, rules)]
+            candidates = [
+                p for p in raw
+                if validate_interconnect_rules(working_G, p, rules)
+                and validate_handoff_rules(working_G, p, rules)
+            ]
         except nx.NetworkXNoPath:
             candidates = []
 
@@ -426,7 +436,11 @@ def find_routes(
                 raw = itertools.islice(
                     nx.shortest_simple_paths(diverse_G, start, end, weight="length_km"), 100
                 )
-                d_cands = [p for p in raw if validate_interconnect_rules(diverse_G, p, rules)][:5]
+                d_cands = [
+                    p for p in raw
+                    if validate_interconnect_rules(diverse_G, p, rules)
+                    and validate_handoff_rules(diverse_G, p, rules)
+                ][:5]
             except nx.NetworkXNoPath:
                 d_cands = []
 

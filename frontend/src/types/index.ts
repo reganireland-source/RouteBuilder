@@ -144,10 +144,17 @@ export interface AllowedPair {
   reason: string
 }
 
+export interface AllowedHandoffSegment {
+  segment_id: string
+  reason: string
+}
+
 export interface InterconnectRule {
   node_id: string
   disallowed_pairs: DisallowedPair[]
   allowed_pairs: AllowedPair[]
+  no_handoff?: boolean
+  allowed_handoff_segments?: AllowedHandoffSegment[]
 }
 
 export interface SelectedSystem {

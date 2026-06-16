@@ -79,3 +79,40 @@ def validate_interconnect_rules(
                 return False
 
     return True
+
+
+def validate_handoff_rules(
+    G: nx.Graph,
+    node_path: list[str],
+    rules: list[InterconnectRule],
+) -> bool:
+    """Validate handoff rules for the terminal (destination) node of a path.
+
+    Returns False if:
+    - The end node has no_handoff=True (node cannot be a circuit endpoint), or
+    - The end node has allowed_handoff_segments and the last segment into it is
+      not in that allowed list.
+    """
+    if len(node_path) < 2:
+        return True
+
+    rules_by_node = {r.node_id: r for r in rules}
+    end_node = node_path[-1]
+
+    if end_node not in rules_by_node:
+        return True
+
+    rule = rules_by_node[end_node]
+
+    if rule.no_handoff:
+        return False
+
+    if rule.allowed_handoff_segments:
+        last_edge = G.get_edge_data(node_path[-2], end_node)
+        if last_edge:
+            last_seg_id = last_edge["id"]
+            allowed_ids = {s.segment_id for s in rule.allowed_handoff_segments}
+            if last_seg_id not in allowed_ids:
+                return False
+
+    return True
