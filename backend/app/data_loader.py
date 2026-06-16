@@ -305,51 +305,189 @@ def save_projects(projects: list[Project]) -> None:
     _write(DATA_DIR / "projects.json", [p.model_dump() for p in projects])
 
 
-def load_solution_notes() -> list[SolutionNote]:
-    cached = _get("solution_notes")
-    if cached is not None:
-        return cached  # type: ignore[return-value]
-    if _use_db():
-        result = _db_load_all("solution_notes", "id", SolutionNote)
-    else:
-        path = DATA_DIR / "solution_notes.json"
-        if not path.exists():
-            return []
-        with open(path) as f:
-            result = [SolutionNote(**item) for item in json.load(f)]
-    _set("solution_notes", result)
-    return result
+def _row_to_note(row: dict) -> SolutionNote:
+    return SolutionNote(
+        id=row["id"], node_id=row.get("node_id"), segment_id=row.get("segment_id"),
+        category_id=row["category_id"], title=row["title"], text=row["text"],
+        severity=row["severity"], created_at=row.get("created_at"),
+    )
 
-def save_solution_notes(notes: list[SolutionNote]) -> None:
-    _bust("solution_notes")
+
+def _row_to_cat(row: dict) -> NoteCategory:
+    return NoteCategory(
+        id=row["id"], label=row["label"], applies_to=row["applies_to"],
+        order=row.get("order_num", row.get("order", 0)),
+    )
+
+
+def _json_notes() -> list[SolutionNote]:
+    path = DATA_DIR / "solution_notes.json"
+    if not path.exists():
+        return []
+    with open(path) as f:
+        return [SolutionNote(**item) for item in json.load(f)]
+
+
+def _json_cats() -> list[NoteCategory]:
+    path = DATA_DIR / "note_categories.json"
+    if not path.exists():
+        return []
+    with open(path) as f:
+        return [NoteCategory(**item) for item in json.load(f)]
+
+
+def load_solution_notes() -> list[SolutionNote]:
     if _use_db():
-        _db_replace_all("solution_notes", "id", "id", notes)
-        return
+        conn = _get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, node_id, segment_id, category_id, title, text, severity, created_at FROM solution_notes ORDER BY created_at NULLS LAST, id")
+                return [_row_to_note(r) for r in cur.fetchall()]
+        finally:
+            conn.close()
+    return _json_notes()
+
+
+def create_solution_note(note: SolutionNote) -> SolutionNote:
+    if _use_db():
+        conn = _get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO solution_notes (id, node_id, segment_id, category_id, title, text, severity, created_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+                    (note.id, note.node_id, note.segment_id, note.category_id, note.title, note.text, note.severity, note.created_at),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+        return note
+    notes = _json_notes()
+    notes.append(note)
     _write(DATA_DIR / "solution_notes.json", [n.model_dump() for n in notes])
+    return note
+
+
+def update_solution_note(note_id: str, updates: dict) -> SolutionNote | None:
+    if _use_db():
+        conn = _get_conn()
+        try:
+            with conn.cursor() as cur:
+                sets = ", ".join(f"{k} = %s" for k in updates)
+                cur.execute(
+                    f"UPDATE solution_notes SET {sets} WHERE id = %s RETURNING id, node_id, segment_id, category_id, title, text, severity, created_at",
+                    [*updates.values(), note_id],
+                )
+                row = cur.fetchone()
+            conn.commit()
+        finally:
+            conn.close()
+        return _row_to_note(row) if row else None
+    notes = _json_notes()
+    for i, n in enumerate(notes):
+        if n.id == note_id:
+            updated = n.model_copy(update=updates)
+            notes[i] = updated
+            _write(DATA_DIR / "solution_notes.json", [x.model_dump() for x in notes])
+            return updated
+    return None
+
+
+def delete_solution_note(note_id: str) -> bool:
+    if _use_db():
+        conn = _get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM solution_notes WHERE id = %s", (note_id,))
+                deleted = cur.rowcount > 0
+            conn.commit()
+        finally:
+            conn.close()
+        return deleted
+    notes = _json_notes()
+    new_notes = [n for n in notes if n.id != note_id]
+    if len(new_notes) == len(notes):
+        return False
+    _write(DATA_DIR / "solution_notes.json", [n.model_dump() for n in new_notes])
+    return True
 
 
 def load_note_categories() -> list[NoteCategory]:
-    cached = _get("note_categories")
-    if cached is not None:
-        return cached  # type: ignore[return-value]
     if _use_db():
-        result = _db_load_all("note_categories", "id", NoteCategory)
-    else:
-        path = DATA_DIR / "note_categories.json"
-        if not path.exists():
-            return []
-        with open(path) as f:
-            result = [NoteCategory(**item) for item in json.load(f)]
+        conn = _get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id, label, applies_to, order_num FROM note_categories ORDER BY applies_to, order_num, id")
+                return [_row_to_cat(r) for r in cur.fetchall()]
+        finally:
+            conn.close()
+    result = _json_cats()
     result.sort(key=lambda x: (x.applies_to, x.order))
-    _set("note_categories", result)
     return result
 
-def save_note_categories(categories: list[NoteCategory]) -> None:
-    _bust("note_categories")
+
+def create_note_category(cat: NoteCategory) -> NoteCategory:
     if _use_db():
-        _db_replace_all("note_categories", "id", "id", categories)
-        return
-    _write(DATA_DIR / "note_categories.json", [c.model_dump() for c in categories])
+        conn = _get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO note_categories (id, label, applies_to, order_num) VALUES (%s,%s,%s,%s)",
+                    (cat.id, cat.label, cat.applies_to, cat.order),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+        return cat
+    cats = _json_cats()
+    cats.append(cat)
+    _write(DATA_DIR / "note_categories.json", [c.model_dump() for c in cats])
+    return cat
+
+
+def update_note_category(cat_id: str, updates: dict) -> NoteCategory | None:
+    if _use_db():
+        col_map = {"order": "order_num"}
+        db_updates = {col_map.get(k, k): v for k, v in updates.items()}
+        conn = _get_conn()
+        try:
+            with conn.cursor() as cur:
+                sets = ", ".join(f"{k} = %s" for k in db_updates)
+                cur.execute(
+                    f"UPDATE note_categories SET {sets} WHERE id = %s RETURNING id, label, applies_to, order_num",
+                    [*db_updates.values(), cat_id],
+                )
+                row = cur.fetchone()
+            conn.commit()
+        finally:
+            conn.close()
+        return _row_to_cat(row) if row else None
+    cats = _json_cats()
+    for i, c in enumerate(cats):
+        if c.id == cat_id:
+            updated = c.model_copy(update=updates)
+            cats[i] = updated
+            _write(DATA_DIR / "note_categories.json", [x.model_dump() for x in cats])
+            return updated
+    return None
+
+
+def delete_note_category(cat_id: str) -> bool:
+    if _use_db():
+        conn = _get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM note_categories WHERE id = %s", (cat_id,))
+                deleted = cur.rowcount > 0
+            conn.commit()
+        finally:
+            conn.close()
+        return deleted
+    cats = _json_cats()
+    new_cats = [c for c in cats if c.id != cat_id]
+    if len(new_cats) == len(cats):
+        return False
+    _write(DATA_DIR / "note_categories.json", [c.model_dump() for c in new_cats])
+    return True
 
 
 def save_config(config: dict) -> None:

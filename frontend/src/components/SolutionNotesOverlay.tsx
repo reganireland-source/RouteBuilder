@@ -4,6 +4,8 @@ import type { Route, SolutionNote, NoteCategory } from '../types'
 import { useTheme } from '../theme'
 import { api } from '../api/client'
 
+const TEXT_COLLAPSE_THRESHOLD = 160
+
 const SEVERITY_CFG = {
   info:     { label: 'Info',     color: '#89b4fa' },
   warning:  { label: 'Warning',  color: '#fab387' },
@@ -27,6 +29,9 @@ function SeverityBadge({ severity }: { severity: string }) {
 function NoteCard({ note, categoryLabel }: { note: SolutionNote; categoryLabel: string }) {
   const t = useTheme()
   const cfg = SEVERITY_CFG[note.severity as keyof typeof SEVERITY_CFG] ?? SEVERITY_CFG.info
+  const isLong = note.text.length > TEXT_COLLAPSE_THRESHOLD
+  const [expanded, setExpanded] = useState(false)
+  const displayText = isLong && !expanded ? note.text.slice(0, TEXT_COLLAPSE_THRESHOLD) + '…' : note.text
   return (
     <div style={{
       marginBottom: 8, padding: '8px 10px', borderRadius: 5,
@@ -43,7 +48,18 @@ function NoteCard({ note, categoryLabel }: { note: SolutionNote; categoryLabel: 
         )}
       </div>
       <div style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 3 }}>{note.title}</div>
-      <div style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{note.text}</div>
+      <div style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{displayText}</div>
+      {isLong && (
+        <button
+          onClick={() => setExpanded(v => !v)}
+          style={{
+            marginTop: 4, background: 'none', border: 'none', cursor: 'pointer',
+            fontSize: 10, color: t.blue, padding: 0,
+          }}
+        >
+          {expanded ? '▲ Show less' : '▼ Show more'}
+        </button>
+      )}
     </div>
   )
 }
@@ -156,9 +172,10 @@ interface Props {
   route: Route
   nodesById: Record<string, { name?: string; type?: string }>
   onClose: () => void
+  onAddNote?: (kind: 'node' | 'segment', id: string) => void
 }
 
-export function SolutionNotesOverlay({ route, nodesById, onClose }: Props) {
+export function SolutionNotesOverlay({ route, nodesById, onClose, onAddNote }: Props) {
   const t = useTheme()
   const [notes, setNotes] = useState<SolutionNote[]>([])
   const [categories, setCategories] = useState<NoteCategory[]>([])
@@ -209,8 +226,6 @@ export function SolutionNotesOverlay({ route, nodesById, onClose }: Props) {
       })
     }
   })
-  const itemsWithNotes = orderedItems.filter(item => item.notes.length > 0)
-
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
 
   const overlay = (
@@ -284,47 +299,53 @@ export function SolutionNotesOverlay({ route, nodesById, onClose }: Props) {
 
             {/* RHS: Notes panel */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px' }}>
-              {totalNotes === 0 ? (
-                <div style={{ textAlign: 'center', padding: '60px 20px', color: t.textFaint }}>
-                  <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6, color: t.textMuted }}>No Solution Notes</div>
-                  <div style={{ fontSize: 12 }}>No notes have been raised against nodes or segments on this route.</div>
-                  <div style={{ fontSize: 12, marginTop: 6 }}>Add notes via the Reference Data → Solution Notes tab.</div>
-                </div>
-              ) : (
-                <>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
-                    Notes in Route Order
+              <div style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
+                Route Order
+                {totalNotes > 0 && (
+                  <span style={{ fontWeight: 400, textTransform: 'none', marginLeft: 8 }}>
+                    — {totalNotes} note{totalNotes !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              {orderedItems.map(item => (
+                <div key={`${item.type}-${item.id}`} style={{ marginBottom: item.notes.length ? 20 : 10 }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    marginBottom: item.notes.length ? 8 : 2,
+                    paddingBottom: 5, borderBottom: `1px solid ${t.border}`,
+                  }}>
+                    <span style={{
+                      fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
+                      letterSpacing: '0.05em', textTransform: 'uppercase',
+                      background: item.type === 'node' ? t.blue + '22' : t.green + '22',
+                      color: item.type === 'node' ? t.blue : t.green,
+                    }}>
+                      {item.type === 'node' ? 'Node' : 'Segment'}
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: t.text, fontFamily: 'monospace', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.name}
+                    </span>
+                    {onAddNote && (
+                      <button
+                        onClick={() => onAddNote(item.type, item.id)}
+                        title={`Add note to this ${item.type}`}
+                        style={{
+                          background: 'none', border: `1px solid ${t.border}`, borderRadius: 3,
+                          color: t.textFaint, cursor: 'pointer', fontSize: 11,
+                          padding: '1px 6px', lineHeight: 1.4, flexShrink: 0,
+                        }}
+                      >+ Add Note</button>
+                    )}
                   </div>
-                  {itemsWithNotes.map(item => (
-                    <div key={`${item.type}-${item.id}`} style={{ marginBottom: 20 }}>
-                      <div style={{
-                        display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8,
-                        paddingBottom: 5, borderBottom: `1px solid ${t.border}`,
-                      }}>
-                        <span style={{
-                          fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
-                          letterSpacing: '0.05em', textTransform: 'uppercase',
-                          background: item.type === 'node' ? t.blue + '22' : t.green + '22',
-                          color: item.type === 'node' ? t.blue : t.green,
-                        }}>
-                          {item.type === 'node' ? 'Node' : 'Segment'}
-                        </span>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: t.text, fontFamily: 'monospace' }}>
-                          {item.name}
-                        </span>
-                      </div>
-                      {item.notes.map(note => (
-                        <NoteCard
-                          key={note.id}
-                          note={note}
-                          categoryLabel={categoryById[note.category_id]?.label ?? note.category_id}
-                        />
-                      ))}
-                    </div>
+                  {item.notes.map(note => (
+                    <NoteCard
+                      key={note.id}
+                      note={note}
+                      categoryLabel={categoryById[note.category_id]?.label ?? note.category_id}
+                    />
                   ))}
-                </>
-              )}
+                </div>
+              ))}
             </div>
 
           </div>

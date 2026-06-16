@@ -36,8 +36,22 @@ CREATE TABLE IF NOT EXISTS tech_access_types  (id          TEXT PRIMARY KEY, dat
 CREATE TABLE IF NOT EXISTS tech_arranged_by   (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
 CREATE TABLE IF NOT EXISTS tech_l1_settings   (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
 CREATE TABLE IF NOT EXISTS feature_requests   (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
-CREATE TABLE IF NOT EXISTS solution_notes     (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
-CREATE TABLE IF NOT EXISTS note_categories    (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
+CREATE TABLE IF NOT EXISTS solution_notes (
+    id          TEXT PRIMARY KEY,
+    node_id     TEXT,
+    segment_id  TEXT,
+    category_id TEXT NOT NULL DEFAULT '',
+    title       TEXT NOT NULL DEFAULT '',
+    text        TEXT NOT NULL DEFAULT '',
+    severity    TEXT NOT NULL DEFAULT 'info',
+    created_at  TEXT
+);
+CREATE TABLE IF NOT EXISTS note_categories (
+    id          TEXT PRIMARY KEY,
+    label       TEXT NOT NULL DEFAULT '',
+    applies_to  TEXT NOT NULL DEFAULT 'node',
+    order_num   INTEGER NOT NULL DEFAULT 0
+);
 """
 
 _DEFAULT_INTERFACES = [
@@ -261,6 +275,8 @@ def init_db() -> None:
             _run_migration_053(cur)
             # Migration 054: create solution_notes + note_categories tables; seed defaults
             _run_migration_054(cur)
+            # Migration 055: convert solution_notes/note_categories from JSONB to proper columns
+            _run_migration_055(cur)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -2544,6 +2560,7 @@ _DEFAULT_NOTE_CATEGORIES: list[dict] = [
     {"id": "node-cross-connect",  "label": "Cross-Connect Info",    "applies_to": "node", "order": 110},
     {"id": "node-fibre-mgmt",     "label": "Fibre Management",      "applies_to": "node", "order": 120},
     {"id": "node-contacts",       "label": "Key Contacts",          "applies_to": "node", "order": 130},
+    {"id": "node-site-experts",   "label": "Site Experts",          "applies_to": "node", "order": 133},
     {"id": "node-lead-time",      "label": "Lead Time / Ordering",  "applies_to": "node", "order": 140},
     {"id": "node-lifespan",       "label": "Lifespan Notes",        "applies_to": "node", "order": 145},
     {"id": "node-cease-exit",     "label": "Cease / Exit Notes",    "applies_to": "node", "order": 150},
@@ -2571,10 +2588,80 @@ _DEFAULT_NOTE_CATEGORIES: list[dict] = [
 def _run_migration_054(cur) -> None:
     """Create solution_notes and note_categories tables; seed default categories."""
     # Tables already created by _CREATE_SQL — just seed defaults if empty
+    # Check if table still uses JSONB schema (pre-055); skip if already migrated
+    cur.execute("""
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'note_categories' AND column_name = 'data'
+    """)
+    if not cur.fetchone():
+        return  # Already on proper-column schema; skip legacy JSONB seed
     cur.execute("SELECT COUNT(*) AS n FROM note_categories")
     if cur.fetchone()["n"] == 0:
         psycopg2.extras.execute_values(
             cur,
             "INSERT INTO note_categories (id, data) VALUES %s ON CONFLICT DO NOTHING",
             [(cat["id"], json.dumps(cat)) for cat in _DEFAULT_NOTE_CATEGORIES],
+        )
+
+
+def _run_migration_055(cur) -> None:
+    """Convert solution_notes and note_categories from JSONB to proper relational columns."""
+    cur.execute("""
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'note_categories' AND column_name = 'data'
+    """)
+    if not cur.fetchone():
+        return  # Already migrated
+
+    # Capture existing category data from JSONB before dropping
+    cur.execute("SELECT data FROM note_categories")
+    old_cats = [row["data"] for row in cur.fetchall()]
+
+    # Capture existing solution notes from JSONB before dropping
+    cur.execute("SELECT data FROM solution_notes")
+    old_notes = [row["data"] for row in cur.fetchall()]
+
+    # Drop and recreate with proper columns
+    cur.execute("DROP TABLE solution_notes")
+    cur.execute("DROP TABLE note_categories")
+    cur.execute("""
+        CREATE TABLE solution_notes (
+            id          TEXT PRIMARY KEY,
+            node_id     TEXT,
+            segment_id  TEXT,
+            category_id TEXT NOT NULL DEFAULT '',
+            title       TEXT NOT NULL DEFAULT '',
+            text        TEXT NOT NULL DEFAULT '',
+            severity    TEXT NOT NULL DEFAULT 'info',
+            created_at  TEXT
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE note_categories (
+            id          TEXT PRIMARY KEY,
+            label       TEXT NOT NULL DEFAULT '',
+            applies_to  TEXT NOT NULL DEFAULT 'node',
+            order_num   INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+
+    # Re-insert preserved notes
+    for note in old_notes:
+        cur.execute(
+            "INSERT INTO solution_notes (id, node_id, segment_id, category_id, title, text, severity, created_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+            (note.get("id",""), note.get("node_id"), note.get("segment_id"),
+             note.get("category_id",""), note.get("title",""), note.get("text",""),
+             note.get("severity","info"), note.get("created_at")),
+        )
+
+    # Seed categories: preserve any user-added ones, then add defaults
+    existing_ids = {c.get("id") for c in old_cats}
+    all_cats = {c["id"]: c for c in old_cats}
+    for cat in _DEFAULT_NOTE_CATEGORIES:
+        if cat["id"] not in existing_ids:
+            all_cats[cat["id"]] = cat
+    for cat in all_cats.values():
+        cur.execute(
+            "INSERT INTO note_categories (id, label, applies_to, order_num) VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING",
+            (cat["id"], cat.get("label",""), cat.get("applies_to","node"), cat.get("order", 0)),
         )

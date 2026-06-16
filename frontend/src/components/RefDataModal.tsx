@@ -313,12 +313,13 @@ interface Props {
   config: AppConfig
   onDataChange: () => void
   onClose: () => void
+  initialNoteFocus?: { kind: 'node' | 'segment'; id: string }
 }
 
-export function RefDataModal({ nodes, segments, systems, capacity, outages, rules, config, onDataChange, onClose }: Props) {
+export function RefDataModal({ nodes, segments, systems, capacity, outages, rules, config, onDataChange, onClose, initialNoteFocus }: Props) {
   const t = useTheme()
   const isMobile = useIsMobile()
-  const [tab, setTab] = useState<Tab>('nodes')
+  const [tab, setTab] = useState<Tab>(initialNoteFocus ? 'notes' : 'nodes')
   const [editId, setEditId] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<Record<string, unknown>>({})
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
@@ -1476,7 +1477,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   // ── Solution Notes panel ─────────────────────────────────────────────────────
 
-  function SolutionNotesPanel({ nodes: panelNodes, segments: panelSegments }: { nodes: CableNode[]; segments: CableSegment[] }) {
+  function SolutionNotesPanel({ nodes: panelNodes, segments: panelSegments, initialFocus }: { nodes: CableNode[]; segments: CableSegment[]; initialFocus?: { kind: 'node' | 'segment'; id: string } }) {
     const [notes, setNotes] = useState<SolutionNote[]>([])
     const [categories, setCategories] = useState<NoteCategory[]>([])
     const [loading, setLoading] = useState(true)
@@ -1484,8 +1485,10 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     const [lFilter, setLFilter] = useState('')
     const [lEditId, setLEditId] = useState<string | null>(null)
     const [lEditVals, setLEditVals] = useState<Record<string, unknown>>({})
-    const [lAdding, setLAdding] = useState(false)
-    const [lAddVals, setLAddVals] = useState<Record<string, unknown>>({})
+    const [lAdding, setLAdding] = useState(!!initialFocus)
+    const [lAddVals, setLAddVals] = useState<Record<string, unknown>>(
+      initialFocus ? { target_kind: initialFocus.kind, target_id: initialFocus.id } : {}
+    )
     const [lSaving, setLSaving] = useState(false)
     const [lError, setLError] = useState<string | null>(null)
     const [lDelConfirm, setLDelConfirm] = useState<string | null>(null)
@@ -2148,7 +2151,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           {tab === 'config'   && ConfigTab()}
           {tab === 'coverage' && <ProductCoveragePanel nodes={nodes} onDataChange={onDataChange} />}
           {tab === 'tech'     && <TechEnrichmentPanel />}
-          {tab === 'notes'    && <SolutionNotesPanel nodes={nodes} segments={segments} />}
+          {tab === 'notes'    && <SolutionNotesPanel nodes={nodes} segments={segments} initialFocus={initialNoteFocus} />}
           {tab === 'bulk' && (
             <BulkImportPanel
               counts={{

@@ -151,6 +151,7 @@ export default function App() {
   function cycleTheme() { setThemeMode(m => m === 'dark' ? 'dusk' : m === 'dusk' ? 'light' : 'dark') }
 
   const [refDataOpen,     setRefDataOpen]     = useState(false)
+  const [refDataNoteFocus, setRefDataNoteFocus] = useState<{ kind: 'node' | 'segment', id: string } | null>(null)
   const [guideOpen,       setGuideOpen]       = useState(false)
   const [projectsOpen,    setProjectsOpen]    = useState(false)
   const [addToProjectRoute, setAddToProjectRoute] = useState<{ route: Route; protectRoute?: Route; searchLabel: string } | null>(null)
@@ -1155,6 +1156,7 @@ export default function App() {
               activeProject={activeProject}
               onExitProjectMode={() => { setActiveProject(null); setPinnedRoutes([]) }}
               onSwitchProject={() => { setAddToProjectRoute(null); setEnrichTarget(null); setProjectsOpen(true) }}
+              onOpenRefDataForNote={(kind, id) => { setRefDataNoteFocus({ kind, id }); setRefDataOpen(true) }}
             />
           </div>
         </div>
@@ -1266,7 +1268,8 @@ export default function App() {
           nodes={nodes} segments={segments} systems={systems}
           capacity={capacity} outages={outages} rules={rules} config={config}
           onDataChange={handleDataChange}
-          onClose={() => setRefDataOpen(false)}
+          initialNoteFocus={refDataNoteFocus ?? undefined}
+          onClose={() => { setRefDataOpen(false); setRefDataNoteFocus(null) }}
         />
       )}
 

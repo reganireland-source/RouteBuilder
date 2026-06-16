@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import type { Route, CableNode, CableSystem, SegmentCapacity, SegmentOutage, PinnedRoute, Project, ProjectCircuit, EndpointConfig } from '../types'
+import type { Route, CableNode, CableSystem, SegmentCapacity, SegmentOutage, PinnedRoute, Project, ProjectCircuit, EndpointConfig, SolutionNote } from '../types'
 import { useTheme } from '../theme'
+import { api } from '../api/client'
 import { SolutionNotesOverlay } from './SolutionNotesOverlay'
 
 type EnrichLevel = 'none' | 'partial' | 'full'
@@ -79,6 +80,8 @@ interface Props {
   activeProject?: Project | null
   onExitProjectMode?: () => void
   onSwitchProject?: () => void
+  // Open RefData pre-filled to add a note for a node/segment
+  onOpenRefDataForNote?: (kind: 'node' | 'segment', id: string) => void
 }
 
 export type SortKey = 'hops' | 'distance' | 'latency' | 'availability' | 'margin' | 'capacity' | 'ownership'
@@ -154,7 +157,7 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
   })
 }
 
-export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown, optimiseFor, flippedPairIds, onFlipPair, onPinPair, onAddToProject, onEnrichCircuit, activeProject }: Props) {
+export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown, optimiseFor, flippedPairIds, onFlipPair, onPinPair, onAddToProject, onEnrichCircuit, activeProject, onOpenRefDataForNote }: Props) {
   const t = useTheme()
   const onNetSet = new Set(onNetOwnership)
   const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
@@ -177,6 +180,15 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
   const outagesById = Object.fromEntries(outages.map(o => [o.segment_id, o]))
   const [notesRoute, setNotesRoute] = useState<Route | null>(null)
+  const [allNotes, setAllNotes] = useState<SolutionNote[]>([])
+  useEffect(() => { api.getSolutionNotes().then(setAllNotes).catch(() => {}) }, [])
+
+  function routeHasNotes(route: Route): boolean {
+    const nodeSet = new Set(route.nodes)
+    const segSet = new Set(route.segments.map(s => s.segment_id))
+    return allNotes.some(n => (n.node_id && nodeSet.has(n.node_id)) || (n.segment_id && segSet.has(n.segment_id)))
+  }
+
   const pinnedKeys = new Set(pinnedRoutes.map(p => routeKey(p.route)))
   const canPin = pinnedRoutes.length < MAX_PINS
 
@@ -330,6 +342,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                     onAddToProject={onAddToProject ? () => onAddToProject(p.route) : undefined}
                     activeProject={activeProject}
                     onShowNotes={setNotesRoute}
+                    hasNotes={routeHasNotes(p.route)}
                   />
                 ))
           })()}
@@ -458,6 +471,8 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                   flipped={flippedPairIds?.has(pair.primary.id) ?? false}
                   onFlip={() => onFlipPair?.(pair.primary.id)}
                   onAddToProject={onAddToProject ? (w, p) => onAddToProject(w, p) : undefined}
+                  onShowNotes={setNotesRoute}
+                  routeHasNotes={routeHasNotes}
                 />
               ))}
               {(sortedPairs?.length ?? 0) === 0 && diversityRequested && (
@@ -500,6 +515,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                       systemsById={systemsById}
                       onAddToProject={onAddToProject ? (route) => onAddToProject(route) : undefined}
                       onShowNotes={setNotesRoute}
+                      hasNotes={routeHasNotes(r)}
                     />
                   ))}
                 </div>
@@ -523,6 +539,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                       systemsById={systemsById}
                       onAddToProject={onAddToProject ? (route) => onAddToProject(route) : undefined}
                       onShowNotes={setNotesRoute}
+                      hasNotes={routeHasNotes(r)}
                     />
                   ))}
                 </div>
@@ -555,6 +572,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
         route={notesRoute}
         nodesById={nodesById}
         onClose={() => setNotesRoute(null)}
+        onAddNote={onOpenRefDataForNote}
       />,
       document.body
     )}
@@ -567,6 +585,7 @@ function PairCard({
   nodesById, capacityById, outagesById, onNetSet, systemsById,
   pinnedKeys, canPin, onPin, onPinPair,
   flipped, onFlip, onAddToProject,
+  onShowNotes, routeHasNotes,
 }: {
   pair: { primary: Route; diverse: Route }
   idx: number
@@ -584,11 +603,12 @@ function PairCard({
   flipped: boolean
   onFlip: () => void
   onAddToProject?: (worker: Route, protect: Route) => void
+  onShowNotes?: (route: Route) => void
+  routeHasNotes?: (route: Route) => boolean
 }) {
   const t = useTheme()
   const [segmentsOpen, setSegmentsOpen] = useState(false)
 
-  // When flipped, swap path data while keeping original role-based IDs so the map colors stay correct
   const worker  = flipped ? { ...pair.diverse, id: pair.primary.id } : pair.primary
   const protect = flipped ? { ...pair.primary, id: pair.diverse.id } : pair.diverse
 
@@ -663,6 +683,8 @@ function PairCard({
         onPin={onPinPair ? () => onPinPair(worker, protect) : onPin}
         onNetSet={onNetSet}
         systemsById={systemsById}
+        onShowNotes={onShowNotes}
+        hasNotes={routeHasNotes?.(worker)}
       />
 
       {/* Protect connector */}
@@ -687,6 +709,8 @@ function PairCard({
         onPin={onPinPair ? () => onPinPair(worker, protect) : onPin}
         onNetSet={onNetSet}
         systemsById={systemsById}
+        onShowNotes={onShowNotes}
+        hasNotes={routeHasNotes?.(protect)}
       />
 
       {/* Side-by-side segment breakdown */}
@@ -745,7 +769,7 @@ function CompressedPinCard({ pinned, onUnpin, systemsById }: {
   )
 }
 
-function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, onNetSet, systemsById, onEnrichCircuit, onAddToProject, activeProject, protectPin, onShowNotes }: {
+function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, onNetSet, systemsById, onEnrichCircuit, onAddToProject, activeProject, protectPin, onShowNotes, hasNotes }: {
   pinned: PinnedRoute
   onUnpin: () => void
   nodesById: Record<string, { name: string; type?: string }>
@@ -758,6 +782,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   activeProject?: Project | null
   protectPin?: PinnedRoute
   onShowNotes?: (route: Route) => void
+  hasNotes?: boolean
 }) {
   const t = useTheme()
   const isMobile = useIsMobile()
@@ -863,11 +888,12 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
           {onShowNotes && (
             <button
               onClick={() => onShowNotes(route)}
-              title="View Solution Notes for this route"
+              title={hasNotes ? 'View Solution Notes for this route' : 'No notes — click to open Solution Notes'}
               style={{
                 fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 4, flexShrink: 0,
-                border: `1px solid ${t.border}`, background: t.bgDeep,
-                color: t.textMuted, cursor: 'pointer',
+                border: `1px solid ${hasNotes ? t.blue + '55' : t.border}`,
+                background: hasNotes ? t.blue + '22' : t.bgDeep,
+                color: hasNotes ? t.blue : t.textFaintest, cursor: 'pointer',
               }}
             >📋 Notes</button>
           )}
@@ -994,7 +1020,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   )
 }
 
-function RouteCard({ route, selected, onSelect, nodesById, capacityById, outagesById, color, isPinned, canPin, onPin, onNetSet, systemsById, onAddToProject, onShowNotes }: {
+function RouteCard({ route, selected, onSelect, nodesById, capacityById, outagesById, color, isPinned, canPin, onPin, onNetSet, systemsById, onAddToProject, onShowNotes, hasNotes }: {
   route: Route
   selected: boolean
   onSelect: (id: string) => void
@@ -1009,6 +1035,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
   systemsById: Record<string, CableSystem>
   onAddToProject?: (route: Route) => void
   onShowNotes?: (route: Route) => void
+  hasNotes?: boolean
 }) {
   const t = useTheme()
   const isMobile = useIsMobile()
@@ -1070,11 +1097,13 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
           {onShowNotes && (
             <button
               onClick={e => { e.stopPropagation(); onShowNotes(route) }}
-              title="View Solution Notes for this route"
+              title={hasNotes ? 'View Solution Notes for this route' : 'No notes — click to open Solution Notes'}
               style={{
-                background: 'none', border: 'none', cursor: 'pointer',
+                background: hasNotes ? t.blue + '22' : 'none',
+                border: hasNotes ? `1px solid ${t.blue}55` : 'none',
+                cursor: 'pointer',
                 fontSize: 11, lineHeight: 1, padding: '1px 3px', borderRadius: 3,
-                color: t.textFaint, transition: 'color 0.15s',
+                color: hasNotes ? t.blue : t.textFaintest, transition: 'color 0.15s',
               }}
             >📋</button>
           )}
