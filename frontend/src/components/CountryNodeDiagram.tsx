@@ -64,7 +64,7 @@ const PAD      = 180   // outer padding (room for 45° stubs + labels)
 const PORT_SP  = 20    // px between parallel lines within one group
 const GROUP_GAP = 14   // px gap between separate groups on the same (node, side)
 const STUB_LEN = 100   // length of subsea stub lines
-const TURN_SEP = 22    // px between staggered H→V turn columns/rows
+const TURN_SEP = 14    // px between staggered H→V turn columns/rows (= parallel line buffer)
 
 type Side = 'left' | 'right' | 'top' | 'bottom'
 
@@ -424,9 +424,9 @@ export function CountryNodeDiagram({
       })
     })
 
-    // Stagger H→V turn point for edges exiting the same node-face toward different destinations.
-    // Without this, paths from the same face going to different nodes share the same turn column/row,
-    // causing their intermediate segments to overlap.
+    // Guarantee every edge leaving the same node-face has its H→V turn at a unique x (or y),
+    // TURN_SEP px apart.  We sort by (destination, within-group index) so parallel edges to the
+    // same node stay adjacent, then assign sequential slots centred on zero.
     const faceMap = new Map<string, number[]>()
     result.forEach((edge, idx) => {
       const key = `${edge.nodeA}|${edge.sideA}`
@@ -434,13 +434,17 @@ export function CountryNodeDiagram({
       faceMap.get(key)!.push(idx)
     })
     for (const idxs of faceMap.values()) {
-      const dests = [...new Set(idxs.map(i => result[i].nodeB))].sort()
-      if (dests.length < 2) continue
-      const n = dests.length
-      const rank = new Map(dests.map((d, j) => [d, j]))
-      for (const i of idxs) {
-        result[i].turnOff = (rank.get(result[i].nodeB)! - (n - 1) / 2) * TURN_SEP
-      }
+      if (idxs.length <= 1) continue
+      const sorted = [...idxs].sort((a, b) => {
+        const na = result[a].nodeB, nb = result[b].nodeB
+        if (na < nb) return -1
+        if (na > nb) return 1
+        return result[a].groupLocalIdx - result[b].groupLocalIdx
+      })
+      const total = sorted.length
+      sorted.forEach((origIdx, rank) => {
+        result[origIdx].turnOff = (rank - (total - 1) / 2) * TURN_SEP
+      })
     }
 
     return result
