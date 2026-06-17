@@ -23,7 +23,7 @@ function genCountryColors(n: number): string[] {
   if (n === 0) return []
   return Array.from({ length: n }, (_, i) => {
     const hue = Math.round((i * 360) / n)
-    return `hsl(${hue}, 95%, 63%)`
+    return `hsl(${hue}, 70%, 38%)`
   })
 }
 

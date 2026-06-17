@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import type { CableNode, CableSegment, CableSystem, CountryHighlight, SegmentCapacity } from '../types'
 import { useTheme } from '../theme'
 
@@ -254,6 +254,82 @@ export function CountryNodeDiagram({
   const t = useTheme()
   const [tip, setTip]       = useState<Tip | null>(null)
   const [selected, setSelected] = useState<SelItem | null>(null)
+  const [zoom, setZoom] = useState(1)
+  const [pan,  setPan]  = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const diagramRef  = useRef<HTMLDivElement>(null)
+  const dragRef     = useRef<{ mx: number; my: number; px: number; py: number } | null>(null)
+  const dragMoved   = useRef(false)
+
+  // Non-passive wheel listener so we can preventDefault (stops page scroll while zooming)
+  useEffect(() => {
+    const el = diagramRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12
+      const rect = el.getBoundingClientRect()
+      const mx = e.clientX - rect.left
+      const my = e.clientY - rect.top
+      setZoom(pz => {
+        const nz = Math.min(6, Math.max(0.15, pz * factor))
+        setPan(pp => ({
+          x: mx - ((mx - pp.x) / pz) * nz,
+          y: my - ((my - pp.y) / pz) * nz,
+        }))
+        return nz
+      })
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
+  // Fit diagram to container after first render (reads SVG size from DOM)
+  useEffect(() => {
+    const el = diagramRef.current
+    if (!el) return
+    const svg = el.querySelector('svg')
+    if (!svg) return
+    const w = parseFloat(svg.getAttribute('width') ?? '0')
+    const h = parseFloat(svg.getAttribute('height') ?? '0')
+    if (!w || !h) return
+    const z = Math.min(el.clientWidth / w, el.clientHeight / h) * 0.92
+    setZoom(z)
+    setPan({ x: (el.clientWidth - w * z) / 2, y: (el.clientHeight - h * z) / 2 })
+  }, [])
+
+  function startDrag(e: React.MouseEvent) {
+    if (e.button !== 0) return
+    dragRef.current = { mx: e.clientX, my: e.clientY, px: pan.x, py: pan.y }
+    dragMoved.current = false
+  }
+  function moveDrag(e: React.MouseEvent) {
+    setTip(p => p ? { ...p, sx: e.clientX, sy: e.clientY } : null)
+    if (!dragRef.current) return
+    const dx = e.clientX - dragRef.current.mx
+    const dy = e.clientY - dragRef.current.my
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      dragMoved.current = true
+      setIsDragging(true)
+      setPan({ x: dragRef.current.px + dx, y: dragRef.current.py + dy })
+    }
+  }
+  function endDrag() {
+    dragRef.current = null
+    setIsDragging(false)
+  }
+  function fitView() {
+    const el = diagramRef.current
+    if (!el) return
+    const svg = el.querySelector('svg')
+    if (!svg) return
+    const w = parseFloat(svg.getAttribute('width') ?? '0')
+    const h = parseFloat(svg.getAttribute('height') ?? '0')
+    if (!w || !h) return
+    const z = Math.min(el.clientWidth / w, el.clientHeight / h) * 0.92
+    setZoom(z)
+    setPan({ x: (el.clientWidth - w * z) / 2, y: (el.clientHeight - h * z) / 2 })
+  }
 
   function clickSeg(seg: CableSegment, color: string, e: React.MouseEvent) {
     e.stopPropagation()
@@ -448,8 +524,55 @@ export function CountryNodeDiagram({
       })
     }
 
+    // ── Global track spread ────────────────────────────────────────────────────
+    // Ensure every vertical segment (H-exit) is >= TURN_SEP px from every other
+    // in x, and every horizontal segment (V-exit) is >= TURN_SEP px from every
+    // other in y.  Handles coincidental overlaps between different source nodes.
+    //
+    // Algorithm: sort all edges by current absolute turn position, forward-push
+    // to enforce the minimum gap, then shift the whole cluster to preserve the
+    // original mean (so lines stay centred between their endpoints).
+    const hTurnX = (e: RoutedEdge): number => {
+      const pA = nodePos.get(e.nodeA)!, pB = nodePos.get(e.nodeB)!
+      const sx = e.sideA === 'right' ? pA[0] + BOX_H : pA[0] - BOX_H
+      const dx = e.sideB === 'right' ? pB[0] + BOX_H : pB[0] - BOX_H
+      return (sx + dx) / 2
+    }
+    const vTurnY = (e: RoutedEdge): number => {
+      const pA = nodePos.get(e.nodeA)!, pB = nodePos.get(e.nodeB)!
+      const sy = e.sideA === 'bottom' ? pA[1] + BOX_H : pA[1] - BOX_H
+      const dy = e.sideB === 'bottom' ? pB[1] + BOX_H : pB[1] - BOX_H
+      return (sy + dy) / 2
+    }
+    const spreadToGap = (
+      idxs: number[],
+      naturalFn: (e: RoutedEdge) => number,
+      gap: number,
+    ) => {
+      if (idxs.length <= 1) return
+      const items = idxs.map(i => {
+        const nat = naturalFn(result[i])
+        return { i, nat, abs: nat + result[i].turnOff }
+      })
+      items.sort((a, b) => a.abs - b.abs)
+      const origMean = items.reduce((s, e) => s + e.abs, 0) / items.length
+      for (let k = 1; k < items.length; k++) {
+        if (items[k].abs < items[k - 1].abs + gap) items[k].abs = items[k - 1].abs + gap
+      }
+      const shift = origMean - items.reduce((s, e) => s + e.abs, 0) / items.length
+      items.forEach(({ i, nat, abs }) => { result[i].turnOff = abs + shift - nat })
+    }
+
+    const hNonBypass = result.flatMap((e, i) =>
+      (e.sideA === 'left' || e.sideA === 'right') && e.bypassOff === 0 ? [i] : [])
+    const vAll = result.flatMap((e, i) =>
+      e.sideA === 'top' || e.sideA === 'bottom' ? [i] : [])
+
+    spreadToGap(hNonBypass, hTurnX, TURN_SEP)
+    spreadToGap(vAll, vTurnY, TURN_SEP)
+
     return result
-  }, [edgeGroups, grid])
+  }, [edgeGroups, grid, nodePos])
 
   // Group stubs by CLS for 45° fan
   const stubsByCls = useMemo(() => {
@@ -482,8 +605,6 @@ export function CountryNodeDiagram({
   }, [crossSegs, countryHighlight, nodePos, centroid])
 
   // ── Tooltip helpers ──────────────────────────────────────────────────────
-  const mv = (e: React.MouseEvent) => setTip(p => p ? { ...p, sx: e.clientX, sy: e.clientY } : null)
-
   function nodeTip(n: CableNode, e: React.MouseEvent) {
     setTip({ title: n.name, sx: e.clientX, sy: e.clientY,
       lines: [TYPE_LABEL[n.type] ?? n.type, n.owner ? `Owner: ${n.owner}` : '', `ID: ${n.id}`].filter(Boolean) })
@@ -546,16 +667,27 @@ export function CountryNodeDiagram({
             fontSize: 13, fontFamily: 'inherit' }}>Close ✕</button>
         </div>
 
-        {/* Diagram — fills remaining height, NO overflow/scroll */}
-        <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}
-          onClick={() => setSelected(null)}>
+        {/* Diagram — zoom (scroll wheel) + pan (drag) */}
+        <div
+          ref={diagramRef}
+          style={{ flex: 1, overflow: 'hidden', position: 'relative',
+                   cursor: isDragging ? 'grabbing' : 'grab' }}
+          onMouseDown={startDrag}
+          onMouseMove={moveDrag}
+          onMouseUp={endDrag}
+          onMouseLeave={() => { endDrag(); setTip(null) }}
+          onClick={() => { if (!dragMoved.current) setSelected(null) }}
+        >
+          {/* zoom-pan transform wrapper */}
+          <div style={{
+            transform: `translate(${pan.x}px,${pan.y}px) scale(${zoom})`,
+            transformOrigin: '0 0',
+            position: 'absolute', top: 0, left: 0,
+          }}>
           <svg
-            viewBox={`0 0 ${svgW} ${svgH}`}
-            preserveAspectRatio="xMidYMid meet"
-            style={{ width: '100%', height: '100%', display: 'block' }}
-            onMouseLeave={() => setTip(null)}
-            onMouseMove={mv}
-            onClick={() => setSelected(null)}
+            width={svgW}
+            height={svgH}
+            style={{ display: 'block' }}
           >
             <rect width={svgW} height={svgH} fill="#ffffff" />
             <defs>
@@ -724,6 +856,26 @@ export function CountryNodeDiagram({
               )
             })}
           </svg>
+          </div>{/* end zoom-pan wrapper */}
+
+          {/* Zoom controls */}
+          <div style={{ position: 'absolute', bottom: 12, left: 12, display: 'flex',
+                        flexDirection: 'column', gap: 4, zIndex: 20 }}>
+            {[
+              { label: '+', action: () => setZoom(z => Math.min(6, z * 1.25)) },
+              { label: '⌂', action: fitView },
+              { label: '−', action: () => setZoom(z => Math.max(0.15, z / 1.25)) },
+            ].map(btn => (
+              <button key={btn.label} onClick={e => { e.stopPropagation(); btn.action() }}
+                style={{ width: 28, height: 28, border: '1px solid #d1d5db', borderRadius: 6,
+                         background: '#ffffff', color: '#374151', cursor: 'pointer',
+                         fontSize: 14, fontFamily: 'inherit', lineHeight: 1,
+                         boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex',
+                         alignItems: 'center', justifyContent: 'center' }}>
+                {btn.label}
+              </button>
+            ))}
+          </div>
 
           {/* Info panel — bottom right, shown on click */}
           {selected && (
