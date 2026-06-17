@@ -136,8 +136,14 @@ function portXY(cx: number, cy: number, side: Side, idx: number, total: number):
 function orthoPath(sx: number, sy: number, dx: number, dy: number, exitSide: Side, bypassOff = 0, turnOff = 0): string {
   const isH = exitSide === 'right' || exitSide === 'left'
   if (isH && bypassOff > 0) {
+    // U-shape: exit horizontally → go up → cross → come down → arrive horizontally.
+    // The stub clears the node box before going vertical so the exit stays perpendicular.
     const yBypass = Math.min(sy, dy) - bypassOff
-    return `M${sx},${sy} V${yBypass} H${dx} V${dy}`
+    const goRight = dx > sx
+    const stub = BOX_H
+    const x1 = goRight ? sx + stub : sx - stub
+    const x2 = goRight ? dx - stub : dx + stub
+    return `M${sx},${sy} H${x1} V${yBypass} H${x2} V${dy} H${dx}`
   }
   if (isH) {
     if (Math.abs(sy - dy) < 0.5) return `M${sx},${sy} H${dx}`
