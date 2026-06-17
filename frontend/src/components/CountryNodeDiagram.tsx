@@ -99,10 +99,6 @@ function buildGrid(nodes: CableNode[], segs: CableSegment[]): Map<string, [numbe
   return grid
 }
 
-function boxCenter(col: number, row: number): [number, number] {
-  return [PAD + col * GW, PAD + row * GH]
-}
-
 // ── Orthogonal routing helpers ───────────────────────────────────────────────
 function determineSides(c1: number, r1: number, c2: number, r2: number): [Side, Side] {
   const dc = c2 - c1, dr = r2 - r1
@@ -151,21 +147,6 @@ function orthoPath(sx: number, sy: number, dx: number, dy: number, exitSide: Sid
   return `M${sx},${sy} V${mid} H${dx} V${dy}`
 }
 
-/**
- * Label position for a segment line.
- * Distributes labels along the segment using (idx+0.5)/total so a group's
- * labels are spread across 20%–80% of the segment length.
- * Label sits 22px ABOVE the port y (horizontal lines) or 22px LEFT (vertical).
- */
-function labelPos(
-  sx: number, sy: number, dx: number, dy: number,
-  exitSide: Side, idx: number, total: number,
-): [number, number] {
-  const t  = total <= 1 ? 0.5 : 0.2 + (idx / (total - 1)) * 0.6
-  const isH = exitSide === 'right' || exitSide === 'left'
-  if (isH) return [sx + (dx - sx) * t, sy - 20]
-  return [sx - 20, sy + (dy - sy) * t]
-}
 
 // ── 45° diagonal stub for subsea cables ─────────────────────────────────────
 /**
@@ -370,12 +351,43 @@ export function CountryNodeDiagram({
   }, [segments, countryHighlight, clsIds])
 
   // ── Grid + positions ─────────────────────────────────────────────────────
-  const grid    = useMemo(() => buildGrid(countryNodes, internalSegs), [countryNodes, internalSegs])
+  const grid      = useMemo(() => buildGrid(countryNodes, internalSegs), [countryNodes, internalSegs])
+
+  const edgeGroups = useMemo(() => {
+    const g = new Map<string, CableSegment[]>()
+    for (const seg of internalSegs) {
+      const key = [seg.start_node_id, seg.end_node_id].sort().join('§')
+      if (!g.has(key)) g.set(key, [])
+      g.get(key)!.push(seg)
+    }
+    return g
+  }, [internalSegs])
+
+  // Extra y-offset so stacked bypass paths on row 0 never clip above y=0
+  const topExtra = useMemo(() => {
+    const BYPASS_BASE_L = BOX_H + 34, BYPASS_STEP_L = 30
+    const rowBypasses = new Map<number, number>()
+    for (const segs of edgeGroups.values()) {
+      const s0 = segs[0]
+      const g1 = grid.get(s0.start_node_id), g2 = grid.get(s0.end_node_id)
+      if (!g1 || !g2) continue
+      if (g1[1] === g2[1] && Math.abs(g1[0] - g2[0]) >= 2) {
+        const row = g1[1]
+        rowBypasses.set(row, (rowBypasses.get(row) ?? 0) + 1)
+      }
+    }
+    if (rowBypasses.size === 0) return 0
+    const maxN = Math.max(...rowBypasses.values())
+    const maxOff = BYPASS_BASE_L + (maxN - 1) * BYPASS_STEP_L
+    const minY = PAD - BOX_H - maxOff - 24   // 24 px clearance for label above top line
+    return Math.max(0, -minY + 10)
+  }, [edgeGroups, grid])
+
   const nodePos = useMemo(() => {
     const m = new Map<string, [number, number]>()
-    for (const [id, [c, r]] of grid) m.set(id, boxCenter(c, r))
+    for (const [id, [c, r]] of grid) m.set(id, [PAD + c * GW, PAD + topExtra + r * GH])
     return m
-  }, [grid])
+  }, [grid, topExtra])
 
   const centroid = useMemo(() => {
     const pts = [...nodePos.values()]
@@ -391,20 +403,9 @@ export function CountryNodeDiagram({
     for (const [c, r] of grid.values()) { maxC = Math.max(maxC, c); maxR = Math.max(maxR, r) }
     return {
       svgW: PAD * 2 + maxC * GW,
-      svgH: PAD * 2 + maxR * GH + 80,
+      svgH: PAD * 2 + maxR * GH + 80 + topExtra,
     }
-  }, [grid])
-
-  // ── Group parallel internal edges ────────────────────────────────────────
-  const edgeGroups = useMemo(() => {
-    const g = new Map<string, CableSegment[]>()
-    for (const seg of internalSegs) {
-      const key = [seg.start_node_id, seg.end_node_id].sort().join('§')
-      if (!g.has(key)) g.set(key, [])
-      g.get(key)!.push(seg)
-    }
-    return g
-  }, [internalSegs])
+  }, [grid, topExtra])
 
   // Global grouped port assignment: groups on the same (node, side) are stacked
   // with GROUP_GAP between them so lines from different pairs never overlap.
@@ -706,11 +707,17 @@ export function CountryNodeDiagram({
               if (!p1 || !p2) return null
               const [sx, sy] = sidePort(p1[0], p1[1], srcSide, srcOff)
               const [dx, dy] = sidePort(p2[0], p2[1], dstSide, dstOff)
-              const d = orthoPath(sx, sy, dx, dy, srcSide, bypassOff, isForward ? turnOff : -turnOff)
+              const effTurn = isForward ? turnOff : -turnOff
+              const d = orthoPath(sx, sy, dx, dy, srcSide, bypassOff, effTurn)
               const tFrac = groupN <= 1 ? 0.5 : 0.2 + (groupLocalIdx / (groupN - 1)) * 0.6
+              // Label placement: each path gets a position unique to its stagger offset so
+              // labels from different groups never land at the same point.
+              const isHExit = srcSide === 'left' || srcSide === 'right'
               const [lx, ly] = bypassOff > 0
-                ? [sx + (dx - sx) * tFrac, Math.min(sy, dy) - bypassOff - 14]
-                : labelPos(sx, sy, dx, dy, srcSide, groupLocalIdx, groupN)
+                ? [sx + (dx - sx) * tFrac, Math.min(sy, dy) - bypassOff + 14]
+                : isHExit
+                  ? [(sx + dx) / 2 + effTurn, Math.min(sy, dy) - 14]   // staggered x, above line
+                  : [Math.min(sx, dx) - 16, (sy + dy) / 2 + effTurn]   // left of line, staggered y
               const isSel = selected?.kind === 'seg' && selected.seg.id === seg.id
               return (
                 <g key={seg.id}>
@@ -722,8 +729,10 @@ export function CountryNodeDiagram({
                     onClick={e => clickSeg(seg, color, e)} />
                   <path d={d} fill="none" stroke={color} strokeWidth={isSel ? 5 : 2.2}
                     style={{ pointerEvents: 'none' }} />
-                  <text x={lx} y={ly} fontSize={12} fontWeight="600" fill={color}
-                    textAnchor="middle" style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                  <text x={lx} y={ly} fontSize={11} fontWeight="600" fill={color}
+                    stroke="white" strokeWidth="3"
+                    textAnchor="middle"
+                    style={{ paintOrder: 'stroke fill', pointerEvents: 'none', userSelect: 'none' }}>
                     {seg.id.replace('TERRESTRIAL_', '')}
                   </text>
                 </g>
@@ -758,13 +767,15 @@ export function CountryNodeDiagram({
                       stroke={sysColor} strokeWidth={isSelSub ? 5 : 2.2} strokeDasharray="5,3"
                       markerEnd="url(#ndSub)" style={{ pointerEvents: 'none' }} />
                     <text x={lx} y={ly - 4} fontSize={11} fontWeight="600" fill={sysColor}
+                      stroke="white" strokeWidth="3"
                       textAnchor={goRight ? 'start' : 'end'}
-                      style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                      style={{ paintOrder: 'stroke fill', pointerEvents: 'none', userSelect: 'none' }}>
                       {seg.id}
                     </text>
                     <text x={lx} y={ly + 9} fontSize={10} fill={sysColor} opacity={0.8}
+                      stroke="white" strokeWidth="3"
                       textAnchor={goRight ? 'start' : 'end'}
-                      style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                      style={{ paintOrder: 'stroke fill', pointerEvents: 'none', userSelect: 'none' }}>
                       → {destCC}
                     </text>
                   </g>
@@ -798,11 +809,15 @@ export function CountryNodeDiagram({
                     stroke={CROSS_COLOR} strokeWidth={isSelCrs ? 5 : 2.2} strokeDasharray="5,3"
                     markerEnd="url(#ndCrs)" style={{ pointerEvents: 'none' }} />
                   <text x={lx} y={ly} fontSize={11} fontWeight="600" fill={CROSS_COLOR}
-                    textAnchor={anchor} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                    stroke="white" strokeWidth="3"
+                    textAnchor={anchor}
+                    style={{ paintOrder: 'stroke fill', pointerEvents: 'none', userSelect: 'none' }}>
                     {seg.id}
                   </text>
                   <text x={lx} y={ly + 13} fontSize={10} fill={CROSS_COLOR} opacity={0.8}
-                    textAnchor={anchor} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                    stroke="white" strokeWidth="3"
+                    textAnchor={anchor}
+                    style={{ paintOrder: 'stroke fill', pointerEvents: 'none', userSelect: 'none' }}>
                     → {out?.country ?? '?'}
                   </text>
                 </g>
