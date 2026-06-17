@@ -62,9 +62,9 @@ const GW       = 300   // grid column spacing
 const GH       = 200   // grid row spacing
 const PAD      = 180   // outer padding (room for 45° stubs + labels)
 const PORT_SP  = 20    // px between parallel lines within one group
-const GROUP_GAP = 14   // px gap between separate groups on the same (node, side)
+const GROUP_GAP = 20   // px gap between separate groups on the same (node, side)
 const STUB_LEN = 100   // length of subsea stub lines
-const TURN_SEP = 14    // px between staggered H→V turn columns/rows (= parallel line buffer)
+const TURN_SEP = 20    // minimum px between any two parallel vertical (or horizontal) segments
 
 type Side = 'left' | 'right' | 'top' | 'bottom'
 
@@ -466,8 +466,8 @@ export function CountryNodeDiagram({
     // Stagger bypass heights for long same-row segments so their labels don't overlap.
     // Within each grid row, sort groups by column span (shorter = lower bypass), then
     // assign incremental heights: base + k * BYPASS_STEP.
-    const BYPASS_BASE = BOX_H + 30   // 64px above port centre for shortest long-hop
-    const BYPASS_STEP = 26           // each additional level adds 26px
+    const BYPASS_BASE = BOX_H + 34   // 68px above port centre for shortest long-hop
+    const BYPASS_STEP = 30           // each additional level adds 30px
     const bypassOffMap = new Map<number, number>()  // groupIdx → bypassOff
     const rowLongGroups = new Map<number, number[]>()
     groups.forEach((grp, gi) => {
@@ -563,12 +563,23 @@ export function CountryNodeDiagram({
       items.forEach(({ i, nat, abs }) => { result[i].turnOff = abs + shift - nat })
     }
 
+    // For bypass paths the relevant column is x1 = sx + BOX_H (source-side stub end),
+    // NOT the midpoint.  Spread them separately so their stub verticals are separated.
+    const bypassX1 = (e: RoutedEdge): number => {
+      const pA = nodePos.get(e.nodeA)!
+      // sx = cx ± BOX_H; x1_natural = sx ± BOX_H = cx ± 2*BOX_H
+      return e.sideA === 'right' ? pA[0] + BOX_H + BOX_H : pA[0] - BOX_H - BOX_H
+    }
+
     const hNonBypass = result.flatMap((e, i) =>
       (e.sideA === 'left' || e.sideA === 'right') && e.bypassOff === 0 ? [i] : [])
+    const hBypass = result.flatMap((e, i) =>
+      (e.sideA === 'left' || e.sideA === 'right') && e.bypassOff > 0 ? [i] : [])
     const vAll = result.flatMap((e, i) =>
       e.sideA === 'top' || e.sideA === 'bottom' ? [i] : [])
 
     spreadToGap(hNonBypass, hTurnX, TURN_SEP)
+    spreadToGap(hBypass, bypassX1, TURN_SEP)
     spreadToGap(vAll, vTurnY, TURN_SEP)
 
     return result
