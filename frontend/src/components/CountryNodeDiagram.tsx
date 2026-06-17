@@ -61,9 +61,10 @@ const BOX_H    = 34    // half-side of routing box → 68×68 px
 const GW       = 300   // grid column spacing
 const GH       = 200   // grid row spacing
 const PAD      = 180   // outer padding (room for 45° stubs + labels)
-const PORT_SP  = 16    // px between parallel lines within one group
-const GROUP_GAP = 10   // px gap between separate groups on the same (node, side)
+const PORT_SP  = 20    // px between parallel lines within one group
+const GROUP_GAP = 14   // px gap between separate groups on the same (node, side)
 const STUB_LEN = 100   // length of subsea stub lines
+const TURN_SEP = 22    // px between staggered H→V turn columns/rows
 
 type Side = 'left' | 'right' | 'top' | 'bottom'
 
@@ -129,7 +130,7 @@ function portXY(cx: number, cy: number, side: Side, idx: number, total: number):
   return sidePort(cx, cy, side, off)
 }
 
-function orthoPath(sx: number, sy: number, dx: number, dy: number, exitSide: Side, bypassOff = 0): string {
+function orthoPath(sx: number, sy: number, dx: number, dy: number, exitSide: Side, bypassOff = 0, turnOff = 0): string {
   const isH = exitSide === 'right' || exitSide === 'left'
   if (isH && bypassOff > 0) {
     const yBypass = Math.min(sy, dy) - bypassOff
@@ -137,10 +138,12 @@ function orthoPath(sx: number, sy: number, dx: number, dy: number, exitSide: Sid
   }
   if (isH) {
     if (Math.abs(sy - dy) < 0.5) return `M${sx},${sy} H${dx}`
-    return `M${sx},${sy} H${(sx + dx) / 2} V${dy} H${dx}`
+    const mid = (sx + dx) / 2 + turnOff
+    return `M${sx},${sy} H${mid} V${dy} H${dx}`
   }
   if (Math.abs(sx - dx) < 0.5) return `M${sx},${sy} V${dy}`
-  return `M${sx},${sy} V${(sy + dy) / 2} H${dx} V${dy}`
+  const mid = (sy + dy) / 2 + turnOff
+  return `M${sx},${sy} V${mid} H${dx} V${dy}`
 }
 
 /**
@@ -227,6 +230,8 @@ interface RoutedEdge {
   groupLocalIdx: number; groupN: number
   /** >0 = bypass above the row; staggered per row so labels don't stack */
   bypassOff: number
+  /** Shift the H→V (or V→H) turn pivot so parallel paths from same face don't overlap */
+  turnOff: number
 }
 interface RoutedCross {
   seg: CableSegment; nodeId: string; side: Side; pIdx: number; pTotal: number
@@ -405,9 +410,30 @@ export function CountryNodeDiagram({
           offA: cA + localOff, offB: cB + localOff,
           groupLocalIdx: i, groupN: grp.N,
           bypassOff,
+          turnOff: 0,
         })
       })
     })
+
+    // Stagger H→V turn point for edges exiting the same node-face toward different destinations.
+    // Without this, paths from the same face going to different nodes share the same turn column/row,
+    // causing their intermediate segments to overlap.
+    const faceMap = new Map<string, number[]>()
+    result.forEach((edge, idx) => {
+      const key = `${edge.nodeA}|${edge.sideA}`
+      if (!faceMap.has(key)) faceMap.set(key, [])
+      faceMap.get(key)!.push(idx)
+    })
+    for (const idxs of faceMap.values()) {
+      const dests = [...new Set(idxs.map(i => result[i].nodeB))].sort()
+      if (dests.length < 2) continue
+      const n = dests.length
+      const rank = new Map(dests.map((d, j) => [d, j]))
+      for (const i of idxs) {
+        result[i].turnOff = (rank.get(result[i].nodeB)! - (n - 1) / 2) * TURN_SEP
+      }
+    }
+
     return result
   }, [edgeGroups, grid])
 
@@ -528,7 +554,7 @@ export function CountryNodeDiagram({
             </defs>
 
             {/* ── Internal terrestrial edges ── */}
-            {routedEdges.map(({ seg, color, nodeA, sideA, sideB, offA, offB, groupLocalIdx, groupN, bypassOff }) => {
+            {routedEdges.map(({ seg, color, nodeA, sideA, sideB, offA, offB, groupLocalIdx, groupN, bypassOff, turnOff }) => {
               const isForward = seg.start_node_id === nodeA
               const [srcSide, dstSide] = isForward ? [sideA, sideB] : [sideB, sideA]
               const [srcOff, dstOff]   = isForward ? [offA,  offB]  : [offB,  offA]
@@ -536,7 +562,8 @@ export function CountryNodeDiagram({
               if (!p1 || !p2) return null
               const [sx, sy] = sidePort(p1[0], p1[1], srcSide, srcOff)
               const [dx, dy] = sidePort(p2[0], p2[1], dstSide, dstOff)
-              const d = orthoPath(sx, sy, dx, dy, srcSide, bypassOff)
+              const effectiveTurnOff = isForward ? turnOff : -turnOff
+              const d = orthoPath(sx, sy, dx, dy, srcSide, bypassOff, effectiveTurnOff)
               const tFrac = groupN <= 1 ? 0.5 : 0.2 + (groupLocalIdx / (groupN - 1)) * 0.6
               const [lx, ly] = bypassOff > 0
                 ? [sx + (dx - sx) * tFrac, Math.min(sy, dy) - bypassOff - 14]
