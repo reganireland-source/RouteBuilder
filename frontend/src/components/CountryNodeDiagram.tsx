@@ -109,9 +109,12 @@ function determineSides(c1: number, r1: number, c2: number, r2: number): [Side, 
   if (dc === 0 && dr === 0) return ['right', 'left']
   if (dc === 0) return dr > 0 ? ['bottom', 'top'] : ['top', 'bottom']
   if (dr === 0) return dc > 0 ? ['right', 'left'] : ['left', 'right']
-  return Math.abs(dc) >= Math.abs(dr)
-    ? (dc > 0 ? ['right', 'left'] : ['left', 'right'])
-    : (dr > 0 ? ['bottom', 'top'] : ['top', 'bottom'])
+  // Only use horizontal faces when the connection is strongly horizontal (> 2:1 ratio).
+  // All other diagonals exit top/bottom — keeps left/right faces clear of diagonal routes.
+  if (Math.abs(dc) > Math.abs(dr) * 2) {
+    return dc > 0 ? ['right', 'left'] : ['left', 'right']
+  }
+  return dr > 0 ? ['bottom', 'top'] : ['top', 'bottom']
 }
 
 /** Port using a pre-computed perpendicular offset. */
