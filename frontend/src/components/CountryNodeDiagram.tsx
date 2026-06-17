@@ -133,17 +133,17 @@ function portXY(cx: number, cy: number, side: Side, idx: number, total: number):
   return sidePort(cx, cy, side, off)
 }
 
-function orthoPath(sx: number, sy: number, dx: number, dy: number, exitSide: Side, bypassOff = 0, turnOff = 0): string {
+function orthoPath(sx: number, sy: number, dx: number, dy: number, exitSide: Side, bypassOff = 0, turnOff = 0, dstTurnOff = 0): string {
   const isH = exitSide === 'right' || exitSide === 'left'
   if (isH && bypassOff > 0) {
-    // U-shape: exit horizontally → go up → cross → come down → arrive horizontally.
-    // Apply turnOff to the source stub so parallel bypass paths don't share the same
-    // vertical run (they were all stacking at x = sx+BOX_H regardless of turnOff).
+    // U-shape bypass: exit horizontally → stub → up → cross → down → stub → arrive.
+    // Both source stub (x1) and destination stub (x2) are independently staggered so
+    // multiple bypass paths don't share a vertical column at either endpoint.
     const yBypass = Math.min(sy, dy) - bypassOff
     const goRight = dx > sx
     const stub = BOX_H
-    const x1 = goRight ? sx + stub + turnOff : sx - stub + turnOff
-    const x2 = goRight ? dx - stub : dx + stub   // destination side stays fixed
+    const x1 = goRight ? sx + stub + turnOff    : sx - stub + turnOff
+    const x2 = goRight ? dx - stub - dstTurnOff : dx + stub + dstTurnOff
     return `M${sx},${sy} H${x1} V${yBypass} H${x2} V${dy} H${dx}`
   }
   if (isH) {
@@ -240,8 +240,10 @@ interface RoutedEdge {
   groupLocalIdx: number; groupN: number
   /** >0 = bypass above the row; staggered per row so labels don't stack */
   bypassOff: number
-  /** Shift the H→V (or V→H) turn pivot so parallel paths from same face don't overlap */
+  /** Stagger the source-side stub x so parallel bypass paths don't share the same vertical */
   turnOff: number
+  /** Stagger the destination-side stub x independently (bypass paths only) */
+  dstTurnOff: number
 }
 interface RoutedCross {
   seg: CableSegment; nodeId: string; side: Side; pIdx: number; pTotal: number
@@ -497,6 +499,7 @@ export function CountryNodeDiagram({
           groupLocalIdx: i, groupN: grp.N,
           bypassOff,
           turnOff: 0,
+          dstTurnOff: 0,
         })
       })
     })
@@ -521,6 +524,29 @@ export function CountryNodeDiagram({
       const total = sorted.length
       sorted.forEach((origIdx, rank) => {
         result[origIdx].turnOff = (rank - (total - 1) / 2) * TURN_SEP
+      })
+    }
+
+    // Destination-face stagger for bypass paths: stagger x2 so that multiple
+    // bypass paths arriving at the same node face don't share the same vertical stub.
+    const dstFaceMap = new Map<string, number[]>()
+    result.forEach((edge, idx) => {
+      if (edge.bypassOff === 0) return
+      const key = `${edge.nodeB}|${edge.sideB}`
+      if (!dstFaceMap.has(key)) dstFaceMap.set(key, [])
+      dstFaceMap.get(key)!.push(idx)
+    })
+    for (const idxs of dstFaceMap.values()) {
+      if (idxs.length <= 1) continue
+      const sorted = [...idxs].sort((a, b) => {
+        const na = result[a].nodeA, nb = result[b].nodeA
+        if (na < nb) return -1
+        if (na > nb) return 1
+        return result[a].groupLocalIdx - result[b].groupLocalIdx
+      })
+      const total = sorted.length
+      sorted.forEach((origIdx, rank) => {
+        result[origIdx].dstTurnOff = (rank - (total - 1) / 2) * TURN_SEP
       })
     }
 
@@ -711,7 +737,7 @@ export function CountryNodeDiagram({
             </defs>
 
             {/* ── Internal terrestrial edges ── */}
-            {routedEdges.map(({ seg, color, nodeA, sideA, sideB, offA, offB, groupLocalIdx, groupN, bypassOff, turnOff }) => {
+            {routedEdges.map(({ seg, color, nodeA, sideA, sideB, offA, offB, groupLocalIdx, groupN, bypassOff, turnOff, dstTurnOff }) => {
               const isForward = seg.start_node_id === nodeA
               const [srcSide, dstSide] = isForward ? [sideA, sideB] : [sideB, sideA]
               const [srcOff, dstOff]   = isForward ? [offA,  offB]  : [offB,  offA]
@@ -719,8 +745,11 @@ export function CountryNodeDiagram({
               if (!p1 || !p2) return null
               const [sx, sy] = sidePort(p1[0], p1[1], srcSide, srcOff)
               const [dx, dy] = sidePort(p2[0], p2[1], dstSide, dstOff)
-              const effectiveTurnOff = isForward ? turnOff : -turnOff
-              const d = orthoPath(sx, sy, dx, dy, srcSide, bypassOff, effectiveTurnOff)
+              // For reverse edges swap src/dst stagger so each stub uses the correct face's offset
+              const [effSrcOff, effDstOff] = isForward
+                ? [ turnOff,    dstTurnOff]
+                : [-dstTurnOff, -turnOff]
+              const d = orthoPath(sx, sy, dx, dy, srcSide, bypassOff, effSrcOff, effDstOff)
               const tFrac = groupN <= 1 ? 0.5 : 0.2 + (groupLocalIdx / (groupN - 1)) * 0.6
               const [lx, ly] = bypassOff > 0
                 ? [sx + (dx - sx) * tFrac, Math.min(sy, dy) - bypassOff - 14]
