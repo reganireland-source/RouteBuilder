@@ -20,7 +20,7 @@ const NODE_COLOR: Record<string, string> = {
   off_net:         '#374151',   // dark slate
 }
 const NODE_R: Record<string, number> = {
-  landing_station: 14,
+  landing_station: 10,
   primary_pop:     12,
   secondary_pop:   10,
   extension_pop:    9,

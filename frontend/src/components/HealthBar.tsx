@@ -95,29 +95,37 @@ export function HealthBar({ dataLoaded }: Props) {
 
   return (
     <div style={{
-      padding: '8px 16px',
+      padding: '6px 16px 8px',
       borderTop: `1px solid ${t.border}`,
       display: 'flex',
-      gap: 14,
+      flexDirection: 'column',
+      gap: 4,
       flexShrink: 0,
     }}>
-      {indicators.map(ind => (
-        <div
-          key={ind.label}
-          title={ind.detail}
-          style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'default' }}
-        >
-          <div style={{
-            width: 8, height: 8, borderRadius: '50%',
-            background: DOT_COLOR[ind.status],
-            flexShrink: 0,
-            boxShadow: ind.status === 'ok' ? `0 0 4px ${DOT_COLOR.ok}88` : undefined,
-          }} />
-          <span style={{ fontSize: 10, color: t.textFaint, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            {ind.label}
-          </span>
-        </div>
-      ))}
+      <div style={{ display: 'flex', gap: 14 }}>
+        {indicators.map(ind => (
+          <div
+            key={ind.label}
+            title={ind.detail}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'default' }}
+          >
+            <div style={{
+              width: 8, height: 8, borderRadius: '50%',
+              background: DOT_COLOR[ind.status],
+              flexShrink: 0,
+              boxShadow: ind.status === 'ok' ? `0 0 4px ${DOT_COLOR.ok}88` : undefined,
+            }} />
+            <span style={{ fontSize: 10, color: t.textFaint, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
+              {ind.label}
+            </span>
+          </div>
+        ))}
+      </div>
+      <span style={{ fontSize: 10, color: t.textFaint, letterSpacing: '0.04em', opacity: 0.7 }}>
+        Build <strong style={{ color: t.textMuted }}>{__BUILD_NUMBER__}</strong>
+        <span style={{ margin: '0 5px', opacity: 0.4 }}>·</span>
+        {__BUILD_DATE__}
+      </span>
     </div>
   )
 }
