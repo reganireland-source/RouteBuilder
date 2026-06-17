@@ -137,12 +137,13 @@ function orthoPath(sx: number, sy: number, dx: number, dy: number, exitSide: Sid
   const isH = exitSide === 'right' || exitSide === 'left'
   if (isH && bypassOff > 0) {
     // U-shape: exit horizontally → go up → cross → come down → arrive horizontally.
-    // The stub clears the node box before going vertical so the exit stays perpendicular.
+    // Apply turnOff to the source stub so parallel bypass paths don't share the same
+    // vertical run (they were all stacking at x = sx+BOX_H regardless of turnOff).
     const yBypass = Math.min(sy, dy) - bypassOff
     const goRight = dx > sx
     const stub = BOX_H
-    const x1 = goRight ? sx + stub : sx - stub
-    const x2 = goRight ? dx - stub : dx + stub
+    const x1 = goRight ? sx + stub + turnOff : sx - stub + turnOff
+    const x2 = goRight ? dx - stub : dx + stub   // destination side stays fixed
     return `M${sx},${sy} H${x1} V${yBypass} H${x2} V${dy} H${dx}`
   }
   if (isH) {
