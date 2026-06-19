@@ -29,6 +29,8 @@ export function HealthBar({ dataLoaded }: Props) {
   const [dataStatus,    setDataStatus]    = useState<Status>('checking')
   const [nlpStatus,     setNlpStatus]     = useState<Status>('checking')
   const [nlpDetail,     setNlpDetail]     = useState<string>('')
+  const [dbStatus,      setDbStatus]      = useState<Status>('checking')
+  const [dbDetail,      setDbDetail]      = useState<string>('')
 
   async function checkBackend() {
     setBackendStatus('checking')
@@ -36,14 +38,17 @@ export function HealthBar({ dataLoaded }: Props) {
       const h = await api.getHealth()
       setBackendStatus('ok')
       setBackendDetail(`${h.nodes} nodes · ${h.segments} segs · ${h.systems} systems`)
-      const storage = (h as unknown as Record<string, string>).storage ?? 'json'
       setDataStatus('ok')
-      setDataDetail(storage === 'postgres' ? 'PostgreSQL' : 'JSON files')
+      setDataDetail(h.storage === 'postgres' ? 'PostgreSQL' : 'JSON files')
+      setDbStatus(h.db_ok ? 'ok' : h.storage === 'json' ? 'disabled' : 'error')
+      setDbDetail(h.db_detail ?? (h.storage === 'json' ? 'No DATABASE_URL' : ''))
     } catch {
       setBackendStatus('error')
       setBackendDetail('Unreachable')
       setDataStatus('error')
       setDataDetail('Unavailable')
+      setDbStatus('error')
+      setDbDetail('Backend unreachable')
     }
   }
 
@@ -85,6 +90,11 @@ export function HealthBar({ dataLoaded }: Props) {
       label:  'Data',
       status: effectiveDataStatus,
       detail: effectiveDataStatus === 'checking' ? 'Loading…' : dataDetail,
+    },
+    {
+      label:  'Database',
+      status: dbStatus,
+      detail: dbStatus === 'checking' ? 'Checking…' : dbDetail,
     },
     {
       label:  'LLM API',

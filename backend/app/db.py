@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS tech_access_types  (id          TEXT PRIMARY KEY, dat
 CREATE TABLE IF NOT EXISTS tech_arranged_by   (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
 CREATE TABLE IF NOT EXISTS tech_l1_settings   (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
 CREATE TABLE IF NOT EXISTS feature_requests   (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
+CREATE TABLE IF NOT EXISTS _migrations        (id TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now());
 CREATE TABLE IF NOT EXISTS solution_notes (
     id          TEXT PRIMARY KEY,
     node_id     TEXT,
@@ -152,6 +153,14 @@ def get_conn() -> psycopg2.extensions.connection:
     return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
 
 
+def _once(cur, name: str, fn) -> None:
+    """Run fn(cur) exactly once, tracked by name in _migrations table."""
+    cur.execute("SELECT 1 FROM _migrations WHERE id = %s", (name,))
+    if cur.fetchone() is None:
+        fn(cur)
+        cur.execute("INSERT INTO _migrations (id) VALUES (%s)", (name,))
+
+
 def init_db() -> None:
     """Create tables (if missing) and seed from JSON files on first run."""
     if not DATABASE_URL:
@@ -160,7 +169,20 @@ def init_db() -> None:
     try:
         with conn.cursor() as cur:
             cur.execute(_CREATE_SQL)
-            # Migration: backfill verification_status for existing rows
+
+            # Legacy migrations: if _migrations is empty but data already exists,
+            # the DB was set up before tracking was added — mark all as done.
+            cur.execute("SELECT COUNT(*) as n FROM _migrations")
+            if cur.fetchone()["n"] == 0:
+                cur.execute("SELECT COUNT(*) as n FROM nodes")
+                if cur.fetchone()["n"] > 0:
+                    for i in range(1, 57):
+                        cur.execute(
+                            "INSERT INTO _migrations (id) VALUES (%s) ON CONFLICT DO NOTHING",
+                            (f"m{i:03d}",),
+                        )
+
+            # Idempotent backfills (WHERE clause makes these safe to re-run)
             cur.execute(
                 "UPDATE nodes SET data = data || '{\"verification_status\": \"draft\"}'::jsonb "
                 "WHERE data->>'verification_status' IS NULL"
@@ -169,116 +191,62 @@ def init_db() -> None:
                 "UPDATE segments SET data = data || '{\"verification_status\": \"draft\"}'::jsonb "
                 "WHERE data->>'verification_status' IS NULL"
             )
-            # Migration 002: rename terrestrial_pop → primary/secondary/extension_pop
-            _run_migration_002(cur)
-            # Migration 003: insert Philippines PoPs if absent
-            _run_migration_003(cur)
-            # Migration 004: replace old PH terrestrial segments with revised set
-            _run_migration_004(cur)
-            # Migration 005: insert Philippines cable-specific CLS nodes
-            _run_migration_005(cur)
-            # Migration 006: split PH02 and PH06 via PCRS waypoint
-            _run_migration_006(cur)
-            # Migration 007: reconnect subsea segments to cable-specific PH CLS nodes
-            _run_migration_007(cur)
-            # Migration 008: insert Hong Kong nodes
-            _run_migration_008(cur)
-            # Migration 009: fix type='subsea' → type='wet' inserted by migration 007
-            _run_migration_009(cur)
-            # Migration 010: insert Hong Kong terrestrial segments and capacity
-            _run_migration_010(cur)
-            # Migration 011: remove old HK nodes/segments, fix TERRESTRIAL_HK02 collision
-            _run_migration_011(cur)
-            # Migration 012: add waypoints to HK and PH terrestrial segments
-            _run_migration_012(cur)
-            # Migration 013: insert Singapore PoPs and CLSs
-            _run_migration_013(cur)
-            # Migration 014: fix 013 data errors; remove old generic SG nodes + terrestrials
-            _run_migration_014(cur)
-            # Migration 015: reconnect EAC and C2C segments to correct SG nodes
-            _run_migration_015(cur)
-            # Migration 016: rename SCOL→SGCL; reconnect SMW4, INDIGO, AAG SG endpoints
-            _run_migration_016(cur)
-            # Migration 017: reconnect C2C-S6 SG endpoint
-            _run_migration_017(cur)
-            # Migration 018: reconnect AAE1+Apricot SG endpoints; add missing BBG-PEN-SIN segment
-            _run_migration_018(cur)
-            # Migration 019: reconnect BIFROST SG endpoint to TUAS
-            _run_migration_019(cur)
-            # Migration 020: reconnect ECHO SG endpoint to SGCN
-            _run_migration_020(cur)
-            # Migration 021: reconnect SJC2 SG endpoint to SGCH
-            _run_migration_021(cur)
-            # Migration 022: reconnect ADC and SMW3 SG endpoints to TUAS
-            _run_migration_022(cur)
-            # Migration 023: reconnect APG SG endpoint to SGCH
-            _run_migration_023(cur)
-            # Migration 024: reconnect AAG HK endpoint to SLTU
-            _run_migration_024(cur)
-            # Migration 025: reconnect APG HK endpoint to HKCK
-            _run_migration_025(cur)
-            # Migration 026: rename SGOX → SKGX (correct ID for Singapore Stock Exchange)
-            _run_migration_026(cur)
-            # Migration 027: insert 21 Singapore terrestrial backhaul segments + capacity
-            _run_migration_027(cur)
-            # Migration 028: fix invalid type 'cable_landing_station' → 'landing_station'
-            _run_migration_028(cur)
-            # Migration 029: update waypoints for all 21 SG terrestrial segments
-            _run_migration_029(cur)
-            # Migration 030: add waypoints to APAC wet segments that cross land
-            _run_migration_030(cur)
-            # Migration 031: populate city field on branching-unit nodes
-            _run_migration_031(cur)
-            # Migration 032: set on_net field based on node type
-            _run_migration_032(cur)
-            # Migration 033: insert Japan PoPs and cable landing stations
-            _run_migration_033(cur)
-            # Migration 034: ensure off_net type nodes have on_net = 'off_net'
-            _run_migration_034(cur)
-            # Migration 035: remove old Japan PoPs/CLSs, reroute subsea to new CLSs, drop terrestrial backhaul
-            _run_migration_035(cur)
-            # Migration 036: insert Japan terrestrial backhaul segments + fix MJLS coordinates
-            _run_migration_036(cur)
-            # Migration 037: reroute C2C segments S4 and S3C to SMCC
-            _run_migration_037(cur)
-            # Migration 038: reroute C2C-S5 to CHCC, UNITY/FASTER Chikura end to CKKD
-            _run_migration_038(cur)
-            # Migration 039: add waypoints to Japan-touching subsea segments
-            _run_migration_039(cur)
-            # Migration 040: add waypoints to Japan terrestrial backhaul segments
-            _run_migration_040(cur)
-            # Migration 041: populate missing latency on C2C and EAC wet segments
-            _run_migration_041(cur)
-            # Migration 042: add RNAL cable system, nodes and segments
-            _run_migration_042(cur)
-            # Migration 043: replace Korea nodes with corrected POPs/CLSs; re-wire C2C and EAC
-            _run_migration_043(cur)
-            # Migration 044: add KSEQ node + Korea terrestrial backhaul segments
-            _run_migration_044(cur)
-            # Migration 045: land SJC2 Korea branch at PUCC (Busan C2C CLS)
-            _run_migration_045(cur)
-            # Migration 046: replace all Taiwan nodes with corrected CRM data; strand wet cables
-            _run_migration_046(cur)
-            # Migration 047: add Taiwan terrestrial backhaul segments
-            _run_migration_047(cur)
-            # Migration 048: rename KO01 typo to KR01
-            _run_migration_048(cur)
-            # Migration 049: reconnect Taiwan wet cables; retire C2C-S3A/3B
-            _run_migration_049(cur)
-            # Migration 050: reconnect APG/SJC2/FASTER Taiwan landings; ADC has no Taiwan segment
-            _run_migration_050(cur)
-            # Migration 051: remove all APCN2 references (EOL)
-            _run_migration_051(cur)
-            # Migration 052: add waypoints to KR/TW backhauls to minimise map overlaps
-            _run_migration_052(cur)
-            # Migration 053: fix subsea waypoints to prevent landmass crossings
-            _run_migration_053(cur)
-            # Migration 054: create solution_notes + note_categories tables; seed defaults
-            _run_migration_054(cur)
-            # Migration 055: convert solution_notes/note_categories from JSONB to proper columns
-            _run_migration_055(cur)
-            # Migration 056: upsert expanded default note categories
-            _run_migration_056(cur)
+
+            _once(cur, 'm002', _run_migration_002)   # rename terrestrial_pop → primary/secondary/extension_pop
+            _once(cur, 'm003', _run_migration_003)   # insert Philippines PoPs
+            _once(cur, 'm004', _run_migration_004)   # replace old PH terrestrial segments
+            _once(cur, 'm005', _run_migration_005)   # insert Philippines cable-specific CLS nodes
+            _once(cur, 'm006', _run_migration_006)   # split PH02 and PH06 via PCRS waypoint
+            _once(cur, 'm007', _run_migration_007)   # reconnect subsea segments to PH CLS nodes
+            _once(cur, 'm008', _run_migration_008)   # insert Hong Kong nodes
+            _once(cur, 'm009', _run_migration_009)   # fix type='subsea' → type='wet'
+            _once(cur, 'm010', _run_migration_010)   # insert HK terrestrial segments + capacity
+            _once(cur, 'm011', _run_migration_011)   # remove old HK nodes/segs, fix HK02 collision
+            _once(cur, 'm012', _run_migration_012)   # add waypoints to HK and PH terrestrials
+            _once(cur, 'm013', _run_migration_013)   # insert Singapore PoPs and CLSs
+            _once(cur, 'm014', _run_migration_014)   # fix 013 errors; remove old SG nodes
+            _once(cur, 'm015', _run_migration_015)   # reconnect EAC and C2C to correct SG nodes
+            _once(cur, 'm016', _run_migration_016)   # rename SCOL→SGCL; reconnect SMW4, INDIGO, AAG
+            _once(cur, 'm017', _run_migration_017)   # reconnect C2C-S6 SG endpoint
+            _once(cur, 'm018', _run_migration_018)   # reconnect AAE1+Apricot; add BBG-PEN-SIN
+            _once(cur, 'm019', _run_migration_019)   # reconnect BIFROST SG endpoint to TUAS
+            _once(cur, 'm020', _run_migration_020)   # reconnect ECHO SG endpoint to SGCN
+            _once(cur, 'm021', _run_migration_021)   # reconnect SJC2 SG endpoint to SGCH
+            _once(cur, 'm022', _run_migration_022)   # reconnect ADC and SMW3 to TUAS
+            _once(cur, 'm023', _run_migration_023)   # reconnect APG SG endpoint to SGCH
+            _once(cur, 'm024', _run_migration_024)   # reconnect AAG HK endpoint to SLTU
+            _once(cur, 'm025', _run_migration_025)   # reconnect APG HK endpoint to HKCK
+            _once(cur, 'm026', _run_migration_026)   # rename SGOX → SKGX
+            _once(cur, 'm027', _run_migration_027)   # insert 21 SG terrestrial segments + capacity
+            _once(cur, 'm028', _run_migration_028)   # fix type 'cable_landing_station' → 'landing_station'
+            _once(cur, 'm029', _run_migration_029)   # update waypoints for SG terrestrials
+            _once(cur, 'm030', _run_migration_030)   # add waypoints to APAC wet segments
+            _once(cur, 'm031', _run_migration_031)   # populate city on branching-unit nodes
+            _once(cur, 'm032', _run_migration_032)   # set on_net field by node type
+            _once(cur, 'm033', _run_migration_033)   # insert Japan PoPs and CLSs
+            _once(cur, 'm034', _run_migration_034)   # ensure off_net nodes have on_net = 'off_net'
+            _once(cur, 'm035', _run_migration_035)   # remove old JP PoPs/CLSs, reroute subsea
+            _once(cur, 'm036', _run_migration_036)   # insert JP terrestrial segments + fix MJLS coords
+            _once(cur, 'm037', _run_migration_037)   # reroute C2C S4 and S3C to SMCC
+            _once(cur, 'm038', _run_migration_038)   # reroute C2C-S5 to CHCC; UNITY/FASTER to CKKD
+            _once(cur, 'm039', _run_migration_039)   # add waypoints to JP-touching subsea segments
+            _once(cur, 'm040', _run_migration_040)   # add waypoints to JP terrestrial segments
+            _once(cur, 'm041', _run_migration_041)   # populate missing latency on C2C and EAC
+            _once(cur, 'm042', _run_migration_042)   # add RNAL cable system, nodes and segments
+            _once(cur, 'm043', _run_migration_043)   # replace Korea nodes; re-wire C2C and EAC
+            _once(cur, 'm044', _run_migration_044)   # add KSEQ node + KR terrestrial segments
+            _once(cur, 'm045', _run_migration_045)   # land SJC2 Korea branch at PUCC
+            _once(cur, 'm046', _run_migration_046)   # replace TW nodes with corrected CRM data
+            _once(cur, 'm047', _run_migration_047)   # add TW terrestrial backhaul segments
+            _once(cur, 'm048', _run_migration_048)   # rename KO01 typo to KR01
+            _once(cur, 'm049', _run_migration_049)   # reconnect TW wet cables; retire C2C-S3A/3B
+            _once(cur, 'm050', _run_migration_050)   # reconnect APG/SJC2/FASTER TW landings
+            _once(cur, 'm051', _run_migration_051)   # remove all APCN2 references (EOL)
+            _once(cur, 'm052', _run_migration_052)   # add waypoints to KR/TW backhauls
+            _once(cur, 'm053', _run_migration_053)   # fix subsea waypoints (landmass crossings)
+            _once(cur, 'm054', _run_migration_054)   # create solution_notes + note_categories
+            _once(cur, 'm055', _run_migration_055)   # convert notes/categories to proper columns
+            _once(cur, 'm056', _run_migration_056)   # upsert expanded default note categories
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -1917,7 +1885,7 @@ def _run_migration_043(cur) -> None:
     ]
     for node in _NEW_KR_NODES:
         cur.execute(
-            "INSERT INTO nodes (id, data) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+            "INSERT INTO nodes (id, data) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING",
             (node["id"], json.dumps(node)),
         )
 
@@ -1943,7 +1911,7 @@ def _run_migration_044(cur) -> None:
 
     # ── New node: KSEQ ────────────────────────────────────────────────────────
     cur.execute(
-        "INSERT INTO nodes (id, data) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+        "INSERT INTO nodes (id, data) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING",
         ("KSEQ", json.dumps({
             "id": "KSEQ", "name": "Seoul Equinix DMC",
             "lat": 37.58268, "lng": 126.88698,
@@ -1969,7 +1937,7 @@ def _run_migration_044(cur) -> None:
     ]
     for seg_id, start, end, km, lat, name in _SEGS:
         cur.execute(
-            "INSERT INTO segments (id, data) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+            "INSERT INTO segments (id, data) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING",
             (seg_id, json.dumps({
                 "id": seg_id, "name": name,
                 "system_id": "TERRESTRIAL",
@@ -1981,7 +1949,7 @@ def _run_migration_044(cur) -> None:
         )
         total = 3.0 if km > 100 else 2.0
         cur.execute(
-            "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT (segment_id) DO UPDATE SET data = EXCLUDED.data",
+            "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT (segment_id) DO NOTHING",
             (seg_id, json.dumps({
                 "segment_id": seg_id,
                 "total_capacity_t": total,
@@ -1993,7 +1961,7 @@ def _run_migration_044(cur) -> None:
 def _run_migration_045(cur) -> None:
     """Land SJC2 Korea branch at PUCC (Busan C2C CLS), replacing the deleted SJC2-TYO-ICN."""
     cur.execute(
-        "INSERT INTO segments (id, data) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+        "INSERT INTO segments (id, data) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING",
         ("SJC2-TYO-PUS", json.dumps({
             "id": "SJC2-TYO-PUS",
             "name": "SJC2 Miura–Busan",
@@ -2009,7 +1977,7 @@ def _run_migration_045(cur) -> None:
         })),
     )
     cur.execute(
-        "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT (segment_id) DO UPDATE SET data = EXCLUDED.data",
+        "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT (segment_id) DO NOTHING",
         ("SJC2-TYO-PUS", json.dumps({
             "segment_id": "SJC2-TYO-PUS",
             "total_capacity_t": 2.0,
@@ -2189,7 +2157,7 @@ def _run_migration_046(cur) -> None:
     ]
     for node in new_tw_nodes:
         cur.execute(
-            "INSERT INTO nodes (id, data) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+            "INSERT INTO nodes (id, data) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING",
             (node["id"], json.dumps(node)),
         )
 
@@ -2213,7 +2181,7 @@ def _run_migration_047(cur) -> None:
 
     for seg_id, name, start, end, km, latency in segments:
         cur.execute(
-            "INSERT INTO segments (id, data) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+            "INSERT INTO segments (id, data) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING",
             (seg_id, json.dumps({
                 "id": seg_id,
                 "name": name,
@@ -2229,7 +2197,7 @@ def _run_migration_047(cur) -> None:
             })),
         )
         cur.execute(
-            "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT (segment_id) DO UPDATE SET data = EXCLUDED.data",
+            "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT (segment_id) DO NOTHING",
             (seg_id, json.dumps({
                 "segment_id": seg_id,
                 "total_capacity_t": 10.0,
@@ -2277,7 +2245,7 @@ def _run_migration_049(cur) -> None:
 
     for seg_id, name, system_id, start, end, km, latency in wet_segments:
         cur.execute(
-            "INSERT INTO segments (id, data) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+            "INSERT INTO segments (id, data) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING",
             (seg_id, json.dumps({
                 "id": seg_id,
                 "name": name,
@@ -2293,7 +2261,7 @@ def _run_migration_049(cur) -> None:
             })),
         )
         cur.execute(
-            "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT (segment_id) DO UPDATE SET data = EXCLUDED.data",
+            "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT (segment_id) DO NOTHING",
             (seg_id, json.dumps({
                 "segment_id": seg_id,
                 "total_capacity_t": 2.0,
@@ -2340,11 +2308,11 @@ def _run_migration_050(cur) -> None:
         if waypoints:
             data["waypoints"] = waypoints
         cur.execute(
-            "INSERT INTO segments (id, data) VALUES (%s, %s) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+            "INSERT INTO segments (id, data) VALUES (%s, %s) ON CONFLICT (id) DO NOTHING",
             (seg_id, json.dumps(data)),
         )
         cur.execute(
-            "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT (segment_id) DO UPDATE SET data = EXCLUDED.data",
+            "INSERT INTO capacity (segment_id, data) VALUES (%s, %s) ON CONFLICT (segment_id) DO NOTHING",
             (seg_id, json.dumps({
                 "segment_id": seg_id,
                 "total_capacity_t": 2.0,

@@ -12,16 +12,32 @@ DATA_DIR = Path(__file__).parent.parent.parent / "data"
 
 @router.get("")
 def health_check():
-    from ..db import DATABASE_URL
+    from ..db import DATABASE_URL, get_conn
     nodes    = load_nodes()
     segments = load_segments()
     systems  = load_systems()
+
+    db_ok = False
+    db_detail = "No DATABASE_URL configured"
+    if DATABASE_URL:
+        try:
+            conn = get_conn()
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+            conn.close()
+            db_ok = True
+            db_detail = "Connected"
+        except Exception as e:
+            db_detail = str(e)[:120]
+
     return {
-        "status":   "ok",
-        "nodes":    len(nodes),
-        "segments": len(segments),
-        "systems":  len(systems),
-        "storage":  "postgres" if DATABASE_URL else "json",
+        "status":    "ok",
+        "nodes":     len(nodes),
+        "segments":  len(segments),
+        "systems":   len(systems),
+        "storage":   "postgres" if DATABASE_URL else "json",
+        "db_ok":     db_ok,
+        "db_detail": db_detail,
     }
 
 
