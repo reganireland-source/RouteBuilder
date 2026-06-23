@@ -31,7 +31,7 @@ interface Props {
 
 export function UserGuide({ nodes, segments, systems }: Props) {
   const t = useTheme()
-  const [page, setPage] = useState<1 | 2 | 3 | 4 | 5 | 6>(1)
+  const [page, setPage] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7>(1)
   const [printAll, setPrintAll] = useState(false)
   const printRef = useRef<HTMLDivElement>(null)
   const [featureRequests, setFeatureRequests] = useState<FeatureRequest[]>([])
@@ -279,7 +279,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         [4, '🗄 Data Model'],
         [5, '📁 Solution Projects'],
         [6, '📋 Feature Backlog'],
-      ] as [1|2|3|4|5|6, string][]).map(([p, label]) => (
+        [7, '🔒 IT & Enterprise'],
+      ] as [1|2|3|4|5|6|7, string][]).map(([p, label]) => (
         <button
           key={p}
           onClick={() => setPage(p)}
@@ -1552,6 +1553,365 @@ export function UserGuide({ nodes, segments, systems }: Props) {
   )
   if (page === 6 && !printAll) return backlogPage
 
+  // ── Page 7: IT & Enterprise Readiness ─────────────────────────────────────
+  const itPage = (
+    <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 16px 60px', fontFamily: 'system-ui, sans-serif', color: t.text }}>
+      {!printAll && pageTabs}
+
+      {/* Hero */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0f1e3c 0%, #1e3a5f 60%, #1a4731 100%)',
+        borderRadius: 12, padding: '44px 40px 40px', marginBottom: 28,
+        position: 'relative', overflow: 'hidden',
+      }}>
+        <div style={{ position: 'absolute', right: -40, top: -40, width: 220, height: 220, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
+        <div style={{ position: 'relative' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(134,239,172,0.8)', marginBottom: 10 }}>
+            Internal IT · Productionisation Guide
+          </div>
+          <div style={{ fontSize: 36, fontWeight: 800, color: '#fff', lineHeight: 1.1, marginBottom: 8 }}>
+            Route<span style={{ color: '#4ade80' }}>Builder</span> <span style={{ color: 'rgba(255,255,255,0.6)', fontWeight: 400 }}>for IT Teams</span>
+          </div>
+          <p style={{ fontSize: 14, color: 'rgba(185,245,210,0.85)', lineHeight: 1.7, maxWidth: 620, margin: '0 0 24px' }}>
+            Everything you need to take RouteBuilder from prototype to a production-grade enterprise application —
+            architecture, dependencies, security posture, hosting options, auth integration, and compliance alignment.
+          </p>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {['React 18 + TypeScript', 'FastAPI (Python)', 'PostgreSQL', 'Railway / Vercel', 'ISO 27001 Aligned'].map(b => (
+              <span key={b} style={{ fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 20, background: 'rgba(255,255,255,0.1)', color: 'rgba(220,255,235,0.9)', border: '1px solid rgba(255,255,255,0.15)', letterSpacing: '0.04em' }}>{b}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Package inventories */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel as React.CSSProperties}>Software Bill of Materials</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+
+          {/* Frontend */}
+          <div style={{ background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 10, padding: '18px 20px' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 14 }}>Frontend (npm)</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${t.border}` }}>
+                  <th style={{ textAlign: 'left', padding: '4px 6px', color: t.textFaint, fontWeight: 600 }}>Package</th>
+                  <th style={{ textAlign: 'left', padding: '4px 6px', color: t.textFaint, fontWeight: 600 }}>Version</th>
+                  <th style={{ textAlign: 'left', padding: '4px 6px', color: t.textFaint, fontWeight: 600 }}>Purpose</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['react', '18.x', 'UI framework'],
+                  ['react-dom', '18.x', 'DOM renderer'],
+                  ['typescript', '5.x', 'Type safety'],
+                  ['vite', '5.x', 'Build tool / dev server'],
+                  ['leaflet', '1.x', 'Interactive maps'],
+                  ['react-leaflet', '4.x', 'React map bindings'],
+                  ['@dnd-kit/core', '6.x', 'Drag-and-drop'],
+                  ['file-saver', '2.x', 'Client-side file export'],
+                  ['html2canvas', '1.x', 'PDF screenshot capture'],
+                  ['jspdf', '2.x', 'PDF generation'],
+                  ['papaparse', '5.x', 'CSV parsing'],
+                ].map(([pkg, ver, purpose]) => (
+                  <tr key={pkg} style={{ borderBottom: `1px solid ${t.border}22` }}>
+                    <td style={{ padding: '5px 6px', fontFamily: 'monospace', color: t.blue }}>{pkg}</td>
+                    <td style={{ padding: '5px 6px', color: t.textFaint }}>{ver}</td>
+                    <td style={{ padding: '5px 6px', color: t.textMuted }}>{purpose}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Backend */}
+          <div style={{ background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 10, padding: '18px 20px' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 14 }}>Backend (Python / pip)</div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${t.border}` }}>
+                  <th style={{ textAlign: 'left', padding: '4px 6px', color: t.textFaint, fontWeight: 600 }}>Package</th>
+                  <th style={{ textAlign: 'left', padding: '4px 6px', color: t.textFaint, fontWeight: 600 }}>Version</th>
+                  <th style={{ textAlign: 'left', padding: '4px 6px', color: t.textFaint, fontWeight: 600 }}>Purpose</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['fastapi', '0.110+', 'REST API framework'],
+                  ['uvicorn', '0.29+', 'ASGI server'],
+                  ['pydantic', '2.x', 'Data validation / serialisation'],
+                  ['psycopg2-binary', '2.9+', 'PostgreSQL driver'],
+                  ['python-dotenv', '1.x', 'Env var loading'],
+                  ['anthropic', '0.x (opt)', 'Claude LLM (NLP feature)'],
+                  ['openai', '1.x (opt)', 'GPT-4o-mini (NLP alt)'],
+                  ['networkx', '3.x', 'Graph routing algorithms'],
+                  ['shapely', '2.x', 'Geospatial geometry'],
+                  ['pyproj', '3.x', 'Coordinate transforms'],
+                  ['python-multipart', '0.0.9+', 'File upload support'],
+                ].map(([pkg, ver, purpose]) => (
+                  <tr key={pkg} style={{ borderBottom: `1px solid ${t.border}22` }}>
+                    <td style={{ padding: '5px 6px', fontFamily: 'monospace', color: '#a78bfa' }}>{pkg}</td>
+                    <td style={{ padding: '5px 6px', color: t.textFaint }}>{ver}</td>
+                    <td style={{ padding: '5px 6px', color: t.textMuted }}>{purpose}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* External services */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel as React.CSSProperties}>External Service Dependencies</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+          {[
+            { icon: '🗄', name: 'PostgreSQL', tier: 'Required', color: '#3b82f6', desc: 'Primary data store. Falls back to JSON files if DATABASE_URL is absent (dev only — not suitable for production multi-user use).' },
+            { icon: '🤖', name: 'LLM API (Claude / GPT)', tier: 'Optional', color: '#8b5cf6', desc: 'Powers TSABuddy natural language search. Set NLP_ENABLED=true + one API key. Application is fully functional without it.' },
+            { icon: '🔑', name: 'Microsoft Entra ID / Okta', tier: 'Recommended', color: '#f59e0b', desc: 'SSO / OIDC. Not yet wired in — implementation guide below. No auth exists today; add before production launch.' },
+            { icon: '📦', name: 'CDN / Static Hosting', tier: 'Required', color: '#10b981', desc: 'Frontend build artefacts are static files. Serve via Vercel, S3+CloudFront, or Nginx. No server-side rendering required.' },
+          ].map(svc => (
+            <div key={svc.name} style={{ background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 10, padding: '16px 18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <span style={{ fontSize: 20 }}>{svc.icon}</span>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{svc.name}</div>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: `${svc.color}22`, color: svc.color, border: `1px solid ${svc.color}44` }}>{svc.tier}</span>
+                </div>
+              </div>
+              <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6, margin: 0 }}>{svc.desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Security posture */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel as React.CSSProperties}>Security Posture</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div style={{ background: '#1c1c2e', border: '1px solid #f38ba844', borderRadius: 10, padding: '18px 20px' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#f38ba8', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Current State (Prototype)</div>
+            {[
+              ['❌', 'No authentication — open access'],
+              ['❌', 'No authorisation / RBAC'],
+              ['❌', 'No audit logging'],
+              ['⚠️', 'API keys in environment variables (insecure at rest)'],
+              ['⚠️', 'No rate limiting on API endpoints'],
+              ['⚠️', 'CORS allows all origins in dev mode'],
+              ['✅', 'HTTPS enforced on Railway / Vercel'],
+              ['✅', 'No PII in data model'],
+              ['✅', 'Input validation via Pydantic on all endpoints'],
+              ['✅', 'Dependencies updated — no known CVEs (as of build date)'],
+            ].map(([icon, text]) => (
+              <div key={text} style={{ display: 'flex', gap: 8, marginBottom: 6, fontSize: 11, color: t.textMuted, lineHeight: 1.5 }}>
+                <span>{icon}</span><span>{text}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: '#0f2018', border: '1px solid #a6e3a144', borderRadius: 10, padding: '18px 20px' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#a6e3a1', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Target State (Production)</div>
+            {[
+              ['✅', 'SSO via Entra ID / Okta (OIDC)'],
+              ['✅', 'Role-based access: Viewer / Editor / Admin'],
+              ['✅', 'Immutable audit log (who changed what, when)'],
+              ['✅', 'API keys stored in secrets manager (AWS Secrets Manager / Azure Key Vault)'],
+              ['✅', 'Rate limiting + WAF on public endpoints'],
+              ['✅', 'CORS locked to corporate domain only'],
+              ['✅', 'Automated Dependabot / Snyk scanning in CI'],
+              ['✅', 'Data classification label: Commercial Confidential'],
+              ['✅', 'Penetration test prior to external exposure'],
+              ['✅', 'Disaster recovery: DB snapshot + RTO < 4 h'],
+            ].map(([icon, text]) => (
+              <div key={text} style={{ display: 'flex', gap: 8, marginBottom: 6, fontSize: 11, color: t.textMuted, lineHeight: 1.5 }}>
+                <span>{icon}</span><span>{text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Hosting options */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel as React.CSSProperties}>Hosting Options</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+          {[
+            {
+              icon: '🚀', label: 'Option A', title: 'Railway + Vercel', color: '#3b82f6',
+              effort: 'Low', cost: '$20–$100/mo', time: '1–2 days',
+              desc: 'Current setup. Railway hosts the FastAPI backend + Postgres; Vercel serves the static frontend. Zero-ops, auto-deploy on git push. Ideal for continued rapid iteration.',
+              pros: ['Zero infrastructure management', 'Auto TLS, auto-scale', 'Deploy in minutes', 'Free tier for low traffic'],
+              cons: ['Data leaves on-prem', 'Limited compliance controls', 'Vendor lock-in'],
+            },
+            {
+              icon: '☁️', label: 'Option B (Recommended)', title: 'AWS (ECS + RDS)', color: '#f59e0b',
+              effort: 'Medium', cost: '$150–$400/mo', time: '2–4 weeks',
+              desc: 'Container on ECS Fargate + RDS PostgreSQL in your AWS account. Full control over VPC, IAM, KMS, CloudTrail. Supports enterprise security requirements and ISO 27001 evidence.',
+              pros: ['Data stays in your AWS account', 'Full IAM / KMS / CloudTrail', 'WAF + Shield available', 'VPC isolation', 'SOC 2 / ISO 27001 AWS services'],
+              cons: ['Requires AWS expertise', 'More setup time', 'Higher baseline cost'],
+            },
+            {
+              icon: '🏢', label: 'Option C', title: 'On-Premises / Private Cloud', color: '#8b5cf6',
+              effort: 'High', cost: 'Infra cost + ops', time: '4–8 weeks',
+              desc: 'Deploy on internal Kubernetes or VM fleet. Maximum data sovereignty. Suitable if data classification prohibits any cloud hosting or if integrating with internal network inventory systems.',
+              pros: ['Full data sovereignty', 'No external dependencies', 'Integrate with internal APIs', 'Custom network controls'],
+              cons: ['Full ops burden on IT', 'Slower to iterate', 'Requires container expertise'],
+            },
+          ].map(opt => (
+            <div key={opt.title} style={{ background: t.bgCard, border: `1px solid ${opt.color}44`, borderRadius: 10, padding: '18px 20px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: opt.color, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>{opt.label}</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: t.text, marginBottom: 6 }}>{opt.icon} {opt.title}</div>
+              <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6, margin: '0 0 12px' }}>{opt.desc}</p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                {[['Effort', opt.effort], ['Est. Cost', opt.cost], ['Setup', opt.time]].map(([k, v]) => (
+                  <div key={k} style={{ background: `${opt.color}11`, border: `1px solid ${opt.color}33`, borderRadius: 6, padding: '4px 10px', fontSize: 10 }}>
+                    <span style={{ color: t.textFaint }}>{k}: </span><span style={{ color: opt.color, fontWeight: 700 }}>{v}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 10, color: t.textFaint, marginBottom: 4, fontWeight: 600 }}>PROS</div>
+              {opt.pros.map(p => <div key={p} style={{ fontSize: 10, color: t.textMuted, marginBottom: 2 }}>✓ {p}</div>)}
+              <div style={{ fontSize: 10, color: t.textFaint, marginBottom: 4, fontWeight: 600, marginTop: 8 }}>CONS</div>
+              {opt.cons.map(c => <div key={c} style={{ fontSize: 10, color: t.textMuted, marginBottom: 2 }}>· {c}</div>)}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Auth integration */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel as React.CSSProperties}>Authentication Integration Guide</div>
+        <div style={{ background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 10, padding: '18px 20px', marginBottom: 12, fontSize: 11, color: t.textMuted, lineHeight: 1.7 }}>
+          RouteBuilder currently has <strong style={{ color: t.text }}>no authentication</strong>. The recommended approach is OIDC/OAuth 2.0 via your existing identity provider.
+          The frontend handles the auth flow and attaches a JWT Bearer token to every API request; the FastAPI backend validates it on each route.
+          Both Entra ID and Okta use identical patterns — only the issuer URL differs.
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          {[
+            {
+              title: 'Microsoft Entra ID (Azure AD)', color: '#0078d4', icon: '🔷',
+              steps: [
+                'Register app in Azure Portal → App registrations → New registration',
+                'Set Redirect URI: https://your-app.com/auth/callback',
+                'Copy Application (client) ID + Directory (tenant) ID',
+                'Add frontend env: VITE_AZURE_CLIENT_ID, VITE_AZURE_TENANT_ID',
+                'Install: npm install @azure/msal-browser @azure/msal-react',
+                'Wrap <App> in <MsalProvider> with PublicClientApplication config',
+                'Use useMsalAuthentication() hook on protected routes',
+                'Backend: validate JWT against https://login.microsoftonline.com/{tenant}/discovery/keys',
+              ],
+            },
+            {
+              title: 'Okta', color: '#007dc1', icon: '🔐',
+              steps: [
+                'Create Application in Okta Admin → Applications → Create App Integration',
+                'Choose OIDC – Single-Page Application',
+                'Set Sign-in redirect URI: https://your-app.com/login/callback',
+                'Copy Client ID + Okta domain',
+                'Add frontend env: VITE_OKTA_CLIENT_ID, VITE_OKTA_ISSUER',
+                'Install: npm install @okta/okta-auth-js @okta/okta-react',
+                'Wrap <App> in <Security> component with oktaAuth config',
+                'Backend: validate JWT against https://{okta-domain}/oauth2/default/v1/keys',
+              ],
+            },
+          ].map(idp => (
+            <div key={idp.title} style={{ background: t.bgCard, border: `1px solid ${idp.color}44`, borderRadius: 10, padding: '18px 20px' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 14 }}>{idp.icon} {idp.title}</div>
+              {idp.steps.map((step, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8, fontSize: 11, color: t.textMuted, lineHeight: 1.5 }}>
+                  <span style={{ width: 18, height: 18, borderRadius: '50%', background: `${idp.color}22`, color: idp.color, fontSize: 10, fontWeight: 700, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                  <span>{step}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ISO 27001 */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel as React.CSSProperties}>ISO 27001 Control Alignment</div>
+        <div style={{ background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 10, overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+            <thead>
+              <tr style={{ background: t.bgDeep }}>
+                {['Control Domain', 'Control', 'Current Status', 'Action Required'].map(h => (
+                  <th key={h} style={{ padding: '10px 14px', textAlign: 'left', color: t.textFaint, fontWeight: 700, fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                ['A.5 Policies', 'Information security policy', '⚠️ Partial', 'Add data classification policy covering RouteBuilder'],
+                ['A.6 Org Controls', 'Roles and responsibilities', '⚠️ Partial', 'Define Owner, Admin, Editor, Viewer roles in RBAC'],
+                ['A.8 Asset Mgmt', 'Inventory of assets', '✅ Done', 'SBOM captured in this guide — register in asset register'],
+                ['A.9 Access Control', 'User access management', '❌ Missing', 'Implement SSO + RBAC (see Auth Integration above)'],
+                ['A.9 Access Control', 'Privileged access', '❌ Missing', 'No admin accounts — add Admin role with audit trail'],
+                ['A.10 Cryptography', 'Encryption in transit', '✅ Done', 'HTTPS enforced on all current hosting tiers'],
+                ['A.10 Cryptography', 'Encryption at rest', '⚠️ Partial', 'Enable RDS/Postgres encrypted storage (AWS option)'],
+                ['A.12 Operations', 'Monitoring & logging', '❌ Missing', 'Implement structured API logging + alerting'],
+                ['A.12 Operations', 'Vulnerability management', '⚠️ Partial', 'Enable Dependabot + schedule quarterly pen test'],
+                ['A.12 Operations', 'Backup & recovery', '⚠️ Partial', 'Enable automated DB snapshots, test restore procedure'],
+                ['A.13 Comms Security', 'Network access controls', '⚠️ Partial', 'Lock CORS to corporate domains; add WAF in production'],
+                ['A.14 Dev Security', 'Secure development', '✅ Done', 'Pydantic validation on all inputs; no raw SQL'],
+                ['A.16 Incident Mgmt', 'Incident response', '❌ Missing', 'Register app in incident response runbook'],
+                ['A.18 Compliance', 'Privacy & data protection', '✅ Done', 'No PII in data model (network topology only)'],
+              ].map(([domain, ctrl, status, action], i) => (
+                <tr key={i} style={{ borderTop: `1px solid ${t.border}` }}>
+                  <td style={{ padding: '9px 14px', color: t.textFaint, fontWeight: 600 }}>{domain}</td>
+                  <td style={{ padding: '9px 14px', color: t.textMuted }}>{ctrl}</td>
+                  <td style={{ padding: '9px 14px', color: status.includes('✅') ? '#a6e3a1' : status.includes('❌') ? '#f38ba8' : '#f9e2af' }}>{status}</td>
+                  <td style={{ padding: '9px 14px', color: t.textMuted, fontSize: 10 }}>{action}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 6-step productionisation process */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel as React.CSSProperties}>6-Step Productionisation Roadmap</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+          {[
+            { step: '01', title: 'Auth & Access Control', time: '1–2 weeks', color: '#f38ba8',
+              items: ['Integrate Entra ID or Okta via OIDC', 'Implement Viewer / Editor / Admin roles', 'Lock API endpoints with JWT middleware', 'Audit existing user base'] },
+            { step: '02', title: 'Hosting & Infrastructure', time: '1–2 weeks', color: '#f9e2af',
+              items: ['Select hosting tier (Railway / AWS / On-prem)', 'Configure PostgreSQL with automated backups', 'Set up CI/CD pipeline (GitHub Actions)', 'Lock environment variables in secrets manager'] },
+            { step: '03', title: 'Security Hardening', time: '1 week', color: '#fab387',
+              items: ['Lock CORS to corporate domains', 'Add rate limiting to API', 'Enable Dependabot scanning', 'Review and rotate all API keys'] },
+            { step: '04', title: 'Observability', time: '3–5 days', color: '#a6e3a1',
+              items: ['Structured JSON logging on all API requests', 'Uptime monitoring (Uptime Robot / Datadog)', 'Error alerting to Slack / PagerDuty', 'DB slow-query monitoring'] },
+            { step: '05', title: 'Testing & Validation', time: '1 week', color: '#89dceb',
+              items: ['User acceptance testing with TSA team', 'Load test with k6 / Locust (target: 50 concurrent users)', 'Penetration test (internal or third party)', 'DR drill: restore from DB snapshot'] },
+            { step: '06', title: 'Documentation & Handover', time: '3–5 days', color: '#b4befe',
+              items: ['Register in asset inventory + CMDB', 'Runbook: startup, shutdown, disaster recovery', 'Onboarding guide for new editors', 'Schedule quarterly security review'] },
+          ].map(s => (
+            <div key={s.step} style={{ background: t.bgCard, border: `1px solid ${s.color}44`, borderRadius: 10, padding: '16px 18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: `${s.color}22`, border: `2px solid ${s.color}66`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: s.color, flexShrink: 0 }}>{s.step}</div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{s.title}</div>
+                  <div style={{ fontSize: 10, color: t.textFaint }}>Est. {s.time}</div>
+                </div>
+              </div>
+              {s.items.map(item => (
+                <div key={item} style={{ display: 'flex', gap: 7, marginBottom: 5, fontSize: 11, color: t.textMuted, lineHeight: 1.5 }}>
+                  <span style={{ color: s.color, flexShrink: 0 }}>→</span><span>{item}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ textAlign: 'center', padding: '20px 0 0', borderTop: `1px solid ${t.border}` }}>
+        <div style={{ fontSize: 11, color: t.textFaint }}>International Telco · RouteBuilder · IT &amp; Enterprise Readiness</div>
+      </div>
+    </div>
+  )
+  if (page === 7 && !printAll) return itPage
+
   // ── Page 1: Product Overview ───────────────────────────────────────────────
   const overview = (
     <div style={{
@@ -2038,7 +2398,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{arch}</div>
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{algo}</div>
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{dataModel}</div>
-        <div>{projectsGuide}</div>
+        <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{projectsGuide}</div>
+        <div>{itPage}</div>
       </div>
     )
     return createPortal(printContent, document.body)
