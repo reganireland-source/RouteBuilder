@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { setAdminToken as setClientToken, clearAdminToken as clearClientToken } from '../api/client'
 
+const BASE_URL = import.meta.env.VITE_API_URL ?? ''
+
 interface AuthCtx {
   isAdmin: boolean
   authRequired: boolean
@@ -24,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   })
 
   useEffect(() => {
-    fetch('/api/auth/status')
+    fetch(`${BASE_URL}/api/auth/status`)
       .then(r => r.json())
       .then(d => setAuthRequired(Boolean(d.auth_required)))
       .catch(() => {})
@@ -32,7 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const unlock = async (key: string): Promise<boolean> => {
     try {
-      const res = await fetch('/api/auth/verify', {
+      const res = await fetch(`${BASE_URL}/api/auth/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Admin-Token': key },
         body: '{}',
