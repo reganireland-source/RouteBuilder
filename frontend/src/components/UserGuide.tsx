@@ -129,7 +129,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     { icon: '🔒', title: 'Admin Roles & Access Control',
       desc: 'When the ADMIN_KEY environment variable is set on the backend, the app enforces two access modes. Viewers can search, explore and export freely. Admins (who know the key) can also create, edit and delete ref data. The AdminBar at the top of the page shows current access mode — click it to enter the key and unlock edit access. Without ADMIN_KEY the app runs in open/dev mode with full access for everyone.' },
     { icon: '🧪', title: 'Algorithm Evaluation',
-      desc: `A built-in UAT test suite that exercises the routing algorithm against ${33} defined scenarios — endpoint connectivity, wet and full diversity, node/system/country constraints, latency budgets, and edge cases. Each test runs the live API, checks assertions, and shows a metro-map route visualisation. Known network limitations are flagged in amber so a "fail" result is always explained in context. Open via the 🧪 Algo Eval button in the control menu. Run history is stored in the browser for up to 20 runs.` },
+      desc: `A built-in UAT test suite that exercises the routing algorithm against ${48} defined scenarios — endpoint connectivity, wet and full diversity, node/system/country constraints, latency budgets, and edge cases. Each test runs the live API, checks assertions, and shows a metro-map route visualisation. Known network limitations are flagged in amber so a "fail" result is always explained in context. Open via the 🧪 Algo Eval button in the control menu. Run history is stored in the browser for up to 20 runs.` },
   ]
 
   const card = (style?: Record<string, unknown>): Record<string, unknown> => ({
@@ -2097,10 +2097,25 @@ export function UserGuide({ nodes, segments, systems }: Props) {
                 { id: 'PR-002', name: 'SIN → HKG (<35 ms)', cat: 'Preference', tags: 'intra-asia, latency', lim: '' },
                 { id: 'PR-003', name: 'HKG → TYO (<40 ms)', cat: 'Preference', tags: 'intra-asia, latency', lim: '' },
                 { id: 'PR-004', name: 'SYD → LAX (<85 ms)', cat: 'Preference', tags: 'trans-pacific, latency', lim: '⚠️' },
+                { id: 'EP-011', name: 'Alt SG Landing (SGCL) → Tokyo', cat: 'Endpoint', tags: 'intra-asia, SG, JP', lim: '⚠️' },
+                { id: 'EP-012', name: 'Hong Kong (HKG1) → Tokyo', cat: 'Endpoint', tags: 'intra-asia, HK, JP', lim: '⚠️' },
+                { id: 'EP-013', name: 'Singapore → JUNO (alt Japan landing)', cat: 'Endpoint', tags: 'intra-asia, SG, JP', lim: '' },
+                { id: 'DV-008', name: 'HKG → OSA: Wet Diversity', cat: 'Diversity', tags: 'intra-asia, wet-diversity', lim: '⚠️' },
+                { id: 'DV-009', name: 'SIN → OSA: Wet Diversity', cat: 'Diversity', tags: 'intra-asia, wet-diversity', lim: '⚠️' },
+                { id: 'DV-010', name: 'SIN → HKG: Wet Diversity (alt SG landing)', cat: 'Diversity', tags: 'intra-asia, wet-diversity', lim: '⚠️' },
+                { id: 'CN-011', name: 'SIN → TYO via HKG1 (alt HK waypoint)', cat: 'Constraint', tags: 'intra-asia, waypoint', lim: '⚠️' },
+                { id: 'CN-012', name: 'HKG → TYO (avoid Osaka)', cat: 'Constraint', tags: 'intra-asia, node-excl', lim: '' },
+                { id: 'CN-013', name: 'SIN → HKG (force EAC)', cat: 'Constraint', tags: 'intra-asia, system-incl', lim: '' },
+                { id: 'CN-014', name: 'SIN → TYO (avoid Hong Kong)', cat: 'Constraint', tags: 'intra-asia, country-excl', lim: '⚠️' },
+                { id: 'CN-015', name: 'SIN → TYO via HKCC + OSA1 (chained)', cat: 'Constraint', tags: 'intra-asia, waypoint', lim: '' },
+                { id: 'PR-005', name: 'SIN → OSA (<50 ms)', cat: 'Preference', tags: 'intra-asia, latency', lim: '' },
+                { id: 'PR-006', name: 'SIN → TYO (max 2 wet hops)', cat: 'Preference', tags: 'intra-asia, hop-limit', lim: '' },
                 { id: 'EX-001', name: 'Impossible Hop Limit (0)', cat: 'Edge Case', tags: 'edge-case, trans-pacific', lim: '' },
                 { id: 'EX-002', name: 'Contradictory Constraints', cat: 'Edge Case', tags: 'edge-case, intra-asia', lim: '⚠️' },
                 { id: 'EX-003', name: 'Single Wet Hop SIN → TYO', cat: 'Edge Case', tags: 'edge-case, hop-limit', lim: '⚠️' },
                 { id: 'EX-004', name: 'Node Excl. SIN→HKG (avoid HKG1)', cat: 'Edge Case', tags: 'edge-case, node-excl', lim: '' },
+                { id: 'EX-005', name: 'SIN → HKG max 1 wet hop (should pass)', cat: 'Edge Case', tags: 'edge-case, hop-limit', lim: '' },
+                { id: 'EX-006', name: 'Reverse Intra-Asia TYO → SIN', cat: 'Edge Case', tags: 'edge-case, intra-asia', lim: '' },
               ].map((row, i) => (
                 <tr key={row.id} style={{ background: i % 2 === 0 ? 'transparent' : `${t.bgPanel}44` }}>
                   <td style={{ padding: '7px 12px', fontFamily: 'monospace', color: t.blue, fontSize: 10, whiteSpace: 'nowrap', borderBottom: `1px solid ${t.border}22` }}>{row.id}</td>
