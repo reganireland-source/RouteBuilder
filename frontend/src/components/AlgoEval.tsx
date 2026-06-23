@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { useTheme } from '../theme'
 import { api } from '../api/client'
-import type { CableNode, CableSegment, CableSystem, Route, RouteRequest } from '../types'
+import type { CableNode, CableSegment, CableSystem, DiversityType, NodeType, Route, RouteRequest } from '../types'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -727,6 +727,120 @@ const CORE_TESTS: TestCase[] = [
   },
 ]
 
+// ── Random test generator ─────────────────────────────────────────────────────
+
+let _rndSeq = 0
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+const ENDPOINT_TYPES: NodeType[] = ['landing_station', 'primary_pop', 'secondary_pop']
+
+function buildRandomTest(_idx: number, nodes: CableNode[], systems: CableSystem[]): TestCase {
+  const seq = ++_rndSeq
+  const endpointNodes = nodes.filter(n => ENDPOINT_TYPES.includes(n.type))
+  if (endpointNodes.length < 2) throw new Error('Not enough endpoint nodes')
+
+  const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]
+  const maybe = (prob: number) => Math.random() < prob
+
+  const start = pick(endpointNodes)
+  const end   = pick(endpointNodes.filter(n => n.id !== start.id && n.country !== start.country))
+
+  const straightLineKm = haversineKm(start.lat, start.lng, end.lat, end.lng)
+
+  // Weighted diversity pick — mostly none, some wet, rare full
+  const diversityPool: DiversityType[] = ['none', 'none', 'none', 'none', 'wet', 'wet', 'full']
+  const diversity = pick(diversityPool)
+
+  // Optional system exclusion (20% chance, skip TERRESTRIAL)
+  const wetSystems = systems.filter(s => s.id !== 'TERRESTRIAL')
+  const excludeSystem = maybe(0.20) && wetSystems.length > 0 ? pick(wetSystems) : null
+
+  const id = `RND-${String(seq).padStart(3, '0')}`
+
+  const assertions: Assertion[] = [
+    {
+      id: `${id}-A1`,
+      description: 'At least one route returned',
+      type: 'route_found',
+    },
+    {
+      // Route can't be longer than 3× straight-line + 5,000 km overhead (cable curves, backhaul)
+      id: `${id}-A2`,
+      description: `Route distance plausible (< ${Math.round(straightLineKm * 3 + 5000).toLocaleString()} km)`,
+      type: 'distance_under',
+      params: { threshold_km: Math.round(straightLineKm * 3 + 5000) },
+    },
+    {
+      // Latency sanity: 200 km/ms fibre speed × 2× margin + 50 ms overhead
+      id: `${id}-A3`,
+      description: `Latency plausible (< ${Math.round(straightLineKm / 100 + 80)} ms)`,
+      type: 'latency_under',
+      params: { threshold_ms: Math.round(straightLineKm / 100 + 80) },
+    },
+  ]
+
+  if (diversity !== 'none') {
+    assertions.push({
+      id: `${id}-A4`,
+      description: 'At least 2 diverse routes returned',
+      type: 'min_routes',
+      params: { count: 2 },
+    })
+    assertions.push({
+      id: `${id}-A5`,
+      description: 'Routes share no submarine cable segments',
+      type: 'routes_diverse_wet',
+    })
+  }
+
+  if (excludeSystem) {
+    assertions.push({
+      id: `${id}-A${assertions.length + 1}`,
+      description: `Excluded system (${excludeSystem.id}) absent from all routes`,
+      type: 'path_excludes_system',
+      params: { system_id: excludeSystem.id },
+    })
+  }
+
+  const distLabel = straightLineKm < 3000 ? 'short-haul' : straightLineKm < 8000 ? 'medium-haul' : 'long-haul'
+  const constraintParts = [
+    diversity !== 'none' && `${diversity} diversity`,
+    excludeSystem && `avoid ${excludeSystem.id}`,
+  ].filter(Boolean).join(', ')
+
+  return {
+    id,
+    name: `${start.id} → ${end.id}${constraintParts ? ` · ${constraintParts}` : ''}`,
+    description: `Auto-generated ${distLabel} test (${Math.round(straightLineKm).toLocaleString()} km straight-line). ${start.name} (${start.country}) → ${end.name} (${end.country}). Assertions are generic bounds derived from the straight-line distance — they will catch impossible routes, distance model errors, and badly looped paths.`,
+    category: 'endpoint',
+    isCore: false,
+    tags: ['random', start.country, end.country, distLabel].filter(Boolean),
+    request: {
+      start_node_id:     start.id,
+      end_node_id:       end.id,
+      must_include_nodes: [],
+      must_avoid_nodes:   [],
+      must_include_segments: [],
+      must_avoid_segments:   [],
+      must_include_systems:  [],
+      must_avoid_systems:    excludeSystem ? [excludeSystem.id] : [],
+      diversity,
+    },
+    assertions,
+    knownLimitation: diversity !== 'none' ? {
+      summary: 'Diversity on randomly selected corridors may not be achievable',
+      detail: `The randomly selected O-D pair (${start.id} → ${end.id}) may not have multiple independent cable systems. A failure on diversity assertions reflects a real topology constraint, not an algorithm bug.`,
+    } : undefined,
+  }
+}
+
 // ── Assertion evaluator ───────────────────────────────────────────────────────
 
 function evaluateAssertion(a: Assertion, routes: Route[], nodesById: Map<string, CableNode>): AssertionResult {
@@ -921,7 +1035,7 @@ interface Props {
   onClose: () => void
 }
 
-export function AlgoEval({ nodes, onClose }: Props) {
+export function AlgoEval({ nodes, systems, onClose }: Props) {
   const t = useTheme()
   const nodesById = new Map(nodes.map(n => [n.id, n]))
 
@@ -932,6 +1046,14 @@ export function AlgoEval({ nodes, onClose }: Props) {
   const [selectedTestId, setSelectedTestId] = useState<string>(CORE_TESTS[0].id)
   const [activeTab,      setActiveTab]      = useState<'core' | 'custom'>('core')
   const runIdRef = useRef(0)
+
+  // ── Random test generator state ────────────────────────────────────────────
+  const [randomTests,      setRandomTests]      = useState<TestCase[]>([])
+  const [randomResults,    setRandomResults]    = useState<Map<string, TestResult>>(new Map())
+  const [selectedRandomId, setSelectedRandomId] = useState<string | null>(null)
+  const [runningRandomId,  setRunningRandomId]  = useState<string | null>(null)
+  const [randomCount,      setRandomCount]      = useState(5)
+  const [randomRunning,    setRandomRunning]    = useState(false)
 
   const activeRun = history.find(r => r.id === activeRunId) ?? null
   const resultMap = new Map(activeRun?.results.map(r => [r.test_id, r]) ?? [])
@@ -993,8 +1115,29 @@ export function AlgoEval({ nodes, onClose }: Props) {
     setActiveRunId(run.id)
   }, [runOne, history])
 
-  const selectedTest = CORE_TESTS.find(tc => tc.id === selectedTestId)
-  const selectedResult = resultMap.get(selectedTestId)
+  // ── Run all random tests ───────────────────────────────────────────────────
+  const runAllRandom = useCallback(async () => {
+    if (randomTests.length === 0) return
+    setRandomRunning(true)
+    setRandomResults(new Map())
+    const acc = new Map<string, TestResult>()
+    for (const tc of randomTests) {
+      setRunningRandomId(tc.id)
+      const result = await runOne(tc)
+      acc.set(tc.id, result)
+      setRandomResults(new Map(acc))
+    }
+    setRunningRandomId(null)
+    setRandomRunning(false)
+  }, [randomTests, runOne])
+
+  // ── Active test / result (unified for core + random) ──────────────────────
+  const selectedTest   = activeTab === 'custom'
+    ? (selectedRandomId ? randomTests.find(t => t.id === selectedRandomId) ?? null : null)
+    : (CORE_TESTS.find(tc => tc.id === selectedTestId) ?? null)
+  const selectedResult = activeTab === 'custom'
+    ? (selectedRandomId ? randomResults.get(selectedRandomId) : undefined)
+    : resultMap.get(selectedTestId)
 
   // ── Styles ─────────────────────────────────────────────────────────────────
   const panelBg: React.CSSProperties = { background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 8 }
@@ -1131,11 +1274,108 @@ export function AlgoEval({ nodes, onClose }: Props) {
               })}
             </div>
           ) : (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: t.textFaint, padding: 24, textAlign: 'center' }}>
-              <span style={{ fontSize: 28 }}>✏</span>
-              <div style={{ fontSize: 12, fontWeight: 600, color: t.textMuted }}>Custom Test Cases</div>
-              <div style={{ fontSize: 11, lineHeight: 1.6 }}>Run the core suite first, then use this tab to add your own UAT scenarios with specific O-D pairs and constraints.</div>
-              <div style={{ fontSize: 10, marginTop: 8, padding: '8px 12px', borderRadius: 6, background: t.bgCard, border: `1px solid ${t.border}` }}>Coming in next release</div>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+              {/* Generator controls */}
+              <div style={{ padding: '12px 14px', borderBottom: `1px solid ${t.border}`, flexShrink: 0, background: t.bgPanel }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: t.blue, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>
+                  🎲 Random Generator
+                </div>
+                <div style={{ fontSize: 10, color: t.textFaint, lineHeight: 1.5, marginBottom: 10 }}>
+                  Picks random O-D pairs from live network data. Assertions are auto-derived from straight-line distance — covering distance bounds, latency sanity, and constraint compliance.
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <span style={{ fontSize: 10, color: t.textMuted, flexShrink: 0 }}>Count</span>
+                  <input
+                    type="number" min={1} max={20} value={randomCount}
+                    onChange={e => setRandomCount(Math.max(1, Math.min(20, Number(e.target.value))))}
+                    style={{ width: 52, padding: '4px 7px', borderRadius: 5, border: `1px solid ${t.border}`, background: t.bgDeep, color: t.text, fontSize: 12, textAlign: 'center' }}
+                  />
+                  <button
+                    onClick={() => {
+                      const tests: TestCase[] = []
+                      for (let i = 0; i < randomCount; i++) {
+                        try { tests.push(buildRandomTest(i, nodes, systems)) } catch { /* skip if not enough nodes */ }
+                      }
+                      setRandomTests(tests)
+                      setRandomResults(new Map())
+                      setSelectedRandomId(tests[0]?.id ?? null)
+                    }}
+                    style={{ flex: 1, padding: '6px 0', borderRadius: 6, border: `1px solid ${t.blue}44`, background: `${t.blue}15`, color: t.blue, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    🎲 Generate
+                  </button>
+                </div>
+                {randomTests.length > 0 && (
+                  <button
+                    onClick={runAllRandom}
+                    disabled={randomRunning}
+                    style={{
+                      width: '100%', padding: '7px 0', borderRadius: 6, border: 'none',
+                      background: randomRunning ? t.bgCard : t.green, color: randomRunning ? t.textFaint : '#0d1117',
+                      fontSize: 11, fontWeight: 700, cursor: randomRunning ? 'wait' : 'pointer',
+                    }}
+                  >
+                    {randomRunning
+                      ? <><span style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }}>⟳</span> Running…</>
+                      : `▶ Run ${randomTests.length} Random Tests`}
+                  </button>
+                )}
+              </div>
+
+              {/* Random test list */}
+              {randomTests.length === 0 ? (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: t.textFaint, padding: 20, textAlign: 'center' }}>
+                  <span style={{ fontSize: 24 }}>🎲</span>
+                  <div style={{ fontSize: 11, color: t.textMuted }}>Set a count and click Generate</div>
+                </div>
+              ) : (
+                <div style={{ overflowY: 'auto', flex: 1 }}>
+                  {/* Summary bar after run */}
+                  {randomResults.size > 0 && (
+                    <div style={{ padding: '6px 14px', borderBottom: `1px solid ${t.border}`, display: 'flex', gap: 10, fontSize: 10, background: t.bgPanel }}>
+                      {(() => {
+                        const passed = [...randomResults.values()].filter(r => r.passed).length
+                        const failed = randomResults.size - passed
+                        return <>
+                          <span style={{ color: t.green, fontWeight: 700 }}>✓ {passed} passed</span>
+                          {failed > 0 && <span style={{ color: t.red, fontWeight: 700 }}>✗ {failed} failed</span>}
+                          <span style={{ color: t.textFaint }}>{randomResults.size}/{randomTests.length} run</span>
+                        </>
+                      })()}
+                    </div>
+                  )}
+                  {randomTests.map(tc => {
+                    const res = randomResults.get(tc.id)
+                    const isRunning = runningRandomId === tc.id
+                    const isSelected = selectedRandomId === tc.id
+                    const isLimitation = !res?.passed && !!tc.knownLimitation
+                    const dotColor = !res ? t.border : res.passed ? t.green : isLimitation ? t.orange : t.red
+                    return (
+                      <div
+                        key={tc.id}
+                        onClick={() => setSelectedRandomId(tc.id)}
+                        style={{
+                          padding: '9px 14px', cursor: 'pointer', borderBottom: `1px solid ${t.border}22`,
+                          background: isSelected ? `${t.blue}18` : 'transparent',
+                          borderLeft: isSelected ? `3px solid ${t.blue}` : '3px solid transparent',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ fontSize: 9, fontFamily: 'monospace', color: t.textFaint, flexShrink: 0 }}>{tc.id}</div>
+                          <div style={{ flex: 1, fontSize: 11, fontWeight: 600, color: isSelected ? t.text : t.textMuted, lineHeight: 1.3 }}>{tc.name}</div>
+                          {isRunning && <div style={{ width: 10, height: 10, borderRadius: '50%', border: `2px solid ${t.blue}`, borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />}
+                          {!isRunning && <div style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor, flexShrink: 0, boxShadow: res ? `0 0 4px ${dotColor}88` : 'none' }} />}
+                        </div>
+                        <div style={{ fontSize: 9, color: t.textFaint, marginTop: 3 }}>
+                          {tc.tags.slice(0, 4).map(tag => (
+                            <span key={tag} style={{ marginRight: 5, padding: '1px 4px', borderRadius: 3, background: `${t.blue}15`, color: t.blue }}>{tag}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1285,7 +1525,7 @@ export function AlgoEval({ nodes, onClose }: Props) {
               {!selectedResult && (
                 <div style={{ ...panelBg, padding: '32px 24px', textAlign: 'center' }}>
                   <div style={{ fontSize: 28, marginBottom: 8 }}>▶</div>
-                  <div style={{ fontSize: 13, color: t.textMuted, fontWeight: 600 }}>Press "Run All Tests" to execute this test case</div>
+                  <div style={{ fontSize: 13, color: t.textMuted, fontWeight: 600 }}>{activeTab === 'custom' ? 'Press "Run Random Tests" to execute' : 'Press "Run All Tests" to execute this test case'}</div>
                   <div style={{ fontSize: 11, color: t.textFaint, marginTop: 6 }}>Results, route visualisations, and assertion outcomes will appear here</div>
                 </div>
               )}
@@ -1299,8 +1539,21 @@ export function AlgoEval({ nodes, onClose }: Props) {
               )}
             </>
           ) : (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.textFaint }}>
-              Select a test case from the left panel
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: t.textFaint, textAlign: 'center', padding: 24 }}>
+              {activeTab === 'custom' ? (
+                <>
+                  <span style={{ fontSize: 28 }}>🎲</span>
+                  <div style={{ fontSize: 13, color: t.textMuted, fontWeight: 600 }}>Generate random tests to begin</div>
+                  <div style={{ fontSize: 11, color: t.textFaint, lineHeight: 1.6, maxWidth: 340 }}>
+                    Set a count in the left panel and click Generate. Random tests pick real nodes from your live dataset and auto-build assertions based on corridor distance.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span style={{ fontSize: 28 }}>▶</span>
+                  <div style={{ fontSize: 13, color: t.textMuted, fontWeight: 600 }}>Select a test case from the left panel</div>
+                </>
+              )}
             </div>
           )}
         </div>
