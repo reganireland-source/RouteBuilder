@@ -287,6 +287,240 @@ const CORE_TESTS: TestCase[] = [
       detail: 'When a user specifies must-use and must-avoid for the same system, the algorithm correctly returns no routes. This is intentional — the test validates graceful handling, not a deficiency. The amber flag is a reminder that the zero-result outcome here is correct, not a missing-route issue.',
     },
   },
+
+  // ── Additional Intra-Asia Endpoint Tests ─────────────────────────────────────
+  {
+    id: 'EP-006',
+    name: 'Alt SG Landing (SGCL) → Hong Kong',
+    description: 'Tests connectivity from the secondary Singapore cable landing station (SGCL) to Hong Kong. Verifies that the graph correctly models both SG entry points and that SGCL is reachable from the same downstream networks as SGCH.',
+    category: 'endpoint', isCore: true, tags: ['intra-asia', 'SG', 'HK'],
+    request: { start_node_id: 'SGCL', end_node_id: 'HKCC', must_include_nodes: [], must_avoid_nodes: [], must_include_segments: [], must_avoid_segments: [], must_include_systems: [], must_avoid_systems: [], diversity: 'none' },
+    assertions: [
+      { id: 'EP-006-A1', description: 'Route found from SGCL to Hong Kong', type: 'route_found' },
+      { id: 'EP-006-A2', description: 'Short intra-Asia hop (<5,000 km)', type: 'distance_under', params: { threshold_km: 5000 } },
+    ],
+    knownLimitation: {
+      summary: 'SGCL connectivity depends on correct terrestrial backhaul between Singapore landing stations',
+      detail: 'If SGCL does not have a modelled backhaul segment connecting it to the wider SG-area graph, it will appear isolated and return 0 routes. A failure here is a data completeness issue — ensure a terrestrial or backhaul segment links SGCL to SGCH or directly to a cable system node.',
+    },
+  },
+  {
+    id: 'EP-007',
+    name: 'Hong Kong → Osaka',
+    description: 'Intra-Asia northward route from Hong Kong to the Osaka cable landing (OSA1). Important for customers with Japan cloud presence in the Kansai region — tests Japan connectivity via an alternative landing to Tokyo.',
+    category: 'endpoint', isCore: true, tags: ['intra-asia', 'HK', 'JP'],
+    request: { start_node_id: 'HKCC', end_node_id: 'OSA1', must_include_nodes: [], must_avoid_nodes: [], must_include_segments: [], must_avoid_segments: [], must_include_systems: [], must_avoid_systems: [], diversity: 'none' },
+    assertions: [
+      { id: 'EP-007-A1', description: 'Route found Hong Kong to Osaka', type: 'route_found' },
+      { id: 'EP-007-A2', description: 'Distance realistic for HK-Osaka hop (<3,500 km)', type: 'distance_under', params: { threshold_km: 3500 } },
+      { id: 'EP-007-A3', description: 'Latency appropriate for this corridor (<30 ms)', type: 'latency_under', params: { threshold_ms: 30 } },
+    ],
+  },
+  {
+    id: 'EP-008',
+    name: 'Singapore → Osaka',
+    description: 'Singapore to the Kansai region of Japan. Tests whether the algorithm can route from Southeast Asia to OSA1 without forcing transit through Tokyo (JTHA). Useful for Kansai-based enterprise customers seeking a direct Japan entry point.',
+    category: 'endpoint', isCore: true, tags: ['intra-asia', 'SG', 'JP'],
+    request: { start_node_id: 'SGCH', end_node_id: 'OSA1', must_include_nodes: [], must_avoid_nodes: [], must_include_segments: [], must_avoid_segments: [], must_include_systems: [], must_avoid_systems: [], diversity: 'none' },
+    assertions: [
+      { id: 'EP-008-A1', description: 'Route found Singapore to Osaka', type: 'route_found' },
+      { id: 'EP-008-A2', description: 'Distance reasonable for this corridor (<6,000 km)', type: 'distance_under', params: { threshold_km: 6000 } },
+    ],
+  },
+  {
+    id: 'EP-009',
+    name: 'Melbourne → Los Angeles',
+    description: 'Australian origin diversity — tests whether MEL1 has independent Trans-Pacific connectivity. A key test for customers with a Melbourne presence wanting direct Pacific access without routing everything via Sydney.',
+    category: 'endpoint', isCore: true, tags: ['trans-pacific', 'AU', 'US'],
+    request: { start_node_id: 'MEL1', end_node_id: 'LAX1', must_include_nodes: [], must_avoid_nodes: [], must_include_segments: [], must_avoid_segments: [], must_include_systems: [], must_avoid_systems: [], diversity: 'none' },
+    assertions: [
+      { id: 'EP-009-A1', description: 'Route found Melbourne to Los Angeles', type: 'route_found' },
+      { id: 'EP-009-A2', description: 'Distance reflects Trans-Pacific reach (>10,000 km)', type: 'distance_over', params: { threshold_km: 10000 } },
+    ],
+    knownLimitation: {
+      summary: 'MEL1 may reach Pacific cables only via SYD1 terrestrial backhaul',
+      detail: 'If Melbourne (MEL1) is not directly landed by a Trans-Pacific cable, the algorithm routes via Sydney (SYD1) over terrestrial backhaul first. A failure may indicate either a missing MEL1→SYD1 backhaul segment or missing MEL1 cable landing data. Verify the terrestrial segment exists in the dataset.',
+    },
+  },
+  {
+    id: 'EP-010',
+    name: 'Hong Kong → Los Angeles',
+    description: 'Primary North Asia to US West Coast corridor. HK enterprise customers seeking US connectivity typically transit Japan before crossing the Pacific. Tests full-corridor graph traversal from HKCC to LAX1.',
+    category: 'endpoint', isCore: true, tags: ['trans-pacific', 'HK', 'US'],
+    request: { start_node_id: 'HKCC', end_node_id: 'LAX1', must_include_nodes: [], must_avoid_nodes: [], must_include_segments: [], must_avoid_segments: [], must_include_systems: [], must_avoid_systems: [], diversity: 'none' },
+    assertions: [
+      { id: 'EP-010-A1', description: 'Route found Hong Kong to Los Angeles', type: 'route_found' },
+      { id: 'EP-010-A2', description: 'Distance reflects Trans-Pacific reach (>10,000 km)', type: 'distance_over', params: { threshold_km: 10000 } },
+    ],
+  },
+
+  // ── Additional Intra-Asia Diversity Tests ─────────────────────────────────────
+  {
+    id: 'DV-005',
+    name: 'HKG → TYO: Wet Diversity',
+    description: 'Hong Kong to Tokyo wet diversity. Multiple cable systems (EAC, C2C, FLAG, PCCS) serve this corridor. Verifies the algorithm finds two geographically separated submarine paths — critical for Japanese enterprise customers requiring carrier resilience.',
+    category: 'diversity', isCore: true, tags: ['intra-asia', 'wet-diversity', 'HK', 'JP'],
+    request: { start_node_id: 'HKCC', end_node_id: 'JTHA', must_include_nodes: [], must_avoid_nodes: [], must_include_segments: [], must_avoid_segments: [], must_include_systems: [], must_avoid_systems: [], diversity: 'wet' },
+    assertions: [
+      { id: 'DV-005-A1', description: 'Two diverse HK-Japan routes found', type: 'min_routes', params: { count: 2 } },
+      { id: 'DV-005-A2', description: 'Routes use different submarine cable segments', type: 'routes_diverse_wet' },
+    ],
+    knownLimitation: {
+      summary: 'HK-Japan wet diversity requires at least two independent cable systems in the dataset',
+      detail: 'If only one submarine path exists between HKCC and JTHA in the current data, wet diversity will fail. The commercially available EAC, C2C, and PCCS systems should each provide an independent path. Check that all are correctly modelled with complete landing nodes at both ends.',
+    },
+  },
+  {
+    id: 'DV-006',
+    name: 'SIN → TYO: Wet Diversity',
+    description: 'Singapore to Tokyo wet diversity across the full two-hop intra-Asia corridor. The algorithm must find pairs that use different cable systems for both the SG-HK and HK-Japan legs — or a combination that avoids any shared wet segment.',
+    category: 'diversity', isCore: true, tags: ['intra-asia', 'wet-diversity', 'SG', 'JP'],
+    request: { start_node_id: 'SGCH', end_node_id: 'JTHA', must_include_nodes: [], must_avoid_nodes: [], must_include_segments: [], must_avoid_segments: [], must_include_systems: [], must_avoid_systems: [], diversity: 'wet' },
+    assertions: [
+      { id: 'DV-006-A1', description: 'Two diverse SG-Japan routes found', type: 'min_routes', params: { count: 2 } },
+      { id: 'DV-006-A2', description: 'Routes share no submarine cable segments', type: 'routes_diverse_wet' },
+    ],
+    knownLimitation: {
+      summary: 'Two-hop intra-Asia wet diversity requires independent cable options on both legs',
+      detail: 'SG→Japan diversity requires independent cables on both the SG-HK leg and the HK-Japan leg. If the dataset shows only one cable on either leg, full wet diversity is not achievable and the algorithm returns the best available near-diverse pair. A failure here may indicate that one leg lacks a second cable system in the data.',
+    },
+  },
+  {
+    id: 'DV-007',
+    name: 'SIN → HKG: Full Diversity',
+    description: 'Full end-to-end diversity on the SG-HK corridor — no shared segments of any kind, including terrestrial backhaul at both ends. With multiple cables (EAC, C2C, AAE1) and landing stations (SGCH, SGCL / HKCC, HKG1), this corridor should be the strongest for full diversity in the dataset.',
+    category: 'diversity', isCore: true, tags: ['intra-asia', 'full-diversity', 'SG', 'HK'],
+    request: { start_node_id: 'SGCH', end_node_id: 'HKCC', must_include_nodes: [], must_avoid_nodes: [], must_include_segments: [], must_avoid_segments: [], must_include_systems: [], must_avoid_systems: [], diversity: 'full' },
+    assertions: [
+      { id: 'DV-007-A1', description: 'Two fully diverse SG-HK routes found', type: 'min_routes', params: { count: 2 } },
+      { id: 'DV-007-A2', description: 'No shared wet segments between routes', type: 'routes_diverse_wet' },
+    ],
+    knownLimitation: {
+      summary: 'Full diversity may share terrestrial backhaul at Singapore or Hong Kong',
+      detail: 'Even with multiple submarine cables, full segment diversity fails if both routes share the same terrestrial backhaul to the PoP. At Singapore, multiple landing stations (SGCH, SGCL) should enable backhaul diversity. At Hong Kong, HKCC and HKG1 serve the same purpose. If the data shows only one terrestrial path at either end, full diversity reduces to wet diversity — the correct commercial response is to disclose the shared terrestrial segment.',
+    },
+  },
+
+  // ── Additional Intra-Asia Constraint Tests ────────────────────────────────────
+  {
+    id: 'CN-006',
+    name: 'System Exclusion: SIN → HKG (avoid C2C)',
+    description: 'Companion to CN-003 (avoid EAC). Excluding C2C forces routing onto EAC, AAE1 or another intra-Asia system. Validates that single-system exclusions work on the same corridor with a different system blocked.',
+    category: 'constraint', isCore: true, tags: ['intra-asia', 'system-exclusion'],
+    request: { start_node_id: 'SGCH', end_node_id: 'HKCC', must_include_nodes: [], must_avoid_nodes: [], must_include_segments: [], must_avoid_segments: [], must_include_systems: [], must_avoid_systems: ['C2C'], diversity: 'none' },
+    assertions: [
+      { id: 'CN-006-A1', description: 'Alternative route found without C2C', type: 'route_found' },
+      { id: 'CN-006-A2', description: 'C2C system segments absent from all routes', type: 'path_excludes_system', params: { system_id: 'C2C' } },
+    ],
+  },
+  {
+    id: 'CN-007',
+    name: 'Dual Exclusion: SIN → HKG (avoid EAC + C2C)',
+    description: 'Stress-tests exclusion constraints by blocking both primary intra-Asia systems simultaneously. The algorithm must find a third path (via AAE1 or another cable) or correctly return 0 routes if none exists in the dataset.',
+    category: 'constraint', isCore: true, tags: ['intra-asia', 'system-exclusion'],
+    request: { start_node_id: 'SGCH', end_node_id: 'HKCC', must_include_nodes: [], must_avoid_nodes: [], must_include_segments: [], must_avoid_segments: [], must_include_systems: [], must_avoid_systems: ['EAC', 'C2C'], diversity: 'none' },
+    assertions: [
+      { id: 'CN-007-A1', description: 'Route found via a third cable system', type: 'route_found' },
+      { id: 'CN-007-A2', description: 'EAC absent from all routes', type: 'path_excludes_system', params: { system_id: 'EAC' } },
+      { id: 'CN-007-A3', description: 'C2C absent from all routes', type: 'path_excludes_system', params: { system_id: 'C2C' } },
+    ],
+    knownLimitation: {
+      summary: 'If no third cable connects SG to HK, 0 routes is correct — not a bug',
+      detail: 'When EAC and C2C are both excluded, the algorithm must find a path via AAE1, FLAG, or another system. If no such path exists in the data, 0 results is the correct response. A failure on CN-007-A1 (route_found) indicates either: (a) no third cable exists between SG-HK in the dataset — a data completeness issue to verify against the commercial network — or (b) the dual exclusion constraint is not being applied correctly.',
+    },
+  },
+  {
+    id: 'CN-008',
+    name: 'Waypoint: SIN → TYO via Hong Kong',
+    description: 'Forces the Singapore to Tokyo route to transit Hong Kong (HKCC). Models a customer requiring a mid-path breakout or co-location at a Hong Kong PoP before continuing to Japan. Verifies must-include-node works on a two-hop intra-Asia corridor.',
+    category: 'constraint', isCore: true, tags: ['intra-asia', 'waypoint', 'SG', 'JP'],
+    request: { start_node_id: 'SGCH', end_node_id: 'JTHA', must_include_nodes: ['HKCC'], must_avoid_nodes: [], must_include_segments: [], must_avoid_segments: [], must_include_systems: [], must_avoid_systems: [], diversity: 'none' },
+    assertions: [
+      { id: 'CN-008-A1', description: 'Route found transiting via Hong Kong', type: 'route_found' },
+      { id: 'CN-008-A2', description: 'HKCC appears on all returned routes', type: 'path_includes_node', params: { node_id: 'HKCC' } },
+    ],
+  },
+  {
+    id: 'CN-009',
+    name: 'Waypoint: HKG → TYO via Osaka',
+    description: 'Forces Hong Kong to Tokyo routing via the Osaka cable landing (OSA1). Tests mid-path waypoint enforcement on a short intra-Asia corridor. Useful for customers needing a Kansai presence point before Tokyo.',
+    category: 'constraint', isCore: true, tags: ['intra-asia', 'waypoint', 'HK', 'JP'],
+    request: { start_node_id: 'HKCC', end_node_id: 'JTHA', must_include_nodes: ['OSA1'], must_avoid_nodes: [], must_include_segments: [], must_avoid_segments: [], must_include_systems: [], must_avoid_systems: [], diversity: 'none' },
+    assertions: [
+      { id: 'CN-009-A1', description: 'Route found transiting via Osaka', type: 'route_found' },
+      { id: 'CN-009-A2', description: 'OSA1 appears on all returned routes', type: 'path_includes_node', params: { node_id: 'OSA1' } },
+    ],
+  },
+  {
+    id: 'CN-010',
+    name: 'Country Exclusion: SYD → LAX (avoid Japan)',
+    description: 'Sydney to LA without transiting Japan. With Japan excluded, the algorithm must find a southern Trans-Pacific route via Hawaii or a direct cable. Tests country exclusion on a long-haul corridor where Japan is the typical transit.',
+    category: 'constraint', isCore: true, tags: ['trans-pacific', 'country-exclusion', 'AU', 'US'],
+    request: { start_node_id: 'SYD1', end_node_id: 'LAX1', must_include_nodes: [], must_avoid_nodes: [], must_include_segments: [], must_avoid_segments: [], must_include_systems: [], must_avoid_systems: [], must_avoid_countries: ['JP'], diversity: 'none' },
+    assertions: [
+      { id: 'CN-010-A1', description: 'Route found Sydney to LA avoiding Japan', type: 'route_found' },
+      { id: 'CN-010-A2', description: 'No Japanese nodes on any route', type: 'path_excludes_country', params: { country: 'JP' } },
+    ],
+    knownLimitation: {
+      summary: 'A Japan-free Trans-Pacific path from AU requires Hawaii landing nodes in the dataset',
+      detail: 'The primary AU Trans-Pacific cables (Southern Cross, PPC-1) typically land in Hawaii rather than Japan. If Hawaii landing nodes are correctly modelled, a Japan-free path exists. If the dataset does not include Hawaii waypoints, all AU Trans-Pacific paths may route via Japan — making this test a useful indicator of Hawaii landing station coverage in the data.',
+    },
+  },
+
+  // ── Additional Preference / Latency Tests ─────────────────────────────────────
+  {
+    id: 'PR-003',
+    name: 'Latency Budget: HKG → TYO (<40 ms)',
+    description: 'Tight latency check on the Hong Kong to Tokyo corridor (~3,000 km). Direct-fibre latency should sit comfortably under 40 ms. A failure indicates either an incorrect propagation model or a route being looped through unnecessary additional hops.',
+    category: 'preference', isCore: true, tags: ['intra-asia', 'latency', 'HK', 'JP'],
+    request: { start_node_id: 'HKCC', end_node_id: 'JTHA', must_include_nodes: [], must_avoid_nodes: [], must_include_segments: [], must_avoid_segments: [], must_include_systems: [], must_avoid_systems: [], diversity: 'none' },
+    assertions: [
+      { id: 'PR-003-A1', description: 'Route found HK to Tokyo', type: 'route_found' },
+      { id: 'PR-003-A2', description: 'Best route latency under 40 ms', type: 'latency_under', params: { threshold_ms: 40 } },
+    ],
+  },
+  {
+    id: 'PR-004',
+    name: 'Latency Budget: SYD → LAX (<85 ms)',
+    description: 'Trans-Pacific latency sanity check. Sydney to LA should sit around 70–80 ms on a direct Pacific cable. Tests that the latency model correctly accounts for ~12,000 km of fibre propagation plus typical amplifier and equipment delays.',
+    category: 'preference', isCore: true, tags: ['trans-pacific', 'latency', 'AU', 'US'],
+    request: { start_node_id: 'SYD1', end_node_id: 'LAX1', must_include_nodes: [], must_avoid_nodes: [], must_include_segments: [], must_avoid_segments: [], must_include_systems: [], must_avoid_systems: [], diversity: 'none' },
+    assertions: [
+      { id: 'PR-004-A1', description: 'Route found Sydney to LA', type: 'route_found' },
+      { id: 'PR-004-A2', description: 'Best route latency under 85 ms', type: 'latency_under', params: { threshold_ms: 85 } },
+    ],
+    knownLimitation: {
+      summary: 'SYD-LAX latency depends on the propagation delay model — actual values vary 70–90 ms',
+      detail: 'Typical fibre propagation delay SYD→LAX is approximately 67–75 ms on Southern Cross (direct) and up to 90 ms on routes transiting Japan. If the algorithm returns latencies significantly outside this range, check whether per-segment latency values in the dataset correctly reflect actual cable specs. The 85 ms threshold passes the best-case direct cable while flagging over-long routes.',
+    },
+  },
+
+  // ── Additional Edge Cases ─────────────────────────────────────────────────────
+  {
+    id: 'EX-003',
+    name: 'Edge Case: Single Wet Hop SIN → TYO',
+    description: 'Requests Singapore to Tokyo with max_wet_hops: 1. Tests whether any direct single-segment submarine cable between SG and Japan exists in the dataset. Most SG-Japan paths require two wet hops (SG→HK then HK→JP). A direct cable (e.g. an AAE1 direct branch) would satisfy the constraint.',
+    category: 'edge_case', isCore: true, tags: ['edge-case', 'intra-asia', 'hop-limit'],
+    request: { start_node_id: 'SGCH', end_node_id: 'JTHA', must_include_nodes: [], must_avoid_nodes: [], must_include_segments: [], must_avoid_segments: [], must_include_systems: [], must_avoid_systems: [], diversity: 'none', max_wet_hops: 1 },
+    assertions: [
+      { id: 'EX-003-A1', description: 'Returns gracefully — 0 routes expected if no direct cable exists', type: 'no_routes_found' },
+    ],
+    knownLimitation: {
+      summary: 'A direct single-segment SG→Japan cable may or may not exist in the current dataset',
+      detail: 'This test expects 0 routes on the basis that most SG-Japan connectivity requires two submarine hops. If a direct SG→Japan cable is correctly modelled in the data (e.g. a direct branch of EAC or AAE1), this test will "fail" the no_routes_found assertion — but that failure actually confirms correct data modelling. Review the result and update the assertion type to route_found if the direct cable is confirmed in the dataset.',
+    },
+  },
+  {
+    id: 'EX-004',
+    name: 'Edge Case: Node Exclusion on Short Intra-Asia (avoid HKG1)',
+    description: 'Tests node exclusion on a short corridor where the excluded node (HKG1) is a Hong Kong cable landing. Excluding HKG1 forces the algorithm onto HKCC or other available HK nodes. Verifies the constraint applies cleanly on dense intra-Asia topology.',
+    category: 'edge_case', isCore: true, tags: ['edge-case', 'intra-asia', 'node-exclusion'],
+    request: { start_node_id: 'SGCH', end_node_id: 'HKCC', must_include_nodes: [], must_avoid_nodes: ['HKG1'], must_include_segments: [], must_avoid_segments: [], must_include_systems: [], must_avoid_systems: [], diversity: 'none' },
+    assertions: [
+      { id: 'EX-004-A1', description: 'Route still found avoiding HKG1', type: 'route_found' },
+      { id: 'EX-004-A2', description: 'HKG1 does not appear on any route', type: 'path_excludes_node', params: { node_id: 'HKG1' } },
+    ],
+  },
 ]
 
 // ── Assertion evaluator ───────────────────────────────────────────────────────
@@ -570,7 +804,7 @@ export function AlgoEval({ nodes, onClose }: Props) {
           <span style={{ fontSize: 18 }}>🧪</span>
           <div>
             <div style={{ fontSize: 15, fontWeight: 800, color: t.text }}>Algorithm Evaluation</div>
-            <div style={{ fontSize: 10, color: t.textFaint, letterSpacing: '0.05em' }}>Business / UAT Test Suite · {CORE_TESTS.length} core scenarios</div>
+            <div style={{ fontSize: 10, color: t.textFaint, letterSpacing: '0.05em' }}>UAT Test Suite · {CORE_TESTS.length} scenarios across {(['endpoint','diversity','constraint','preference','edge_case'] as const).length} categories</div>
           </div>
         </div>
 

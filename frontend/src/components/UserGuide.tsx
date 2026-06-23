@@ -31,7 +31,7 @@ interface Props {
 
 export function UserGuide({ nodes, segments, systems }: Props) {
   const t = useTheme()
-  const [page, setPage] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7>(1)
+  const [page, setPage] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8>(1)
   const [printAll, setPrintAll] = useState(false)
   const printRef = useRef<HTMLDivElement>(null)
   const [featureRequests, setFeatureRequests] = useState<FeatureRequest[]>([])
@@ -126,6 +126,10 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       desc: 'Full feature parity on phones and tablets — including Country Viewer, Manual Route Builder, City Pairs, Node Search and Outages. Demo routes, answer customer questions and build proposals from anywhere.' },
     { icon: '🎨', title: 'Theme Cycling',
       desc: 'Click the theme button in the top-right control bar to cycle through available colour themes. The theme applies globally — including map tiles, route cards, diagrams and all panels.' },
+    { icon: '🔒', title: 'Admin Roles & Access Control',
+      desc: 'When the ADMIN_KEY environment variable is set on the backend, the app enforces two access modes. Viewers can search, explore and export freely. Admins (who know the key) can also create, edit and delete ref data. The AdminBar at the top of the page shows current access mode — click it to enter the key and unlock edit access. Without ADMIN_KEY the app runs in open/dev mode with full access for everyone.' },
+    { icon: '🧪', title: 'Algorithm Evaluation',
+      desc: `A built-in UAT test suite that exercises the routing algorithm against ${33} defined scenarios — endpoint connectivity, wet and full diversity, node/system/country constraints, latency budgets, and edge cases. Each test runs the live API, checks assertions, and shows a metro-map route visualisation. Known network limitations are flagged in amber so a "fail" result is always explained in context. Open via the 🧪 Algo Eval button in the control menu. Run history is stored in the browser for up to 20 runs.` },
   ]
 
   const card = (style?: Record<string, unknown>): Record<string, unknown> => ({
@@ -280,7 +284,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         [5, '📁 Solution Projects'],
         [6, '📋 Feature Backlog'],
         [7, '🔒 IT & Enterprise'],
-      ] as [1|2|3|4|5|6|7, string][]).map(([p, label]) => (
+        [8, '🧪 Algo Evaluation'],
+      ] as [1|2|3|4|5|6|7|8, string][]).map(([p, label]) => (
         <button
           key={p}
           onClick={() => setPage(p)}
@@ -1692,8 +1697,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           <div style={{ background: '#1c1c2e', border: '1px solid #f38ba844', borderRadius: 10, padding: '18px 20px' }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#f38ba8', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Current State (Prototype)</div>
             {[
-              ['❌', 'No authentication — open access'],
-              ['❌', 'No authorisation / RBAC'],
+              ['⚠️', 'API-key auth (ADMIN_KEY) — viewer vs admin roles live'],
+              ['⚠️', 'Admin-key RBAC: edit access gated — SSO/Entra not yet wired'],
               ['❌', 'No audit logging'],
               ['⚠️', 'API keys in environment variables (insecure at rest)'],
               ['⚠️', 'No rate limiting on API endpoints'],
@@ -1911,6 +1916,234 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     </div>
   )
   if (page === 7 && !printAll) return itPage
+
+  // ── Page 8: Algorithm Evaluation ──────────────────────────────────────────
+  const algoEvalPage = (
+    <div style={{
+      maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
+      fontFamily: 'system-ui, sans-serif', color: t.text,
+    }}>
+      {!printAll && pageTabs}
+
+      {/* Hero */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0d1f12 0%, #1a3a22 60%, #166534 100%)',
+        borderRadius: 12, padding: '44px 40px 40px', marginBottom: 28,
+        position: 'relative', overflow: 'hidden',
+      }}>
+        <div style={{ position: 'absolute', right: -40, top: -40, width: 200, height: 200, borderRadius: '50%', background: 'rgba(255,255,255,0.03)' }} />
+        <div style={{ position: 'relative' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(134,239,172,0.8)', marginBottom: 10 }}>
+            Internal QA — Not Customer Facing
+          </div>
+          <div style={{ fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1.1, marginBottom: 8 }}>
+            🧪 Algorithm Evaluation
+          </div>
+          <div style={{ fontSize: 15, color: 'rgba(187,247,208,0.9)', fontWeight: 500, marginBottom: 16, maxWidth: 520, lineHeight: 1.5 }}>
+            A built-in UAT test suite that exercises the routing engine against defined scenarios — giving you a verifiable signal on algorithm correctness before demos, customer meetings, or data updates.
+          </div>
+          <p style={{ fontSize: 12, color: 'rgba(160,220,180,0.85)', maxWidth: 560, lineHeight: 1.7, margin: 0 }}>
+            Open Algo Evaluation from the <strong style={{ color: '#86efac' }}>🧪 Algo Eval</strong> button in the top-right control menu.
+            Press <strong style={{ color: '#86efac' }}>▶ Run All Tests</strong> to execute the full suite against the live API.
+            Results persist in the browser across sessions — use the history dropdown to compare runs over time.
+          </p>
+        </div>
+      </div>
+
+      {/* What it tests */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel as React.CSSProperties}>What It Tests</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+          {[
+            { icon: '🔵', color: '#89b4fa', cat: 'Endpoint', desc: 'Basic A→B connectivity across all key corridors — Trans-Pacific, intra-Asia, AU domestic. A failure here is a fundamental data or graph connectivity issue.' },
+            { icon: '🟢', color: '#a6e3a1', cat: 'Diversity', desc: 'Wet, full and terrestrial diversity checks. Verifies the diversity algorithm correctly separates routes at the submarine, segment and node levels.' },
+            { icon: '🟡', color: '#f9e2af', cat: 'Constraint', desc: 'System include/exclude, node include/exclude, country exclusion, and forced waypoints. Validates every constraint type the UI exposes.' },
+            { icon: '🟠', color: '#fab387', cat: 'Preference', desc: 'Latency budgets and wet-hop limits. Sanity-checks the latency model against known physical cable distances.' },
+            { icon: '🟣', color: '#cba6f7', cat: 'Edge Case', desc: 'Impossible constraints, contradictory parameters, zero-hop limits. Verifies graceful error handling — no crashes, no infinite loops.' },
+          ].map(({ icon, color, cat, desc }) => (
+            <div key={cat} style={{ ...card() as object, borderLeft: `4px solid ${color}`, paddingLeft: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 16 }}>{icon}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color }}>{cat}</span>
+              </div>
+              <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6, margin: 0 }}>{desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* How to interpret results */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel as React.CSSProperties}>Reading the Results</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+          {[
+            { badge: '✅ PASS', color: '#a6e3a1', bg: '#0f2018', desc: 'All assertions for this test case passed. The algorithm returned the expected number of routes, respecting all constraints, within the specified bounds.' },
+            { badge: '❌ FAIL', color: '#f38ba8', bg: '#2a0c0c', desc: 'One or more assertions failed. Check the assertion detail panel for the specific failure message. May indicate a data issue, a graph connectivity gap, or an algorithm regression.' },
+            { badge: '⚠️ KNOWN LIMIT', color: '#f9e2af', bg: '#251a00', desc: 'The test failed, but the failure is a documented network topology constraint — not a bug. The amber callout card explains what the limitation is and what the correct commercial response is.' },
+          ].map(({ badge, color, bg, desc }) => (
+            <div key={badge} style={{ background: bg, border: `1px solid ${color}44`, borderRadius: 10, padding: '16px 18px' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color, marginBottom: 10 }}>{badge}</div>
+              <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6, margin: 0 }}>{desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Step-by-step */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel as React.CSSProperties}>How to Run a Test</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[
+            { n: '1', title: 'Open Algo Evaluation', desc: 'Click the 🧪 Algo Eval button in the top-right control menu. The full-screen panel opens over the map.' },
+            { n: '2', title: 'Browse the test list', desc: 'The left panel organises all tests by category. Each test shows its ID, name, tags, and (after a run) a colour indicator: green = pass, amber = known limitation, red = fail.' },
+            { n: '3', title: 'Click a test to preview it', desc: 'The right panel shows the test description, request parameters, and all assertions that will be checked — before you run anything.' },
+            { n: '4', title: 'Press ▶ Run All Tests', desc: 'The suite runs sequentially. A spinning indicator tracks the current test. Each test makes a live API call so results reflect the actual current state of the backend and data.' },
+            { n: '5', title: 'Inspect assertion results', desc: 'For each test, the right panel shows per-assertion pass/fail and the exact message (e.g. "2 routes returned", "EAC excluded from all routes ✓"). Known limitations show an amber callout card with business context.' },
+            { n: '6', title: 'Review route visualisations', desc: 'For tests that return routes, a metro-map visualisation shows the full node path — green dot for origin, red for destination, coloured lines for wet (blue), backhaul (amber) and terrestrial (grey) segments.' },
+            { n: '7', title: 'Compare across runs', desc: 'Use the history dropdown at the top to switch between previous runs. Up to 20 runs are stored in browser local storage. Compare pass/fail counts after data updates or algorithm changes.' },
+          ].map(({ n, title, desc }) => (
+            <div key={n} style={{ display: 'flex', gap: 14, alignItems: 'flex-start', ...card() as object }}>
+              <div style={{ width: 26, height: 26, borderRadius: '50%', background: `${t.blue}22`, border: `2px solid ${t.blue}66`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: t.blue, flexShrink: 0, marginTop: 1 }}>{n}</div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 3 }}>{title}</div>
+                <div style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6 }}>{desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Known limitations philosophy */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel as React.CSSProperties}>Understanding Known Limitations</div>
+        <div style={{ background: '#1e1400', border: '1px solid #f9e2af44', borderRadius: 10, padding: '20px 24px', marginBottom: 14 }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <span style={{ fontSize: 24, flexShrink: 0 }}>⚠️</span>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#f9e2af', marginBottom: 8 }}>Not every failure is a bug</div>
+              <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.7, margin: '0 0 12px' }}>
+                The subsea network has real physical constraints that prevent certain theoretical diversity guarantees from being met end-to-end.
+                When a test fails for a <em>known network reason</em> rather than an algorithm defect, it is flagged amber with a full explanation —
+                not red as a regression.
+              </p>
+              <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.7, margin: 0 }}>
+                Examples include: multiple Trans-Pacific cables sharing a common landing station; terrestrial backhaul between
+                a cable landing and the nearest PoP being the same physical fibre for all cables in that country; or a third cable system
+                between two cities simply not existing in the current dataset.
+                These are <strong style={{ color: t.text }}>commercial disclosures</strong>, not software bugs.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          {[
+            { title: 'When to raise a bug', items: ['An assertion fails and no Known Limitation is shown', 'The API returns an error (5xx) rather than 0 routes', 'A route includes a node/system that was explicitly excluded', 'Distance or latency is wildly out of range (e.g. 500 km for a Trans-Pacific)'] },
+            { title: 'When to update the test', items: ['New cable data is added that fills a gap (e.g. a missing Hawaii node)', 'A known limitation is resolved (terrestrial backhaul mapped)', 'The assertion threshold was too tight for the modelled data', 'The test no longer matches the commercial offering'] },
+          ].map(({ title, items }) => (
+            <div key={title} style={{ ...card() as object }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: t.text, marginBottom: 10 }}>{title}</div>
+              {items.map(item => (
+                <div key={item} style={{ display: 'flex', gap: 8, marginBottom: 6, fontSize: 11, color: t.textMuted, lineHeight: 1.5 }}>
+                  <span style={{ color: t.blue, flexShrink: 0 }}>→</span><span>{item}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Test case summary table */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel as React.CSSProperties}>Test Case Index</div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+            <thead>
+              <tr style={{ background: t.bgPanel }}>
+                {['ID', 'Name', 'Category', 'Tags', 'Known Limit?'].map(h => (
+                  <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, color: t.textFaint, borderBottom: `1px solid ${t.border}`, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                { id: 'EP-001', name: 'Sydney → Los Angeles', cat: 'Endpoint', tags: 'trans-pacific, AU, US', lim: '' },
+                { id: 'EP-002', name: 'Singapore → New York', cat: 'Endpoint', tags: 'trans-pacific, SG, US', lim: '' },
+                { id: 'EP-003', name: 'Singapore → Hong Kong', cat: 'Endpoint', tags: 'intra-asia, SG, HK', lim: '' },
+                { id: 'EP-004', name: 'Hong Kong → Tokyo', cat: 'Endpoint', tags: 'intra-asia, HK, JP', lim: '' },
+                { id: 'EP-005', name: 'Singapore → Tokyo', cat: 'Endpoint', tags: 'intra-asia, SG, JP', lim: '' },
+                { id: 'EP-006', name: 'Alt SG Landing → Hong Kong', cat: 'Endpoint', tags: 'intra-asia, SG, HK', lim: '⚠️' },
+                { id: 'EP-007', name: 'Hong Kong → Osaka', cat: 'Endpoint', tags: 'intra-asia, HK, JP', lim: '' },
+                { id: 'EP-008', name: 'Singapore → Osaka', cat: 'Endpoint', tags: 'intra-asia, SG, JP', lim: '' },
+                { id: 'EP-009', name: 'Melbourne → Los Angeles', cat: 'Endpoint', tags: 'trans-pacific, AU, US', lim: '⚠️' },
+                { id: 'EP-010', name: 'Hong Kong → Los Angeles', cat: 'Endpoint', tags: 'trans-pacific, HK, US', lim: '' },
+                { id: 'DV-001', name: 'SYD → LAX: Wet Diversity', cat: 'Diversity', tags: 'trans-pacific, wet-diversity', lim: '' },
+                { id: 'DV-002', name: 'SIN → LAX: Full Diversity', cat: 'Diversity', tags: 'trans-pacific, full-diversity', lim: '⚠️' },
+                { id: 'DV-003', name: 'SIN → HKG: Wet Diversity', cat: 'Diversity', tags: 'intra-asia, wet-diversity', lim: '' },
+                { id: 'DV-004', name: 'SYD → LAX: Terrestrial Origin', cat: 'Diversity', tags: 'trans-pacific, terrestrial', lim: '⚠️' },
+                { id: 'DV-005', name: 'HKG → TYO: Wet Diversity', cat: 'Diversity', tags: 'intra-asia, wet-diversity', lim: '⚠️' },
+                { id: 'DV-006', name: 'SIN → TYO: Wet Diversity', cat: 'Diversity', tags: 'intra-asia, wet-diversity', lim: '⚠️' },
+                { id: 'DV-007', name: 'SIN → HKG: Full Diversity', cat: 'Diversity', tags: 'intra-asia, full-diversity', lim: '⚠️' },
+                { id: 'CN-001', name: 'SYD → LAX via Tokyo', cat: 'Constraint', tags: 'trans-pacific, waypoint', lim: '' },
+                { id: 'CN-002', name: 'SIN → LAX (avoid Japan)', cat: 'Constraint', tags: 'trans-pacific, country-excl', lim: '' },
+                { id: 'CN-003', name: 'SIN → HKG (avoid EAC)', cat: 'Constraint', tags: 'intra-asia, system-excl', lim: '' },
+                { id: 'CN-004', name: 'SYD → LAX via TOPAZ', cat: 'Constraint', tags: 'trans-pacific, system-incl', lim: '' },
+                { id: 'CN-005', name: 'SIN → TYO (avoid OSA1)', cat: 'Constraint', tags: 'intra-asia, node-excl', lim: '' },
+                { id: 'CN-006', name: 'SIN → HKG (avoid C2C)', cat: 'Constraint', tags: 'intra-asia, system-excl', lim: '' },
+                { id: 'CN-007', name: 'SIN → HKG (avoid EAC + C2C)', cat: 'Constraint', tags: 'intra-asia, dual-excl', lim: '⚠️' },
+                { id: 'CN-008', name: 'SIN → TYO via HKCC', cat: 'Constraint', tags: 'intra-asia, waypoint', lim: '' },
+                { id: 'CN-009', name: 'HKG → TYO via OSA1', cat: 'Constraint', tags: 'intra-asia, waypoint', lim: '' },
+                { id: 'CN-010', name: 'SYD → LAX (avoid Japan)', cat: 'Constraint', tags: 'trans-pacific, country-excl', lim: '⚠️' },
+                { id: 'PR-001', name: 'SIN → LAX (max 3 wet hops)', cat: 'Preference', tags: 'trans-pacific, hop-limit', lim: '' },
+                { id: 'PR-002', name: 'SIN → HKG (<35 ms)', cat: 'Preference', tags: 'intra-asia, latency', lim: '' },
+                { id: 'PR-003', name: 'HKG → TYO (<40 ms)', cat: 'Preference', tags: 'intra-asia, latency', lim: '' },
+                { id: 'PR-004', name: 'SYD → LAX (<85 ms)', cat: 'Preference', tags: 'trans-pacific, latency', lim: '⚠️' },
+                { id: 'EX-001', name: 'Impossible Hop Limit (0)', cat: 'Edge Case', tags: 'edge-case, trans-pacific', lim: '' },
+                { id: 'EX-002', name: 'Contradictory Constraints', cat: 'Edge Case', tags: 'edge-case, intra-asia', lim: '⚠️' },
+                { id: 'EX-003', name: 'Single Wet Hop SIN → TYO', cat: 'Edge Case', tags: 'edge-case, hop-limit', lim: '⚠️' },
+                { id: 'EX-004', name: 'Node Excl. SIN→HKG (avoid HKG1)', cat: 'Edge Case', tags: 'edge-case, node-excl', lim: '' },
+              ].map((row, i) => (
+                <tr key={row.id} style={{ background: i % 2 === 0 ? 'transparent' : `${t.bgPanel}44` }}>
+                  <td style={{ padding: '7px 12px', fontFamily: 'monospace', color: t.blue, fontSize: 10, whiteSpace: 'nowrap', borderBottom: `1px solid ${t.border}22` }}>{row.id}</td>
+                  <td style={{ padding: '7px 12px', color: t.text, borderBottom: `1px solid ${t.border}22` }}>{row.name}</td>
+                  <td style={{ padding: '7px 12px', color: t.textMuted, borderBottom: `1px solid ${t.border}22`, whiteSpace: 'nowrap' }}>{row.cat}</td>
+                  <td style={{ padding: '7px 12px', color: t.textFaint, fontSize: 10, borderBottom: `1px solid ${t.border}22` }}>{row.tags}</td>
+                  <td style={{ padding: '7px 12px', textAlign: 'center', borderBottom: `1px solid ${t.border}22` }}>{row.lim}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* When to re-run */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel as React.CSSProperties}>When to Re-Run the Suite</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+          {[
+            { icon: '🗄', title: 'After a data import', desc: 'Any bulk CSV import or direct database edit could break graph connectivity. Re-run to catch issues before the next customer meeting.' },
+            { icon: '🚨', title: 'After an outage change', desc: 'Marking a segment as out-of-service removes it from the routing graph. Re-run to verify affected test corridors respond correctly.' },
+            { icon: '🔧', title: 'After a backend deploy', desc: 'Algorithm changes, dependency upgrades, or infrastructure migrations can introduce subtle regressions. Run as a smoke test post-deploy.' },
+            { icon: '📊', title: 'Before a demo', desc: 'Run the suite 30 minutes before a customer demo to confirm the key showcase corridors (SYD→LAX, SIN→HKG diversity) are working correctly.' },
+            { icon: '📝', title: 'After adding new nodes', desc: 'New landing stations or PoPs need connectivity testing. Run endpoint tests to confirm the new nodes participate correctly in routing.' },
+          ].map(({ icon, title, desc }) => (
+            <div key={title} style={{ ...card() as object, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 18 }}>{icon}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{title}</span>
+              </div>
+              <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6, margin: 0 }}>{desc}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{ textAlign: 'center', padding: '20px 0 0', borderTop: `1px solid ${t.border}` }}>
+        <div style={{ fontSize: 11, color: t.textFaint }}>International Telco · RouteBuilder · Algorithm Evaluation</div>
+      </div>
+    </div>
+  )
+  if (page === 8 && !printAll) return algoEvalPage
 
   // ── Page 1: Product Overview ───────────────────────────────────────────────
   const overview = (
@@ -2399,7 +2632,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{algo}</div>
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{dataModel}</div>
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{projectsGuide}</div>
-        <div>{itPage}</div>
+        <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{itPage}</div>
+        <div>{algoEvalPage}</div>
       </div>
     )
     return createPortal(printContent, document.body)
