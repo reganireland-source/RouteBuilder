@@ -22,7 +22,10 @@ export interface Theme {
   pink: string
   mapInactiveSegment: string
   mapTileUrl: string
+  themeId: ThemeMode
 }
+
+export type ThemeMode = 'dark' | 'dusk' | 'light'
 
 export const darkTheme: Theme = {
   bgBase:          '#1e1e2e',
@@ -46,6 +49,7 @@ export const darkTheme: Theme = {
   pink:            '#f5c2e7',
   mapInactiveSegment: '#2a2a3e',
   mapTileUrl: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  themeId: 'dark',
 }
 
 export const lightTheme: Theme = {
@@ -70,6 +74,7 @@ export const lightTheme: Theme = {
   pink:            '#ea76cb',
   mapInactiveSegment: '#9090b8',
   mapTileUrl: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+  themeId: 'light',
 }
 
 export const duskTheme: Theme = {
@@ -94,9 +99,9 @@ export const duskTheme: Theme = {
   pink:            '#be185d',
   mapInactiveSegment: '#8090aa',
   mapTileUrl: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+  themeId: 'dusk',
 }
 
-export type ThemeMode = 'dark' | 'dusk' | 'light'
 
 export const ThemeContext = createContext<Theme>(darkTheme)
 export const useTheme = () => useContext(ThemeContext)

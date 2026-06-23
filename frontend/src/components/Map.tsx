@@ -1,4 +1,6 @@
 import { useEffect } from 'react'
+import * as L from 'leaflet'
+import 'leaflet.gridlayer.googlemutant'
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet'
 import type { CableNode, CableSegment, CountryHighlight, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
 import { useTheme } from '../theme'
@@ -160,11 +162,98 @@ function normalizeLng(lng: number): number {
   return lng < -30 ? lng + 360 : lng
 }
 
+// Google Maps dark-mode styles (close to the dark CARTO palette)
+const GOOGLE_DARK_STYLES = [
+  { elementType: 'geometry',                                    stylers: [{ color: '#0f0f1a' }] },
+  { elementType: 'labels.text.fill',                            stylers: [{ color: '#6c6e80' }] },
+  { elementType: 'labels.text.stroke',                          stylers: [{ color: '#0f0f1a' }] },
+  { featureType: 'water',        elementType: 'geometry',       stylers: [{ color: '#090910' }] },
+  { featureType: 'water',        elementType: 'labels.text.fill', stylers: [{ color: '#3d4054' }] },
+  { featureType: 'landscape',    elementType: 'geometry',       stylers: [{ color: '#1a1a28' }] },
+  { featureType: 'road',         elementType: 'geometry',       stylers: [{ color: '#2a2a40' }] },
+  { featureType: 'road.highway', elementType: 'geometry',       stylers: [{ color: '#232340' }] },
+  { featureType: 'poi',          elementType: 'geometry',       stylers: [{ color: '#1a1a28' }] },
+  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#2d2d4a' }] },
+  { featureType: 'transit',      elementType: 'geometry',       stylers: [{ color: '#1a1a28' }] },
+]
+
+function GoogleMutantLayer({ themeId }: { themeId: string }) {
+  const map = useMap()
+  useEffect(() => {
+    const apiKey = import.meta.env.VITE_GMAPS_API_KEY
+    if (!apiKey) return
+
+    let mounted = true
+    let layer: L.Layer | null = null
+
+    const createLayer = () => {
+      if (!mounted) return
+      const factory = (L.gridLayer as unknown as Record<string, (...a: unknown[]) => L.Layer>).googleMutant
+      if (!factory) return
+      layer = factory({
+        type: 'roadmap',
+        styles: themeId !== 'light' ? GOOGLE_DARK_STYLES : [],
+      })
+      map.addLayer(layer)
+    }
+
+    const win = window as Window & { google?: { maps?: unknown } }
+    const scriptId = 'gmaps-js-api'
+
+    if (win.google?.maps) {
+      createLayer()
+    } else {
+      let script = document.getElementById(scriptId) as HTMLScriptElement | null
+      if (!script) {
+        script = document.createElement('script')
+        script.id = scriptId
+        script.async = true
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}`
+        document.head.appendChild(script)
+      }
+      script.addEventListener('load', createLayer)
+    }
+
+    return () => {
+      mounted = false
+      if (layer) map.removeLayer(layer)
+    }
+  }, [map, themeId])
+  return null
+}
+
+/**
+ * Catmull-Rom spline: interpolates `steps` points between each pair of
+ * control points, producing a smooth curve that passes through every point.
+ */
+function catmullRom(pts: [number, number][], steps = 12): [number, number][] {
+  if (pts.length < 3) return pts
+  const out: [number, number][] = []
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)]
+    const p1 = pts[i]
+    const p2 = pts[i + 1]
+    const p3 = pts[Math.min(pts.length - 1, i + 2)]
+    for (let s = 0; s < steps; s++) {
+      const t  = s / steps
+      const t2 = t * t
+      const t3 = t2 * t
+      out.push([
+        0.5 * ((2 * p1[0]) + (-p0[0] + p2[0]) * t + (2*p0[0] - 5*p1[0] + 4*p2[0] - p3[0]) * t2 + (-p0[0] + 3*p1[0] - 3*p2[0] + p3[0]) * t3),
+        0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * t + (2*p0[1] - 5*p1[1] + 4*p2[1] - p3[1]) * t2 + (-p0[1] + 3*p1[1] - 3*p2[1] + p3[1]) * t3),
+      ])
+    }
+  }
+  out.push(pts[pts.length - 1])
+  return out
+}
+
 /**
  * Return Leaflet Polyline positions for a segment.  When waypoints are
- * provided (static ocean-routing hints) the path threads through them;
- * otherwise a direct arc is drawn.  All longitudes are Pacific-normalised
- * so transpacific cables render as single lines without antimeridian splits.
+ * provided (static ocean-routing hints) the path threads through them via
+ * a Catmull-Rom spline for smooth rendering; otherwise a direct arc is drawn.
+ * All longitudes are Pacific-normalised so transpacific cables render as
+ * single lines without antimeridian splits.
  */
 function geoLines(
   lat1: number, lng1: number,
@@ -183,7 +272,7 @@ function geoLines(
       ...waypoints.map(([wlat, wlng]): [number, number] => [wlat, normalizeLng(wlng)]),
       [lat2, nLng1 + d],
     ]
-    return [pts]
+    return [catmullRom(pts)]
   }
 
   return [[[lat1, nLng1], [lat2, nLng1 + d]]]
@@ -312,12 +401,15 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
       maxBounds={[[-75, -25], [80, 345]]}
       maxBoundsViscosity={1.0}
     >
-      <TileLayer
-        key={t.mapTileUrl}
-        url={t.mapTileUrl}
-        attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-        noWrap={false}
-      />
+      {import.meta.env.VITE_MAPS_PROVIDER === 'google'
+        ? <GoogleMutantLayer themeId={t.themeId} />
+        : <TileLayer
+            key={t.mapTileUrl}
+            url={t.mapTileUrl}
+            attribution='&copy; <a href="https://carto.com/">CARTO</a>'
+            noWrap={false}
+          />
+      }
 
       <MapResizer panelWidth={panelWidth} />
       <MapFlyTo highlight={countryHighlight} />
