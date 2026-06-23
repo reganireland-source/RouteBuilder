@@ -1574,6 +1574,42 @@
     "verification_status": "draft"
   },
   {
+    "id": "HKG1",
+    "name": "Hong Kong",
+    "lat": 22.2660935,
+    "lng": 114.2465174,
+    "type": "primary_pop",
+    "country": "HK",
+    "owner": "Telstra International",
+    "city": "Hong Kong",
+    "description": "Hong Kong primary PoP, used as the Hong Kong endpoint for AAG, AAE-1 and ADC submarine cables",
+    "verification_status": "draft"
+  },
+  {
+    "id": "CHKK",
+    "name": "Chung Hom Kok CLS",
+    "lat": 22.213386,
+    "lng": 114.2050588,
+    "type": "landing_station",
+    "country": "HK",
+    "owner": "Telstra International",
+    "city": "Hong Kong",
+    "description": "Chung Hom Kok cable landing station, Hong Kong (C2C system)",
+    "verification_status": "draft"
+  },
+  {
+    "id": "TKOH",
+    "name": "Tseung Kwan O CLS",
+    "lat": 22.316,
+    "lng": 114.271,
+    "type": "landing_station",
+    "country": "HK",
+    "owner": "Telstra International",
+    "city": "Hong Kong",
+    "description": "Tseung Kwan O cable landing station, Hong Kong (EAC system)",
+    "verification_status": "draft"
+  },
+  {
     "id": "JHDA",
     "name": "Digital Realty HND10, Tokyo",
     "lat": 35.68528,
@@ -2396,6 +2432,54 @@
     "capabilities": null,
     "verification_status": "draft",
     "last_verified_date": null
+  },
+  {
+    "id": "SIN1",
+    "name": "Singapore",
+    "lat": 1.338723,
+    "lng": 103.8938,
+    "type": "primary_pop",
+    "country": "SG",
+    "owner": "Telstra International",
+    "city": "Singapore",
+    "description": "Singapore primary PoP; terrestrial hub connecting to Kuala Lumpur and intra-Singapore links",
+    "verification_status": "draft"
+  },
+  {
+    "id": "SIN2",
+    "name": "Singapore Jurong",
+    "lat": 1.3218,
+    "lng": 103.6953,
+    "type": "extension_pop",
+    "country": "SG",
+    "owner": "Telstra International",
+    "city": "Singapore",
+    "description": "Singapore Jurong PoP",
+    "verification_status": "draft"
+  },
+  {
+    "id": "SIN3",
+    "name": "Singapore Changi EAC",
+    "lat": 1.347041,
+    "lng": 103.9707,
+    "type": "extension_pop",
+    "country": "SG",
+    "owner": "Telstra International",
+    "city": "Singapore",
+    "description": "Singapore Changi EAC PoP, terrestrial interconnect for EAC cable landing",
+    "verification_status": "draft"
+  },
+  {
+    "id": "SIN4",
+    "name": "Singapore Changi C2C",
+    "lat": 1.337551,
+    "lng": 103.9585,
+    "type": "extension_pop",
+    "country": "SG",
+    "owner": "Telstra International",
+    "city": "Singapore",
+    "description": "Singapore Changi C2C PoP, terrestrial interconnect for C2C cable landing",
+    "verification_status": "draft"
   },
   {
     "id": "KOLS",

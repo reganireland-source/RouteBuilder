@@ -15,6 +15,7 @@ import { HealthBar } from './components/HealthBar'
 import { MobileLayout } from './components/MobileLayout'
 import { CapacityDashboard } from './components/CapacityDashboard'
 import { UserGuide } from './components/UserGuide'
+import { AlgoEval } from './components/AlgoEval'
 import { generateStraightLineDiagram, generateSldFromProject, generateDrawioXml, generateVisioVsdx } from './utils/generateDiagram'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, useTheme, type Theme, type ThemeMode } from './theme'
@@ -187,6 +188,7 @@ export default function App() {
   const [searchPrefill, setSearchPrefill]     = useState<Partial<RouteRequest> | undefined>(undefined)
   const [outages, setOutages]                       = useState<SegmentOutage[]>([])
   const [capDashOpen, setCapDashOpen]               = useState(false)
+  const [algoEvalOpen, setAlgoEvalOpen]             = useState(false)
   const [ctrlMenuOpen, setCtrlMenuOpen]             = useState(false)
   const [hideNonActive, setHideNonActive]           = useState(false)
   const [showSegmentLabels, setShowSegmentLabels]   = useState(false)
@@ -880,6 +882,7 @@ export default function App() {
                       { label: 'Capacity',  icon: '📊', onClick: () => { setCapDashOpen(true);   setCtrlMenuOpen(false) } },
                       { label: 'Projects',  icon: '📁', onClick: () => { setProjectsOpen(true);  setCtrlMenuOpen(false) } },
                       { label: 'Ref Data',  icon: '⚙',  onClick: () => { setRefDataOpen(true);   setCtrlMenuOpen(false) } },
+                      { label: 'Algo Eval', icon: '🧪', onClick: () => { setAlgoEvalOpen(true);  setCtrlMenuOpen(false) } },
                     ].map(item => (
                       <button
                         key={item.label}
@@ -1262,6 +1265,13 @@ export default function App() {
         <CapacityDashboard
           segments={segments} capacity={capacity}
           onClose={() => setCapDashOpen(false)}
+        />
+      )}
+
+      {algoEvalOpen && (
+        <AlgoEval
+          nodes={nodes} segments={segments} systems={systems}
+          onClose={() => setAlgoEvalOpen(false)}
         />
       )}
 
