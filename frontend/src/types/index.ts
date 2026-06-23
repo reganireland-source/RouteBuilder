@@ -274,6 +274,7 @@ export interface ProjectCircuit {
   // optional second route for diverse/protected circuits
   protect_route_snapshot?: Route
   protect_search_label?: string
+  circuit_description?: string
   service_type?: string
   bandwidth?: string
   protection?: string
@@ -287,11 +288,11 @@ export interface ProjectCircuit {
 export interface Project {
   id: string
   name: string
-  customer_name?: string
   account_manager?: string
   solution_architect?: string
   opportunity_id?: string
   opportunity_name?: string
+  description?: string
   date_prepared?: string
   visibility: 'public' | 'confidential'
   sld_config: SldConfig

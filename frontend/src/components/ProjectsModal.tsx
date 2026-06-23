@@ -325,7 +325,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
         </div>
         {projects.length === 0 && (
           <div style={{ textAlign: 'center', color: t.textMuted, fontSize: 14, padding: '40px 0' }}>
-            No projects yet. Create one to start building customer solutions.
+            No projects yet. Create one to start building solutions.
           </div>
         )}
         {!pendingTargetProject && projects.map(p => (
@@ -336,7 +336,6 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15, color: t.text, marginBottom: 3 }}>{p.name || '(Untitled)'}</div>
                 <div style={{ fontSize: 12, color: t.textMuted }}>
-                  {p.customer_name && <span style={{ marginRight: 12 }}>👤 {p.customer_name}</span>}
                   {p.opportunity_id && <span style={{ marginRight: 12 }}>🔑 {p.opportunity_id}</span>}
                   <span style={{ marginRight: 12 }}>📡 {p.circuits.length} circuit{p.circuits.length !== 1 ? 's' : ''}</span>
                   <span style={{
@@ -381,7 +380,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
         <div style={s.row}>
           <div>
             <div style={s.label}>Project Name *</div>
-            <input style={s.input} value={editDraft.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Nvidia Japan-Taiwan EPL" />
+            <input style={s.input} value={editDraft.name} onChange={e => set('name', e.target.value)} placeholder="e.g. Japan-Taiwan EPL Diversity" />
           </div>
           <div>
             <div style={s.label}>Project ID</div>
@@ -390,22 +389,12 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
         </div>
         <div style={s.row}>
           <div>
-            <div style={s.label}>Customer Name</div>
-            <input style={s.input} value={editDraft.customer_name ?? ''} onChange={e => set('customer_name', e.target.value)} placeholder="e.g. Nvidia" />
-          </div>
-          <div>
             <div style={s.label}>Opportunity ID</div>
             <input style={s.input} value={editDraft.opportunity_id ?? ''} onChange={e => set('opportunity_id', e.target.value)} placeholder="e.g. A-00136452" />
           </div>
-        </div>
-        <div style={s.row}>
           <div>
             <div style={s.label}>Opportunity Name</div>
-            <input style={s.input} value={editDraft.opportunity_name ?? ''} onChange={e => set('opportunity_name', e.target.value)} placeholder="e.g. EPL JP&lt;&gt;TW via EAC" />
-          </div>
-          <div>
-            <div style={s.label}>Date Prepared</div>
-            <input style={s.input} type="date" value={editDraft.date_prepared ?? ''} onChange={e => set('date_prepared', e.target.value)} />
+            <input style={s.input} value={editDraft.opportunity_name ?? ''} onChange={e => set('opportunity_name', e.target.value)} placeholder="e.g. EPL JP↔TW via EAC" />
           </div>
         </div>
         <div style={s.row}>
@@ -418,22 +407,39 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
             <input style={s.input} value={editDraft.solution_architect ?? ''} onChange={e => set('solution_architect', e.target.value)} placeholder="e.g. Eddie Van Halen" />
           </div>
         </div>
-        <div style={{ marginBottom: 20 }}>
-          <div style={s.label}>Visibility</div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            {(['confidential', 'public'] as const).map(v => (
-              <button key={v}
-                style={{
-                  padding: '6px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600,
-                  cursor: 'pointer',
-                  border: `2px solid ${editDraft.visibility === v ? t.blue : t.border}`,
-                  background: editDraft.visibility === v ? `${t.blue}22` : 'transparent',
-                  color: editDraft.visibility === v ? t.blue : t.textMuted,
-                }}
-                onClick={() => set('visibility', v)}>{v.charAt(0).toUpperCase() + v.slice(1)}</button>
-            ))}
+        <div style={s.row}>
+          <div>
+            <div style={s.label}>Date Prepared</div>
+            <input style={s.input} type="date" value={editDraft.date_prepared ?? ''} onChange={e => set('date_prepared', e.target.value)} />
+          </div>
+          <div>
+            <div style={s.label}>Visibility</div>
+            <div style={{ display: 'flex', gap: 10, paddingTop: 2 }}>
+              {(['confidential', 'public'] as const).map(v => (
+                <button key={v}
+                  style={{
+                    padding: '6px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600,
+                    cursor: 'pointer',
+                    border: `2px solid ${editDraft.visibility === v ? t.blue : t.border}`,
+                    background: editDraft.visibility === v ? `${t.blue}22` : 'transparent',
+                    color: editDraft.visibility === v ? t.blue : t.textMuted,
+                  }}
+                  onClick={() => set('visibility', v)}>{v.charAt(0).toUpperCase() + v.slice(1)}</button>
+              ))}
+            </div>
           </div>
         </div>
+
+        <div style={s.sectionHead}>Solution Description &amp; Overview</div>
+        <div style={{ marginBottom: 20 }}>
+          <textarea
+            style={{ ...s.input, height: 120, resize: 'vertical' as const, lineHeight: '1.5' }}
+            value={editDraft.description ?? ''}
+            onChange={e => set('description', e.target.value)}
+            placeholder="Describe the solution, key design decisions, scope, assumptions, and any relevant context for the reader…"
+          />
+        </div>
+
         {err && <div style={{ color: '#f38ba8', fontSize: 13, marginBottom: 10 }}>{err}</div>}
         {!isAdmin && <div style={{ fontSize: 11, color: '#f9e2af', marginBottom: 8 }}>🔒 Admin access required to save changes</div>}
         <button style={{ ...s.btn(t.bgCard, t.blue), opacity: (!isAdmin || saving) ? 0.45 : 1 }} onClick={saveProject} disabled={saving || !isAdmin} title={!isAdmin ? 'Admin access required' : undefined}>
@@ -601,6 +607,15 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
             </select>
           </div>
         </div>
+        <div style={{ marginBottom: 14 }}>
+          <div style={s.label}>Circuit Description</div>
+          <textarea
+            style={{ ...s.input, height: 64, resize: 'vertical' as const, lineHeight: '1.5' }}
+            value={circuitDraft.circuit_description ?? ''}
+            onChange={e => setC('circuit_description', e.target.value || undefined)}
+            placeholder="Describe this circuit's purpose, design notes, or any relevant context…"
+          />
+        </div>
         <div style={s.row3}>
           <div>
             <div style={s.label}>Bandwidth</div>
@@ -752,7 +767,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
       <div style={s.modal} onClick={e => e.stopPropagation()}>
         <div style={s.header}>
           <div style={{ fontWeight: 700, fontSize: 18, color: t.text }}>
-            Customer Solution Projects
+            Solution Projects
           </div>
           <button
             style={{ background: 'none', border: 'none', color: t.textMuted, fontSize: 22, cursor: 'pointer', padding: '0 4px' }}

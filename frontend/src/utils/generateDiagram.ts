@@ -425,11 +425,11 @@ function drawFooter(
   const boldFonts = 7
   const valFonts  = 6.5
 
-  // Left cell
+  // Left cell — customer name space left blank (filled in by recipient)
   doc.setFontSize(boldFonts); setColor(doc, BLACK)
   doc.text('Customer Name:', M + 2, row1)
-  doc.setFontSize(valFonts);  setColor(doc, DK_GRAY)
-  doc.text(project?.customer_name ?? '—', M + 2, row2)
+  doc.setFontSize(valFonts);  setColor(doc, MID_GRAY)
+  doc.text('', M + 2, row2)
   doc.setFontSize(boldFonts); setColor(doc, BLACK)
   doc.text('Account Manager:', M + 2, row3)
   doc.setFontSize(valFonts);  setColor(doc, DK_GRAY)
@@ -727,18 +727,29 @@ function drawCover(
   if (project) {
     const metaY = 52
     const fields: [string, string | undefined][] = [
-      ['Customer',       project.customer_name],
-      ['Project',        project.name],
-      ['Account Manager',project.account_manager],
-      ['Opportunity ID', project.opportunity_id],
-      ['Description',    project.opportunity_name],
+      ['Project',          project.name],
+      ['Opportunity ID',   project.opportunity_id],
+      ['Description',      project.opportunity_name],
+      ['Account Manager',  project.account_manager],
+      ['Solution Architect', project.solution_architect],
     ]
     fields.forEach(([k, v], i) => {
       doc.setFontSize(7); setColor(doc, MID_GRAY)
       doc.text(k.toUpperCase(), M, metaY + i * 9)
       doc.setFontSize(9); setColor(doc, BLACK)
-      doc.text(v || '—', M + 45, metaY + i * 9)
+      doc.text(v || '—', M + 52, metaY + i * 9)
     })
+
+    // Solution description block (if present)
+    if (project.description) {
+      const descY = metaY + fields.length * 9 + 4
+      doc.setFontSize(7); setColor(doc, MID_GRAY)
+      doc.text('SOLUTION OVERVIEW', M, descY)
+      doc.setFontSize(8); setColor(doc, DK_GRAY)
+      const descLines = doc.splitTextToSize(project.description, PW - M * 2 - 4)
+      descLines.slice(0, 5).forEach((line: string, i: number) =>
+        doc.text(line, M, descY + 5 + i * 5))
+    }
   }
 
   // Circuit index table

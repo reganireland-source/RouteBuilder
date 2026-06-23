@@ -347,6 +347,7 @@ class ProjectCircuit(BaseModel):
     protect_route_snapshot: Optional[dict] = None
     search_label: str = ""
     pin_color: str = "#94e2d5"
+    circuit_description: Optional[str] = None
     service_type: Optional[str] = None
     bandwidth: Optional[str] = None
     protection: Optional[str] = None
@@ -360,11 +361,11 @@ class ProjectCircuit(BaseModel):
 class Project(BaseModel):
     id: str
     name: str
-    customer_name: Optional[str] = None
     account_manager: Optional[str] = None
     solution_architect: Optional[str] = None
     opportunity_id: Optional[str] = None
     opportunity_name: Optional[str] = None
+    description: Optional[str] = None
     date_prepared: Optional[str] = None
     visibility: str = "confidential"
     sld_config: SldConfig = SldConfig()
@@ -375,11 +376,11 @@ class Project(BaseModel):
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
-    customer_name: Optional[str] = None
     account_manager: Optional[str] = None
     solution_architect: Optional[str] = None
     opportunity_id: Optional[str] = None
     opportunity_name: Optional[str] = None
+    description: Optional[str] = None
     date_prepared: Optional[str] = None
     visibility: Optional[str] = None
     sld_config: Optional[SldConfig] = None

@@ -167,9 +167,10 @@ function MobileModeBanner({ activeProject, onSwitch, onExit, t }: {
             boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
             padding: 12, display: 'flex', flexDirection: 'column', gap: 8,
           }}>
-            {isProject && activeProject.customer_name && (
+            {isProject && (activeProject.opportunity_id || activeProject.circuits.length > 0) && (
               <div style={{ fontSize: 11, color: t.textMuted, paddingBottom: 4, borderBottom: `1px solid ${t.border}` }}>
-                👤 {activeProject.customer_name} · {activeProject.circuits.length} circuit{activeProject.circuits.length !== 1 ? 's' : ''}
+                {activeProject.opportunity_id && <span>🔑 {activeProject.opportunity_id} · </span>}
+                {activeProject.circuits.length} circuit{activeProject.circuits.length !== 1 ? 's' : ''}
               </div>
             )}
             {isProject ? (
