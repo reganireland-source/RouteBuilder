@@ -90,6 +90,49 @@ def admin_reseed():
     }
 
 
+@router.post("/admin/dump-to-json")
+def admin_dump_to_json():
+    """Export the current Postgres state back to the JSON seed files.
+
+    Overwrites data/*.json with whatever is currently in the database so the
+    JSON files stay in sync with user-entered data and API mutations.
+    No-op (returns skipped) when not using Postgres.
+    """
+    from ..db import DATABASE_URL, get_conn
+
+    if not DATABASE_URL:
+        return {"status": "skipped", "reason": "not using postgres — data lives in JSON files already"}
+
+    TABLES = [
+        ("nodes",    "nodes.json"),
+        ("systems",  "systems.json"),
+        ("segments", "segments.json"),
+        ("capacity", "capacity.json"),
+        ("outages",  "outages.json"),
+        ("rules",    "rules.json"),
+    ]
+
+    results = {}
+    conn = get_conn()
+    try:
+        for table, filename in TABLES:
+            with conn.cursor() as cur:
+                try:
+                    cur.execute(f"SELECT data FROM {table} ORDER BY 1")
+                    rows = [row["data"] for row in cur.fetchall()]
+                except Exception as e:
+                    results[table] = f"ERROR: {e}"
+                    continue
+            dest = DATA_DIR / filename
+            with open(dest, "w") as f:
+                json.dump(rows, f, indent=2)
+            results[table] = len(rows)
+    finally:
+        conn.close()
+
+    return {"status": "ok", "written": results}
+
+
 @router.get("/nlp")
 def nlp_status():
     if os.getenv("NLP_ENABLED", "").lower() != "true":

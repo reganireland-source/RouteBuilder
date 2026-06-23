@@ -247,6 +247,7 @@ def init_db() -> None:
             _once(cur, 'm054', _run_migration_054)   # create solution_notes + note_categories
             _once(cur, 'm055', _run_migration_055)   # convert notes/categories to proper columns
             _once(cur, 'm056', _run_migration_056)   # upsert expanded default note categories
+            _once(cur, 'm057', _run_migration_057)   # fix remaining subsea waypoints (ADC-BAT-SIN, SJC2, RNAL)
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -2664,4 +2665,67 @@ def _run_migration_056(cur) -> None:
         cur.execute(
             "INSERT INTO note_categories (id, label, applies_to, order_num) VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING",
             (cat["id"], cat.get("label", ""), cat.get("applies_to", "node"), cat.get("order", 0)),
+        )
+
+
+def _run_migration_057(cur) -> None:
+    """Fix remaining subsea cable waypoints that still cross land after m053.
+
+    - ADC-BAT-SIN: no waypoints; straight line from Batangas (Philippines) to
+      Singapore clips the Malay Peninsula south tip.  Route via Sulu Sea,
+      South China Sea, and the Singapore Strait eastern approach.
+    - SJC2-TAM-TYO: existing first waypoint at [27,124] creates a segment from
+      Tamsui that clips Taiwan's NE coast.  Added two lead-in waypoints through
+      the Taiwan Strait before joining the existing arc.
+    - SJC2-TYO-PUS: m053 waypoint [33.0, 130.5] sits on central Kyushu near
+      Fukuoka/Ariake Sea.  Replaced with an open-ocean route south of Kyushu
+      then up the Korea Strait.
+    - RNAL-F: m053 waypoint [33.5, 130.5] also sits on Kyushu.  Replaced with
+      a route via the Korea Strait / south of Jeju then northeast to Pacific.
+    - RNAL-E: add a lead-in south of Hong Kong Island to avoid clipping the
+      Fujian/Guangdong coast when the cable exits westward.
+    """
+    waypoints: dict[str, list[list[float]]] = {
+        # Batangas → Singapore: Sulu Sea → South China Sea → Singapore Strait
+        "ADC-BAT-SIN": [
+            [12.0, 119.0],  # SW of Luzon, Sibuyan/Sulu Sea
+            [ 8.0, 116.0],  # West of Palawan, open South China Sea
+            [ 5.0, 112.0],  # South China Sea
+            [ 2.5, 107.5],  # South China Sea approaching Singapore
+            [ 1.1, 104.8],  # Singapore Strait eastern approach
+        ],
+        # Tamsui → Tokyo: Taiwan Strait lead-in before existing Pacific arc
+        "SJC2-TAM-TYO": [
+            [23.5, 118.5],  # Taiwan Strait, south section (clear of Penghu)
+            [25.5, 121.5],  # East China Sea, north of Taiwan's NE tip
+            [27.0, 124.0],  # open East China Sea (was existing first waypoint)
+            [30.0, 129.0],  # open Pacific
+            [33.0, 135.0],  # Pacific, south of Honshu
+        ],
+        # Miura (Tokyo) → Busan: south of Kyushu, open Korea Strait
+        "SJC2-TYO-PUS": [
+            [33.5, 138.0],  # open Pacific east of Honshu
+            [31.5, 133.5],  # Pacific south of Shikoku
+            [31.0, 130.0],  # south of Kyushu (Cape Sata area, open Pacific)
+            [32.5, 128.5],  # Korea Strait east channel (open water)
+        ],
+        # Busan → Wada: Korea Strait / south of Jeju, northeast to Pacific
+        "RNAL-F": [
+            [33.0, 129.0],  # South Korea Strait / east of Jeju (clear of Kyushu)
+            [31.5, 133.0],  # Pacific, south-east of Kyushu
+            [32.0, 134.0],  # Pacific, south of Kii Peninsula
+            [33.5, 139.0],  # Pacific, east of Tokyo Bay
+        ],
+        # Hong Kong → Busan: lead-in south of HK Island before East China Sea
+        "RNAL-E": [
+            [21.8, 114.5],  # South China Sea, south of HK Island
+            [23.0, 118.0],  # open South China Sea NE of HK
+            [29.0, 124.0],  # East China Sea
+        ],
+    }
+
+    for seg_id, wps in waypoints.items():
+        cur.execute(
+            "UPDATE segments SET data = jsonb_set(data, '{waypoints}', %s::jsonb) WHERE id = %s",
+            (json.dumps(wps), seg_id),
         )

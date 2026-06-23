@@ -4,16 +4,29 @@ Add ocean-routing waypoints to wet cable segments that cross land.
 
 Waypoints are hand-crafted to keep cables clearly in open ocean.
 Distances are NOT modified (they come from cable manufacturers).
-Run from the backend/ directory: python add_waypoints.py
+
+Usage:
+    # Against production API (requires ADMIN_KEY if auth is enabled):
+    python add_waypoints.py --api-url https://your-api.railway.app --admin-key YOUR_KEY
+
+    # Against local dev API (no auth required when ADMIN_KEY env var is unset):
+    python add_waypoints.py --api-url http://localhost:8001
+
+    # Legacy: update JSON seed files directly (no API, no Postgres):
+    python add_waypoints.py --json-only
 """
 
+import argparse
 import json
+import sys
+import urllib.request
+import urllib.error
 from pathlib import Path
 
 DATA = Path(__file__).parent / "data" / "segments.json"
 
-# Waypoints: segment_id -> list of [lat, lng] intermediate points
-# All points are verified to be in open ocean, well clear of coastlines.
+# Waypoints: segment_id -> list of [lat, lng] intermediate points.
+# All points verified to be in open ocean, clear of coastlines.
 WAYPOINTS: dict[str, list[list[float]]] = {
 
     # ── Jakarta ↔ Singapore (3 systems: INDIGO_C, BIFROST, ECHO) ────────────
@@ -170,26 +183,134 @@ WAYPOINTS: dict[str, list[list[float]]] = {
         [23.0,  57.5],   # Gulf of Oman (approaching Barka from open water)
     ],
 
+    # ── Batangas → Singapore (ADC) ───────────────────────────────────────────
+    # Straight line clips the south tip of the Malay Peninsula / Singapore.
+    # Route: SW through Sulu Sea, South China Sea, into Singapore from east.
+    "ADC-BAT-SIN": [
+        [12.0, 119.0],   # SW of Luzon, Sibuyan/Sulu Sea
+        [ 8.0, 116.0],   # West of Palawan, open South China Sea
+        [ 5.0, 112.0],   # South China Sea
+        [ 2.5, 107.5],   # South China Sea approaching Singapore
+        [ 1.1, 104.8],   # Singapore Strait eastern approach
+    ],
+
+    # ── Tamsui → Tokyo (SJC2) ────────────────────────────────────────────────
+    # Existing first waypoint (27°N, 124°E) creates a straight line that
+    # clips Taiwan's NE coast. Route north through Taiwan Strait then NE
+    # around Taiwan's northern tip before heading into the Pacific.
+    "SJC2-TAM-TYO": [
+        [23.5, 118.5],   # Taiwan Strait, south section (clear of Penghu)
+        [25.5, 121.5],   # East China Sea, north of Taiwan's NE tip
+        [27.0, 124.0],   # existing — open East China Sea
+        [30.0, 129.0],   # existing — open Pacific
+        [33.0, 135.0],   # existing — Pacific, south of Honshu
+    ],
+
+    # ── Tokyo → Busan (SJC2) ─────────────────────────────────────────────────
+    # Existing waypoint [33.0, 130.5] sits on central Kyushu (near Ariake Sea).
+    # Replace with two waypoints that route south of Kyushu then back up
+    # the Korea Strait's west channel to Busan.
+    "SJC2-TYO-PUS": [
+        [33.5, 138.0],   # existing — open Pacific east of Honshu
+        [31.5, 133.5],   # existing — Pacific south of Shikoku
+        [31.0, 130.0],   # South of Kyushu (Cape Sata area, open Pacific)
+        [32.5, 128.5],   # Korea Strait east channel (open water)
+    ],
+
+    # ── Busan → (east, RNAL segment F) ──────────────────────────────────────
+    # Existing waypoint [33.5, 130.5] sits on north Kyushu / Ariake Sea.
+    # Route south-west of Kyushu through the Korea Strait, then south-east
+    # around Kyushu into the Pacific before heading east.
+    "RNAL-F": [
+        [33.0, 129.0],   # South Korea Strait / east of Jeju (clear of Kyushu)
+        [31.5, 133.0],   # Pacific, south-east of Kyushu
+        [32.0, 134.0],   # existing — Pacific, south of Kii Peninsula
+        [33.5, 139.0],   # existing — Pacific, east of Tokyo Bay
+    ],
+
+    # ── Tong Fuk CLS (HK) → East (RNAL segment E) ───────────────────────────
+    # Straight line from south Lantau NE clips HK urban area / HK Island.
+    # Route south of HK Island before curving north-east into the Pacific.
+    "RNAL-E": [
+        [21.8, 114.5],   # South China Sea, south of HK Island
+        [23.0, 118.0],   # existing — open South China Sea NE of HK
+        [29.0, 124.0],   # existing — East China Sea
+    ],
 }
 
 
+def _put_segment(api_url: str, segment_id: str, waypoints: list, admin_key: str | None) -> bool:
+    """PUT /api/segments/{id} with updated waypoints. Returns True on success."""
+    url = f"{api_url.rstrip('/')}/api/segments/{segment_id}"
+    payload = json.dumps({"waypoints": waypoints}).encode()
+    headers = {"Content-Type": "application/json"}
+    if admin_key:
+        headers["X-Admin-Key"] = admin_key
+    req = urllib.request.Request(url, data=payload, headers=headers, method="PUT")
+    try:
+        # Need full segment for PUT — fetch first, merge waypoints, then PUT
+        get_req = urllib.request.Request(
+            f"{api_url.rstrip('/')}/api/segments",
+            headers=headers if admin_key else {},
+        )
+        with urllib.request.urlopen(get_req) as r:
+            segments = json.load(r)
+        seg = next((s for s in segments if s["id"] == segment_id), None)
+        if seg is None:
+            print(f"  SKIP  {segment_id} — not found in API")
+            return False
+        seg["waypoints"] = waypoints
+        payload = json.dumps(seg).encode()
+        req = urllib.request.Request(url, data=payload, headers={**headers}, method="PUT")
+        with urllib.request.urlopen(req) as r:
+            r.read()
+        return True
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors="replace")
+        print(f"  ERROR {segment_id} — HTTP {e.code}: {body[:120]}")
+        return False
+    except Exception as e:
+        print(f"  ERROR {segment_id} — {e}")
+        return False
+
+
 def main():
-    with open(DATA) as f:
-        segments = json.load(f)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--api-url", default="http://localhost:8001",
+                        help="Base URL of the RouteBuilder API (default: http://localhost:8001)")
+    parser.add_argument("--admin-key", default=None,
+                        help="Admin key if the API requires authentication")
+    parser.add_argument("--json-only", action="store_true",
+                        help="Legacy mode: write directly to data/segments.json (no API)")
+    args = parser.parse_args()
 
-    updated = 0
-    for seg in segments:
-        if seg["id"] in WAYPOINTS:
-            seg["waypoints"] = WAYPOINTS[seg["id"]]
-            updated += 1
+    if args.json_only:
+        with open(DATA) as f:
+            segments = json.load(f)
+        updated = 0
+        for seg in segments:
+            if seg["id"] in WAYPOINTS:
+                seg["waypoints"] = WAYPOINTS[seg["id"]]
+                updated += 1
+        with open(DATA, "w") as f:
+            json.dump(segments, f, indent=2)
+        print(f"Updated {updated} segments in {DATA}")
+        missing = [sid for sid in WAYPOINTS if not any(s["id"] == sid for s in segments)]
+        if missing:
+            print(f"WARNING: segment IDs not found: {missing}")
+        return
 
-    with open(DATA, "w") as f:
-        json.dump(segments, f, indent=2)
-
-    print(f"Updated {updated} segments with ocean waypoints.")
-    missing = [sid for sid in WAYPOINTS if not any(s["id"] == sid for s in segments)]
-    if missing:
-        print(f"WARNING: segment IDs not found in data: {missing}")
+    # API mode
+    print(f"Writing waypoints to API at {args.api_url} …")
+    ok = fail = skip = 0
+    for segment_id, waypoints in WAYPOINTS.items():
+        success = _put_segment(args.api_url, segment_id, waypoints, args.admin_key)
+        if success:
+            print(f"  OK    {segment_id} ({len(waypoints)} waypoints)")
+            ok += 1
+        else:
+            fail += 1
+    print(f"\nDone — {ok} updated, {fail} failed, {skip} skipped")
 
 
 if __name__ == "__main__":
