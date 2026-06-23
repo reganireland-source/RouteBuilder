@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTheme } from '../theme'
 import { api } from '../api/client'
+import { useAuth } from '../context/AuthContext'
 import type { CableNode, EndpointConfig, InterfaceType, Project, ProjectCircuit, Route, SldConfig, TechLookupItem } from '../types'
 import { DEFAULT_SLD_CONFIG } from '../types'
 
@@ -33,6 +34,7 @@ function newProject(): Project {
 
 export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId, pendingCircuit, onRestorePins, onCircuitAdded, onActivateProject, initialProjects, onProjectsChange }: Props) {
   const t = useTheme()
+  const { isAdmin } = useAuth()
   const [tab, setTab] = useState<ModalTab>('list')
   const [detailTab, setDetailTab] = useState<DetailTab>('info')
   const [projects, setProjects] = useState<Project[]>(initialProjects ?? [])
@@ -350,7 +352,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
                     <button style={s.btn('#fff', '#f38ba8')} onClick={() => deleteProject(p.id)}>Confirm Delete</button>
                     <button style={s.btn(t.text, t.border)} onClick={() => setConfirmDelete(null)}>Cancel</button>
                   </>
-                ) : (
+                ) : isAdmin ? (
                   <>
                     <button
                       style={{ ...s.btn(t.textMuted, 'transparent'), fontSize: 13 }}
@@ -360,7 +362,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
                     <button style={{ ...s.btn(t.textMuted, 'transparent'), fontSize: 16 }}
                       onClick={() => setConfirmDelete(p.id)}>🗑</button>
                   </>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
@@ -433,7 +435,8 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
           </div>
         </div>
         {err && <div style={{ color: '#f38ba8', fontSize: 13, marginBottom: 10 }}>{err}</div>}
-        <button style={s.btn(t.bgCard, t.blue)} onClick={saveProject} disabled={saving}>
+        {!isAdmin && <div style={{ fontSize: 11, color: '#f9e2af', marginBottom: 8 }}>🔒 Admin access required to save changes</div>}
+        <button style={{ ...s.btn(t.bgCard, t.blue), opacity: (!isAdmin || saving) ? 0.45 : 1 }} onClick={saveProject} disabled={saving || !isAdmin} title={!isAdmin ? 'Admin access required' : undefined}>
           {saving ? 'Saving…' : selected ? 'Save Changes' : 'Create Project'}
         </button>
       </div>
@@ -648,7 +651,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
 
         {err && <div style={{ color: '#f38ba8', fontSize: 13, marginBottom: 10 }}>{err}</div>}
         <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-          <button style={s.btn(t.bgCard, t.blue)} onClick={saveCircuit} disabled={saving}>{saving ? 'Saving…' : 'Save Circuit'}</button>
+          <button style={{ ...s.btn(t.bgCard, t.blue), opacity: (!isAdmin || saving) ? 0.45 : 1 }} onClick={saveCircuit} disabled={saving || !isAdmin} title={!isAdmin ? 'Admin access required' : undefined}>{saving ? 'Saving…' : 'Save Circuit'}</button>
           <button style={s.btn(t.textMuted, 'transparent')} onClick={() => { setEditingCircuit(null); setCircuitDraft(null) }}>Cancel</button>
         </div>
       </div>

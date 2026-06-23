@@ -11,6 +11,14 @@ if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
   )
 }
 
+// Admin token — set by AuthContext when user unlocks admin mode
+let _adminToken = ''
+export function setAdminToken(t: string) { _adminToken = t }
+export function clearAdminToken() { _adminToken = '' }
+function adminHeaders(): Record<string, string> {
+  return _adminToken ? { 'X-Admin-Token': _adminToken } : {}
+}
+
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`)
   if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`)
@@ -19,7 +27,7 @@ async function get<T>(path: string): Promise<T> {
 
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...adminHeaders() }, body: JSON.stringify(body),
   })
   if (!res.ok) {
     let detail = ''
@@ -31,27 +39,39 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 
 async function put<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    method: 'PUT', headers: { 'Content-Type': 'application/json', ...adminHeaders() }, body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error(`PUT ${path} failed: ${res.status}`)
+  if (!res.ok) {
+    let detail = ''
+    try { detail = (await res.json()).detail ?? '' } catch { /* ignore */ }
+    throw new Error(`PUT ${path} failed: ${res.status}${detail ? `: ${detail}` : ''}`)
+  }
   return res.json()
 }
 
 async function del(path: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}${path}`, { method: 'DELETE' })
-  if (!res.ok) throw new Error(`DELETE ${path} failed: ${res.status}`)
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'DELETE', headers: adminHeaders() })
+  if (!res.ok) {
+    let detail = ''
+    try { detail = (await res.json()).detail ?? '' } catch { /* ignore */ }
+    throw new Error(`DELETE ${path} failed: ${res.status}${detail ? `: ${detail}` : ''}`)
+  }
 }
 
 async function delJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, { method: 'DELETE' })
-  if (!res.ok) throw new Error(`DELETE ${path} failed: ${res.status}`)
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'DELETE', headers: adminHeaders() })
+  if (!res.ok) {
+    let detail = ''
+    try { detail = (await res.json()).detail ?? '' } catch { /* ignore */ }
+    throw new Error(`DELETE ${path} failed: ${res.status}${detail ? `: ${detail}` : ''}`)
+  }
   return res.json()
 }
 
 async function uploadFile<T>(path: string, file: File): Promise<T> {
   const form = new FormData()
   form.append('file', file)
-  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', body: form })
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers: adminHeaders(), body: form })
   if (!res.ok) {
     let detail = ''
     try { detail = (await res.json()).detail ?? '' } catch { /* ignore */ }

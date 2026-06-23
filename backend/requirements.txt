@@ -1,7 +1,8 @@
-fastapi==0.111.0
-uvicorn[standard]==0.29.0
+fastapi==0.115.12
+uvicorn[standard]==0.34.3
 pydantic==2.7.1
 networkx==3.3
-python-dotenv==1.0.1
-pytest==8.2.0
+python-dotenv==1.1.0
+pytest==9.0.3
 psycopg2-binary==2.9.9
+starlette>=0.46.2

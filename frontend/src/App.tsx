@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useAuth } from './context/AuthContext'
 import { Map } from './components/Map'
 import { SearchForm } from './components/SearchForm'
 import { RouteList } from './components/RouteList'
@@ -16,7 +17,7 @@ import { CapacityDashboard } from './components/CapacityDashboard'
 import { UserGuide } from './components/UserGuide'
 import { generateStraightLineDiagram, generateSldFromProject, generateDrawioXml, generateVisioVsdx } from './utils/generateDiagram'
 import { api } from './api/client'
-import { ThemeContext, darkTheme, duskTheme, lightTheme, type Theme, type ThemeMode } from './theme'
+import { ThemeContext, darkTheme, duskTheme, lightTheme, useTheme, type Theme, type ThemeMode } from './theme'
 import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem } from './types'
 import { ProjectsModal } from './components/ProjectsModal'
 import { RouteManualLeft, RouteManualMiddle, computeCandidates, assembleRoute } from './components/RouteManual'
@@ -1052,6 +1053,7 @@ export default function App() {
               />
             )}
           </div>
+          <AdminBar />
           <HealthBar dataLoaded={nodes.length > 0} />
         </div>
 
@@ -1532,6 +1534,54 @@ export default function App() {
         document.body
       )}
     </ThemeContext.Provider>
+  )
+}
+
+function AdminBar() {
+  const { isAdmin, authRequired, unlock, lock } = useAuth()
+  const t = useTheme()
+  const [showUnlock, setShowUnlock] = useState(false)
+  const [key, setKey] = useState('')
+  const [err, setErr] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  if (!authRequired) return null
+
+  async function attempt() {
+    setBusy(true); setErr(false)
+    const ok = await unlock(key)
+    setBusy(false)
+    if (ok) { setShowUnlock(false); setKey('') } else setErr(true)
+  }
+
+  return (
+    <div style={{ padding: '6px 12px', borderTop: `1px solid ${t.border}`, background: isAdmin ? `${t.green}11` : `${t.orange}11`, flexShrink: 0 }}>
+      {showUnlock ? (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input
+            type="password" autoFocus value={key}
+            onChange={e => { setKey(e.target.value); setErr(false) }}
+            onKeyDown={e => { if (e.key === 'Enter') attempt(); if (e.key === 'Escape') { setShowUnlock(false); setKey('') } }}
+            placeholder="Admin passphrase"
+            style={{ flex: 1, padding: '5px 8px', borderRadius: 5, border: `1px solid ${err ? t.red : t.border}`, background: t.bgDeep, color: t.text, fontSize: 11, outline: 'none', fontFamily: 'inherit' }}
+          />
+          <button onClick={attempt} disabled={busy || !key} style={{ padding: '5px 10px', borderRadius: 5, border: 'none', background: t.blue, color: '#fff', fontSize: 11, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', opacity: !key ? 0.5 : 1 }}>{busy ? '…' : 'Unlock'}</button>
+          <button onClick={() => { setShowUnlock(false); setKey('') }} style={{ padding: '5px 8px', borderRadius: 5, border: `1px solid ${t.border}`, background: 'transparent', color: t.textFaint, fontSize: 11, cursor: 'pointer' }}>✕</button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 13 }}>{isAdmin ? '🔓' : '🔒'}</span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: isAdmin ? t.green : t.orange, textTransform: 'uppercase', letterSpacing: '0.08em', flex: 1 }}>
+            {isAdmin ? 'Admin mode' : 'Read-only'}
+          </span>
+          {isAdmin
+            ? <button onClick={lock} style={{ fontSize: 10, padding: '3px 8px', borderRadius: 4, border: `1px solid ${t.border}`, background: 'transparent', color: t.textFaint, cursor: 'pointer' }}>Lock</button>
+            : <button onClick={() => setShowUnlock(true)} style={{ fontSize: 10, padding: '3px 8px', borderRadius: 4, border: `1px solid ${t.orange}`, background: `${t.orange}15`, color: t.orange, cursor: 'pointer', fontWeight: 700 }}>Unlock</button>
+          }
+        </div>
+      )}
+      {err && <div style={{ fontSize: 10, color: t.red, marginTop: 3 }}>Incorrect passphrase</div>}
+    </div>
   )
 }
 

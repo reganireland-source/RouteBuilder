@@ -1,0 +1,67 @@
+version: '3.9'
+
+# ── RouteBuilder — local / self-hosted deployment ────────────────────────────
+# Usage:
+#   cp backend/.env.example backend/.env   (fill in values)
+#   docker compose up --build
+#
+# The app will be available at http://localhost (frontend) and
+# http://localhost:8000 (backend API). Set VITE_APP_PASSWORD to protect
+# the frontend login page.
+
+services:
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       routebuilder
+      POSTGRES_USER:     routebuilder
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U routebuilder"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL:    postgresql://routebuilder:${DB_PASSWORD:-changeme}@db:5432/routebuilder
+      ADMIN_KEY:       ${ADMIN_KEY:-}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost}
+      NLP_ENABLED:     ${NLP_ENABLED:-false}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY:  ${OPENAI_API_KEY:-}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL:      http://localhost:8000
+        VITE_APP_PASSWORD: ${VITE_APP_PASSWORD:-}
+        VITE_ENABLE_NLP:   ${NLP_ENABLED:-false}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+volumes:
+  db_data:

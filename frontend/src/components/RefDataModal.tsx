@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, AllowedHandoffSegment, InterconnectRule, NoteCategory, NoteSeverity, OnNet, SegmentCapacity, SegmentOutage, SolutionNote, VerificationStatus } from '../types'
 import { useTheme, type Theme } from '../theme'
+import { useAuth } from '../context/AuthContext'
 function useIsMobile(): boolean {
   const [mobile, setMobile] = useState(() => window.innerWidth < 768)
   useEffect(() => {
@@ -427,6 +428,7 @@ interface Props {
 
 export function RefDataModal({ nodes, segments, systems, capacity, outages, rules, config, onDataChange, onClose, initialNoteFocus }: Props) {
   const t = useTheme()
+  const { isAdmin } = useAuth()
   const isMobile = useIsMobile()
   const [tab, setTab] = useState<Tab>(initialNoteFocus ? 'notes' : 'nodes')
   const [editId, setEditId] = useState<string | null>(null)
@@ -549,6 +551,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   }
 
   function ActionsCell({ id, onEdit, onDelete }: { id: string; onEdit?: () => void; onDelete: () => void }) {
+    if (!isAdmin) return null
     return (
       <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', padding: '0 6px', flexShrink: 0, minWidth: 140 }}>
         {deleteConfirmId === id ? (
@@ -567,12 +570,14 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   }
 
   function SaveCancel({ onSave, onCancel, disabled, disabledReason }: { onSave: () => void; onCancel: () => void; disabled?: boolean; disabledReason?: string }) {
+    const blocked = !isAdmin
     return (
       <div style={{ display: 'flex', gap: 6, gridColumn: '1 / -1', marginTop: 4, alignItems: 'center' }}>
-        <button style={{ ...actionBtn('save'), opacity: (saving || disabled) ? 0.45 : 1, cursor: (saving || disabled) ? 'not-allowed' : 'pointer' }} disabled={saving || disabled} onClick={onSave}>{saving ? 'Saving…' : 'Save'}</button>
+        <button style={{ ...actionBtn('save'), opacity: (saving || disabled || blocked) ? 0.45 : 1, cursor: (saving || disabled || blocked) ? 'not-allowed' : 'pointer' }} disabled={saving || disabled || blocked} onClick={onSave} title={blocked ? 'Admin access required' : undefined}>{saving ? 'Saving…' : 'Save'}</button>
         <button style={actionBtn('cancel')} onClick={onCancel}>Cancel</button>
-        {disabled && disabledReason && <span style={{ fontSize: 11, color: t.red, marginLeft: 8 }}>{disabledReason}</span>}
-        {error && <span style={{ fontSize: 11, color: t.red, marginLeft: 8 }}>{error}</span>}
+        {blocked && <span style={{ fontSize: 11, color: t.orange, marginLeft: 8 }}>🔒 Admin access required</span>}
+        {!blocked && disabled && disabledReason && <span style={{ fontSize: 11, color: t.red, marginLeft: 8 }}>{disabledReason}</span>}
+        {!blocked && error && <span style={{ fontSize: 11, color: t.red, marginLeft: 8 }}>{error}</span>}
       </div>
     )
   }
@@ -1783,10 +1788,12 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             value={lFilter} onChange={e => setLFilter(e.target.value)}
             style={{ ...inputStyle, flex: 1, padding: '5px 8px' }}
           />
-          <button onClick={() => { setLAdding(v => !v); setLAddVals({}) }}
-            style={{ ...actionBtn('add'), padding: '5px 12px', flexShrink: 0 }}>
-            {lAdding ? 'Cancel' : `+ Add ${subTab === 'notes' ? 'note' : 'category'}`}
-          </button>
+          {isAdmin && (
+            <button onClick={() => { setLAdding(v => !v); setLAddVals({}) }}
+              style={{ ...actionBtn('add'), padding: '5px 12px', flexShrink: 0 }}>
+              {lAdding ? 'Cancel' : `+ Add ${subTab === 'notes' ? 'note' : 'category'}`}
+            </button>
+          )}
         </div>
 
         {lError && (
@@ -2243,9 +2250,11 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
               onChange={e => setFilter(e.target.value)}
               style={{ ...inputStyle, flex: 1, padding: '5px 8px' }}
             />
-            <button onClick={() => startAdd(addDefaults[tab as DataTab])} style={{ ...actionBtn('add'), padding: '5px 12px', flexShrink: 0 }}>
-              + Add {tab === 'rules' ? 'pair' : tab.slice(0, -1)}
-            </button>
+            {isAdmin && (
+              <button onClick={() => startAdd(addDefaults[tab as DataTab])} style={{ ...actionBtn('add'), padding: '5px 12px', flexShrink: 0 }}>
+                + Add {tab === 'rules' ? 'pair' : tab.slice(0, -1)}
+              </button>
+            )}
           </div>
         )}
 
