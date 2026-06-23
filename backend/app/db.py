@@ -248,6 +248,7 @@ def init_db() -> None:
             _once(cur, 'm055', _run_migration_055)   # convert notes/categories to proper columns
             _once(cur, 'm056', _run_migration_056)   # upsert expanded default note categories
             _once(cur, 'm057', _run_migration_057)   # fix remaining subsea waypoints (ADC-BAT-SIN, SJC2, RNAL)
+            _once(cur, 'm058', _run_migration_058)   # Malay Peninsula / Arabian / Mediterranean waypoints
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -2457,6 +2458,97 @@ def _run_migration_053(cur) -> None:
         # ── Trans-Pacific ─────────────────────────────────────────────────
         # BDN1→Tanshui: north Pacific arc consistent with FASTER-BDN-CHK
         "FASTER-BDN-TAM": [[46.0, -145.0], [50.0, -175.0], [48.0, 170.0], [38.0, 145.0], [24.0, 122.0]],
+    }
+
+    for seg_id, wps in waypoints.items():
+        cur.execute(
+            "UPDATE segments SET data = jsonb_set(data, '{waypoints}', %s::jsonb) WHERE id = %s",
+            (json.dumps(wps), seg_id),
+        )
+
+
+def _run_migration_058(cur) -> None:
+    """Fix Malay Peninsula, Arabian Peninsula and Mediterranean land crossings.
+
+    These waypoints cover cable systems (INDIGO_W, SMW3, SMW4, AAE1, BBG) that
+    exist in some deployments but not in the default migrated database.  Each
+    UPDATE is a no-op for segments that don't exist, so this migration is safe
+    to run everywhere.
+
+    Issues fixed:
+    - SIN→Mumbai (INDIGO_W/SMW3/SMW4): direct line clips Riau Islands/Sumatra;
+      routed south through Strait of Malacca, Bay of Bengal, around India's tip.
+    - MAA→Penang (BBG): Chennai east coast → Penang west coast straight line
+      crosses the southern Malay Peninsula; routed around Sri Lanka's south tip.
+    - Penang→Singapore (BBG): both on west coast, straight line crosses peninsula;
+      routed south through Strait of Malacca.
+    - SIN→Vung Tau (AAE-1): slight eastern jog to stay in South China Sea.
+    - SHV→Penang (AAE-1): Gulf of Thailand → south tip of peninsula → Strait.
+    - SAT→Ngwe Saung (AAE-1): north through Andaman Sea.
+    - DXB→London (SMW3/SMW4): full path through Gulf of Oman, Arabian Sea,
+      Red Sea, Suez, Mediterranean to UK.
+    - FUJ→Jeddah (AAE-1): south around Oman into Red Sea.
+    - BAR→Marseille (AAE-1): south around Italy's toe, Tyrrhenian Sea.
+    """
+    waypoints: dict[str, list[list[float]]] = {
+        # Singapore → Mumbai: Strait of Malacca → Bay of Bengal → Arabian Sea
+        "INDIGO_W-SIN-BOM": [
+            [ 2.0, 101.5], [ 4.5, 100.0], [ 7.0,  97.5],
+            [10.0,  88.0], [ 7.0,  79.0], [11.0,  73.5], [16.0,  72.0],
+        ],
+        "SMW3-SIN-BOM": [
+            [ 2.0, 101.5], [ 4.5, 100.0], [ 7.0,  97.5],
+            [10.0,  88.0], [ 7.0,  79.0], [11.0,  73.5], [16.0,  72.0],
+        ],
+        "SMW4-SIN-BOM": [
+            [ 2.0, 101.5], [ 4.5, 100.0], [ 7.0,  97.5],
+            [10.0,  88.0], [ 7.0,  79.0], [11.0,  73.5], [16.0,  72.0],
+        ],
+        # Chennai → Penang: Bay of Bengal → south India tip → Strait of Malacca
+        "BBG-MAA-PEN": [
+            [10.5,  80.5], [ 6.5,  80.0], [ 6.5,  79.0],
+            [ 6.0,  77.5], [ 4.0,  99.0], [ 5.5, 100.0],
+        ],
+        # Penang → Singapore: south through Strait of Malacca
+        "BBG-PEN-SIN": [
+            [ 5.0, 100.5], [ 3.0, 101.0], [ 1.5, 103.0],
+        ],
+        # Singapore → Vung Tau: east into South China Sea
+        "AAE1-SIN-VUT": [
+            [ 1.5, 104.5], [ 4.0, 105.0], [ 7.0, 106.0],
+        ],
+        # Sihanoukville → Penang: Gulf of Thailand → south tip → Strait
+        "AAE1-SHV-PEN": [
+            [ 8.0, 103.5], [ 4.5, 103.0], [ 2.0, 103.5],
+            [ 2.0, 102.0], [ 4.0, 100.5], [ 5.5, 100.3],
+        ],
+        # Satun → Ngwe Saung: north through Andaman Sea
+        "AAE1-SAT-NGW": [
+            [ 7.0,  98.5], [ 9.5,  97.5], [12.0,  96.5], [15.0,  95.5],
+        ],
+        # Dubai → London: Gulf of Oman → Arabian Sea → Red Sea → Suez → Med
+        "SMW3-DXB-LON": [
+            [24.0,  58.0], [22.5,  59.0], [17.0,  56.0], [12.5,  50.0],
+            [12.0,  44.5], [13.0,  43.5], [18.0,  39.5], [27.0,  34.0],
+            [30.5,  32.0], [31.5,  32.5], [36.0,  25.0], [38.0,  13.0],
+            [43.5,   5.0], [47.5,  -3.0],
+        ],
+        "SMW4-DXB-LON": [
+            [24.0,  58.0], [22.5,  59.0], [17.0,  56.0], [12.5,  50.0],
+            [12.0,  44.5], [13.0,  43.5], [18.0,  39.5], [27.0,  34.0],
+            [30.5,  32.0], [31.5,  32.5], [36.0,  25.0], [38.0,  13.0],
+            [43.5,   5.0], [47.5,  -3.0],
+        ],
+        # Fujairah → Jeddah: south around Oman into Gulf of Aden then Red Sea
+        "AAE1-FUJ-JED": [
+            [23.5,  58.0], [21.5,  60.0], [16.0,  57.0],
+            [12.0,  48.0], [13.0,  44.0], [16.0,  41.5], [20.0,  39.0],
+        ],
+        # Bari → Marseille: south around Italy's toe, Tyrrhenian Sea
+        "AAE1-BAR-MRS": [
+            [37.0,  16.0], [37.0,  13.5], [38.5,  11.5],
+            [40.5,   9.0], [42.0,   7.5],
+        ],
     }
 
     for seg_id, wps in waypoints.items():

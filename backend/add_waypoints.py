@@ -236,6 +236,154 @@ WAYPOINTS: dict[str, list[list[float]]] = {
         [23.0, 118.0],   # existing — open South China Sea NE of HK
         [29.0, 124.0],   # existing — East China Sea
     ],
+
+    # ── Singapore → Mumbai (INDIGO_W, SMW3, SMW4) ────────────────────────────
+    # Straight line from Singapore exits west-northwest, clipping through the
+    # Riau Islands / Sumatra before heading across the Bay of Bengal.
+    # Route: west through Strait of Malacca, then Arabian Sea south of India.
+    "INDIGO_W-SIN-BOM": [
+        [ 2.0, 101.5],   # Strait of Malacca, south entrance
+        [ 4.5, 100.0],   # Mid Strait of Malacca
+        [ 7.0,  97.5],   # Andaman Sea (north of Strait)
+        [10.0,  88.0],   # Bay of Bengal (open ocean)
+        [ 7.0,  79.0],   # South tip of India / Lakshadweep Sea
+        [11.0,  73.5],   # Arabian Sea (approaching Mumbai from south)
+        [16.0,  72.0],   # Arabian Sea (west of Mumbai)
+    ],
+    "SMW3-SIN-BOM": [
+        [ 2.0, 101.5],
+        [ 4.5, 100.0],
+        [ 7.0,  97.5],
+        [10.0,  88.0],
+        [ 7.0,  79.0],
+        [11.0,  73.5],
+        [16.0,  72.0],
+    ],
+    "SMW4-SIN-BOM": [
+        [ 2.0, 101.5],
+        [ 4.5, 100.0],
+        [ 7.0,  97.5],
+        [10.0,  88.0],
+        [ 7.0,  79.0],
+        [11.0,  73.5],
+        [16.0,  72.0],
+    ],
+
+    # ── Chennai → Penang (BBG) ────────────────────────────────────────────────
+    # Straight line from Chennai (east coast India) to Penang (west Malaysia)
+    # crosses the southern tip of India and the width of the Malay Peninsula.
+    # Route: south through Bay of Bengal, around Sri Lanka, up Strait of Malacca.
+    "BBG-MAA-PEN": [
+        [10.5,  80.5],   # Bay of Bengal (south-east of India)
+        [ 6.5,  80.0],   # South of India tip / Gulf of Mannar
+        [ 6.5,  79.0],   # Gulf of Mannar (clear of India/Sri Lanka)
+        [ 6.0,  77.5],   # Lakshadweep Sea
+        [ 4.0,  99.0],   # Strait of Malacca entrance (south)
+        [ 5.5, 100.0],   # Strait of Malacca (approaching Penang)
+    ],
+
+    # ── Penang → Singapore (BBG) ─────────────────────────────────────────────
+    # Both on the west coast of the Malay Peninsula; straight line crosses the
+    # peninsula interior. Route south through the Strait of Malacca.
+    "BBG-PEN-SIN": [
+        [ 5.0, 100.5],   # Strait of Malacca, north of Kuala Lumpur
+        [ 3.0, 101.0],   # Strait of Malacca, mid-section
+        [ 1.5, 103.0],   # Strait of Malacca, south entrance
+    ],
+
+    # ── Singapore → Vung Tau (AAE-1) ─────────────────────────────────────────
+    # Direct line skims the east coast of the Malay Peninsula / south Vietnam.
+    # Route: north through South China Sea (east side of peninsula).
+    "AAE1-SIN-VUT": [
+        [ 1.5, 104.5],   # South China Sea, east of Singapore
+        [ 4.0, 105.0],   # South China Sea
+        [ 7.0, 106.0],   # South China Sea (approaching Vietnam shelf)
+    ],
+
+    # ── Sihanoukville → Penang (AAE-1) ───────────────────────────────────────
+    # Straight line from Cambodia south-west to Penang crosses the Malay
+    # Peninsula at about 5-6°N. Route: south through Gulf of Thailand then
+    # around the peninsula's south tip or through the Strait of Malacca.
+    "AAE1-SHV-PEN": [
+        [ 8.0, 103.5],   # Gulf of Thailand (open water south of Cambodia)
+        [ 4.5, 103.0],   # South China Sea (approaching Malay south coast)
+        [ 2.0, 103.5],   # Singapore Strait area (south of peninsula)
+        [ 2.0, 102.0],   # Strait of Malacca, south entrance
+        [ 4.0, 100.5],   # Strait of Malacca
+        [ 5.5, 100.3],   # Approaching Penang from south
+    ],
+
+    # ── Satun → Ngwe Saung (AAE-1) ───────────────────────────────────────────
+    # Satun is on Thailand's Andaman coast; Ngwe Saung is in Myanmar.
+    # Straight line goes overland through Thailand. Route north through Andaman Sea.
+    "AAE1-SAT-NGW": [
+        [ 7.0,  98.5],   # Andaman Sea (south of Thailand Andaman coast)
+        [ 9.5,  97.5],   # Andaman Sea (west of Thailand)
+        [12.0,  96.5],   # Andaman Sea (approaching Myanmar)
+        [15.0,  95.5],   # Andaman Sea (south Myanmar coast)
+    ],
+
+    # ── Dubai → London (SMW3, SMW4) ──────────────────────────────────────────
+    # These are long-haul segments; straight line crosses the entire Arabian
+    # Peninsula, Levant, Turkey, and Europe overland.
+    # Route: Gulf of Oman → Arabian Sea → Red Sea → Suez → Mediterranean.
+    "SMW3-DXB-LON": [
+        [24.0,  58.0],   # Gulf of Oman (south of UAE, offshore)
+        [22.5,  59.0],   # Gulf of Oman (clear of Muscat coast)
+        [17.0,  56.0],   # Arabian Sea (south of Oman)
+        [12.5,  50.0],   # Gulf of Aden / Arabian Sea
+        [12.0,  44.5],   # Gulf of Aden
+        [13.0,  43.5],   # Bab el-Mandeb (Red Sea south entrance)
+        [18.0,  39.5],   # Red Sea (central)
+        [27.0,  34.0],   # Red Sea north / Gulf of Suez
+        [30.5,  32.0],   # Suez Canal area
+        [31.5,  32.5],   # Eastern Mediterranean (Port Said area)
+        [36.0,  25.0],   # Eastern Mediterranean (south of Crete)
+        [38.0,  13.0],   # Tyrrhenian Sea / Strait of Messina
+        [43.5,   5.0],   # Gulf of Lion / French Riviera
+        [47.5,  -3.0],   # Bay of Biscay (approaching UK)
+    ],
+    "SMW4-DXB-LON": [
+        [24.0,  58.0],
+        [22.5,  59.0],
+        [17.0,  56.0],
+        [12.5,  50.0],
+        [12.0,  44.5],
+        [13.0,  43.5],
+        [18.0,  39.5],
+        [27.0,  34.0],
+        [30.5,  32.0],
+        [31.5,  32.5],
+        [36.0,  25.0],
+        [38.0,  13.0],
+        [43.5,   5.0],
+        [47.5,  -3.0],
+    ],
+
+    # ── Fujairah → Jeddah (AAE-1) ────────────────────────────────────────────
+    # Straight line crosses the full width of the Arabian Peninsula and Saudi Arabia.
+    # Route: south into Gulf of Oman → Arabian Sea → around Oman → Red Sea.
+    "AAE1-FUJ-JED": [
+        [23.5,  58.0],   # Gulf of Oman (south of Fujairah, offshore)
+        [21.5,  60.0],   # Gulf of Oman (south, clear of Oman)
+        [16.0,  57.0],   # Arabian Sea (south of Oman)
+        [12.0,  48.0],   # Gulf of Aden
+        [13.0,  44.0],   # Bab el-Mandeb
+        [16.0,  41.5],   # Red Sea (central)
+        [20.0,  39.0],   # Red Sea (approaching Jeddah)
+    ],
+
+    # ── Bari → Marseille (AAE-1) ─────────────────────────────────────────────
+    # Straight line from Bari (Adriatic) to Marseille clips southern Italy and
+    # the French/Italian interior. Route: south around Italy's toe then
+    # Tyrrhenian Sea north to Marseille.
+    "AAE1-BAR-MRS": [
+        [37.0,  16.0],   # Ionian Sea (south of Italy's toe)
+        [37.0,  13.5],   # Strait of Messina / Tyrrhenian Sea south entrance
+        [38.5,  11.5],   # Tyrrhenian Sea (west of Sicily)
+        [40.5,   9.0],   # Tyrrhenian Sea (west of Sardinia)
+        [42.0,   7.5],   # Ligurian Sea (approaching French Riviera)
+    ],
 }
 
 
