@@ -562,7 +562,7 @@ export function AlgoEval({ nodes, onClose }: Props) {
   const panelBg: React.CSSProperties = { background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 8 }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 800, background: t.bgBase, display: 'flex', flexDirection: 'column', fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1001, background: t.bgBase, display: 'flex', flexDirection: 'column', fontFamily: "'Inter', system-ui, sans-serif" }}>
 
       {/* ── Header ── */}
       <div style={{ borderBottom: `1px solid ${t.border}`, padding: '0 20px', display: 'flex', alignItems: 'center', gap: 16, height: 56, flexShrink: 0 }}>
