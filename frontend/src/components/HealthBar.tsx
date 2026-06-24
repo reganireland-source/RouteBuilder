@@ -19,9 +19,10 @@ const DOT_COLOR: Record<Status, string> = {
 
 interface Props {
   dataLoaded: boolean
+  mapsProvider?: 'osm' | 'google'
 }
 
-export function HealthBar({ dataLoaded }: Props) {
+export function HealthBar({ dataLoaded, mapsProvider }: Props) {
   const t = useTheme()
   const [backendStatus, setBackendStatus] = useState<Status>('checking')
   const [backendDetail, setBackendDetail] = useState<string>('')
@@ -31,6 +32,8 @@ export function HealthBar({ dataLoaded }: Props) {
   const [nlpDetail,     setNlpDetail]     = useState<string>('')
   const [dbStatus,      setDbStatus]      = useState<Status>('checking')
   const [dbDetail,      setDbDetail]      = useState<string>('')
+  const [mapsStatus,    setMapsStatus]    = useState<Status>('checking')
+  const [mapsDetail,    setMapsDetail]    = useState<string>('Checking…')
 
   async function checkBackend() {
     setBackendStatus('checking')
@@ -70,6 +73,48 @@ export function HealthBar({ dataLoaded }: Props) {
     return () => clearInterval(interval)
   }, [])
 
+  useEffect(() => {
+    setMapsStatus('checking')
+    setMapsDetail('Checking…')
+    let cancelled = false
+    const provider = mapsProvider ?? 'osm'
+    if (provider === 'google') {
+      if (!import.meta.env.VITE_GMAPS_API_KEY) {
+        setMapsStatus('error')
+        setMapsDetail('No API key in build')
+        return
+      }
+      let attempts = 0
+      const poll = () => {
+        if (cancelled) return
+        if ((window as { google?: { maps?: unknown } }).google?.maps) {
+          setMapsStatus('ok')
+          setMapsDetail('Google Maps')
+        } else if (attempts++ < 16) {
+          setTimeout(poll, 500)
+        } else {
+          setMapsStatus('error')
+          setMapsDetail('Script failed to load')
+        }
+      }
+      setTimeout(poll, 300)
+      return () => { cancelled = true }
+    } else {
+      const ctrl = new AbortController()
+      const timeout = setTimeout(() => ctrl.abort(), 5000)
+      fetch('https://a.basemaps.cartocdn.com/dark_all/3/4/3.png', { signal: ctrl.signal })
+        .then(r => {
+          if (!cancelled) {
+            setMapsStatus(r.ok ? 'ok' : 'error')
+            setMapsDetail(r.ok ? 'OpenStreetMap' : `HTTP ${r.status}`)
+          }
+        })
+        .catch(() => { if (!cancelled) { setMapsStatus('error'); setMapsDetail('Tile server unreachable') } })
+        .finally(() => clearTimeout(timeout))
+      return () => { cancelled = true; ctrl.abort() }
+    }
+  }, [mapsProvider])
+
   // While backend hasn't responded yet, mirror dataLoaded for the DATA dot
   const effectiveDataStatus: Status = backendStatus === 'checking'
     ? (dataLoaded ? 'ok' : 'checking')
@@ -100,6 +145,11 @@ export function HealthBar({ dataLoaded }: Props) {
       label:  'LLM API',
       status: nlpStatus,
       detail: nlpStatus === 'checking' ? 'Checking…' : nlpDetail,
+    },
+    {
+      label:  'Maps',
+      status: mapsStatus,
+      detail: mapsDetail,
     },
   ]
 

@@ -1058,7 +1058,7 @@ export default function App() {
             )}
           </div>
           <AdminBar />
-          <HealthBar dataLoaded={nodes.length > 0} />
+          <HealthBar dataLoaded={nodes.length > 0} mapsProvider={config.maps_provider} />
         </div>
 
         {/* Left panel collapse toggle */}
