@@ -442,7 +442,27 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   const [showRulesHelp, setShowRulesHelp] = useState(false)
   const [onNetOwnership, setOnNetOwnership] = useState<Set<string>>(() => new Set(config.on_net_ownership))
   const [mapsProvider, setMapsProvider] = useState<'osm' | 'google'>(() => config.maps_provider ?? 'osm')
+  const [mapsStatus, setMapsStatus] = useState<'checking' | 'ok' | 'error'>('checking')
   const [capSegmentOpen, setCapSegmentOpen] = useState(false)
+
+  useEffect(() => {
+    setMapsStatus('checking')
+    let cancelled = false
+    if (mapsProvider === 'google') {
+      const timer = setTimeout(() => {
+        if (!cancelled) setMapsStatus((window as { google?: { maps?: unknown } }).google?.maps ? 'ok' : 'error')
+      }, 600)
+      return () => { cancelled = true; clearTimeout(timer) }
+    } else {
+      const ctrl = new AbortController()
+      const timeout = setTimeout(() => ctrl.abort(), 5000)
+      fetch('https://a.basemaps.cartocdn.com/dark_all/3/4/3.png', { signal: ctrl.signal })
+        .then(r => { if (!cancelled) setMapsStatus(r.ok ? 'ok' : 'error') })
+        .catch(() => { if (!cancelled) setMapsStatus('error') })
+        .finally(() => clearTimeout(timeout))
+      return () => { cancelled = true; ctrl.abort() }
+    }
+  }, [mapsProvider])
 
   function isOnNet(ownership: string) { return onNetOwnership.has(ownership) }
 
@@ -2187,12 +2207,19 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
         {isAdmin && (
           <div style={{ marginTop: 28 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 4 }}>Map Provider</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>Map Provider</div>
+              <div style={{
+                width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                background: mapsStatus === 'ok' ? '#a6e3a1' : mapsStatus === 'error' ? '#f38ba8' : '#f9e2af',
+                boxShadow: mapsStatus === 'ok' ? '0 0 4px #a6e3a188' : mapsStatus === 'error' ? '0 0 4px #f38ba888' : 'none',
+              }} title={mapsStatus === 'ok' ? 'Service reachable' : mapsStatus === 'error' ? 'Service unreachable' : 'Checking…'} />
+            </div>
             <div style={{ fontSize: 11, color: t.textFaint, marginBottom: 12 }}>
               Switch between OpenStreetMap tiles and Google Maps satellite/roadmap.
               Google Maps requires <code>VITE_GMAPS_API_KEY</code> to be set in the environment.
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               {(['osm', 'google'] as const).map(p => {
                 const active = mapsProvider === p
                 return (
@@ -2211,6 +2238,9 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                   </button>
                 )
               })}
+              <span style={{ fontSize: 11, color: mapsStatus === 'ok' ? '#a6e3a1' : mapsStatus === 'error' ? '#f38ba8' : '#f9e2af', marginLeft: 4 }}>
+                {mapsStatus === 'ok' ? 'Reachable' : mapsStatus === 'error' ? 'Unreachable' : 'Checking…'}
+              </span>
             </div>
           </div>
         )}
