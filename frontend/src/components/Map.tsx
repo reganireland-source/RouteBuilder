@@ -57,6 +57,7 @@ interface Props {
   manualCandidates?: NextHopCandidate[]
   onManualNodeClick?: (node: CableNode) => void
   manualMobileMode?: boolean   // enlarge candidate circles for touch
+  mapsProvider?: 'osm' | 'google'
 }
 
 function MapResizer({ panelWidth }: { panelWidth?: number }) {
@@ -278,7 +279,7 @@ function geoLines(
   return [[[lat1, nLng1], [lat2, nLng1 + d]]]
 }
 
-export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false }: Props) {
+export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider }: Props) {
   const t = useTheme()
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
@@ -401,7 +402,7 @@ export function Map({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, s
       maxBounds={[[-75, -25], [80, 345]]}
       maxBoundsViscosity={1.0}
     >
-      {import.meta.env.VITE_MAPS_PROVIDER === 'google'
+      {(mapsProvider === 'google' || (!mapsProvider && import.meta.env.VITE_MAPS_PROVIDER === 'google'))
         ? <GoogleMutantLayer themeId={t.themeId} />
         : <TileLayer
             key={t.mapTileUrl}

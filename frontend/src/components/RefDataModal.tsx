@@ -441,6 +441,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   const [filter, setFilter] = useState('')
   const [showRulesHelp, setShowRulesHelp] = useState(false)
   const [onNetOwnership, setOnNetOwnership] = useState<Set<string>>(() => new Set(config.on_net_ownership))
+  const [mapsProvider, setMapsProvider] = useState<'osm' | 'google'>(() => config.maps_provider ?? 'osm')
   const [capSegmentOpen, setCapSegmentOpen] = useState(false)
 
   function isOnNet(ownership: string) { return onNetOwnership.has(ownership) }
@@ -451,6 +452,12 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     else next.add(ownership)
     setOnNetOwnership(next)
     await api.updateConfig({ on_net_ownership: [...next] })
+    onDataChange()
+  }
+
+  async function setMapsProviderAndSave(provider: 'osm' | 'google') {
+    setMapsProvider(provider)
+    await api.updateConfig({ maps_provider: provider })
     onDataChange()
   }
 
@@ -2177,6 +2184,36 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         >
           Reset to defaults
         </button>
+
+        {isAdmin && (
+          <div style={{ marginTop: 28 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 4 }}>Map Provider</div>
+            <div style={{ fontSize: 11, color: t.textFaint, marginBottom: 12 }}>
+              Switch between OpenStreetMap tiles and Google Maps satellite/roadmap.
+              Google Maps requires <code>VITE_GMAPS_API_KEY</code> to be set in the environment.
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {(['osm', 'google'] as const).map(p => {
+                const active = mapsProvider === p
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setMapsProviderAndSave(p)}
+                    style={{
+                      padding: '6px 16px', borderRadius: 5, fontSize: 12, cursor: 'pointer',
+                      fontWeight: active ? 700 : 400,
+                      border: `1px solid ${active ? t.blue : t.border}`,
+                      background: active ? t.blue + '22' : t.bgCard,
+                      color: active ? t.blue : t.textMuted,
+                    }}
+                  >
+                    {p === 'osm' ? 'OpenStreetMap' : 'Google Maps'}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
     )
   }

@@ -8,6 +8,7 @@ export type AppMode = 'routebuilder' | 'routemanual' | 'systemviewer' | 'nodefin
 
 export interface AppConfig {
   on_net_ownership: string[]
+  maps_provider?: 'osm' | 'google'
 }
 
 export type PortSpeed = '1G' | '10G' | '100G' | '400G'

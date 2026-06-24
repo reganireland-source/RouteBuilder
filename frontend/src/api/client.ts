@@ -116,7 +116,7 @@ export const api = {
 
   // Config
   getConfig:    ()                    => get<AppConfig>('/api/config'),
-  updateConfig: (data: AppConfig)     => put<AppConfig>('/api/config', data),
+  updateConfig: (data: Partial<AppConfig>) => put<AppConfig>('/api/config', data),
 
   // Health
   getHealth:    () => get<{ status: string; nodes: number; segments: number; systems: number; storage: string; db_ok: boolean; db_detail: string }>('/api/health'),

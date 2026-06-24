@@ -309,6 +309,7 @@ export function MobileLayout({
             manualCandidates={manualCandidates}
             onManualNodeClick={onManualNodeClick}
             manualMobileMode={manualBuilding}
+            mapsProvider={config.maps_provider}
           />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: t.textFaint, background: t.bgMap }}>

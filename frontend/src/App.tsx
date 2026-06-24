@@ -1236,6 +1236,7 @@ export default function App() {
               manualState={mode === 'routemanual' ? manualState : null}
               manualCandidates={mode === 'routemanual' ? manualCandidates : []}
               onManualNodeClick={mode === 'routemanual' ? handleManualNodeClick : undefined}
+              mapsProvider={config.maps_provider}
             />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.textFaint }}>
