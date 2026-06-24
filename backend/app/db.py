@@ -249,6 +249,7 @@ def init_db() -> None:
             _once(cur, 'm056', _run_migration_056)   # upsert expanded default note categories
             _once(cur, 'm057', _run_migration_057)   # fix remaining subsea waypoints (ADC-BAT-SIN, SJC2, RNAL)
             _once(cur, 'm058', _run_migration_058)   # Malay Peninsula / Arabian / Mediterranean waypoints
+            _once(cur, 'm059', _run_migration_059)   # C2C-S3C and EAC-K south-of-Japan re-route
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -2685,6 +2686,57 @@ def _run_migration_054(cur) -> None:
             cur,
             "INSERT INTO note_categories (id, data) VALUES %s ON CONFLICT DO NOTHING",
             [(cat["id"], json.dumps(cat)) for cat in _DEFAULT_NOTE_CATEGORIES],
+        )
+
+
+def _run_migration_059(cur) -> None:
+    """Re-route C2C-S3C and EAC-K south of the Japanese mainland.
+
+    Both segments were drawing through Japanese land:
+
+    C2C-S3C (Busan → KDDI Shima CLS):
+      Old waypoints at 34.5°N cut through the Japan Inland Sea (Hiroshima/Osaka
+      corridor).  Replaced with a south-of-Kyushu / south-of-Shikoku route that
+      exits the Korea Strait, rounds Cape Sata and Cape Ashizuri, and approaches
+      Shima from the Pacific south.
+
+    EAC-K (Taean CLS → Ajigaura CLS):
+      Waypoint [33.5, 133.0] placed the Catmull-Rom curve directly over Shikoku
+      (Kochi coast runs at ~33.5°N/133°E).  Replaced with a more southerly arc
+      that clears Kyushu and Shikoku before rising to Ajigaura.
+    """
+    waypoints = {
+        # Korea Strait → south of Kyushu (Cape Sata 31.0°N/130.7°E) →
+        # south of Shikoku (Cape Ashizuri 32.7°N/133°E) →
+        # Pacific south of Kii Peninsula → approach Shima
+        'C2C-S3C': [
+            [33.5, 129.5],
+            [31.2, 130.8],
+            [31.0, 133.0],
+            [32.0, 135.0],
+            [33.0, 136.3],
+        ],
+        # Korea Strait south of Jeju → south of Kyushu →
+        # south of Shikoku → Pacific south of Kii →
+        # east of Izu Peninsula → Ajigaura
+        'EAC-K': [
+            [34.5, 127.5],
+            [32.0, 129.5],
+            [31.0, 131.5],
+            [31.5, 134.0],
+            [32.5, 136.5],
+            [34.5, 139.5],
+            [35.8, 140.5],
+        ],
+    }
+    for seg_id, wps in waypoints.items():
+        cur.execute(
+            """
+            UPDATE segments
+               SET data = jsonb_set(data, '{waypoints}', %s::jsonb)
+             WHERE data->>'id' = %s
+            """,
+            (json.dumps(wps), seg_id),
         )
 
 

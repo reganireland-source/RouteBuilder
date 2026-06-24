@@ -384,6 +384,28 @@ WAYPOINTS: dict[str, list[list[float]]] = {
         [40.5,   9.0],   # Tyrrhenian Sea (west of Sardinia)
         [42.0,   7.5],   # Ligurian Sea (approaching French Riviera)
     ],
+
+    # ── Japan south-of-mainland routes (m059) ────────────────────────────────
+    # C2C-S3C: Busan → KDDI Shima — old waypoints cut through Japan Inland Sea;
+    #   now routes Korea Strait → south of Kyushu → south of Shikoku → Pacific → Shima
+    "C2C-S3C": [
+        [33.5, 129.5],   # Korea Strait south passage
+        [31.2, 130.8],   # South of Cape Sata (Kyushu tip 31.0°N)
+        [31.0, 133.0],   # Pacific south of Kyushu/Shikoku
+        [32.0, 135.0],   # Pacific south of Kii Peninsula
+        [33.0, 136.3],   # Approaching Shima from south
+    ],
+    # EAC-K: Taean → Ajigaura — waypoint [33.5,133] was on Shikoku coast;
+    #   now routes well south of Kyushu and Shikoku before rising to Ajigaura
+    "EAC-K": [
+        [34.5, 127.5],   # Korea Strait SE of Jeju Island
+        [32.0, 129.5],   # South of Korea Strait / west of Kyushu
+        [31.0, 131.5],   # South of Cape Sata (Kyushu)
+        [31.5, 134.0],   # Pacific SW of Shikoku
+        [32.5, 136.5],   # Pacific south of Kii Peninsula
+        [34.5, 139.5],   # Pacific east of Izu Peninsula
+        [35.8, 140.5],   # Approaching Ajigaura from south
+    ],
 }
 
 
