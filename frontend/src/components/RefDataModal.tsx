@@ -449,10 +449,24 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     setMapsStatus('checking')
     let cancelled = false
     if (mapsProvider === 'google') {
-      const timer = setTimeout(() => {
-        if (!cancelled) setMapsStatus((window as { google?: { maps?: unknown } }).google?.maps ? 'ok' : 'error')
-      }, 600)
-      return () => { cancelled = true; clearTimeout(timer) }
+      if (!import.meta.env.VITE_GMAPS_API_KEY) {
+        setMapsStatus('error')
+        return
+      }
+      // Poll for window.google.maps — the script loads async, can take several seconds
+      let attempts = 0
+      const poll = () => {
+        if (cancelled) return
+        if ((window as { google?: { maps?: unknown } }).google?.maps) {
+          setMapsStatus('ok')
+        } else if (attempts++ < 16) {
+          setTimeout(poll, 500)
+        } else {
+          setMapsStatus('error')
+        }
+      }
+      setTimeout(poll, 300)
+      return () => { cancelled = true }
     } else {
       const ctrl = new AbortController()
       const timeout = setTimeout(() => ctrl.abort(), 5000)
