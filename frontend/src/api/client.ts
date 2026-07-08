@@ -25,9 +25,10 @@
  *    unlocks admin mode (verified against POST /api/auth/verify). From then
  *    on every mutating request (POST/PUT/DELETE/upload) carries an
  *    `X-Admin-Token` header, which the backend requires for write endpoints.
- *    Plain GETs are public and never send the header. The token lives only
- *    in this module-level variable (not localStorage), so a page refresh
- *    drops admin mode.
+ *    Plain GETs are public and never send the header. The token itself is a
+ *    module-level variable here; AuthContext also mirrors it into
+ *    sessionStorage ('rb_admin_token') so admin mode survives a page refresh
+ *    within the same browser tab.
  *
  * The `api` object itself is a flat catalogue of typed endpoint wrappers,
  * grouped by resource (nodes, segments, systems, capacity, outages, config,
@@ -51,8 +52,8 @@ if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
 }
 
 // Admin token — set by AuthContext when user unlocks admin mode
-// (verified against POST /api/auth/verify). Held in module scope only, so it
-// is cleared by a page refresh. clearAdminToken() is called on admin logout.
+// (verified against POST /api/auth/verify) or re-hydrated by AuthContext from
+// sessionStorage on page load. clearAdminToken() is called on admin logout.
 let _adminToken = ''
 /** Store the verified admin token; all subsequent write requests will send it. */
 export function setAdminToken(t: string) { _adminToken = t }

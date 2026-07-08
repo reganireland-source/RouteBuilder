@@ -161,6 +161,24 @@ def _db_load_all(table: str, pk: str, model_class):
 
 
 def _db_replace_all(table: str, pk: str, pk_field: str, items) -> None:
+    """Replace the ENTIRE contents of a JSONB document table in one transaction.
+
+    This is the write-side twin of _db_load_all: the save_* functions follow a
+    load-everything / mutate-in-memory / save-everything pattern, so persisting
+    means DELETE all rows then bulk INSERT the new list. Both statements share
+    one transaction, so readers never observe a half-empty table.
+
+    Parameters:
+        table:    allowlisted table name, e.g. "segments".
+        pk:       allowlisted primary-key COLUMN name in SQL, e.g. "segment_id".
+        pk_field: attribute name on the model that supplies the key value —
+                  usually identical to `pk` but passed separately.
+        items:    iterable of Pydantic models; each is serialised with
+                  model_dump() into the row's `data` JSONB column.
+
+    Example:
+        _db_replace_all("capacity", "segment_id", "segment_id", capacity_list)
+    """
     import psycopg2.extras
     table, pk = _safe_ident(table), _safe_ident(pk)
     conn = _get_conn()
@@ -179,8 +197,17 @@ def _db_replace_all(table: str, pk: str, pk_field: str, items) -> None:
 
 
 # ── Nodes ─────────────────────────────────────────────────────────────────────
+# NOTE: every load_X/save_X pair from here down to Projects follows the same
+# template, so their docstrings are kept short:
+#   load_X(): return cache if warm; else read all rows from Postgres (DB mode)
+#             or the matching backend/data/X.json file (file mode); cache; return.
+#   save_X(list): bust the cache, then replace the whole collection in Postgres
+#             (_db_replace_all) or rewrite the JSON file.
+# Writers therefore work "wholesale": callers load the full list, modify it in
+# memory, and save the full list back.
 
 def load_nodes() -> list[Node]:
+    """Return all nodes (CLSs, PoPs, branching units) as list[Node]. Cached."""
     cached = _get("nodes")
     if cached is not None:
         return cached  # type: ignore[return-value]
@@ -193,6 +220,7 @@ def load_nodes() -> list[Node]:
     return result
 
 def save_nodes(nodes: list[Node]) -> None:
+    """Replace the full node collection (see template note above)."""
     _bust("nodes")
     if _use_db():
         _db_replace_all("nodes", "id", "id", nodes)
@@ -203,6 +231,7 @@ def save_nodes(nodes: list[Node]) -> None:
 # ── Systems ───────────────────────────────────────────────────────────────────
 
 def load_systems() -> list[CableSystem]:
+    """Return all cable systems (named submarine cables, e.g. EAC, C2C). Cached."""
     cached = _get("systems")
     if cached is not None:
         return cached  # type: ignore[return-value]
@@ -215,6 +244,7 @@ def load_systems() -> list[CableSystem]:
     return result
 
 def save_systems(systems: list[CableSystem]) -> None:
+    """Replace the full cable-system collection."""
     _bust("systems")
     if _use_db():
         _db_replace_all("systems", "id", "id", systems)
@@ -225,6 +255,8 @@ def save_systems(systems: list[CableSystem]) -> None:
 # ── Segments ──────────────────────────────────────────────────────────────────
 
 def load_segments() -> list[CableSegment]:
+    """Return all segments — wet (submarine cable sections) and terrestrial
+    (land backhaul) — as list[CableSegment]. Cached; hot path for route search."""
     cached = _get("segments")
     if cached is not None:
         return cached  # type: ignore[return-value]
@@ -237,6 +269,7 @@ def load_segments() -> list[CableSegment]:
     return result
 
 def save_segments(segments: list[CableSegment]) -> None:
+    """Replace the full segment collection."""
     _bust("segments")
     if _use_db():
         _db_replace_all("segments", "id", "id", segments)
@@ -247,6 +280,8 @@ def save_segments(segments: list[CableSegment]) -> None:
 # ── Capacity ──────────────────────────────────────────────────────────────────
 
 def load_capacity() -> list[SegmentCapacity]:
+    """Return per-segment capacity records (total/available Tbps), keyed by
+    segment_id. Cached."""
     cached = _get("capacity")
     if cached is not None:
         return cached  # type: ignore[return-value]
@@ -259,6 +294,7 @@ def load_capacity() -> list[SegmentCapacity]:
     return result
 
 def save_capacity(capacity: list[SegmentCapacity]) -> None:
+    """Replace the full capacity collection."""
     _bust("capacity")
     if _use_db():
         _db_replace_all("capacity", "segment_id", "segment_id", capacity)
@@ -269,6 +305,9 @@ def save_capacity(capacity: list[SegmentCapacity]) -> None:
 # ── Outages ───────────────────────────────────────────────────────────────────
 
 def load_outages() -> list[SegmentOutage]:
+    """Return active/historic cable-fault records. Cached. In file mode a
+    missing outages.json means "no outages" (returns []) — note that this
+    early-return path intentionally skips caching the empty result."""
     cached = _get("outages")
     if cached is not None:
         return cached  # type: ignore[return-value]
@@ -284,6 +323,7 @@ def load_outages() -> list[SegmentOutage]:
     return result
 
 def save_outages(outages: list[SegmentOutage]) -> None:
+    """Replace the full outage collection."""
     _bust("outages")
     if _use_db():
         _db_replace_all("outages", "fault_id", "fault_id", outages)
@@ -294,6 +334,8 @@ def save_outages(outages: list[SegmentOutage]) -> None:
 # ── Rules ─────────────────────────────────────────────────────────────────────
 
 def load_rules() -> list[InterconnectRule]:
+    """Return per-node interconnect rules (which cable systems may hand off to
+    which at a given node — see InterconnectRule in models.py). Cached."""
     cached = _get("rules")
     if cached is not None:
         return cached  # type: ignore[return-value]
@@ -306,6 +348,7 @@ def load_rules() -> list[InterconnectRule]:
     return result
 
 def save_rules(rules: list[InterconnectRule]) -> None:
+    """Replace the full interconnect-rule collection."""
     _bust("rules")
     if _use_db():
         _db_replace_all("rules", "node_id", "node_id", rules)
@@ -316,6 +359,10 @@ def save_rules(rules: list[InterconnectRule]) -> None:
 # ── Config ────────────────────────────────────────────────────────────────────
 
 def load_config() -> dict:
+    """Return the global app configuration as a plain dict (NOT a Pydantic
+    model — config is free-form). Stored as a single row keyed 'main' in the
+    config table (DB mode) or config.json (file mode). Falls back to a default
+    that classifies owned/consortium/IRU segments as on-net. Cached."""
     cached = _get("config")
     if cached is not None:
         return cached  # type: ignore[return-value]
@@ -340,6 +387,8 @@ def load_config() -> dict:
 # ── Interface Types ───────────────────────────────────────────────────────────
 
 def load_interfaces() -> list[InterfaceType]:
+    """Return the interface-type reference list (physical handoff options,
+    e.g. 100GBase-LR4) used by project circuit forms. Cached."""
     cached = _get("interfaces")
     if cached is not None:
         return cached  # type: ignore[return-value]
@@ -355,6 +404,7 @@ def load_interfaces() -> list[InterfaceType]:
     return result
 
 def save_interfaces(interfaces: list[InterfaceType]) -> None:
+    """Replace the full interface-type collection."""
     _bust("interfaces")
     if _use_db():
         _db_replace_all("interfaces", "id", "id", interfaces)

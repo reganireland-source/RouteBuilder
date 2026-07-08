@@ -294,7 +294,28 @@ def _select_candidates(
     optimise_for: str | None,
     outage_segment_ids: "set[str] | None" = None,
 ) -> list[list[str]]:
-    """Pick k routes using multi-dimension pooling or a single-dimension sort."""
+    """Pick k routes using multi-dimension pooling or a single-dimension sort.
+
+    The raw candidate list can hold up to ~1000 length-ordered paths; this
+    trims it to the k the API returns. Three strategies, in priority order:
+
+    1. optimise_for == "outages": keep only routes with no segment on the
+       active-outage list (live cable faults), shortest first. If EVERY
+       candidate is impacted, fall back to all candidates rather than
+       returning nothing.
+    2. optimise_for is another known dimension (see _OPTIMISE_SORT): sort all
+       candidates by that one metric and take the top k.
+    3. Default "multi-dimension pooling": rank candidates separately by hops,
+       length, latency, ownership (and bottleneck capacity when capacity data
+       exists), then round-robin the top few from each ranking into the pool.
+       This gives users a VARIED shortlist — the shortest route, the
+       fewest-hop route, the best-owned route… — instead of k near-identical
+       shortest paths. Leftover slots are filled by length order.
+
+    Metrics per candidate (computed once): (hop count, total length_km,
+    total latency, average ownership score, minimum available capacity in
+    Tbps across the route — the bottleneck).
+    """
     if len(candidates) <= k and optimise_for != "outages":
         return candidates
 
@@ -369,7 +390,27 @@ def _make_diverse_graph(
     segments_by_id: "dict[str, CableSegment]",
     diversity: DiversityType,
 ) -> nx.Graph:
-    """Return a copy of working_G with the primary path's relevant edges/nodes removed."""
+    """Return a copy of working_G with the primary path's relevant edges/nodes removed.
+
+    This is how diversity ("physically separate backup path") is implemented:
+    delete the assets the backup must NOT share, then run an ordinary
+    shortest-path search on what remains. What gets deleted depends on mode:
+
+      * full / full_nodes — every edge (segment) of the primary. full_nodes
+        additionally deletes every INTERMEDIATE node of the primary, making
+        the backup node-disjoint (survives a whole-station failure), not just
+        segment-disjoint.
+      * wet — only the primary's wet (submarine) edges; terrestrial backhaul
+        may be shared. This is "wet-path diversity": protection against
+        subsea cable faults specifically.
+      * terrestrial_origin / terrestrial_destination / terrestrial_both —
+        only the unbroken run of terrestrial segments at the relevant end(s)
+        of the primary (walked inward from each end, stopping at the first
+        wet segment). Forces a different land tail at that end.
+
+    The start and end nodes are never removed — both routes must obviously
+    share the two circuit endpoints.
+    """
     seg_ids = path_to_segment_ids(working_G, primary_path)
     segs = [(sid, segments_by_id[sid]) for sid in seg_ids if sid in segments_by_id]
 
@@ -432,6 +473,52 @@ def find_routes(
     must_include_countries: list[str] | None = None,
     country_to_node_ids: "dict[str, set[str]] | None" = None,
 ) -> RouteResponse:
+    """Find up to k constrained routes from `start` to `end`, with optional diverse pairs.
+
+    This is the module's public entry point (called by api/routes.py per
+    POST /api/routes request; see the module docstring for the full pipeline
+    and a worked example). Parameter cheat-sheet:
+
+      G                     master graph from graph.build_graph (not mutated —
+                            all pruning happens on a copy)
+      start / end           node ids of the circuit endpoints
+      must_include_nodes    transit nodes the route MUST pass through, in the
+                            given order (waypoint search)
+      must_avoid_nodes      nodes removed from the graph entirely
+      must_include_segments segments the route MUST use (their endpoints are
+                            injected as waypoints, then membership re-checked)
+      must_avoid_segments   edges removed from the graph
+      must_include_systems  the route must use ≥1 segment from EACH listed
+                            cable system
+      must_avoid_systems    all edges of these systems removed
+      diversity             which protection mode to compute (see
+                            _make_diverse_graph); DiversityType.none skips
+                            pairing entirely
+      segments_by_id        CableSegment lookup used to enrich edges into
+                            RouteSegmentDetail objects
+      rules                 per-node InterconnectRules (system pairing and
+                            handoff restrictions)
+      k                     max routes returned (candidate pool is ~1000)
+      max_wet_hops /        caps on the number of wet (submarine) /
+      max_terrestrial_hops  terrestrial (land) segments per route
+      capacities_by_id      available-capacity data for capacity ranking
+      optimise_for          single-dimension ranking override, or "outages"
+                            to prefer fault-free routes (see _select_candidates)
+      outage_segment_ids    segment ids with an active cable fault
+      must_avoid_countries  ISO country codes whose non-branching-unit nodes
+      / must_include_countries / country_to_node_ids
+                            are removed / required; country_to_node_ids maps
+                            country code → node ids (built by the API layer)
+
+    Returns a RouteResponse:
+      * diversity == none: primary_routes = the k selected routes
+        (ids "route-1"...), diverse_routes empty.
+      * otherwise: only primaries that HAVE a valid diverse counterpart are
+        kept, as matched pairs — primary_routes[i] ("worker-i") pairs with
+        diverse_routes[i] ("protected-i") via diversity_group == i.
+      * total_found = candidate count BEFORE trimming to k, so the UI can say
+        "showing 5 of 213 possible routes".
+    """
     # Build working graph with avoided nodes/segments/systems removed
     working_G = G.copy()
 
