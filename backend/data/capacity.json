@@ -1593,5 +1593,20 @@
     "segment_id": "FASTER-BDN-TAM",
     "total_capacity_t": 2.0,
     "available_capacity_t": 1.3
+  },
+  {
+    "segment_id": "JUNO-MNB-BU",
+    "total_capacity_t": 1.0,
+    "available_capacity_t": 1.0
+  },
+  {
+    "segment_id": "JUNO-SHM-BU",
+    "total_capacity_t": 1.0,
+    "available_capacity_t": 1.0
+  },
+  {
+    "segment_id": "JUNO-BU-GRB",
+    "total_capacity_t": 1.0,
+    "available_capacity_t": 1.0
   }
 ]

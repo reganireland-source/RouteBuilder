@@ -2563,7 +2563,7 @@ def _seed_if_empty(conn) -> None:
     """Populate each table from the committed JSON files if the table is empty."""
     with conn.cursor() as cur:
         for table, filename, pk in _TABLES:
-            cur.execute(f"SELECT COUNT(*) AS n FROM {table}")
+            cur.execute(f"SELECT COUNT(*) AS n FROM {table}")  # nosec B608 — table from constant _TABLES
             if cur.fetchone()["n"] > 0:
                 continue
             path = DATA_DIR / filename
@@ -2573,7 +2573,7 @@ def _seed_if_empty(conn) -> None:
             if items:
                 psycopg2.extras.execute_values(
                     cur,
-                    f"INSERT INTO {table} ({pk}, data) VALUES %s ON CONFLICT DO NOTHING",
+                    f"INSERT INTO {table} ({pk}, data) VALUES %s ON CONFLICT DO NOTHING",  # nosec B608 — identifiers from constant _TABLES
                     [(item[pk], json.dumps(item)) for item in items],
                 )
 
@@ -2598,11 +2598,11 @@ def _seed_if_empty(conn) -> None:
 
         # Seed technical lookup tables
         for table, rows in _DEFAULT_TECH_LOOKUPS.items():
-            cur.execute(f"SELECT COUNT(*) AS n FROM {table}")
+            cur.execute(f"SELECT COUNT(*) AS n FROM {table}")  # nosec B608 — table from constant _DEFAULT_TECH_LOOKUPS
             if cur.fetchone()["n"] == 0:
                 psycopg2.extras.execute_values(
                     cur,
-                    f"INSERT INTO {table} (id, data) VALUES %s ON CONFLICT DO NOTHING",
+                    f"INSERT INTO {table} (id, data) VALUES %s ON CONFLICT DO NOTHING",  # nosec B608 — table from constant _DEFAULT_TECH_LOOKUPS
                     [(row["id"], json.dumps(row)) for row in rows],
                 )
 

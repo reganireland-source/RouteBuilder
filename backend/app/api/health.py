@@ -28,7 +28,10 @@ def health_check():
             db_ok = True
             db_detail = "Connected"
         except Exception as e:
-            db_detail = str(e)[:120]
+            # Log full detail server-side; never echo DSN/host fragments to clients
+            import logging
+            logging.getLogger("routebuilder.health").warning("DB health check failed: %s", e)
+            db_detail = "Connection failed (see server logs)"
 
     return {
         "status":    "ok",
@@ -118,7 +121,7 @@ def admin_dump_to_json():
         for table, filename in TABLES:
             with conn.cursor() as cur:
                 try:
-                    cur.execute(f"SELECT data FROM {table} ORDER BY 1")
+                    cur.execute(f"SELECT data FROM {table} ORDER BY 1")  # nosec B608 — table from constant TABLES list
                     rows = [row["data"] for row in cur.fetchall()]
                 except Exception as e:
                     results[table] = f"ERROR: {e}"

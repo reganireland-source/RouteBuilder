@@ -37,11 +37,36 @@ def _write(path: Path, data: list) -> None:
 
 # ── Generic DB helpers ────────────────────────────────────────────────────────
 
+# SQL identifiers are never taken from request data: every table/column name
+# interpolated below must appear in this allowlist. Values always go through
+# parameterized placeholders.
+_ALLOWED_IDENTIFIERS = frozenset({
+    "nodes", "systems", "segments", "capacity", "outages", "rules",
+    "interfaces", "projects", "feature_requests", "solution_notes",
+    "note_categories", "config",
+    "tech_service_types", "tech_bandwidths", "tech_protections",
+    "tech_frame_sizes", "tech_access_types", "tech_arranged_by",
+    "tech_l1_settings",
+    "id", "segment_id", "node_id", "fault_id", "category_id",
+    "title", "text", "severity", "label", "applies_to", "order_num",
+    "created_at",
+})
+
+
+def _safe_ident(name: str) -> str:
+    """Return the identifier if allowlisted, else raise — defense in depth
+    against any future caller passing untrusted strings into SQL."""
+    if name not in _ALLOWED_IDENTIFIERS:
+        raise ValueError(f"SQL identifier not allowlisted: {name!r}")
+    return name
+
+
 def _db_load_all(table: str, pk: str, model_class):
+    table, pk = _safe_ident(table), _safe_ident(pk)
     conn = _get_conn()
     try:
         with conn.cursor() as cur:
-            cur.execute(f"SELECT data FROM {table} ORDER BY {pk}")
+            cur.execute(f"SELECT data FROM {table} ORDER BY {pk}")  # nosec B608 — identifiers allowlisted
             return [model_class(**row["data"]) for row in cur.fetchall()]
     finally:
         conn.close()
@@ -49,14 +74,15 @@ def _db_load_all(table: str, pk: str, model_class):
 
 def _db_replace_all(table: str, pk: str, pk_field: str, items) -> None:
     import psycopg2.extras
+    table, pk = _safe_ident(table), _safe_ident(pk)
     conn = _get_conn()
     try:
         with conn.cursor() as cur:
-            cur.execute(f"DELETE FROM {table}")
+            cur.execute(f"DELETE FROM {table}")  # nosec B608 — identifier allowlisted
             if items:
                 psycopg2.extras.execute_values(
                     cur,
-                    f"INSERT INTO {table} ({pk}, data) VALUES %s",
+                    f"INSERT INTO {table} ({pk}, data) VALUES %s",  # nosec B608 — identifiers allowlisted
                     [(getattr(item, pk_field), json.dumps(item.model_dump())) for item in items],
                 )
         conn.commit()
@@ -372,9 +398,9 @@ def update_solution_note(note_id: str, updates: dict) -> SolutionNote | None:
         conn = _get_conn()
         try:
             with conn.cursor() as cur:
-                sets = ", ".join(f"{k} = %s" for k in updates)
+                sets = ", ".join(f"{_safe_ident(k)} = %s" for k in updates)
                 cur.execute(
-                    f"UPDATE solution_notes SET {sets} WHERE id = %s RETURNING id, node_id, segment_id, category_id, title, text, severity, created_at",
+                    f"UPDATE solution_notes SET {sets} WHERE id = %s RETURNING id, node_id, segment_id, category_id, title, text, severity, created_at",  # nosec B608 — columns allowlisted
                     [*updates.values(), note_id],
                 )
                 row = cur.fetchone()
@@ -451,9 +477,9 @@ def update_note_category(cat_id: str, updates: dict) -> NoteCategory | None:
         conn = _get_conn()
         try:
             with conn.cursor() as cur:
-                sets = ", ".join(f"{k} = %s" for k in db_updates)
+                sets = ", ".join(f"{_safe_ident(k)} = %s" for k in db_updates)
                 cur.execute(
-                    f"UPDATE note_categories SET {sets} WHERE id = %s RETURNING id, label, applies_to, order_num",
+                    f"UPDATE note_categories SET {sets} WHERE id = %s RETURNING id, label, applies_to, order_num",  # nosec B608 — columns allowlisted
                     [*db_updates.values(), cat_id],
                 )
                 row = cur.fetchone()

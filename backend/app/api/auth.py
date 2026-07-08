@@ -1,4 +1,5 @@
 import os
+import secrets
 from fastapi import APIRouter, HTTPException
 from fastapi import Request
 
@@ -12,7 +13,7 @@ async def verify_admin(request: Request):
     if not admin_key:
         return {"status": "ok", "role": "admin", "mode": "open"}
     token = request.headers.get("x-admin-token", "")
-    if token == admin_key:
+    if secrets.compare_digest(token.encode(), admin_key.encode()):
         return {"status": "ok", "role": "admin", "mode": "keyed"}
     raise HTTPException(status_code=403, detail="Invalid admin token")
 

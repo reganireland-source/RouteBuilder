@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..db import get_conn
 
@@ -11,9 +11,11 @@ router = APIRouter()
 
 
 class FeatureRequestCreate(BaseModel):
-    title: str
-    description: str
-    category: str
+    # This endpoint is deliberately unauthenticated (anyone can file feedback),
+    # so field lengths are capped to keep it from being a free-write blob store.
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(max_length=5000)
+    category: str = Field(max_length=50)
 
 
 @router.get("/feature-requests")
