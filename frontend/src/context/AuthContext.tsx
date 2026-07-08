@@ -83,6 +83,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => {})
   }, [])
 
+  // Verify a candidate key server-side. Only a 2xx from /api/auth/verify
+  // makes us store the key (state + api client + sessionStorage); a wrong
+  // key or a network failure returns false and stores nothing.
   const unlock = async (key: string): Promise<boolean> => {
     try {
       const res = await fetch(`${BASE_URL}/api/auth/verify`, {
@@ -100,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return false
   }
 
+  // Drop admin mode everywhere the token is held.
   const lock = () => {
     setAdminToken('')
     clearClientToken()
@@ -116,4 +120,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   )
 }
 
+/** Hook giving any component access to { isAdmin, authRequired, unlock, lock }. */
 export const useAuth = () => useContext(AuthContext)

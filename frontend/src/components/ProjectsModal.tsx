@@ -1,3 +1,28 @@
+/**
+ * ProjectsModal — modal for managing "projects": saved solutions that bundle
+ * one or more circuits (routes captured as snapshots, optionally with a
+ * protect/diversity leg). Mounted from App.tsx in both the desktop and mobile
+ * branches whenever projectsOpen is true (Controls menu → Projects, the mode
+ * banner's "Open/Switch Project", or RouteList's "Add to Project" action).
+ *
+ * Two views: a project list, and a detail view with Info / Circuits / SLD
+ * (Straight Line Diagram export settings) tabs. Circuits can be technically
+ * enriched (service type, bandwidth, protection, A/Z endpoint details) using
+ * dropdown values loaded from the tech-lookup tables.
+ *
+ * Backend endpoints: GET /api/projects (skipped when initialProjects cache is
+ * passed), GET /api/interfaces, GET /api/tech-lookups/{table} for seven lookup
+ * tables; project CRUD via POST/PUT/DELETE /api/projects[/{id}]; circuit
+ * add/update/remove via /api/projects/{id}/circuits[/{circuitId}]; SLD config
+ * via PUT /api/projects/{id}/sld-config. Writes are admin-gated (useAuth).
+ *
+ * Key props: pendingCircuit (a route arriving from "Add to Project" — user
+ * picks the target project and an optional circuit label), initialProject /
+ * initialCircuitId (deep-link straight into a circuit's enrichment form),
+ * onActivateProject (enters Project Mode in App and restores the project's
+ * circuits as pinned routes on the map), onRestorePins, onCircuitAdded, and
+ * onProjectsChange (keeps App's project cache in sync).
+ */
 import { useEffect, useRef, useState } from 'react'
 import { useTheme } from '../theme'
 import { api } from '../api/client'

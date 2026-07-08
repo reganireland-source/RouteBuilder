@@ -1,8 +1,39 @@
+/**
+ * ============================================================================
+ * components/PasswordGate.tsx — Client-side splash-screen password gate
+ * ============================================================================
+ *
+ * Full-screen "enter password" splash shown before the app renders. Wrapped
+ * around <App/> in main.tsx (outside even the AuthProvider).
+ *
+ * SECURITY NOTE — this gate is OBFUSCATION ONLY, not real security:
+ *  - The expected password (VITE_APP_PASSWORD) is a build-time env var, so
+ *    it ships in plain text inside the JS bundle and the comparison happens
+ *    entirely in the browser. Anyone can read it from the source or set the
+ *    'rb_auth' sessionStorage flag by hand.
+ *  - It exists purely to keep casual/unintended visitors off the deployed
+ *    demo. It grants NO backend privileges whatsoever.
+ *  - Real write-protection is the separate admin mode (context/AuthContext),
+ *    which verifies a key against the backend POST /api/auth/verify and
+ *    sends it as the x-admin-token header on mutating requests.
+ *
+ * Behaviour:
+ *  - If VITE_APP_PASSWORD is unset, the gate is transparent (open access).
+ *  - A correct entry sets sessionStorage 'rb_auth' = 'ok', so the gate stays
+ *    open for the rest of the browser-tab session (cleared on tab close).
+ *  - Wrong entries trigger a shake animation and inline error message.
+ *  - Visuals: animated subsea SVG scene (public/splash-animated.svg) with a
+ *    gradient dissolve into a dark login card.
+ */
+
 import { useState } from 'react'
 
+// Expected password, baked into the bundle at build time (undefined = gate disabled).
 const CORRECT = import.meta.env.VITE_APP_PASSWORD as string | undefined
+// sessionStorage flag marking this tab as already unlocked.
 const SESSION_KEY = 'rb_auth'
 
+/** Renders children when unlocked; otherwise the full-screen splash + password card. */
 export function PasswordGate({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed] = useState(() => {
     if (!CORRECT) return true // no password set → open access

@@ -414,6 +414,10 @@ def save_interfaces(interfaces: list[InterfaceType]) -> None:
 
 # ── Technical Enrichment Lookups ──────────────────────────────────────────────
 
+# The seven dropdown-lookup tables that back the circuit-design forms.
+# They share one model (TechLookupItem) and one generic load/save pair below;
+# the assert guards keep arbitrary table names out of the SQL layer (the
+# _safe_ident allowlist would also catch them — belt and braces).
 _TECH_TABLES = [
     "tech_service_types",
     "tech_bandwidths",
@@ -425,6 +429,9 @@ _TECH_TABLES = [
 ]
 
 def load_tech_lookup(table: str) -> list[TechLookupItem]:
+    """Return one tech lookup table (must be a name from _TECH_TABLES), sorted
+    by its 'order' field. Cached per table. File mode has no JSON source for
+    these — returns [] (they only exist seeded in Postgres)."""
     assert table in _TECH_TABLES, f"Unknown tech lookup table: {table}"
     cached = _get(table)
     if cached is not None:
@@ -438,6 +445,8 @@ def load_tech_lookup(table: str) -> list[TechLookupItem]:
     return result
 
 def save_tech_lookup(table: str, items: list[TechLookupItem]) -> None:
+    """Replace one tech lookup table. Silently a no-op in file mode (no JSON
+    backing store), apart from busting the cache."""
     assert table in _TECH_TABLES, f"Unknown tech lookup table: {table}"
     _bust(table)
     if _use_db():
@@ -447,6 +456,8 @@ def save_tech_lookup(table: str, items: list[TechLookupItem]) -> None:
 # ── Projects ──────────────────────────────────────────────────────────────────
 
 def load_projects() -> list[Project]:
+    """Return all customer solution projects (saved route designs with their
+    circuits and endpoint details). Cached."""
     cached = _get("projects")
     if cached is not None:
         return cached  # type: ignore[return-value]
@@ -462,6 +473,7 @@ def load_projects() -> list[Project]:
     return result
 
 def save_projects(projects: list[Project]) -> None:
+    """Replace the full project collection."""
     _bust("projects")
     if _use_db():
         _db_replace_all("projects", "id", "id", projects)
@@ -469,7 +481,18 @@ def save_projects(projects: list[Project]) -> None:
     _write(DATA_DIR / "projects.json", [p.model_dump() for p in projects])
 
 
+# ── Solution Notes & Note Categories ─────────────────────────────────────────
+# Unlike everything above, these two entities live in PROPER RELATIONAL
+# COLUMNS (not JSONB documents — see migration m055 in db.py) and support
+# row-level create/update/delete instead of wholesale replace. They are also
+# deliberately NOT cached: low read volume, and per-row edits make cache
+# invalidation more trouble than it is worth.
+# A "solution note" is free-text operational knowledge attached to a node or
+# segment (site access rules, IRU terms, repair history, ...), grouped by a
+# NoteCategory.
+
 def _row_to_note(row: dict) -> SolutionNote:
+    """Convert a solution_notes SQL row (RealDictCursor dict) into a SolutionNote."""
     return SolutionNote(
         id=row["id"], node_id=row.get("node_id"), segment_id=row.get("segment_id"),
         category_id=row["category_id"], title=row["title"], text=row["text"],
@@ -478,6 +501,9 @@ def _row_to_note(row: dict) -> SolutionNote:
 
 
 def _row_to_cat(row: dict) -> NoteCategory:
+    """Convert a note_categories SQL row into a NoteCategory. The SQL column is
+    'order_num' (because ORDER is a SQL reserved word) but the model field is
+    'order' — this is where that mapping happens on the read path."""
     return NoteCategory(
         id=row["id"], label=row["label"], applies_to=row["applies_to"],
         order=row.get("order_num", row.get("order", 0)),
@@ -485,6 +511,7 @@ def _row_to_cat(row: dict) -> NoteCategory:
 
 
 def _json_notes() -> list[SolutionNote]:
+    """File-mode source of truth for solution notes ([] if the file is absent)."""
     path = DATA_DIR / "solution_notes.json"
     if not path.exists():
         return []
@@ -493,6 +520,7 @@ def _json_notes() -> list[SolutionNote]:
 
 
 def _json_cats() -> list[NoteCategory]:
+    """File-mode source of truth for note categories ([] if the file is absent)."""
     path = DATA_DIR / "note_categories.json"
     if not path.exists():
         return []
@@ -501,6 +529,8 @@ def _json_cats() -> list[NoteCategory]:
 
 
 def load_solution_notes() -> list[SolutionNote]:
+    """Return ALL solution notes, oldest first (created_at, NULLs last).
+    Filtering by node/segment happens in the API layer, not here. Not cached."""
     if _use_db():
         conn = _get_conn()
         try:
@@ -513,6 +543,8 @@ def load_solution_notes() -> list[SolutionNote]:
 
 
 def create_solution_note(note: SolutionNote) -> SolutionNote:
+    """Insert one solution note (caller supplies a fully-populated model,
+    including id) and return it unchanged."""
     if _use_db():
         conn = _get_conn()
         try:
@@ -532,10 +564,22 @@ def create_solution_note(note: SolutionNote) -> SolutionNote:
 
 
 def update_solution_note(note_id: str, updates: dict) -> SolutionNote | None:
+    """PATCH-style partial update of one note.
+
+    `updates` contains only the fields the client actually sent — the API
+    layer builds it from SolutionNoteUpdate via model_dump(exclude_unset=True),
+    so the dict KEYS are Pydantic field names that double as SQL column names.
+    That is exactly why each key is pushed through _safe_ident before being
+    interpolated into the SET clause (values stay parameterized).
+
+    Returns the updated note, or None if no note has that id.
+    """
     if _use_db():
         conn = _get_conn()
         try:
             with conn.cursor() as cur:
+                # Build "col1 = %s, col2 = %s" from the update keys; every key
+                # must pass the identifier allowlist (SQL-injection guard).
                 sets = ", ".join(f"{_safe_ident(k)} = %s" for k in updates)
                 cur.execute(
                     f"UPDATE solution_notes SET {sets} WHERE id = %s RETURNING id, node_id, segment_id, category_id, title, text, severity, created_at",  # nosec B608 — columns allowlisted
@@ -557,6 +601,7 @@ def update_solution_note(note_id: str, updates: dict) -> SolutionNote | None:
 
 
 def delete_solution_note(note_id: str) -> bool:
+    """Delete one note by id. Returns True if something was deleted."""
     if _use_db():
         conn = _get_conn()
         try:
@@ -576,6 +621,8 @@ def delete_solution_note(note_id: str) -> bool:
 
 
 def load_note_categories() -> list[NoteCategory]:
+    """Return all note categories, sorted by (applies_to, order) so 'node'
+    categories group together and 'segment' ones follow. Not cached."""
     if _use_db():
         conn = _get_conn()
         try:
@@ -590,6 +637,8 @@ def load_note_categories() -> list[NoteCategory]:
 
 
 def create_note_category(cat: NoteCategory) -> NoteCategory:
+    """Insert one note category and return it unchanged. Model field 'order'
+    is written to SQL column 'order_num'."""
     if _use_db():
         conn = _get_conn()
         try:
@@ -609,7 +658,11 @@ def create_note_category(cat: NoteCategory) -> NoteCategory:
 
 
 def update_note_category(cat_id: str, updates: dict) -> NoteCategory | None:
+    """PATCH-style partial update of one category (same pattern as
+    update_solution_note: keys of `updates` become SQL column names via the
+    _safe_ident allowlist). Returns None if no category has that id."""
     if _use_db():
+        # Model field 'order' → SQL column 'order_num' (ORDER is reserved in SQL)
         col_map = {"order": "order_num"}
         db_updates = {col_map.get(k, k): v for k, v in updates.items()}
         conn = _get_conn()
@@ -636,6 +689,8 @@ def update_note_category(cat_id: str, updates: dict) -> NoteCategory | None:
 
 
 def delete_note_category(cat_id: str) -> bool:
+    """Delete one category by id. Returns True if something was deleted.
+    (Does not cascade: notes referencing the category keep their category_id.)"""
     if _use_db():
         conn = _get_conn()
         try:
@@ -655,6 +710,8 @@ def delete_note_category(cat_id: str) -> bool:
 
 
 def save_config(config: dict) -> None:
+    """Persist the global config dict: upsert of the single 'main' row in DB
+    mode, rewrite of config.json in file mode. Counterpart of load_config."""
     _bust("config")
     if _use_db():
         conn = _get_conn()

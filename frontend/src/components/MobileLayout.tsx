@@ -1,3 +1,36 @@
+/**
+ * MobileLayout — the complete mobile UI for RouteBuilder. App.tsx renders this
+ * component instead of its desktop layout whenever the viewport is narrower
+ * than 768px (see useIsMobile in App.tsx), passing down ALL application state
+ * and handlers as props. It mirrors the desktop feature set but rearranges it
+ * for touch: nothing here owns domain state — routes, pins, projects, mode,
+ * and map toggles all live in App.tsx; this file only keeps presentational
+ * state (bottom-sheet snap position, drawer/dialog visibility, SLD prompt).
+ *
+ * Layout differences from desktop App.tsx:
+ * - The map is full-screen underneath everything, instead of a right-hand pane
+ *   beside fixed 440px/520px left and middle panels.
+ * - A draggable-feeling bottom sheet (two snap points: "peek" at 76px and
+ *   "full" at 91% of the viewport) replaces the left + middle panels. It holds
+ *   the same tab structure (RouteBuilder → RouteFinder/RouteManual;
+ *   NetworkExplorer → City Pairs/Cables/Nodes/Country/Outages; Guide) and
+ *   embeds the same child components: NlpChat (TSABuddy), SearchForm,
+ *   RouteList, RouteManual (single-panel variant rather than the desktop
+ *   Left/Middle split), CityPairPanel, SystemViewer, NodeFinder,
+ *   CountryViewer, OutagePanel, plus the project mode banner and HealthBar.
+ * - A top-right "Controls" drawer reproduces the desktop control menu's map
+ *   toggles (outages, labels, hide non-active, subsea/backhaul only), theme
+ *   cycling, and openers for Projects, Capacity Dashboard, and RefDataModal.
+ *   The desktop-only Algo Eval screen and the Country Node Diagram button are
+ *   not offered on mobile.
+ * - While RouteManual is mid-build, the sheet auto-snaps to "peek" and a
+ *   floating strip shows hops/km/ms with Undo / Done / options buttons.
+ * - SLD export prompt offers PDF only (via generateStraightLineDiagram);
+ *   desktop additionally offers DrawIO and Visio exports.
+ * Sibling overlays (ProjectsModal, UserGuide, pin-to-project and route-finish
+ * dialogs) are portalled by App.tsx itself in its mobile branch, not here.
+ * No direct backend calls — everything goes through the callback props.
+ */
 import { lazy, Suspense, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Map } from './Map'

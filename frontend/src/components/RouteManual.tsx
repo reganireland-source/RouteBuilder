@@ -1,3 +1,27 @@
+/**
+ * RouteManual — the hop-by-hop manual route builder ("RouteManual" sub-tab of
+ * the RouteBuilder tab). Instead of asking the backend route solver, the user
+ * picks an origin node and then chooses each next hop from a candidate list
+ * (or by clicking candidate nodes on the map) until the route is finished.
+ *
+ * This module exports both pure logic and three UI components:
+ * - computeCandidates(): all direct neighbour segments of the current node,
+ *   excluding already-visited nodes (no loops), sorted owned-ownership first
+ *   then by latency. Each candidate carries system margin and capacity data.
+ * - assembleRoute(): converts a finished ManualState into a regular Route
+ *   object (total km, latency, cost, and end-to-end reliability as the product
+ *   of segment reliabilities) so it can be listed, pinned, and exported like a
+ *   solver result.
+ * - RouteManual: single-panel variant mounted by MobileLayout.tsx.
+ * - RouteManualLeft / RouteManualMiddle: desktop split-panel variants mounted
+ *   by App.tsx when mode === 'routemanual' (left = origin search, running
+ *   stats, next-hop candidates; middle = the locked-in path so far).
+ *
+ * All state (ManualState = origin + ordered steps of segment/node picks) is
+ * lifted into App.tsx / MobileLayout so the map can highlight candidates and
+ * handle node clicks. Purely client-side: makes no backend calls; it works on
+ * the nodes/segments/systems/capacity arrays already loaded by App.tsx.
+ */
 import React, { useMemo, useState } from 'react'
 import type { CableNode, CableSegment, CableSystem, Route, RouteSegmentDetail, SegmentCapacity } from '../types'
 import { useTheme } from '../theme'

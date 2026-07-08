@@ -1,3 +1,54 @@
+/**
+ * ============================================================================
+ * components/Map.tsx — The Leaflet world map at the heart of the app
+ * ============================================================================
+ *
+ * Renders every node and cable segment, plus all mode-specific overlays.
+ * Mounted by App.tsx (desktop) and MobileLayout.tsx (mobile); it is a pure
+ * presentational component — all state lives in the parent and arrives as
+ * props.
+ *
+ * RENDERING PIPELINE (per render):
+ *  1. Pacific-centred longitude normalisation. The network is Asia-Pacific
+ *     centric, so the map is centred on the Pacific (initial center lng 130,
+ *     maxBounds lng -25..345). normalizeLng() shifts any longitude < -30°
+ *     (the Americas) by +360° so e.g. Los Angeles (-118°) plots at 242°,
+ *     to the RIGHT of Asia. This lets transpacific cables draw as ONE
+ *     continuous polyline instead of splitting at the ±180° antimeridian.
+ *  2. Segment geometry. geoLines() builds each segment's polyline: if the
+ *     segment has `waypoints` (hand-placed ocean routing hints stored on the
+ *     CableSegment), the line threads through them and is smoothed with a
+ *     Catmull-Rom spline (catmullRom()) so cables look like gentle curves;
+ *     otherwise a straight line between the two endpoint nodes is drawn.
+ *  3. Segment styling. A precedence ladder decides each segment's colour /
+ *     weight / opacity: country-highlight > system-viewer colours > active
+ *     search routes (blue; protected pair green) > pinned-route colours >
+ *     dim "background network" grey. Terrestrial segments are dashed; a
+ *     segment with an active outage on a highlighted route is drawn red
+ *     with a distinctive dash pattern. `hideNonActive` removes background
+ *     segments entirely; `showAllOutages` switches to an outage-only map.
+ *  4. Node styling. NODE_STYLE defines the visual hierarchy by node type
+ *     (CLS largest/orange, then primary/secondary/extension PoPs, tiny
+ *     branching units, muted off-net). Nodes on routes/pins are recoloured
+ *     pink; system-viewer / country-viewer modes dim unrelated nodes.
+ *
+ * BASE LAYER: chosen from the `mapsProvider` prop (backend AppConfig
+ * .maps_provider), falling back to the VITE_MAPS_PROVIDER env var —
+ * 'google' mounts GoogleMutantLayer (Google tiles via leaflet
+ * googlemutant, dark-styled to match the theme, loading the Maps JS API
+ * on demand); anything else uses the CARTO raster TileLayer whose URL
+ * comes from the active theme.
+ *
+ * Also contains small imperative helpers driven through react-leaflet's
+ * useMap(): MapResizer (invalidate size when the side panel resizes),
+ * MapFlyTo (zoom to a country highlight) and ManualFitBounds (keep the
+ * RouteManual step-by-step build in view).
+ *
+ * The RouteManual overlays (locked path in amber, numbered/coloured
+ * next-hop candidate dots, origin picker) render on top when `manualState`
+ * is provided.
+ */
+
 import { useEffect } from 'react'
 import * as L from 'leaflet'
 import 'leaflet.gridlayer.googlemutant'
@@ -6,6 +57,7 @@ import type { CableNode, CableSegment, CountryHighlight, PinnedRoute, Route, Seg
 import { useTheme } from '../theme'
 import type { ManualState, NextHopCandidate } from './RouteManual'
 
+// Human-readable labels for the Ownership enum, used in segment tooltips.
 const OWNERSHIP_LABEL: Record<string, string> = {
   owned:                'Owned',
   consortium:           'Consortium',

@@ -1,3 +1,28 @@
+/**
+ * BulkImportPanel — the "Bulk Data Manager" screen for mass CSV import/export of
+ * reference data. It is not mounted from App.tsx directly; it renders inside the
+ * "Bulk" tab of RefDataModal (see RefDataModal.tsx, which App.tsx and
+ * MobileLayout.tsx open via the Controls menu → Ref Data).
+ *
+ * Supported tables: nodes, segments (cable sections, including "wet" submarine
+ * segments), systems (named submarine cables such as EAC or C2C), capacity, and
+ * product coverage. Three import modes: "upsert" (add + overwrite), "add_only"
+ * (never touch existing rows), and "full_replace" (destructive — deletes the
+ * whole table first, and requires the user to type REPLACE to confirm).
+ *
+ * Workflow: pick a table and mode → drag-drop or browse for a .csv → Validate
+ * (POST /api/bulk/validate/{table}?mode=...) which returns per-row errors,
+ * warnings, a summary and a full added/modified/deleted diff for review →
+ * Import (POST /api/bulk/import/{table}?mode=...). Current data can be exported
+ * any time via GET /api/bulk/export/{table} (triggered as a browser download).
+ *
+ * Props: `counts` (row counts per table, shown on the selector pills) and
+ * `onDataChange` (invoked after a successful import so the parent refetches all
+ * network data). Side effects: triggers file downloads (table export and a CSV
+ * audit log of the changes that were just applied); otherwise stateless between
+ * openings. Import endpoints require admin (X-Admin-Token header set globally
+ * in api/client.ts once the user unlocks admin mode).
+ */
 import { useRef, useState } from 'react'
 import { useTheme } from '../theme'
 import { api } from '../api/client'

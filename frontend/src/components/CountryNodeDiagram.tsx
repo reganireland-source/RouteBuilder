@@ -1,3 +1,29 @@
+/**
+ * CountryNodeDiagram — a full-screen schematic (node-diagram) view of every
+ * network node in one country and the cable segments connecting them. Mounted
+ * from App.tsx (desktop only): in Country Viewer mode, once a country is
+ * highlighted, a "View {country} as Node Diagram" button sets showNodeDiagram
+ * and this overlay opens. Props: nodes/segments/systems/capacity (the full
+ * network), countryHighlight (which country to draw), and onClose.
+ *
+ * Rendering is entirely client-side SVG — no backend calls, no map tiles:
+ * - In-country nodes are laid out on a grid by a BFS over the country's
+ *   topology (highest-degree node first), then connected with orthogonal
+ *   (H/V) routed lines, with port fan-out, bypass lanes and turn staggering so
+ *   parallel segments between the same nodes stay legible.
+ * - Wet segments (submarine cable sections) that leave the country are drawn
+ *   as distinctive 45-degree diagonal "stubs" fanned from the node's outward
+ *   corner, labelled with system and destination; cross-border terrestrial
+ *   links get straight H/V stubs. Each system gets a colour from a
+ *   14-colour dark palette designed to read on the white background.
+ * - Node shapes/colours encode type: CLS (Cable Landing Station), primary/
+ *   secondary/extension PoP, branching unit, off-net.
+ *
+ * Interactions: mouse-wheel zoom about the cursor, drag to pan, auto
+ * fit-to-container on open, hover tooltips, and click-to-select a node or
+ * segment which opens a detail card (capacity, ownership, endpoints, etc.),
+ * plus a static legend. Useful for topology briefings and country deep-dives.
+ */
 import { useState, useMemo, useRef, useEffect } from 'react'
 import type { CableNode, CableSegment, CableSystem, CountryHighlight, SegmentCapacity } from '../types'
 import { useTheme } from '../theme'
