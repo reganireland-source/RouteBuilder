@@ -1,3 +1,25 @@
+/**
+ * HealthBar — status strip of coloured dots showing the health of every runtime dependency.
+ *
+ * Renders six indicators (Frontend, Backend, Data, Database, LLM API, Maps) as small
+ * green/red/yellow/grey dots with hover tooltips, plus the build number and build date
+ * (injected at build time via the __BUILD_NUMBER__ / __BUILD_DATE__ Vite defines).
+ *
+ * Props:
+ *   - dataLoaded:   whether the parent has finished loading network data; used to colour
+ *                   the "Data" dot while the first backend health check is still in flight.
+ *   - mapsProvider: 'osm' (default) or 'google' — selects how the Maps check is performed.
+ *
+ * Mounted from: App.tsx (bottom of the desktop sidebar) and MobileLayout.tsx (bottom bar).
+ *
+ * Side effects / polling:
+ *   - Calls api.getHealth() (GET /api/health) and api.getNlpHealth() (GET /api/health/nlp)
+ *     on mount and every 30 seconds; results drive the Backend, Data, Database and LLM dots.
+ *   - Maps check: for OSM it fetches a single CARTO basemap tile with a 5 s timeout; for
+ *     Google it polls window.google.maps for up to ~8 s and also verifies that a
+ *     VITE_GMAPS_API_KEY was baked into the build.
+ * All checks are best-effort; failures only change dot colours, never crash the app.
+ */
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import { useTheme } from '../theme'

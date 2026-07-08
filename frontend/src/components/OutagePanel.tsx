@@ -1,3 +1,24 @@
+/**
+ * OutagePanel — read-only list of active cable faults/outages on network segments.
+ *
+ * Renders every SegmentOutage passed in as a card showing the affected cable system,
+ * the segment (typically a wet segment — a submarine cable section under the sea),
+ * a free-text description, fault/repair dates and the fault ID. Outages with no
+ * estimated repair date are treated as "OPEN" (red); ones with an ETA show as
+ * "REPAIRING" (amber). Sorting puts unresolved faults first, then newest fault date.
+ * A text box filters by system ID, segment name, description or fault ID.
+ * When there are no outages at all, a friendly "all clear" card is shown instead.
+ *
+ * Props:
+ *   - outages:  SegmentOutage records (already fetched by the parent).
+ *   - segments: all CableSegments, used to resolve each outage's segment name/system.
+ *   - systems:  all CableSystems, used to resolve human-readable system names.
+ *
+ * Mounted from: App.tsx (desktop sidebar, "Outages" mode) and MobileLayout.tsx (mobile tab).
+ * Backend endpoints: none — purely presentational; the parent loads outage data
+ * (e.g. via /api/outages) and passes it down. The small DateChip helper at the bottom
+ * of this file renders the labelled date fields on each card.
+ */
 import { useMemo, useState } from 'react'
 import type { CableSegment, CableSystem, SegmentOutage } from '../types'
 import { useTheme } from '../theme'

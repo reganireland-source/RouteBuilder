@@ -1,3 +1,22 @@
+/**
+ * CountryViewer — sidebar panel for exploring which submarine cable systems land in a country.
+ *
+ * Builds a searchable country list from the countries of all non-branching-unit nodes,
+ * using a local ISO-code -> display-name table. Selecting a country computes a
+ * CountryHighlight describing everything the map should emphasise for that country:
+ *   - the set of cable systems whose wet segments (submarine sections) touch any CLS
+ *     (Cable Landing Station) in the country, each assigned an evenly-spaced HSL colour;
+ *   - terrestrial segments with at least one endpoint in the country;
+ *   - the country's node IDs, centroid and lat/lng bounds (longitudes are normalised
+ *     across the antimeridian so Pacific countries get sane bounding boxes).
+ * The highlight is pushed up via onSelect(highlight | null); clicking the selected
+ * country again (or the × button) clears it. A detail card lists the landing systems
+ * with their legend colours.
+ *
+ * Props: nodes / segments / systems (full datasets from the parent), onSelect callback.
+ * Mounted from: App.tsx (desktop sidebar, "Countries" mode) and MobileLayout.tsx (mobile tab).
+ * Backend endpoints: none — all derivation happens client-side from props.
+ */
 import { useEffect, useMemo, useState } from 'react'
 import type { CableNode, CableSegment, CableSystem, CountryHighlight } from '../types'
 import { useTheme } from '../theme'

@@ -1,3 +1,25 @@
+/**
+ * ProductCoveragePanel — admin editor for per-node product coverage (NodeCapabilities).
+ *
+ * Lists every node except branching units (CLS / Cable Landing Stations sort first,
+ * then primary PoPs, then the rest) with a filter box and three traffic-light dots
+ * summarising whether Backbone, Underlay and Colocation coverage is configured.
+ * Clicking "Edit" expands an inline editor where the user toggles which port speeds
+ * (1G/10G/100G/400G) each product supports:
+ *   - Backbone products: IPT, EPL, EVPL (EVPL capped at 10G by PRODUCT_MAX)
+ *   - Underlay products: GID, IP VPN (IP VPN capped at 10G)
+ *   - Colocation: a single category 1-5 (productized/leased/non-productized tiers)
+ * Speeds a product can never offer render as inert dashes. The draft is held in local
+ * Set-based state and converted back to the sparse NodeCapabilities shape on save
+ * (empty products are omitted entirely).
+ *
+ * Props:
+ *   - nodes:        full CableNode list (capabilities read from node.capabilities).
+ *   - onDataChange: called after a successful save so the parent refetches node data.
+ *
+ * Mounted from: RefDataModal.tsx ("Product Coverage" tab of the reference-data modal).
+ * Backend endpoints: PUT /api/nodes/{id} (api.updateNode) with a { capabilities } patch.
+ */
 import { useState } from 'react'
 import type { CableNode, NodeCapabilities, PortSpeed } from '../types'
 import { useTheme } from '../theme'

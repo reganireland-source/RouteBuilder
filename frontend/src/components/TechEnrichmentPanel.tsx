@@ -1,3 +1,25 @@
+/**
+ * TechEnrichmentPanel — admin CRUD editor for the "tech lookup" reference tables.
+ *
+ * These seven lookup tables (service types, bandwidths, protections, frame sizes,
+ * access types, arranged-by, L1 settings) populate the dropdown options used when
+ * enriching a circuit with technical details elsewhere in the app. The panel shows
+ * a left sidebar to pick the active table and a right-hand table of its entries,
+ * with inline row editing, deletion (behind a confirm() prompt) and an "add row"
+ * form. New entry IDs are slugified from the label (lowercase, dashes); display
+ * order is a numeric "order" column, auto-suggested as max+10 for new rows.
+ *
+ * Props: none — the panel is fully self-contained and loads its own data.
+ *
+ * Mounted from: RefDataModal.tsx ("Tech Enrichment" tab of the reference-data
+ * admin modal, which is opened from App.tsx).
+ *
+ * Backend endpoints (via api client):
+ *   - GET    /api/tech-lookups/{table}        load entries for the active table
+ *   - POST   /api/tech-lookups/{table}        create a new entry
+ *   - PUT    /api/tech-lookups/{table}/{id}   save an inline edit
+ *   - DELETE /api/tech-lookups/{table}/{id}   remove an entry
+ */
 import { useState, useEffect } from 'react'
 import { useTheme } from '../theme'
 import { api } from '../api/client'

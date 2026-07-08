@@ -1,3 +1,13 @@
+/**
+ * theme.ts — colour theming for the whole frontend.
+ *
+ * Defines the Theme interface (background layers, borders, text emphasis levels, accent
+ * colours, map styling) and three concrete palettes: darkTheme (Catppuccin-Mocha-like,
+ * the default), lightTheme (Catppuccin-Latte-like) and duskTheme (dark UI over a light
+ * Voyager map). Each theme also carries the Leaflet raster tile URL (mapTileUrl) and an
+ * inactive-segment colour for the map. Components read the active theme with the
+ * useTheme() hook via ThemeContext; App.tsx provides the chosen theme at the root.
+ */
 import { createContext, useContext } from 'react'
 
 export interface Theme {

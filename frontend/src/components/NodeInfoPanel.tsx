@@ -1,3 +1,29 @@
+/**
+ * NodeInfoPanel — draggable floating detail card shown when a node is clicked on the map.
+ *
+ * Displays everything known about one CableNode: identity fields (ID, type, country,
+ * city, coordinates, owner, trading name, street address, description), the owner's
+ * logo when we have one in the local OWNER_LOGOS table, the cable systems that touch
+ * the node (with per-system segment counts derived from the segments prop), an optional
+ * "Product Coverage" traffic-light matrix (Backbone IPT/EPL/EVPL, Underlay GID/IP VPN
+ * across 1G-400G port speeds, plus the Colocation category 1-5) driven by
+ * node.capabilities, and an embedded OpenStreetMap iframe centred on the node.
+ * Node types include CLS (Cable Landing Station), PoP tiers, branching units and
+ * off-net nodes.
+ *
+ * Props:
+ *   - node, segments, systems: the node to describe plus full datasets for cross-refs.
+ *   - initialX / initialY:     the map click position; a useLayoutEffect measures the
+ *                              panel and clamps it inside the viewport before making it
+ *                              visible (flips left of the cursor if it would overflow).
+ *   - onClose:                 close (×) handler.
+ * The title bar is a drag handle — global mousemove/mouseup listeners let the user
+ * reposition the panel anywhere on screen.
+ *
+ * Mounted from: App.tsx and MobileLayout.tsx when a map node is selected.
+ * Backend endpoints: none of ours; only the openstreetmap.org embed iframe.
+ * Note: CountryNodeDiagram.tsx has its own unrelated local component of the same name.
+ */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CableNode, CableSegment, CableSystem, PortSpeed } from '../types'
 import { useTheme } from '../theme'

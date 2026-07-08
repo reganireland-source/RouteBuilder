@@ -1,3 +1,25 @@
+/**
+ * CapacityDashboard — full-screen modal overlay summarising network capacity utilisation.
+ *
+ * Joins the SegmentCapacity records (total vs available Tbps per segment) against the
+ * CableSegment list, then presents:
+ *   - a headline "Overall Network Utilisation" banner, colour-coded green/orange/red
+ *     at the 60% and 85% thresholds;
+ *   - stat cards splitting totals and spare capacity between wet segments (submarine
+ *     cable sections under the sea) and terrestrial/backhaul segments;
+ *   - two ranked tables — "Top 15 Most Spare" and "Top 15 Most Congested" — with a
+ *     wet/terrestrial toggle, each row showing available/total capacity, used % and
+ *     a small utilisation bar.
+ *
+ * Props:
+ *   - segments: all CableSegments (provides names, system IDs and wet/terrestrial type).
+ *   - capacity: SegmentCapacity records; segments without capacity data are skipped.
+ *   - onClose:  invoked when the user clicks the backdrop or the × button.
+ *
+ * Mounted from: App.tsx and MobileLayout.tsx, rendered conditionally when the user
+ * opens the capacity dashboard; it is a fixed-position overlay (z-index 2000).
+ * Backend endpoints: none — purely presentational over props.
+ */
 import { useMemo, useState } from 'react'
 import type { CableSegment, SegmentCapacity } from '../types'
 import { useTheme } from '../theme'

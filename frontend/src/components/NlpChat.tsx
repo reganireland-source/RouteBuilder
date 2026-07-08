@@ -1,3 +1,26 @@
+/**
+ * NlpChat ("TSABuddy") — natural-language route request bar backed by an LLM parser.
+ *
+ * A collapsible strip with a robot avatar where the user types a request like
+ * "Singapore to Hong Kong with wet diversity". On submit it POSTs the text to
+ * /api/nlp/parse (api.parseNlp), which uses a backend LLM to turn the sentence into a
+ * structured NlpParseResponse: origin/destination node IDs, must-include/avoid nodes,
+ * segments, systems and countries, diversity level (physically separate backup path),
+ * max wet/terrestrial hop limits, optimise-for and sort preferences, plus a confidence
+ * rating and any ambiguities.
+ *
+ * If confidence is high or medium and both endpoints resolved, it auto-runs the search:
+ * switches the app to 'routebuilder' mode (onSwitchMode), prefills the form (onPrefill),
+ * fires the search (onSearch) and applies any requested result sort (onApplySort).
+ * Low-confidence parses render a summary with a manual "Search anyway" button instead.
+ * HTTP 404/503/500 errors are translated into friendly setup hints (NLP_ENABLED flag,
+ * missing ANTHROPIC_API_KEY/OPENAI_API_KEY on the Railway deployment, etc.).
+ *
+ * Props: nodes (to display names for parsed node IDs) and the four callbacks above.
+ * Mounted from: App.tsx and MobileLayout.tsx via lazy() — only imported when the
+ * build-time NLP_ENABLED flag is on. Default export (required by React.lazy).
+ * Backend endpoints: POST /api/nlp/parse.
+ */
 import { useState, useRef, useEffect } from 'react'
 import { api } from '../api/client'
 import { useTheme } from '../theme'

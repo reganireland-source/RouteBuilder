@@ -1,5 +1,44 @@
+/**
+ * ============================================================================
+ * api/client.ts — The single HTTP client for the entire frontend
+ * ============================================================================
+ *
+ * Every backend call in the app goes through the `api` object exported at the
+ * bottom of this file; components never call fetch() directly. It is a thin,
+ * dependency-free wrapper around the browser fetch API with:
+ *
+ *  - Base URL resolution: `BASE_URL` comes from the VITE_API_URL build-time
+ *    env var (the deployed FastAPI backend, e.g. a Railway URL). In local dev
+ *    it is left empty so requests hit the same origin and are proxied by
+ *    Vite's dev server. A loud console.error fires in production builds if
+ *    the variable was forgotten, because every request would 404 otherwise.
+ *
+ *  - Verb helpers (get/post/put/del/delJson/uploadFile): each throws a plain
+ *    `Error` on any non-2xx status. Write helpers try to extract FastAPI's
+ *    JSON `detail` field and append it to the error message so callers can
+ *    surface a meaningful reason in the UI; callers are expected to
+ *    try/catch and display `err.message`. `delJson` exists for DELETEs whose
+ *    response body matters (e.g. removing a circuit returns the updated
+ *    Project). `uploadFile` posts multipart/form-data for bulk CSV import.
+ *
+ *  - Admin token injection: AuthContext calls setAdminToken() after the user
+ *    unlocks admin mode (verified against POST /api/auth/verify). From then
+ *    on every mutating request (POST/PUT/DELETE/upload) carries an
+ *    `X-Admin-Token` header, which the backend requires for write endpoints.
+ *    Plain GETs are public and never send the header. The token lives only
+ *    in this module-level variable (not localStorage), so a page refresh
+ *    drops admin mode.
+ *
+ * The `api` object itself is a flat catalogue of typed endpoint wrappers,
+ * grouped by resource (nodes, segments, systems, capacity, outages, config,
+ * health, city pairs, NLP, bulk import/export, interconnect rules, interface
+ * types, projects, tech lookups, solution notes, note categories, feature
+ * requests). Request/response shapes are the interfaces in ../types.
+ */
+
 import type { AppConfig, CableNode, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, NlpParseResponse, NoteCategory, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
 
+// Backend origin baked in at build time. Empty string = same-origin (dev proxy).
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
 if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
@@ -12,19 +51,32 @@ if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
 }
 
 // Admin token — set by AuthContext when user unlocks admin mode
+// (verified against POST /api/auth/verify). Held in module scope only, so it
+// is cleared by a page refresh. clearAdminToken() is called on admin logout.
 let _adminToken = ''
+/** Store the verified admin token; all subsequent write requests will send it. */
 export function setAdminToken(t: string) { _adminToken = t }
+/** Forget the admin token (admin logout); write requests become anonymous again. */
 export function clearAdminToken() { _adminToken = '' }
+/** Header fragment merged into every mutating request: X-Admin-Token when unlocked, nothing otherwise. */
 function adminHeaders(): Record<string, string> {
   return _adminToken ? { 'X-Admin-Token': _adminToken } : {}
 }
 
+/** GET a JSON resource. Public (no admin header). Throws Error with the HTTP status on failure. */
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`)
   if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`)
   return res.json()
 }
 
+/**
+ * POST a JSON body. Sends the admin token header when unlocked. On failure,
+ * tries to pull FastAPI's `detail` message out of the error response so the
+ * thrown Error reads like "409: segment already exists" for UI display.
+ * (Note: unlike put/del, the message deliberately omits the path — POST
+ * callers show it directly to users, e.g. route-search validation errors.)
+ */
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', ...adminHeaders() }, body: JSON.stringify(body),
@@ -37,6 +89,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return res.json()
 }
 
+/** PUT a JSON body (update). Admin header + FastAPI `detail` extraction, as for post(). */
 async function put<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json', ...adminHeaders() }, body: JSON.stringify(body),
@@ -49,6 +102,7 @@ async function put<T>(path: string, body: unknown): Promise<T> {
   return res.json()
 }
 
+/** DELETE with no response body expected. Admin header + FastAPI `detail` extraction. */
 async function del(path: string): Promise<void> {
   const res = await fetch(`${BASE_URL}${path}`, { method: 'DELETE', headers: adminHeaders() })
   if (!res.ok) {
@@ -58,6 +112,11 @@ async function del(path: string): Promise<void> {
   }
 }
 
+/**
+ * DELETE that parses and returns a JSON response body — used where the
+ * backend replies with updated state (e.g. removing a circuit returns the
+ * whole updated Project document).
+ */
 async function delJson<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, { method: 'DELETE', headers: adminHeaders() })
   if (!res.ok) {
@@ -68,6 +127,11 @@ async function delJson<T>(path: string): Promise<T> {
   return res.json()
 }
 
+/**
+ * POST a single file as multipart/form-data (field name "file") — used by the
+ * bulk CSV validate/import endpoints. No Content-Type header is set manually
+ * so the browser adds the correct multipart boundary itself.
+ */
 async function uploadFile<T>(path: string, file: File): Promise<T> {
   const form = new FormData()
   form.append('file', file)
@@ -80,6 +144,12 @@ async function uploadFile<T>(path: string, file: File): Promise<T> {
   return res.json()
 }
 
+/**
+ * The typed endpoint catalogue used by every component. Each entry is a
+ * one-line wrapper mapping a method to a backend REST path; see the header
+ * comment of this file for cross-cutting behaviour (base URL, errors, admin
+ * token). Reads are public; creates/updates/deletes require admin mode.
+ */
 export const api = {
   // Reads
   getNodes:     () => get<CableNode[]>('/api/nodes'),

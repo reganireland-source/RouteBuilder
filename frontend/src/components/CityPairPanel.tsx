@@ -1,3 +1,26 @@
+/**
+ * CityPairPanel — "which cable systems connect city A to city B?" sidebar search.
+ *
+ * The user picks an origin and destination city from typeahead dropdowns (cities are
+ * derived client-side from the names of landing_station nodes, i.e. CLS = Cable Landing
+ * Stations, grouped by country). Submitting calls POST /api/city-pairs/search
+ * (api.searchCityPairs), which returns CityPairRoute itineraries — sequences of
+ * submarine cable systems (e.g. EAC, C2C) with any intermediate CLS between them —
+ * ranked by latency and deduplicated by system itinerary.
+ *
+ * Each result card shows: a Direct/N-systems hop badge; an ON-NET / OFF-NET / MIXED
+ * badge (computed locally by matching the route's node pairs to segments and checking
+ * every segment's ownership against the onNetOwnership allow-list); a visual itinerary
+ * (City -> [System] -> CLS -> ... -> City); and RTD (round-trip = one-way latency x2),
+ * distance and end-to-end availability metrics. Selecting a card reveals a
+ * "Plan Route" button that hands the itinerary's first and last CLS node IDs to
+ * onPlanRoute, prefilling the main route builder with that origin/destination pair.
+ *
+ * Props: nodes / segments / systems datasets, onNetOwnership (list of ownership values
+ * considered on-net, from backend config), onPlanRoute callback.
+ * Mounted from: App.tsx (desktop sidebar, "City Pairs" mode) and MobileLayout.tsx.
+ * Backend endpoints: POST /api/city-pairs/search.
+ */
 import { useMemo, useState } from 'react'
 import { useTheme } from '../theme'
 import { api } from '../api/client'

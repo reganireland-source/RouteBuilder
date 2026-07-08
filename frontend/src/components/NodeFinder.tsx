@@ -1,3 +1,26 @@
+/**
+ * NodeFinder — "nearest node" search: geocode a customer address and rank nearby PoPs/CLS.
+ *
+ * The user types either a free-text address or a raw "lat, lng" pair. The component
+ * geocodes it with the public OpenStreetMap Nominatim API (forward search for addresses,
+ * reverse for coordinates — both direct browser fetch() calls, not our backend), then
+ * ranks the network nodes in the resolved country by straight-line (haversine) distance
+ * and shows the closest three as cards. Branching units are excluded. Each card shows
+ * the owner logo (or a generated initial tile), node type badge (CLS = Cable Landing
+ * Station, PoP tiers, etc.), distance, and traffic-light dots for product coverage
+ * (Backbone / Underlay / Colocation) when the node has capabilities data.
+ *
+ * Props:
+ *   - nodes:       full CableNode list to rank against.
+ *   - onPinChange: reports the geocoded pin ({lat, lng, label}) and the nearest node IDs
+ *                  so the parent can drop a marker and highlight those nodes on the map;
+ *                  called with (null, []) when a new search starts.
+ *   - onSetOrigin / onSetDest: "Set Origin"/"Set Dest" buttons feed a node straight into
+ *                  the route builder's endpoint pickers.
+ *
+ * Mounted from: App.tsx (desktop sidebar, "Node Finder" mode) and MobileLayout.tsx.
+ * Backend endpoints: none of ours — only https://nominatim.openstreetmap.org search/reverse.
+ */
 import { useState } from 'react'
 import type { CableNode } from '../types'
 import { useTheme } from '../theme'

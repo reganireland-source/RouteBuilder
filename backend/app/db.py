@@ -1,3 +1,74 @@
+"""PostgreSQL schema, seeding, and migration layer for the RouteBuilder backend.
+
+WHAT THIS FILE DOES
+-------------------
+This module owns everything that happens to the Postgres database *before* the
+API starts serving requests:
+
+1.  Creates the tables (``_CREATE_SQL``) if they do not exist yet.
+2.  Applies one-off data migrations (``_run_migration_002`` .. ``_run_migration_059``),
+    each tracked in the ``_migrations`` table so it runs exactly once.
+3.  Seeds empty tables from the JSON files bundled in ``backend/data/``
+    (``_seed_if_empty``) so a brand-new database comes up with a full network map.
+
+WHO CALLS IT
+------------
+``app/main.py`` calls :func:`init_db` once inside the FastAPI ``lifespan``
+handler, i.e. on every process start. On Railway (the production host) each
+redeploy restarts the process, which re-runs ``init_db`` and thereby applies
+any migrations that shipped with the new build but have not run yet. If
+``DATABASE_URL`` is not set (local dev without Postgres), ``init_db`` is a
+no-op and the app falls back to the JSON files via ``app/data_loader.py``.
+
+STORAGE DESIGN: POSTGRES AS A DOCUMENT STORE (JSONB)
+----------------------------------------------------
+Almost every table has the same two-column shape::
+
+    (primary_key TEXT PRIMARY KEY, data JSONB NOT NULL)
+
+The application treats Postgres as a simple document store: each row's
+``data`` column holds the full JSON document for one entity (a node, a
+segment, a capacity record, ...), exactly matching the Pydantic models in
+``app/models.py`` and the JSON files in ``backend/data/``. This keeps the DB
+and file-based storage modes interchangeable, and lets the model schema
+evolve without ALTER TABLE. The two exceptions are ``solution_notes`` and
+``note_categories``, which were converted to proper relational columns in
+migration m055 so individual fields can be updated in place.
+
+DOMAIN GLOSSARY (used throughout comments and data below)
+---------------------------------------------------------
+- "node"        = a location on the network map: a CLS, a PoP, or a
+                  branching unit (an undersea Y-junction on a cable).
+- CLS           = Cable Landing Station — the building on the beach where a
+                  submarine cable comes ashore (``type = 'landing_station'``).
+- PoP           = Point of Presence — a data-centre/telecom facility on land.
+- "system"      = a named submarine cable system, e.g. EAC, C2C, ADC, Apricot.
+- "wet segment" = one section of a submarine cable (``type = 'wet'``).
+- "terrestrial" = a land backhaul segment connecting a CLS to a PoP, or
+                  PoP to PoP (``type = 'terrestrial'``).
+- IRU           = Indefeasible Right of Use — a long-term lease of capacity
+                  on someone else's cable (an ownership category).
+
+WHY SO MANY "WAYPOINT" MIGRATIONS?
+----------------------------------
+The frontend map draws each segment as a straight line (or spline) between
+the coordinates of its two end nodes. Without help, a Singapore→Japan cable
+would be drawn straight through Borneo and the Philippines. ``waypoints`` is
+an optional list of ``[lat, lng]`` points stored on a segment that threads
+the drawn line around landmasses (for wet segments) or along real road/duct
+corridors (for terrestrial segments). Migrations m012, m029, m030, m039,
+m040, m052, m053, m057, m058 and m059 exist purely to add or fix these
+waypoints — they change how routes are *drawn*, not how they are *computed*.
+
+TYPICAL FLOW
+------------
+Deploy new build → process starts → ``lifespan`` in main.py → ``init_db()``:
+create any missing tables → for each ``_once(cur, 'mNNN', fn)`` check the
+``_migrations`` table, run the ones not yet recorded, record them → commit →
+``_seed_if_empty`` fills any completely empty tables from ``backend/data/*.json``.
+After that, all reads/writes go through ``app/data_loader.py``, not this file.
+"""
+
 import json
 import os
 from pathlib import Path
@@ -5,9 +76,15 @@ from pathlib import Path
 import psycopg2
 import psycopg2.extras
 
+# Connection string, injected by the hosting environment (Railway) in
+# production. If unset, the whole DB layer is disabled and data_loader.py
+# reads/writes the JSON files in backend/data/ instead.
 DATABASE_URL = os.environ.get("DATABASE_URL")
 DATA_DIR = Path(__file__).parent.parent / "data"
 
+# The "core" tables that have a matching seed file in backend/data/.
+# _seed_if_empty() walks this list: if a table is empty, it bulk-inserts the
+# documents from the JSON file, using primary_key_field as the row key.
 # Each entry: (table_name, json_filename, primary_key_field)
 _TABLES = [
     ("nodes",    "nodes.json",    "id"),
@@ -18,6 +95,10 @@ _TABLES = [
     ("rules",    "rules.json",    "node_id"),
 ]
 
+# Full schema, executed on every startup (all statements are IF NOT EXISTS so
+# this is idempotent). Note the uniform (pk TEXT, data JSONB) document-store
+# shape described in the module docstring; only solution_notes and
+# note_categories use real relational columns (see migration m055).
 _CREATE_SQL = """
 CREATE TABLE IF NOT EXISTS nodes              (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
 CREATE TABLE IF NOT EXISTS systems            (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
@@ -55,6 +136,9 @@ CREATE TABLE IF NOT EXISTS note_categories (
 );
 """
 
+# Default rows for the "interfaces" reference table (physical handoff types a
+# customer circuit can terminate on, e.g. 100GBase-LR4). Seeded by
+# _seed_if_empty() only when the table is empty; editable later via the API.
 _DEFAULT_INTERFACES = [
     {"id": "100GBASE-LR4-SMF-LC",   "name": "100GBase-LR4, SMF LC",            "description": "100G LAN, 1310nm, single-mode fibre, LC connector"},
     {"id": "100GBASE-ER4-SMF-LC",   "name": "100GBase-ER4, SMF LC",            "description": "100G LAN, 40km reach, single-mode fibre, LC connector"},
@@ -73,6 +157,11 @@ _DEFAULT_INTERFACES = [
     {"id": "XENPAK-10G-ZR",         "name": "XENPAK 10G-ZR, SMF SC",           "description": "10G, 80km reach, single-mode fibre, SC connector"},
 ]
 
+# Default rows for the seven "technical enrichment" dropdown tables
+# (service type, bandwidth, protection scheme, frame size, access type,
+# arranged-by, L1 optical settings). These feed the circuit-design forms in
+# the frontend. Seeded once per table by _seed_if_empty(); "order" controls
+# dropdown sort position.
 _DEFAULT_TECH_LOOKUPS: dict[str, list[dict]] = {
     "tech_service_types": [
         {"id": "ethernet-l2",      "label": "Ethernet (L2)",              "order": 10, "description": "Layer 2 Ethernet transport"},
@@ -150,11 +239,36 @@ _DEFAULT_TECH_LOOKUPS: dict[str, list[dict]] = {
 
 
 def get_conn() -> psycopg2.extensions.connection:
+    """Open a new Postgres connection using DATABASE_URL.
+
+    Uses RealDictCursor so every fetched row is a plain dict
+    (row["data"], row["id"], ...) instead of a positional tuple — all query
+    code in this file and in data_loader.py relies on that.
+
+    Callers are responsible for closing the connection (and committing);
+    there is no pooling — each request/operation opens and closes its own
+    short-lived connection.
+    """
     return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
 
 
 def _once(cur, name: str, fn) -> None:
-    """Run fn(cur) exactly once, tracked by name in _migrations table."""
+    """Run fn(cur) exactly once, tracked by name in _migrations table.
+
+    This is the heart of the migration system:
+
+    - `name` is the migration id, e.g. 'm042'. Before running, we check the
+      `_migrations` table; if a row with that id exists the migration already
+      ran on this database and we skip it.
+    - Otherwise we call `fn(cur)` (one of the _run_migration_NNN functions
+      below) and record the id, all on the same cursor/transaction as
+      init_db(), so a migration and its bookkeeping commit atomically.
+
+    Because init_db() runs on every process start (e.g. every Railway
+    redeploy), appending a new `_once(...)` call to the list in init_db() is
+    all it takes to roll a data change out to production: the next deploy
+    applies it once, and every later restart sees the marker row and skips it.
+    """
     cur.execute("SELECT 1 FROM _migrations WHERE id = %s", (name,))
     if cur.fetchone() is None:
         fn(cur)
@@ -162,7 +276,17 @@ def _once(cur, name: str, fn) -> None:
 
 
 def init_db() -> None:
-    """Create tables (if missing) and seed from JSON files on first run."""
+    """Create tables (if missing), apply pending migrations, seed empty tables.
+
+    Called once per process start from the FastAPI lifespan handler in
+    app/main.py. Safe to run any number of times:
+
+    - Table creation is IF NOT EXISTS.
+    - Each migration is guarded by _once() and runs exactly once per database.
+    - Seeding (_seed_if_empty) only touches tables that are completely empty.
+
+    No-op when DATABASE_URL is unset (local JSON-file mode).
+    """
     if not DATABASE_URL:
         return
     conn = get_conn()
@@ -192,6 +316,36 @@ def init_db() -> None:
                 "WHERE data->>'verification_status' IS NULL"
             )
 
+            # ── Migration list ────────────────────────────────────────────
+            # HOW TO ADD A NEW MIGRATION (step by step):
+            #   1. Write a new function further down in this file, following
+            #      the naming convention:  def _run_migration_060(cur) -> None
+            #      (use the next unused number; m059 is currently the last).
+            #      Put any bulk data it needs in module-level _CONSTANTS next
+            #      to it, like the existing migrations do.
+            #   2. Append ONE line at the END of the list below:
+            #          _once(cur, 'm060', _run_migration_060)   # short description
+            #      The 'mNNN' string must match the function number and must
+            #      be unique — it is the primary key in the _migrations table.
+            #   3. Deploy. init_db() runs on startup, sees 'm060' is not in
+            #      _migrations, runs it once, and records it.
+            #
+            # RULES:
+            #   - NEVER edit or delete an already-shipped migration: databases
+            #     that already ran it will not run it again, so edits would
+            #     only take effect on brand-new databases and prod/dev would
+            #     silently diverge. Ship a new migration to fix a previous one
+            #     (see m014 fixing m013, m053/m057 fixing earlier waypoints).
+            #   - Keep migrations idempotent where practical (INSERT ... ON
+            #     CONFLICT DO NOTHING, UPDATE ... WHERE guards) so a crash
+            #     between "run" and "record" cannot corrupt data on retry.
+            #   - Migrations run in list order within one transaction; order
+            #     matters when a later migration depends on an earlier one.
+            #
+            # Note: the _run_migration_NNN function DEFINITIONS further down
+            # this file are not in numeric order (e.g. 005-007 are defined
+            # before 003/004) — that is cosmetic. Only the ORDER OF THE
+            # _once() CALLS here determines execution order.
             _once(cur, 'm002', _run_migration_002)   # rename terrestrial_pop → primary/secondary/extension_pop
             _once(cur, 'm003', _run_migration_003)   # insert Philippines PoPs
             _once(cur, 'm004', _run_migration_004)   # replace old PH terrestrial segments
@@ -250,6 +404,8 @@ def init_db() -> None:
             _once(cur, 'm057', _run_migration_057)   # fix remaining subsea waypoints (ADC-BAT-SIN, SJC2, RNAL)
             _once(cur, 'm058', _run_migration_058)   # Malay Peninsula / Arabian / Mediterranean waypoints
             _once(cur, 'm059', _run_migration_059)   # C2C-S3C and EAC-K south-of-Japan re-route
+            # ↑ ADD NEW MIGRATIONS HERE (m060, m061, ...) — see the
+            #   "HOW TO ADD A NEW MIGRATION" comment at the top of this list.
         conn.commit()
         _seed_if_empty(conn)
     finally:
@@ -562,6 +718,9 @@ def _run_migration_011(cur) -> None:
 # Waypoints for HK and PH terrestrial segments.
 # Each value is a list of [lat, lng] intermediate points that guide the
 # polyline along logical infrastructure corridors rather than straight lines.
+# (See "WHY SO MANY WAYPOINT MIGRATIONS?" in the module docstring: the map
+# draws segments as straight lines between node coords unless waypoints are
+# provided. Purely visual — route computation ignores waypoints.)
 _TERRESTRIAL_WAYPOINTS = {
     # ── Hong Kong ──────────────────────────────────────────────────────────
     # South Lantau → Tung Chung corridor → Tsing Yi → Kwai Chung
@@ -2560,7 +2719,17 @@ def _run_migration_058(cur) -> None:
 
 
 def _seed_if_empty(conn) -> None:
-    """Populate each table from the committed JSON files if the table is empty."""
+    """Populate each table from the committed JSON files if the table is empty.
+
+    Runs after migrations on every startup. Per-table guard: a table is only
+    seeded when its row count is zero, so user edits made through the API are
+    never overwritten by the bundled JSON. Sources:
+
+    - core tables (nodes, systems, segments, ...): backend/data/*.json per _TABLES
+    - config: single row under key 'main' from config.json (or a default)
+    - interfaces: _DEFAULT_INTERFACES constant above
+    - tech_* lookup tables: _DEFAULT_TECH_LOOKUPS constant above
+    """
     with conn.cursor() as cur:
         for table, filename, pk in _TABLES:
             cur.execute(f"SELECT COUNT(*) AS n FROM {table}")  # nosec B608 — table from constant _TABLES

@@ -1,3 +1,48 @@
+"""Data access layer for the RouteBuilder backend — the ONLY place that reads
+or writes application data.
+
+WHAT THIS FILE DOES
+-------------------
+Every API router in ``app/api/`` calls the ``load_*`` / ``save_*`` /
+``create_* / update_* / delete_*`` functions here instead of touching storage
+directly. Each function returns/accepts the Pydantic models from
+``app/models.py`` (Node, CableSegment, SolutionNote, ...), so callers never
+see raw SQL rows or raw JSON.
+
+DUAL STORAGE MODE
+-----------------
+The backend runs against one of two storage backends, chosen at runtime by
+whether the ``DATABASE_URL`` environment variable is set (see ``_use_db``):
+
+- ``DATABASE_URL`` set (production, e.g. Railway + Postgres): data lives in
+  Postgres, one JSONB document per row (see ``app/db.py`` for the schema).
+- ``DATABASE_URL`` unset (local dev / tests): data lives in the JSON files
+  bundled in ``backend/data/`` (nodes.json, segments.json, ...), and writes
+  rewrite those files in place.
+
+Every function below has an ``if _use_db(): ... else: ...`` split implementing
+both modes, and both modes round-trip through the same Pydantic models — so
+behaviour is identical apart from persistence location.
+
+CACHING
+-------
+A single process-wide dict (``_cache``) memoises whole collections
+("nodes" → list[Node], etc.). The route-search engine reads the full node and
+segment sets on every request, so caching keeps performance on par with the
+old pure-JSON-file design. Any write busts the relevant key (``_bust``) so the
+next read reloads from storage. Note the cache is per-process: it assumes a
+single backend process (or acceptably-stale reads across processes).
+Solution notes and note categories are NOT cached — they are low-volume and
+always read fresh.
+
+TYPICAL FLOW
+------------
+``GET /api/nodes`` → ``app/api/nodes.py`` → ``load_nodes()`` → cache hit? →
+else ``_db_load_all("nodes", "id", Node)`` (or read nodes.json) → cache and
+return ``list[Node]``. A subsequent ``PUT`` → ``save_nodes(...)`` → bust
+cache → ``_db_replace_all`` (or rewrite nodes.json).
+"""
+
 import json
 from pathlib import Path
 from .models import Node, CableSystem, CableSegment, InterconnectRule, SegmentCapacity, SegmentOutage, InterfaceType, TechLookupItem, Project, SolutionNote, NoteCategory
@@ -11,26 +56,39 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 _cache: dict[str, object] = {}
 
 def _get(key: str):
+    """Return the cached collection for `key` ("nodes", "segments", ...) or None."""
     return _cache.get(key)
 
 def _set(key: str, value: object) -> None:
+    """Store a freshly loaded collection in the cache under `key`."""
     _cache[key] = value
 
 def _bust(key: str) -> None:
+    """Invalidate one cache key. Called at the START of every save_* so the
+    next load re-reads from storage even if the write partially fails."""
     _cache.pop(key, None)
 
 
 def _use_db() -> bool:
+    """True → Postgres mode; False → bundled-JSON-file mode.
+
+    Decided purely by whether DATABASE_URL is set. Imported lazily (inside the
+    function) so tests can monkeypatch app.db.DATABASE_URL and flip modes at
+    runtime — a top-level `from .db import DATABASE_URL` would freeze the
+    value at import time.
+    """
     from .db import DATABASE_URL
     return bool(DATABASE_URL)
 
 
 def _get_conn():
+    """Open a new Postgres connection (thin lazy wrapper around db.get_conn)."""
     from .db import get_conn
     return get_conn()
 
 
 def _write(path: Path, data: list) -> None:
+    """JSON-file mode: overwrite `path` with `data` pretty-printed (2-space indent)."""
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
 
@@ -40,6 +98,17 @@ def _write(path: Path, data: list) -> None:
 # SQL identifiers are never taken from request data: every table/column name
 # interpolated below must appear in this allowlist. Values always go through
 # parameterized placeholders.
+#
+# WHY AN ALLOWLIST? psycopg2 placeholders (%s) can only parameterize VALUES,
+# not identifiers (table/column names). A few helpers below therefore build
+# SQL with f-strings — e.g. _db_load_all's `SELECT data FROM {table}` and
+# update_solution_note's `SET {col} = %s` where the column names come from a
+# Pydantic Update model's field names. Today every such name originates from
+# hard-coded constants or model definitions, so this is defence in depth: if
+# a future caller ever passes a user-supplied string, _safe_ident raises
+# instead of letting it reach the SQL text (SQL-injection guard). The set
+# contains every table name plus every column used in the two relational
+# tables (solution_notes, note_categories).
 _ALLOWED_IDENTIFIERS = frozenset({
     "nodes", "systems", "segments", "capacity", "outages", "rules",
     "interfaces", "projects", "feature_requests", "solution_notes",
@@ -62,6 +131,25 @@ def _safe_ident(name: str) -> str:
 
 
 def _db_load_all(table: str, pk: str, model_class):
+    """Load every row of a JSONB document table and parse into Pydantic models.
+
+    Parameters:
+        table:       allowlisted table name, e.g. "nodes".
+        pk:          allowlisted primary-key column, e.g. "id" — used only
+                     for a stable ORDER BY.
+        model_class: the Pydantic class to hydrate each row's `data` JSONB
+                     document into.
+
+    Returns a list of model_class instances (may be empty).
+
+    Example:
+        nodes = _db_load_all("nodes", "id", Node)
+        caps  = _db_load_all("capacity", "segment_id", SegmentCapacity)
+
+    Gotcha: raises pydantic.ValidationError if a stored document no longer
+    matches the current model schema — migrations in db.py must keep old
+    documents compatible (or backfill them).
+    """
     table, pk = _safe_ident(table), _safe_ident(pk)
     conn = _get_conn()
     try:

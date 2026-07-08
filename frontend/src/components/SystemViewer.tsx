@@ -1,3 +1,23 @@
+/**
+ * SystemViewer — sidebar panel for highlighting whole submarine cable systems on the map.
+ *
+ * A "system" is a named submarine cable (e.g. EAC, C2C). This panel shows a searchable
+ * list of all systems (the synthetic TERRESTRIAL pseudo-system is hidden) and lets the
+ * user toggle up to 5 of them at once. Each selected system is shown as a removable chip
+ * with the colour that the map uses to paint that system's segments, so the list acts as
+ * the legend for the highlight feature.
+ *
+ * Props:
+ *   - systems:  full list of CableSystem records loaded by the parent.
+ *   - selected: the currently highlighted systems (SelectedSystem = systemId + assigned colour).
+ *   - onToggle: called with a systemId to add/remove it from the selection; the parent owns
+ *               the selection state and colour assignment, this component is purely controlled.
+ *
+ * Mounted from: App.tsx (desktop sidebar, "Systems" mode) and MobileLayout.tsx (mobile tab).
+ * Behaviour notes: selection is capped at 5 — additional rows render disabled/dimmed until
+ * one is removed. Filtering matches system name or ID, case-insensitive.
+ * Backend endpoints: none — operates entirely on data passed in via props.
+ */
 import { useState } from 'react'
 import type { CableSystem, SelectedSystem } from '../types'
 import { useTheme } from '../theme'

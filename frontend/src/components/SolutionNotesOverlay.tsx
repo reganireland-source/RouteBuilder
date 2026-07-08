@@ -1,3 +1,27 @@
+/**
+ * SolutionNotesOverlay — full-screen modal showing engineering notes attached to a route.
+ *
+ * Given one computed Route (an ordered walk of nodes and segments), this overlay fetches
+ * all solution notes and note categories from the backend, keeps only the notes whose
+ * node_id or segment_id lies on this route, and displays them two ways:
+ *   - Left column (desktop only): a vertical "metro map" of the route where each node dot
+ *     and segment bar is coloured by the worst note severity present (info / warning /
+ *     critical) and badged with its note count.
+ *   - Right column: the route in order, one section per node/segment, with the note cards
+ *     underneath (severity badge, category label, title, collapsible long text) and an
+ *     optional "+ Add Note" button per item when the onAddNote callback is supplied.
+ *
+ * Props:
+ *   - route:     the Route whose nodes/segments scope the notes.
+ *   - nodesById: minimal node lookup ({name, type}) for labels and branching-unit styling.
+ *   - onClose:   dismiss handler (backdrop click or ✕ button).
+ *   - onAddNote: optional (kind: 'node'|'segment', id) => opens the note-creation UI.
+ *
+ * Mounted from: RouteList.tsx (per-route "notes" action on a search result / pinned route);
+ * rendered through createPortal into document.body at z-index 9000. Switches to a
+ * full-viewport layout (metro map hidden) below 768 px.
+ * Backend endpoints: GET /api/solution-notes and GET /api/note-categories on mount.
+ */
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import type { Route, SolutionNote, NoteCategory } from '../types'

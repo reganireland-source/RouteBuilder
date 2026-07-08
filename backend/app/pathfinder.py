@@ -1,3 +1,116 @@
+"""
+Route search engine — the algorithmic heart of RouteBuilder.
+
+Given the network graph built by graph.py (nodes = CLS / PoP / branching-unit
+sites, edges = cable segments), this module finds ranked end-to-end routes
+between two nodes subject to the user's constraints, and optionally pairs each
+route with a physically DIVERSE (separate) protection path.
+
+Who calls it: api/routes.py is the single entry point in production —
+    POST /api/routes with a RouteRequest body
+      → routes.search_routes() loads reference data, builds the graph
+      → find_routes(...) (this module)
+      → RouteResponse {routes, primary_routes, diverse_routes, total_found}
+The pytest suite also calls find_routes directly.
+
+────────────────────────────────────────────────────────────────────────────
+THE PIPELINE (find_routes, top to bottom)
+
+1. PRUNE THE GRAPH. Copy the master graph and delete everything the request
+   forbids: must_avoid_nodes (node removed), must_avoid_segments (edge
+   removed), must_avoid_systems (every edge of that system removed),
+   must_avoid_countries (every non-branching-unit node in the country
+   removed). If an endpoint itself was pruned, or the destination has a
+   no_handoff rule, return an empty response immediately.
+
+2. ENUMERATE CANDIDATES. Use networkx shortest_simple_paths (Yen's k-shortest
+   paths — loopless, ascending weight) to stream up to 1000 raw paths,
+   weighted by length_km (or by hop count when optimise_for == "hops").
+   Each path must pass:
+     * validate_interconnect_rules — per-node system-pairing restrictions
+       (see graph.py: which cable systems may be patched together at a node),
+     * validate_handoff_rules — destination must be allowed to terminate.
+   If waypoints are required (must_include_nodes, or must_include_segments —
+   whose endpoints are expanded into waypoints), _apply_waypoints instead
+   searches each leg (start→wp1→…→end) and stitches legs together.
+   Then hard filters: required segments/systems actually on the path, and
+   max_wet_hops / max_terrestrial_hops (each segment = one hop, classified
+   by its wet/terrestrial type).
+
+3. SELECT k (default 50). _select_candidates trims the candidate pool either
+   by a single dimension (optimise_for = hops/distance/latency/ownership/
+   capacity, or "outages" = prefer routes with no live cable faults) or, by
+   default, by "multi-dimension pooling": take the top few candidates from
+   EACH dimension's ranking so the returned set is varied rather than 50
+   near-identical shortest paths.
+
+4. DIVERSITY PAIRING (if requested). For every selected primary path, build a
+   "diverse graph" with the primary's protected assets deleted, then find the
+   best alternate path in it. Primaries with no valid alternate are dropped;
+   survivors are returned as matched pairs (worker-i / protected-i sharing
+   diversity_group == i).
+
+────────────────────────────────────────────────────────────────────────────
+EDGE WEIGHTS AND ROUTE METRICS
+
+Each segment (edge) carries independent metrics; nothing is blended into a
+single score. Along a route they aggregate as:
+  * total_length_km  = SUM of length_km        (also the search weight)
+  * total_cost       = SUM of cost_weight      (relative commercial cost)
+  * total_latency    = SUM of latency (ms)     (missing latency counts as 0)
+  * end_to_end_reliability = PRODUCT of per-segment reliability values
+    (each in (0,1]; e.g. 0.999 × 0.998 = 0.997002 — more segments and less
+    reliable segments both reduce the product)
+  * ownership is averaged via _OWNERSHIP_SCORE for ranking only (owned/IRU
+    best, off-net resell worst; IRU = Indefeasible Right of Use, a long-term
+    capacity lease that behaves like ownership).
+
+────────────────────────────────────────────────────────────────────────────
+DIVERSITY MODES (DiversityType) — what gets removed from the diverse graph
+
+"Diversity" = a physically separate backup path, so one cable break cannot
+take down both routes. Modes differ in WHICH parts must be separate:
+  * none         — no protection path computed.
+  * wet          — wet-path-disjoint: only the primary's WET (submarine)
+                   segments are removed; the backup may reuse terrestrial
+                   (land backhaul) segments. Protects against cable ship
+                   anchors, fishing gear, subsea faults.
+  * terrestrial_origin / terrestrial_destination / terrestrial_both
+                 — the leading and/or trailing run of consecutive
+                   TERRESTRIAL segments (walked inward from each end until
+                   the first wet segment) is removed, forcing a different
+                   land tail at that end. Protects against backhaul cuts
+                   near the customer site.
+  * full         — segment-disjoint: EVERY edge of the primary is removed;
+                   the backup shares no segment but may cross the same
+                   intermediate stations.
+  * full_nodes   — node-disjoint: full, PLUS every intermediate node of the
+                   primary is deleted, so the backup avoids the primary's
+                   stations entirely (strongest protection: survives a whole
+                   site failure).
+
+────────────────────────────────────────────────────────────────────────────
+WORKED EXAMPLE
+
+Toy network (all wet unless noted):
+    SIN3 ──EAC-1──> HKG1 ──EAC-2──> TKO1        (EAC system, 2600+2900 km)
+    SIN3 ──C2C-1──> TPE1 ──C2C-2──> TKO1        (C2C system, 3300+2100 km)
+    HKG1 ──terr──> TPE1                          (terrestrial, 800 km)
+
+Request: POST /api/routes {start_node_id: "SIN3", end_node_id: "TKO1",
+                           diversity: "full", must_avoid_countries: []}
+
+1. Nothing to prune. 2. shortest_simple_paths yields, ascending length:
+   P1 = SIN3-HKG1-TKO1 (5500 km, all EAC), P2 = SIN3-TPE1-TKO1 (5400 km...
+   ordering per real lengths), P3 = SIN3-HKG1-TPE1-TKO1 (mixed EAC/C2C via
+   the terrestrial hop — this one dies if TPE1 has an interconnect rule
+   disallowing {EAC, C2C}). 3. Both survivors enter the pool. 4. For P1 the
+   diverse graph drops EAC-1 and EAC-2; the alternate found is
+   SIN3-TPE1-TKO1 on C2C — physically separate, so the pair is returned as
+   worker-1 / protected-1 with diversity_group=1. Metrics: P1 total_length
+   = 5500 km, reliability = product of the two segments' values, cost =
+   sum of their cost_weights.
+"""
 from __future__ import annotations
 import math
 import itertools
@@ -7,24 +120,32 @@ from .models import (
     Route, RouteSegmentDetail, RouteResponse, SegmentCapacity
 )
 
+# Ranking score per ownership class (higher = more preferred / better margin).
+# "owned" and "iru" (Indefeasible Right of Use — a long-term lease treated
+# commercially like ownership) score equally at the top; capacity resold from
+# another carrier's network ("offnet_resell") scores lowest. Used only when
+# ranking candidates by average ownership — never as a hard filter.
 _OWNERSHIP_SCORE: dict[str, int] = {
     "owned": 3, "iru": 3, "consortium": 2,
     "integrated_lit_lease": 1, "offnet_resell": 0,
 }
 
+# Maps an optimise_for value from the API to a single-dimension sort over the
+# precomputed per-candidate metrics tuple (see _select_candidates).
 _OPTIMISE_SORT: dict[str, tuple[int, bool]] = {
     # (metrics-tuple index, reverse=True means descending)
     # metrics = (hops, length_km, latency, ownership_avg, cap_min)
-    "hops":      (0, False),
-    "distance":  (1, False), "length":   (1, False),
-    "latency":   (2, False),
-    "ownership": (3, True),
-    "capacity":  (4, True),
+    "hops":      (0, False),   # fewest segments first
+    "distance":  (1, False), "length":   (1, False),  # shortest first (aliases)
+    "latency":   (2, False),   # lowest round-trip contribution first
+    "ownership": (3, True),    # highest average ownership score first
+    "capacity":  (4, True),    # largest bottleneck (min available Tbps) first
 }
 from .graph import validate_interconnect_rules, validate_handoff_rules, path_to_segment_ids
 
 
 def _path_length(G: nx.Graph, node_path: list[str]) -> float:
+    """Total length_km of a node path — used to compare diverse candidates."""
     return sum(
         G[node_path[i]][node_path[i + 1]]["length_km"]
         for i in range(len(node_path) - 1)
@@ -38,6 +159,17 @@ def _build_route(
     route_id: str,
     diversity_group: int,
 ) -> Route:
+    """Materialise a node path into a full Route API object.
+
+    Converts the path into its segment list and aggregates the route-level
+    metrics (see the module docstring for the formulas):
+      total_cost        — sum of segment cost_weights,
+      total_length_km   — sum of segment lengths,
+      total_latency     — sum of segment latencies (None counts as 0),
+      end_to_end_reliability — PRODUCT of segment reliabilities.
+    diversity_group links a primary route to its diverse counterpart: the
+    frontend matches primary_routes[i] with diverse_routes[i] via this value.
+    """
     seg_ids = path_to_segment_ids(G, node_path)
     seg_details = []
     total_cost = 0.0
@@ -86,7 +218,28 @@ def _apply_waypoints(
     avoid_edges: set[tuple[str, str]],
     k: int = 5,
 ) -> list[list[str]]:
-    """Find paths through mandatory waypoints in order."""
+    """Find paths through mandatory waypoints in order.
+
+    Used when the request has must_include_nodes (or must_include_segments,
+    whose endpoints are expanded into waypoints upstream). A plain k-shortest
+    -paths search would rarely happen to pass through a required node, so
+    instead the journey is split into legs — start → wp1 → wp2 → … → end —
+    and each leg is searched independently (up to k valid paths per leg,
+    drawn from a pool of k*3 raw candidates so rule-violating ones can be
+    discarded). Leg paths are then stitched together combinatorially,
+    dropping the duplicated junction node at each join.
+
+    Two safety rails during stitching:
+      * a combination is rejected if a leg would reuse an edge already in the
+        partial route (a segment must not appear twice in one route);
+      * the combined list is capped at k after each leg to bound the
+        combinatorial blow-up.
+
+    avoid_edges lets callers pre-remove specific edges from the working copy.
+    Returns [] as soon as any leg is unroutable (a hard constraint failed).
+    Interconnect rules are checked per leg; handoff rules are checked by the
+    caller on the final stitched paths.
+    """
     checkpoints = [start] + waypoints + [end]
     # Remove consecutive duplicates (e.g. when start == first waypoint)
     checkpoints = [v for i, v in enumerate(checkpoints) if i == 0 or v != checkpoints[i - 1]]
