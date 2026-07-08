@@ -933,13 +933,26 @@ export default function App() {
           overflow: 'hidden', transition: 'width 0.3s ease',
         }}>
           <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${theme.border}` }}>
-            <div
-              onClick={() => setGuideOpen(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 2, cursor: 'pointer' }}
-              title="Open platform guide"
-            >
-              <img src="/favicon.svg" alt="" style={{ width: 28, height: 28, flexShrink: 0 }} />
-              <h1 style={{ fontSize: 18, fontWeight: 700, color: theme.text }}>RouteBuilder</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 2 }}>
+              <div
+                onClick={() => setGuideOpen(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', flex: 1, minWidth: 0 }}
+                title="Open platform guide"
+              >
+                <img src="/favicon.svg" alt="" style={{ width: 28, height: 28, flexShrink: 0 }} />
+                <h1 style={{ fontSize: 18, fontWeight: 700, color: theme.text }}>RouteBuilder</h1>
+              </div>
+              <a
+                href="/suite.html"
+                title="Back to the RouteSuite portal"
+                style={{
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textDecoration: 'none',
+                  padding: '3px 8px', borderRadius: 4, whiteSpace: 'nowrap', flexShrink: 0,
+                  border: `1px solid ${theme.border}`, color: theme.textMuted, background: 'transparent',
+                }}
+              >
+                RouteSuite ↗
+              </a>
             </div>
             <p style={{ fontSize: 11, color: theme.textFaint }}>International Telco · Subsea Circuit Design</p>
           </div>
