@@ -1,3 +1,28 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# health.py — Service health, data-integrity checks, and admin data ops.
+#
+# Route prefix: /api/health  (this router has prefix="/health"; main.py mounts
+# it under "/api", so all paths are /api/health/...).
+#
+# This module mixes two kinds of endpoint:
+#   1. Read-only status probes (safe, public): overall health, integrity checks,
+#      and NLP provider status.
+#   2. Admin data-maintenance operations that MUTATE storage: reseeding the
+#      database from the bundled JSON seed files, and dumping the database back
+#      out to those JSON files. Because these change data, they are POSTs and are
+#      subject to the admin token when ADMIN_KEY is set.
+#
+# The app stores its data either in Postgres (when DATABASE_URL is set) or in
+# local JSON files under backend/data/ (dev fallback). The reseed/dump endpoints
+# only do anything in Postgres mode; in JSON mode they return "skipped".
+#
+# Endpoints:
+#   GET  /api/health               — service + DB connectivity + data counts.
+#   GET  /api/health/checks        — run all data-integrity checks, summarised.
+#   POST /api/health/admin/reseed  — overwrite Postgres from the JSON seed files.
+#   POST /api/health/admin/dump-to-json — export Postgres back to the JSON files.
+#   GET  /api/health/nlp           — report NLP feature status / LLM provider.
+# ─────────────────────────────────────────────────────────────────────────────
 import os
 import json
 from pathlib import Path
@@ -12,6 +37,21 @@ DATA_DIR = Path(__file__).parent.parent.parent / "data"
 
 @router.get("")
 def health_check():
+    """GET /api/health — overall service health and data summary.
+
+    Loads the core tables (nodes, segments, systems) and, if a DATABASE_URL is
+    configured, runs a trivial "SELECT 1" to confirm the database is reachable.
+
+    Params: none.
+    Response: JSON with:
+      - status: always "ok" if the handler runs.
+      - nodes / segments / systems: row counts of each core table.
+      - storage: "postgres" or "json" depending on DATABASE_URL.
+      - db_ok: bool, whether the DB connectivity probe succeeded.
+      - db_detail: human-readable connectivity note (never leaks DSN/host).
+
+    Auth: public read endpoint; no token required.
+    """
     from ..db import DATABASE_URL, get_conn
     nodes    = load_nodes()
     segments = load_segments()
@@ -28,6 +68,8 @@ def health_check():
             db_ok = True
             db_detail = "Connected"
         except Exception as e:
+            # Security: log the real error server-side only; the client response
+            # must never echo DSN/host fragments that could leak credentials.
             # Log full detail server-side; never echo DSN/host fragments to clients
             import logging
             logging.getLogger("routebuilder.health").warning("DB health check failed: %s", e)
@@ -46,14 +88,38 @@ def health_check():
 
 @router.get("/checks")
 def integrity_checks():
+    """GET /api/health/checks — run all data-integrity checks and summarise them.
+
+    Executes every registered consistency check (e.g. segments pointing at nodes
+    that exist, no dangling references) and returns a rolled-up summary.
+
+    Params: none.
+    Response: the summary object produced by checks_summary() over the raw check
+    results (counts and per-check findings).
+
+    Auth: public read endpoint; no token required.
+    """
     return checks_summary(run_all_checks())
 
 
 @router.post("/admin/reseed")
 def admin_reseed():
-    """Force-write all data from the bundled JSON files into Postgres and bust the cache.
-    Safe to call repeatedly — does a full replace on each table.
-    No-op (returns skipped) when not using Postgres."""
+    """POST /api/health/admin/reseed — reload Postgres from the bundled JSON seeds.
+
+    Force-writes all data from the bundled JSON files (backend/data/*.json) into
+    the corresponding Postgres tables and busts the in-memory cache. Does a full
+    replace on each table (nodes, systems, segments, capacity, outages, rules),
+    so it is safe to call repeatedly. A missing seed file is treated as empty.
+
+    Params: none.
+    Response: {"status": "ok", "reseeded": {<table>: <row count>, ...}} on
+    success, or {"status": "skipped", "reason": ...} when DATABASE_URL is not
+    set (in JSON mode the data already lives in the files — nothing to reseed).
+
+    Auth: this MUTATES all data, so it requires the x-admin-token header when
+    ADMIN_KEY is set — enforced centrally by the admin_write_guard middleware in
+    app/main.py, not here.
+    """
     from ..db import DATABASE_URL
     from ..models import Node, CableSystem, CableSegment, SegmentCapacity, SegmentOutage, InterconnectRule
 
@@ -95,11 +161,23 @@ def admin_reseed():
 
 @router.post("/admin/dump-to-json")
 def admin_dump_to_json():
-    """Export the current Postgres state back to the JSON seed files.
+    """POST /api/health/admin/dump-to-json — export Postgres back to JSON seeds.
 
-    Overwrites data/*.json with whatever is currently in the database so the
-    JSON files stay in sync with user-entered data and API mutations.
-    No-op (returns skipped) when not using Postgres.
+    The inverse of reseed. Overwrites backend/data/*.json with whatever is
+    currently in the database, so the JSON seed files stay in sync with
+    user-entered data and API mutations (useful for committing snapshots back to
+    the repo). Reads a fixed allowlist of tables (constant TABLES, so the table
+    name is never user input); a per-table read error is recorded and skipped
+    rather than aborting the whole dump.
+
+    Params: none.
+    Response: {"status": "ok", "written": {<table>: <row count or "ERROR: ...">}}
+    on success, or {"status": "skipped", "reason": ...} when DATABASE_URL is not
+    set (in JSON mode the files are already the source of truth).
+
+    Auth: this MUTATES the on-disk seed files, so it requires the x-admin-token
+    header when ADMIN_KEY is set — enforced centrally by the admin_write_guard
+    middleware in app/main.py, not here.
     """
     from ..db import DATABASE_URL, get_conn
 
@@ -138,6 +216,20 @@ def admin_dump_to_json():
 
 @router.get("/nlp")
 def nlp_status():
+    """GET /api/health/nlp — report whether natural-language parsing is available.
+
+    Checks the NLP feature flag and which LLM provider (if any) is configured,
+    so the frontend knows whether to show the natural-language route search box.
+
+    Params: none.
+    Response: {"status", "provider", "detail"} where:
+      - status "disabled" when NLP_ENABLED is not "true";
+      - status "ok" with provider "claude"/"azure"/"openai" when a matching API
+        key env var is present;
+      - status "error" when NLP is enabled but no provider key is set.
+
+    Auth: public read endpoint; no token required.
+    """
     if os.getenv("NLP_ENABLED", "").lower() != "true":
         return {"status": "disabled", "provider": None, "detail": "NLP disabled"}
     if os.getenv("ANTHROPIC_API_KEY"):
