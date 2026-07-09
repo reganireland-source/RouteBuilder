@@ -26,17 +26,105 @@ import type { NextHopCandidate } from './components/RouteManual'
 import { OutagePanel } from './components/OutagePanel'
 import { CountryNodeDiagram } from './components/CountryNodeDiagram'
 
+/**
+ * ============================================================================
+ *  App.tsx — the root component of the RouteBuilder frontend.
+ * ============================================================================
+ *
+ * RouteBuilder is an internal tool for an international telco to design subsea
+ * (submarine cable) circuits. It presents a large network of nodes and cable
+ * segments on a map and lets a user search for, compare, and document routes
+ * between two endpoints.
+ *
+ * DOMAIN GLOSSARY (used throughout the codebase):
+ *   • CLS  — Cable Landing Station: where a submarine cable meets land.
+ *   • wet segment — a submarine cable hop (vs. a terrestrial/backhaul hop).
+ *   • system — a named submarine cable (e.g. EAC, C2C). One system is made of
+ *     many segments.
+ *   • diversity — a physically separate backup path (so a single cut can't take
+ *     down both the "worker" and its "protect" route).
+ *   • SLD  — Straight Line Diagram: the schematic export handed to customers.
+ *   • pinned route — a search result the user keeps on the map for comparison.
+ *   • project — a saved solution; it contains "circuits", each of which
+ *     snapshots one (or a worker+protect pair of) route(s).
+ *
+ * -------------------------------------------------------------------------
+ *  TOP-LEVEL STATE MODEL
+ * -------------------------------------------------------------------------
+ * The whole app is driven by one big `App` component holding React state. The
+ * most important piece is `mode` (type AppMode), which selects what the LEFT
+ * panel shows and how the Map behaves. The modes are:
+ *   • 'routebuilder' — the search form (SearchForm) + NLP chat. Main flow.
+ *   • 'routemanual'  — hand-build a route hop-by-hop by clicking the map.
+ *   • 'systemviewer' — highlight named cable systems on the map.
+ *   • 'nodefinder'   — drop a pin, find nearest nodes.
+ *   • 'citypair'     — pick two cities, list subsea system itineraries.
+ *   • 'countryviewer'— highlight a country and its nodes/segments.
+ *   • 'outageviewer' — show current cable faults/outages.
+ * `switchMode()` centralises the side effects of changing mode;
+ * `safeSwitchMode()` first warns if the user is mid-build in RouteManual.
+ *
+ * -------------------------------------------------------------------------
+ *  THE SEARCH FLOW (routebuilder mode)
+ * -------------------------------------------------------------------------
+ *   SearchForm builds a `RouteRequest`  →  handleSearch() calls
+ *   api.searchRoutes()  →  the result lands in `response` (a RouteResponse
+ *   with primary_routes + diverse_routes)  →  RouteList renders the cards  →
+ *   the user selects routes (selectedRouteIds) and/or pins them  →  the Map
+ *   draws the selected + pinned routes.
+ *
+ * -------------------------------------------------------------------------
+ *  pinnedRoutes vs. selectedRoutes vs. projects
+ * -------------------------------------------------------------------------
+ *   • selectedRouteIds → which result cards are ticked; these are drawn on the
+ *     map "live" for the current search only, and are cleared on a new search.
+ *   • pinnedRoutes     → routes the user explicitly kept (up to MAX_PINS) so
+ *     they persist on the map across searches for side-by-side comparison.
+ *     Each pin has a stable colour and label.
+ *   • activeProject    → a saved solution. When a project is "active", pinning
+ *     a route also saves it as a circuit (route_snapshot) on that project via
+ *     the API. restorePinsFromProject() rebuilds the pin bar from a project's
+ *     saved circuits.
+ *
+ * -------------------------------------------------------------------------
+ *  DATA LOADING
+ * -------------------------------------------------------------------------
+ *   On mount, a Promise.all fetches the whole reference dataset: nodes,
+ *   segments, capacity, systems, rules, config, outages (plus projects). Any
+ *   admin edit in RefDataModal calls handleDataChange(), which re-runs the same
+ *   Promise.all to refresh every slice of that dataset.
+ *
+ * -------------------------------------------------------------------------
+ *  ADMIN & RESPONSIVE
+ * -------------------------------------------------------------------------
+ *   • Admin editing is gated by AuthContext (see AdminBar at the bottom of this
+ *     file); read-only until unlocked with the passphrase.
+ *   • Below 768px wide (useIsMobile) the app renders a completely separate
+ *     <MobileLayout> instead of the three-panel desktop layout.
+ * ============================================================================
+ */
+
+// Feature flag: the natural-language search assistant (NlpChat / "TSABuddy").
+// Disabled when VITE_ENABLE_NLP === 'false'. Lazy-loaded only when enabled so
+// its bundle isn't shipped to users who have it turned off.
 const NLP_ENABLED = import.meta.env.VITE_ENABLE_NLP !== 'false'
 const NlpChat = NLP_ENABLED
   ? lazy(() => import('./components/NlpChat'))
   : null
 
+// Palette cycled through when assigning a distinct colour to each pinned route.
 const PIN_COLORS    = ['#f9e2af', '#94e2d5', '#cba6f7', '#f2cdcd', '#eba0ac', '#89dceb', '#a6e3a1', '#fab387', '#cdd6f4', '#b4befe']
+// Hard cap on how many routes can be pinned/compared on the map at once.
 const MAX_PINS = 10
+// Palette for the up-to-5 cable systems highlighted in systemviewer mode.
 const SYSTEM_COLORS = ['#89b4fa', '#a6e3a1', '#f9e2af', '#94e2d5', '#cba6f7']
 
+/** Stable identity for a route: its ordered node list joined into a string.
+ *  Used to detect "is this exact path already pinned?" regardless of object id. */
 function routeKey(r: Route) { return r.nodes.join('|') }
 
+/** Hook: true when the viewport is narrower than 768px. Drives the switch to
+ *  the separate mobile layout. Re-evaluates on window resize. */
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
   useEffect(() => {
@@ -47,6 +135,9 @@ function useIsMobile() {
   return isMobile
 }
 
+/** Banner at the top of the middle (routes) panel showing whether we're in
+ *  plain "Circuit Designer" mode or inside an active Project. Provides a dropdown
+ *  to switch/exit the project. Purely presentational — all state lives in App. */
 function ModeBanner({ activeProject, onSwitch, onExit, theme }: {
   activeProject: import('./types').Project | null
   onSwitch: () => void
@@ -149,10 +240,14 @@ function ModeBanner({ activeProject, onSwitch, onExit, theme }: {
 export default function App() {
   const isMobile = useIsMobile()
 
+  // ── Theme ── Three-way theme cycle: dark → dusk → light → dark.
   const [themeMode, setThemeMode] = useState<ThemeMode>('dusk')
   const theme = themeMode === 'dark' ? darkTheme : themeMode === 'dusk' ? duskTheme : lightTheme
   function cycleTheme() { setThemeMode(m => m === 'dark' ? 'dusk' : m === 'dusk' ? 'light' : 'dark') }
 
+  // ── Modal / overlay open-state flags ──────────────────────────────────────
+  // Each boolean toggles a full-screen modal (ref-data editor, guide, projects,
+  // capacity dashboard, algo-eval, SLD export prompt, etc.).
   const [refDataOpen,     setRefDataOpen]     = useState(false)
   const [refDataNoteFocus, setRefDataNoteFocus] = useState<{ kind: 'node' | 'segment', id: string } | null>(null)
   const [guideOpen,       setGuideOpen]       = useState(false)
@@ -165,42 +260,52 @@ export default function App() {
   const [pendingPinSaving, setPendingPinSaving] = useState(false)
   const [sldVersionPrompt, setSldVersionPrompt] = useState(false)
   const [sldVersion, setSldVersion] = useState('')
+
+  // ── Active mode — selects the left panel + map behaviour (see header). ─────
   const [mode, setMode]               = useState<AppMode>('routebuilder')
+
+  // ── Reference dataset (loaded from the API on mount, refreshed on edits). ──
+  // This is the whole network model the UI renders and searches over.
   const [nodes, setNodes]             = useState<CableNode[]>([])
   const [segments, setSegments]       = useState<CableSegment[]>([])
   const [systems, setSystems]         = useState<CableSystem[]>([])
   const [capacity, setCapacity]       = useState<SegmentCapacity[]>([])
   const [rules, setRules]             = useState<InterconnectRule[]>([])
   const [config, setConfig]           = useState<AppConfig>({ on_net_ownership: ['owned', 'consortium', 'iru'] })
-  const [response, setResponse]       = useState<RouteResponse | null>(null)
-  const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([])
-  const [pinnedRoutes, setPinnedRoutes]         = useState<PinnedRoute[]>([])
-  const [cachedProjects, setCachedProjects]     = useState<import('./types').Project[] | null>(null)
-  const [selectedSystems, setSelectedSystems]   = useState<SelectedSystem[]>([])
-  const [loading, setLoading]   = useState(false)
+
+  // ── Search results & selection ────────────────────────────────────────────
+  const [response, setResponse]       = useState<RouteResponse | null>(null)   // last search result (primary + diverse routes)
+  const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([])        // which result cards are ticked (drawn live on map)
+  const [pinnedRoutes, setPinnedRoutes]         = useState<PinnedRoute[]>([])    // routes kept on the map across searches (see header)
+  const [cachedProjects, setCachedProjects]     = useState<import('./types').Project[] | null>(null) // projects list cache for the ProjectsModal
+  const [selectedSystems, setSelectedSystems]   = useState<SelectedSystem[]>([]) // cable systems highlighted in systemviewer mode
+  const [loading, setLoading]   = useState(false)   // a search is in flight
   const [error, setError]       = useState<string | null>(null)
-  const [lastSearchDiversity, setLastSearchDiversity] = useState<import('./types').DiversityType>('none')
-  const [lastOptimiseFor, setLastOptimiseFor] = useState<string | undefined>(undefined)
-  const [selectedNode, setSelectedNode] = useState<{ node: CableNode; x: number; y: number } | null>(null)
-  const [searchPin, setSearchPin]       = useState<{ lat: number; lng: number; label: string } | null>(null)
-  const [nearestNodeIds, setNearestNodeIds] = useState<string[]>([])
-  const [prefilledOrigin, setPrefilledOrigin] = useState('')
-  const [prefilledDest, setPrefilledDest]     = useState('')
-  const [searchPrefill, setSearchPrefill]     = useState<Partial<RouteRequest> | undefined>(undefined)
-  const [outages, setOutages]                       = useState<SegmentOutage[]>([])
+  const [lastSearchDiversity, setLastSearchDiversity] = useState<import('./types').DiversityType>('none') // remembers the diversity of the last search (affects how RouteList pairs cards)
+  const [lastOptimiseFor, setLastOptimiseFor] = useState<string | undefined>(undefined)                   // remembers the "optimise for" objective of the last search
+  const [selectedNode, setSelectedNode] = useState<{ node: CableNode; x: number; y: number } | null>(null) // node whose info popup is open (with click coords)
+  const [searchPin, setSearchPin]       = useState<{ lat: number; lng: number; label: string } | null>(null) // dropped pin in nodefinder mode
+  const [nearestNodeIds, setNearestNodeIds] = useState<string[]>([])   // nodes nearest to the dropped search pin
+  const [prefilledOrigin, setPrefilledOrigin] = useState('')           // origin to pre-fill SearchForm (from map click / other panels)
+  const [prefilledDest, setPrefilledDest]     = useState('')           // destination to pre-fill SearchForm
+  const [searchPrefill, setSearchPrefill]     = useState<Partial<RouteRequest> | undefined>(undefined) // full request prefill from the NLP assistant
+  const [outages, setOutages]                       = useState<SegmentOutage[]>([]) // current cable faults/outages
+
+  // ── Overlay flags + map display toggles (driven by the top-right "Controls"
+  //    menu). Each toggle changes what the Map draws or filters. ─────────────
   const [capDashOpen, setCapDashOpen]               = useState(false)
   const [algoEvalOpen, setAlgoEvalOpen]             = useState(false)
   const [ctrlMenuOpen, setCtrlMenuOpen]             = useState(false)
-  const [hideNonActive, setHideNonActive]           = useState(false)
+  const [hideNonActive, setHideNonActive]           = useState(false)  // dim nodes/segments not on a shown route
   const [showSegmentLabels, setShowSegmentLabels]   = useState(false)
   const [showNodeLabels,    setShowNodeLabels]       = useState(false)
-  const [showAllOutages, setShowAllOutages]         = useState(false)
-  const [subseaOnly, setSubseaOnly]                 = useState(false)
-  const [backhaulOnly, setBackhaulOnly]             = useState(false)
-  const [nlpSortKey, setNlpSortKey]                 = useState<SortKey | undefined>(undefined)
-  const [nlpPushOutages, setNlpPushOutages]         = useState<boolean | undefined>(undefined)
-  const [countryHighlight, setCountryHighlight]     = useState<CountryHighlight | null>(null)
-  const [showNodeDiagram, setShowNodeDiagram]       = useState(false)
+  const [showAllOutages, setShowAllOutages]         = useState(false)  // show every outage, not just those on shown routes
+  const [subseaOnly, setSubseaOnly]                 = useState(false)  // draw only wet (submarine) segments
+  const [backhaulOnly, setBackhaulOnly]             = useState(false)  // draw only terrestrial (backhaul) segments
+  const [nlpSortKey, setNlpSortKey]                 = useState<SortKey | undefined>(undefined)   // sort key requested by the NLP assistant
+  const [nlpPushOutages, setNlpPushOutages]         = useState<boolean | undefined>(undefined)   // push outage-affected routes down, requested by NLP
+  const [countryHighlight, setCountryHighlight]     = useState<CountryHighlight | null>(null)     // country selected in countryviewer mode
+  const [showNodeDiagram, setShowNodeDiagram]       = useState(false)  // opens the CountryNodeDiagram overlay
 
   // ── RouteManual state ──────────────────────────────────────────────────────
   const [manualState,   setManualState]   = useState<import('./components/RouteManual').ManualState | null>(null)
@@ -212,6 +317,8 @@ export default function App() {
   const [flippedPairIds, setFlippedPairIds]         = useState<Set<string>>(new Set())
   const pinCounter = useRef(0)
 
+  // Translate the free-form sort intents the NLP assistant emits into the
+  // concrete SortKey values RouteList understands (with a few legacy aliases).
   const NLP_SORT_MAP: Record<NlpSortMode, SortKey | null> = {
     hops:         'hops',
     distance:     'distance',
@@ -225,6 +332,7 @@ export default function App() {
     ownership:    'ownership',
     outages:      null,           // handled separately via pushOutagesDown
   }
+  /** Apply a sort intent coming from the NLP assistant to the route list. */
   function handleApplySort(mode: NlpSortMode) {
     if (mode === 'outages') {
       setNlpPushOutages(true)
@@ -234,6 +342,8 @@ export default function App() {
     }
   }
 
+  // Initial data load: fetch the entire reference dataset in parallel, plus the
+  // saved projects list. Runs once on mount.
   useEffect(() => {
     Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules(), api.getConfig(), api.getOutages()])
       .then(([n, s, c, sys, r, cfg, o]) => { setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r); setConfig(cfg); setOutages(o) })
@@ -241,8 +351,11 @@ export default function App() {
     api.getProjects().then(setCachedProjects).catch(() => {})
   }, [])
 
+  // True while the user is actively assembling a route by hand in RouteManual.
   const manualBuilding = mode === 'routemanual' && !!manualState
 
+  /** Change the active mode and run the side effects each mode needs (clearing
+   *  results, resetting highlights, auto-enabling certain toggles, etc.). */
   function switchMode(next: AppMode) {
     if (next === 'systemviewer') { setResponse(null); setSelectedRouteIds([]); setError(null) }
     if (next !== 'countryviewer') { setCountryHighlight(null); setShowNodeDiagram(false) }
@@ -252,16 +365,21 @@ export default function App() {
     setMode(next)
   }
 
+  /** Like switchMode, but if the user is mid-build in RouteManual it first pops
+   *  a "discard route?" confirmation instead of silently losing their work. */
   function safeSwitchMode(next: AppMode) {
     if (manualBuilding && next !== 'routemanual') { setWarnSwitchMode(next); return }
     switchMode(next)
   }
 
   // ── RouteManual handlers ─────────────────────────────────────────────────
+  // Lookup maps rebuilt each render so the manual builder can resolve ids fast.
   const nodesById_      = Object.fromEntries(nodes.map(n => [n.id, n]))
   const segmentsById_   = Object.fromEntries(segments.map(s => [s.id, s]))
   const capacityBySegId_ = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
 
+  // The set of next hops the user may click from wherever they currently are in
+  // the manual build (excludes already-visited nodes to prevent loops).
   const manualCandidates: NextHopCandidate[] = (() => {
     if (!manualState) return []
     const currentId = manualState.steps.length
@@ -271,6 +389,9 @@ export default function App() {
     return computeCandidates(currentId, visited, segments, nodesById_, systems, capacityBySegId_)
   })()
 
+  /** Map-click handler while in RouteManual: first click sets the origin, later
+   *  clicks either extend the path to a valid candidate or (clicking the current
+   *  node again) finish the route. */
   function handleManualNodeClick(node: CableNode) {
     if (!manualState) {
       // No state yet — this click sets the origin
@@ -298,6 +419,7 @@ export default function App() {
     } : prev)
   }
 
+  /** Append a chosen next hop to the manual build (picked from the list panel). */
   function handleManualPickHop(candidate: NextHopCandidate) {
     setManualState(prev => prev ? {
       ...prev,
@@ -305,6 +427,7 @@ export default function App() {
     } : prev)
   }
 
+  /** Remove the last hop added to the manual build. */
   function handleManualUndo() {
     setManualState(prev => {
       if (!prev || prev.steps.length === 0) return prev
@@ -312,20 +435,27 @@ export default function App() {
     })
   }
 
+  /** Finish the manual build: assemble the accumulated steps into a full Route
+   *  and open the confirmation dialog to review its stats. */
   function handleManualFinish() {
     if (!manualState || manualState.steps.length === 0) return
     const route = assembleRoute(manualState, nodesById_, segmentsById_)
     setManualFinishConfirm(route)
   }
 
+  /** Accept a manually built route: prepend it to the results list and reset the
+   *  builder so the user can start another. */
   function confirmManualRoute(route: Route) {
     setManualResults(prev => [route, ...prev])
     setManualFinishConfirm(null)
     setManualState(null)
   }
 
+  // Wall-clock duration of the last search, in seconds (for the "found in Xms" UI).
   const [searchDuration, setSearchDuration] = useState<number | null>(null)
 
+  /** Run a route search: clear old state, call the API, store the response, and
+   *  auto-select the top primary + top diverse route so the map shows something. */
   async function handleSearch(req: RouteRequest) {
     setLoading(true)
     setError(null)
@@ -349,10 +479,14 @@ export default function App() {
     }
   }
 
+  /** Tick / untick a result card (adds or removes it from the map). */
   function toggleRoute(id: string) {
     setSelectedRouteIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
 
+  /** Pin (or unpin) a single route. If a project is active, defer to a label
+   *  prompt so the pin can be saved as a project circuit; otherwise assign the
+   *  next free colour and add it to the pin bar (respecting MAX_PINS). */
   function handlePin(route: Route) {
     const key = routeKey(route)
     // Unpin if already pinned (same in both modes)
@@ -374,10 +508,14 @@ export default function App() {
     setPinnedRoutes(prev => [...prev, { pinId: `pin-${pinCounter.current}`, route, color, searchLabel }])
   }
 
+  /** Remove a pin from the map by its unique pinId. */
   function handleUnpin(pinId: string) {
     setPinnedRoutes(prev => prev.filter(p => p.pinId !== pinId))
   }
 
+  /** Rebuild the pin bar from a project's saved circuits — restoring each
+   *  circuit's worker (and optional protect) route snapshot, colour and label.
+   *  Called when a project is activated or its pins are explicitly restored. */
   function restorePinsFromProject(project: Project) {
     const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
     const newPins: PinnedRoute[] = []
@@ -401,6 +539,8 @@ export default function App() {
     setPinnedRoutes(newPins)
   }
 
+  /** Pin (or unpin) a worker+protect diversity pair together — both share one
+   *  colour so the eye reads them as a single protected circuit on the map. */
   function handlePinPair(worker: Route, protect: Route) {
     const wKey = routeKey(worker)
     const pKey = routeKey(protect)
@@ -431,6 +571,9 @@ export default function App() {
     ])
   }
 
+  /** Confirm the "add to project" label prompt: persist the pending pin as a new
+   *  circuit on the active project (via api.addCircuit), then add the resulting
+   *  worker/protect pins to the map stamped with the new project + circuit ids. */
   async function confirmPinToProject() {
     if (!pendingPin || !activeProject) return
     setPendingPinSaving(true)
@@ -469,6 +612,9 @@ export default function App() {
     }
   }
 
+  /** Callback fired by ProjectsModal once a route has been added to a project as
+   *  a circuit. Either stamps the already-pinned route(s) with the new project /
+   *  circuit metadata, or auto-pins them if they weren't on the map yet. */
   function handleCircuitAdded(projectId: string, circuitId: string, circuitLabel?: string) {
     const pending = addToProjectRoute
     if (!pending) return
@@ -503,6 +649,8 @@ export default function App() {
     })
   }
 
+  /** Toggle a cable system's highlight in systemviewer mode (max 5 at once,
+   *  each gets a distinct colour from SYSTEM_COLORS). */
   function handleToggleSystem(systemId: string) {
     const existing = selectedSystems.find(s => s.systemId === systemId)
     if (existing) {
@@ -515,18 +663,25 @@ export default function App() {
     }
   }
 
+  // These let other panels (NodeFinder, CityPair, etc.) push an origin/dest into
+  // the SearchForm and jump the user to routebuilder mode.
   function handleSetOrigin(nodeId: string) { setPrefilledOrigin(nodeId); switchMode('routebuilder') }
   function handleSetDest(nodeId: string)   { setPrefilledDest(nodeId);   switchMode('routebuilder') }
   function handleSetPair(originId: string, destId: string) {
     setPrefilledOrigin(originId); setPrefilledDest(destId); switchMode('routebuilder')
   }
+  /** NodeFinder reports its dropped pin + the nearest nodes it found. */
   function handlePinChange(pin: { lat: number; lng: number; label: string } | null, ids: string[]) {
     setSearchPin(pin); setNearestNodeIds(ids)
   }
 
+  // clearSearch: wipe the current search/manual results but KEEP pins.
   function clearSearch() { setResponse(null); setSelectedRouteIds([]); setError(null); setLastSearchDiversity('none'); setSearchDuration(null); setLastOptimiseFor(undefined); setManualResults([]); setManualState(null); setManualFinishConfirm(null) }
+  // clearAll: wipe search results AND all pins (a full reset of the map).
   function clearAll()    { setResponse(null); setSelectedRouteIds([]); setPinnedRoutes([]); setError(null); setLastSearchDiversity('none'); setSearchDuration(null); setLastOptimiseFor(undefined); setManualResults([]); setManualState(null); setManualFinishConfirm(null) }
 
+  /** Re-fetch the whole reference dataset. Called after any admin edit in the
+   *  RefDataModal so the map/search immediately reflect the change. */
   async function handleDataChange() {
     const [n, s, c, sys, r, cfg, o] = await Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules(), api.getConfig(), api.getOutages()])
     setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r); setConfig(cfg); setOutages(o)
@@ -556,10 +711,13 @@ export default function App() {
     return out
   }, [response, flippedPairIds])
 
+  // The actual Route objects for the ticked cards, resolved through the flip map.
   const selectedRoutes: Route[] = selectedRouteIds
     .map(id => effectiveRouteById[id])
     .filter((r): r is Route => r !== undefined)
 
+  /** Toggle whether a diversity pair is "flipped" — i.e. swap which route is the
+   *  worker and which is the protect (path data + colours trade places). */
   function handleFlipPair(pairId: string) {
     setFlippedPairIds(prev => {
       const next = new Set(prev)
@@ -569,6 +727,7 @@ export default function App() {
     })
   }
 
+  // Derived flags that drive which panels / empty-states / export buttons show.
   const hasPins    = pinnedRoutes.length > 0
   const hasResults = response !== null || manualResults.length > 0
   // Count visible circuits (deduplicate worker+protect pairs sharing a circuitId)
@@ -583,6 +742,9 @@ export default function App() {
   })()
 
   // ── Mobile layout ────────────────────────────────────────────────────────
+  // On narrow screens the entire three-panel desktop UI is replaced by a single
+  // MobileLayout component. All the same state + handlers are passed down to it,
+  // followed by the shared modals (projects, guide, pin-label, manual finish).
   if (isMobile) {
     return (
       <ThemeContext.Provider value={theme}>
@@ -792,6 +954,9 @@ export default function App() {
   }
 
   // ── Desktop layout ───────────────────────────────────────────────────────
+  // Three vertical columns: LEFT = mode-specific controls (search/manual/etc.),
+  // MIDDLE = the RouteList of results/pins, RIGHT = the interactive Map. Above
+  // them sit the top-right Controls menu and, below, a stack of portalled modals.
   const tabStyle = (active: boolean): React.CSSProperties => ({
     flex: 1, padding: '7px 3px 6px', border: 'none', cursor: 'pointer',
     background: active ? theme.bgBase : theme.bgPanel,
@@ -1012,6 +1177,8 @@ export default function App() {
             )
           })()}
 
+          {/* Left-panel body: swaps its contents based on the active mode.
+              Each `mode === '...'` block below mounts that mode's control panel. */}
           <div style={{ flex: 1, overflowY: mode === 'routemanual' ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column', padding: mode === 'routemanual' ? 0 : '16px' }}>
             {mode === 'routebuilder' && (
               <>
@@ -1260,6 +1427,11 @@ export default function App() {
 
       </div>
 
+      {/* ── Modal / overlay stack ──────────────────────────────────────────────
+          Everything below is conditionally-mounted overlays: node info popup,
+          country node diagram, capacity dashboard, algo-eval, ref-data editor,
+          projects modal, SLD export prompt, manual-finish + discard-warning
+          dialogs, project pin-label prompt, and the full-screen user guide. */}
       {selectedNode && (
         <NodeInfoPanel
           node={selectedNode.node} segments={segments} systems={systems}
@@ -1562,6 +1734,12 @@ export default function App() {
   )
 }
 
+/**
+ * Footer of the left panel: the admin lock/unlock control. Reads AuthContext.
+ * If no passphrase is configured (authRequired === false) it renders nothing.
+ * Otherwise it shows "Read-only" until the user enters the admin passphrase,
+ * after which editing (in RefDataModal etc.) is enabled and it shows "Admin mode".
+ */
 function AdminBar() {
   const { isAdmin, authRequired, unlock, lock } = useAuth()
   const t = useTheme()
@@ -1610,6 +1788,8 @@ function AdminBar() {
   )
 }
 
+/** Shared style for the small "Clear Search / Clear All / SLD" text buttons in
+ *  the routes-panel header. `destructive` tints it red (used for Clear All). */
 function clearBtnStyle(theme: Theme, destructive = false): React.CSSProperties {
   return {
     padding: '4px 10px', borderRadius: 4, border: `1px solid ${theme.border}`,

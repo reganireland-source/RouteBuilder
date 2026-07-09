@@ -1,3 +1,49 @@
+/**
+ * ============================================================================
+ *  RefDataModal.tsx — the admin-only Reference Data manager.
+ * ============================================================================
+ *
+ * A full-screen modal (opened from the Controls menu / "Ref Data") that lets an
+ * admin VIEW and EDIT every slice of the network reference dataset. It is the
+ * write-side counterpart to the read-only map & search elsewhere in the app.
+ *
+ * TABS (a horizontal, scrollable tab bar; see the `Tab` type and the render at
+ * the bottom of the component):
+ *   • nodes     — CLS / PoP / branching-unit sites (lat/lng, ownership, …).
+ *   • segments  — cable hops (wet or terrestrial) between two nodes.
+ *   • systems   — named submarine cables (EAC, C2C, …) with a margin.
+ *   • capacity  — per-segment total / available capacity.
+ *   • outages   — active cable faults with repair dates.
+ *   • rules     — interconnect rules: allowed / disallowed system-pair handoffs
+ *                 at a node (governs how routes may transit between systems).
+ *   • coverage  — product coverage per node (ProductCoveragePanel).
+ *   • notes     — free-text solution notes attached to a node/segment.
+ *   • tech      — bulk tech-spec enrichment (TechEnrichmentPanel).
+ *   • config    — GLOBAL app settings: which ownership types count as On-Net,
+ *                 and the map tile provider (OSM vs Google) with a live status
+ *                 light polling the tile service / Google Maps SDK.
+ *   • checks    — data-integrity validations run against the dataset.
+ *   • bulk      — CSV bulk import (BulkImportPanel).
+ *
+ * GENERIC CRUD PATTERN: the data tabs (nodes/segments/systems/capacity/outages/
+ * rules) all follow the same shape. A small set of shared state — editId /
+ * editValues (row being edited), adding / addValues (new row), deleteConfirmId,
+ * saving, error, filter — is reused across tabs. Shared helpers drive it:
+ *   startEdit / startAdd open a form, saveEdit / saveAdd / confirmDelete call the
+ *   matching api.* method then invoke onDataChange() to refresh App's dataset,
+ *   and switchTab() resets all of it when moving between tabs.
+ * The <Field>, <NodeSearchField>, <SegmentSearchField>, <ActionsCell>,
+ * <SaveCancel> and <MobileCard> helpers are the reusable form building blocks.
+ *
+ * ADMIN GATING: all mutations require `isAdmin` (from AuthContext). Non-admins
+ * see the data but the Save buttons are disabled with an "Admin required" note.
+ *
+ * NOTE ON COMPONENT PLACEMENT: the verification badge/prompt and the form
+ * <Field> helpers are declared at MODULE level (outside RefDataModal) on
+ * purpose — defining them inside the parent would give them a new component
+ * identity on every render, remounting them and dropping in-progress input.
+ * ============================================================================
+ */
 import { useState, useEffect, useRef } from 'react'
 import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, AllowedHandoffSegment, InterconnectRule, NoteCategory, NoteSeverity, OnNet, SegmentCapacity, SegmentOutage, SolutionNote, VerificationStatus } from '../types'
 import { useTheme, type Theme } from '../theme'
@@ -30,6 +76,7 @@ const VERIF_LABELS: Record<string, string> = {
   verified: 'Verified',
 }
 
+/** Small pill showing whether a node is On-Net (on our own network) or Off-Net. */
 function OnNetBadge({ value }: { value?: OnNet }) {
   if (!value) return null
   const isOn = value === 'on_net'
@@ -44,6 +91,9 @@ function OnNetBadge({ value }: { value?: OnNet }) {
   return <span style={style}>{isOn ? 'On-Net' : 'Off-Net'}</span>
 }
 
+/** Colour-coded badge for a record's data-verification status
+ *  (draft → under_verification → verified). Clickable when `onClick` is given,
+ *  which opens the VerifPrompt to change the status. */
 function VerifBadge({ status, onClick }: { status?: VerificationStatus; onClick?: () => void }) {
   const s = status ?? 'draft'
   const style: React.CSSProperties = {
@@ -59,6 +109,8 @@ function VerifBadge({ status, onClick }: { status?: VerificationStatus; onClick?
     : <span style={style}>{VERIF_LABELS[s]}</span>
 }
 
+/** Modal dialog asking the admin to pick a new verification status for a record;
+ *  awaits the async save and surfaces any error inline before closing. */
 function VerifPrompt({ onChoice, onDismiss, theme }: {
   onChoice: (status: VerificationStatus) => Promise<void>
   onDismiss: () => void
@@ -120,6 +172,14 @@ function VerifPrompt({ onChoice, onDismiss, theme }: {
 // on every render. Defining them inside the parent causes remount on each
 // keystroke, which kills input focus.
 
+/**
+ * Generic labelled form input bound to one key `k` of a values object `src`
+ * (either editValues or addValues). Renders a text box, number box, <select>
+ * (when `options` given) or textarea (`multiline`). Special features: keeps the
+ * raw string while typing a number so partial input like "-" or "3." isn't
+ * clobbered, and supports pasting a "lat, lng" pair (e.g. from Google Maps)
+ * into a paired field. This is the core building block of every edit/add form.
+ */
 function Field({ label, val, k, src, setSrc, readOnly = false, type = 'text', options, placeholder, pairedKey, pairedFirst, multiline }: {
   label: string; val?: unknown; k: string
   src: Record<string, unknown>; setSrc: (v: Record<string, unknown>) => void
@@ -197,6 +257,8 @@ function Field({ label, val, k, src, setSrc, readOnly = false, type = 'text', op
   )
 }
 
+/** Like <Field> but for choosing a node id: a type-ahead combobox that filters
+ *  the node list as you type and stores the selected node's id into `src[k]`. */
 function NodeSearchField({ label, k, src, setSrc, nodes }: {
   label: string; k: string
   src: Record<string, unknown>; setSrc: (v: Record<string, unknown>) => void
@@ -295,6 +357,8 @@ function NodeSearchField({ label, k, src, setSrc, nodes }: {
   )
 }
 
+/** Type-ahead combobox for picking a segment id (used by capacity/outage forms,
+ *  which reference a segment). Stores the selected segment's id into `src[k]`. */
 function SegmentSearchField({ label, k, src, setSrc, segments }: {
   label: string; k: string
   src: Record<string, unknown>; setSrc: (v: Record<string, unknown>) => void
@@ -426,10 +490,18 @@ interface Props {
   initialNoteFocus?: { kind: 'node' | 'segment'; id: string }
 }
 
+/**
+ * The Reference Data manager modal. Receives the whole dataset + config as
+ * props (owned by App) and an `onDataChange` callback to trigger a refetch after
+ * any successful mutation. Renders a tab bar, a shared filter/add bar for data
+ * tabs, and the active tab's body. See the file header for the full tab list and
+ * the generic CRUD pattern the data tabs share.
+ */
 export function RefDataModal({ nodes, segments, systems, capacity, outages, rules, config, onDataChange, onClose, initialNoteFocus }: Props) {
   const t = useTheme()
   const { isAdmin } = useAuth()
   const isMobile = useIsMobile()
+  // ── Shared CRUD/table state reused by every data tab ──────────────────────
   const [tab, setTab] = useState<Tab>(initialNoteFocus ? 'notes' : 'nodes')
   const [editId, setEditId] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<Record<string, unknown>>({})
@@ -440,11 +512,15 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
   const [showRulesHelp, setShowRulesHelp] = useState(false)
-  const [onNetOwnership, setOnNetOwnership] = useState<Set<string>>(() => new Set(config.on_net_ownership))
-  const [mapsProvider, setMapsProvider] = useState<'osm' | 'google'>(() => config.maps_provider ?? 'osm')
-  const [mapsStatus, setMapsStatus] = useState<'checking' | 'ok' | 'error'>('checking')
+  // ── Config-tab state (global settings edited on the Config tab) ───────────
+  const [onNetOwnership, setOnNetOwnership] = useState<Set<string>>(() => new Set(config.on_net_ownership)) // which ownership types count as On-Net
+  const [mapsProvider, setMapsProvider] = useState<'osm' | 'google'>(() => config.maps_provider ?? 'osm')   // active map tile provider
+  const [mapsStatus, setMapsStatus] = useState<'checking' | 'ok' | 'error'>('checking')                     // live reachability of the map provider (status light)
   const [capSegmentOpen, setCapSegmentOpen] = useState(false)
 
+  // Probe whether the selected map provider is actually reachable, driving the
+  // status light on the Config tab. For Google, poll for the async-loaded SDK;
+  // for OSM, fetch a sample tile with a 5s timeout.
   useEffect(() => {
     setMapsStatus('checking')
     let cancelled = false
@@ -480,6 +556,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   function isOnNet(ownership: string) { return onNetOwnership.has(ownership) }
 
+  /** Toggle whether an ownership type counts as On-Net and persist it globally. */
   async function toggleOnNet(ownership: string) {
     const next = new Set(onNetOwnership)
     if (next.has(ownership)) next.delete(ownership)
@@ -489,12 +566,16 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     onDataChange()
   }
 
+  /** Switch the map provider (OSM/Google) and persist it globally. */
   async function setMapsProviderAndSave(provider: 'osm' | 'google') {
     setMapsProvider(provider)
     await api.updateConfig({ maps_provider: provider })
     onDataChange()
   }
 
+  // ── Shared CRUD helpers used by all data tabs ─────────────────────────────
+
+  /** Clear all transient edit/add/delete/filter state (e.g. when changing tab). */
   function resetState() {
     setEditId(null); setEditValues({})
     setDeleteConfirmId(null)
@@ -502,18 +583,23 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     setError(null); setFilter('')
   }
 
+  /** Change tab, discarding any in-progress edit/add. */
   function switchTab(next: Tab) { resetState(); setTab(next) }
 
+  /** Begin editing the row `id`, seeding the form with a copy of its values. */
   function startEdit(id: string, values: Record<string, unknown>) {
     setAdding(false); setDeleteConfirmId(null)
     setEditId(id); setEditValues({ ...values })
   }
 
+  /** Begin adding a new row, seeded with per-tab default values. */
   function startAdd(defaults: Record<string, unknown>) {
     setEditId(null); setDeleteConfirmId(null)
     setAdding(true); setAddValues({ ...defaults })
   }
 
+  /** Run a tab-supplied "save edit" API call, then refresh the dataset and close
+   *  the edit form. `skipRefresh` is used when the caller refreshes itself. */
   async function saveEdit(saveCall: () => Promise<unknown>, skipRefresh = false) {
     setSaving(true); setError(null)
     try { await saveCall(); if (!skipRefresh) onDataChange(); setEditId(null) }
@@ -521,6 +607,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     finally { setSaving(false) }
   }
 
+  /** Run a tab-supplied "create" API call, then refresh and close the add form. */
   async function saveAdd(saveCall: () => Promise<unknown>) {
     setSaving(true); setError(null)
     try { await saveCall(); onDataChange(); setAdding(false); setAddValues({}) }
@@ -528,6 +615,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     finally { setSaving(false) }
   }
 
+  /** Run a tab-supplied "delete" API call (after inline confirm), then refresh. */
   async function confirmDelete(deleteCall: () => Promise<void>) {
     setSaving(true); setError(null)
     try { await deleteCall(); onDataChange(); setDeleteConfirmId(null) }
@@ -591,6 +679,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     borderBottom: `1px solid ${t.border}`, background: t.bgDeep,
   }
 
+  /** Right-aligned Edit/Delete buttons for a table row (with inline delete
+   *  confirm). Renders nothing for non-admins. */
   function ActionsCell({ id, onEdit, onDelete }: { id: string; onEdit?: () => void; onDelete: () => void }) {
     if (!isAdmin) return null
     return (
@@ -610,6 +700,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     )
   }
 
+  /** Save/Cancel footer for an edit or add form; disables Save (with reason) when
+   *  saving, when the form is invalid, or when the user is not an admin. */
   function SaveCancel({ onSave, onCancel, disabled, disabledReason }: { onSave: () => void; onCancel: () => void; disabled?: boolean; disabledReason?: string }) {
     const blocked = !isAdmin
     return (
@@ -625,6 +717,9 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   // ── Mobile card component ────────────────────────────────────────────────────
 
+  /** Card layout used to render one data row on mobile (replacing the desktop
+   *  table row): title/subtitle, a small key/value grid, edit/delete actions,
+   *  and an optional expanded edit form as `children`. */
   function MobileCard({ id, title, subtitle, fields, onEdit, onDelete, children }: {
     id: string
     title: React.ReactNode
@@ -705,6 +800,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   const [nodeVerifPending, setNodeVerifPending] = useState<string | null>(null)
 
+  /** Persist a node's new verification status (stamping today's date when marking
+   *  verified) and refresh. */
   async function applyNodeVerif(id: string, status: VerificationStatus) {
     const date = status === 'verified' ? new Date().toISOString().slice(0, 10) : undefined
     await api.updateNode(id, { verification_status: status, last_verified_date: date })
@@ -712,6 +809,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     onDataChange()
   }
 
+  // ── Nodes tab ── CRUD table for CLS / PoP / branching-unit sites. ──────────
   function NodeTab() {
     const q = filter.toLowerCase()
     const filtered = nodes.filter(n =>
@@ -834,6 +932,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     onDataChange()
   }
 
+  // ── Segments tab ── CRUD table for cable hops (wet/terrestrial) between two
+  //    nodes, each belonging to a system and carrying length/latency/ownership.
   function SegmentTab() {
     const sq = filter.toLowerCase()
     const filtered = segments.filter(s =>
@@ -981,6 +1081,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   // ── Systems tab ──────────────────────────────────────────────────────────────
 
+  // ── Systems tab ── CRUD table for named submarine cables (id, name, margin). ─
   function SystemTab() {
     const filtered = systems.filter(s =>
       !filter || s.name.toLowerCase().includes(filter.toLowerCase()) || s.id.toLowerCase().includes(filter.toLowerCase())
@@ -1053,6 +1154,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   // ── Capacity tab ─────────────────────────────────────────────────────────────
 
+  // ── Capacity tab ── per-segment total/available capacity (in Tbps). ───────
   function CapacityTab() {
     const filtered = capacity.filter(c =>
       !filter || c.segment_id.toLowerCase().includes(filter.toLowerCase())
@@ -1162,6 +1264,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   // ── Outages tab ──────────────────────────────────────────────────────────────
 
+  // ── Outages tab ── active cable faults per segment with repair dates. ─────
   function OutagesTab() {
     const filtered = outages.filter(o =>
       !filter || o.segment_id.toLowerCase().includes(filter.toLowerCase()) ||
@@ -1243,6 +1346,9 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     | { node_id: string; kind: 'no_handoff' }
     | { node_id: string; idx: number; segment: AllowedHandoffSegment; kind: 'handoff_segment' }
 
+  // ── Rules tab ── interconnect rules: at a given node, which pairs of cable
+  //    systems may (allowed) or may not (disallowed) hand off to each other.
+  //    These constrain how the route search transits between systems.
   function RulesTab() {
     function segmentOptsForNode(nodeId: string) {
       if (!nodeId) return []
@@ -1632,6 +1738,9 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   // ── Solution Notes panel ─────────────────────────────────────────────────────
 
+  // ── Notes tab ── free-text "solution notes" attached to a node or segment,
+  //    each with a category + severity. `initialFocus` deep-links to one record
+  //    when the modal was opened from a note badge elsewhere in the app.
   function SolutionNotesPanel({ nodes: panelNodes, segments: panelSegments, initialFocus }: { nodes: CableNode[]; segments: CableSegment[]; initialFocus?: { kind: 'node' | 'segment'; id: string } }) {
     const [notes, setNotes] = useState<SolutionNote[]>([])
     const [categories, setCategories] = useState<NoteCategory[]>([])
@@ -2036,6 +2145,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   useEffect(() => { if (tab === 'checks' && checkResults === null) runChecks() }, [tab])
 
+  // ── Checks tab ── runs data-integrity validations over the dataset and lists
+  //    pass/fail results by severity (e.g. orphaned segments, bad coordinates).
   function ChecksTab() {
     const errors   = checkResults?.filter(c => !c.passed && c.severity === 'error')   ?? []
     const warnings = checkResults?.filter(c => !c.passed && c.severity === 'warning') ?? []
@@ -2157,6 +2268,9 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   // ── Config tab ───────────────────────────────────────────────────────────────
 
+  // ── Config tab ── GLOBAL app settings (not per-record): the On-Net ownership
+  //    classification and the map tile provider (with its live status light).
+  //    Changes here persist via api.updateConfig and apply across the whole app.
   function ConfigTab() {
     const allOwnership = [
       { value: 'owned',                label: 'Owned' },
