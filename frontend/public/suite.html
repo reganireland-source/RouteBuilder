@@ -31,8 +31,8 @@
   --t2: #3d7080;
   --t3: #12293a;
 
-  --mono: 'Courier New', Courier, 'Lucida Console', monospace;
-  --ui:   -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Roboto Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  --ui:   -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif;
 }
 
 html,body {
@@ -74,13 +74,14 @@ html,body {
 }
 
 .wordmark {
-  font-family: var(--mono);
+  font-family: var(--ui);
   font-size: clamp(2.6rem, 5.5vw, 4.8rem);
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-weight: 800;
+  letter-spacing: 0.16em;
   line-height: 1;
   color: var(--t1);
   text-shadow: 0 0 60px rgba(0,229,255,0.06);
+  -webkit-font-smoothing: antialiased;
 }
 .wordmark em {
   font-style: normal;
@@ -525,44 +526,111 @@ html,body {
 (function () {
   const canvas = document.getElementById('bg');
   const ctx    = canvas.getContext('2d');
-  const CELL   = 20;
+  const CELL   = 15;   // grid cell size in px — smaller = finer continents
 
-  let cols, rows, nodes = [], edges = [], packets = [], tick = 0;
+  // ── World-map silhouette ──────────────────────────────────────────────────
+  // Continents are described as ellipses in a normalised frame where
+  // x: 0 = 180°W … 1 = 180°E, and y: 0 ≈ 75°N … 1 ≈ 60°S. A grid cell is "land"
+  // if its centre falls inside any ellipse. This draws a recognisable Earth
+  // without shipping a bitmap, and it is where the network nodes get placed.
+  const CONTINENTS = [
+    // [centreX, centreY, radiusX, radiusY]
+    [0.22, 0.30, 0.11, 0.13], [0.26, 0.16, 0.10, 0.06], [0.10, 0.20, 0.045, 0.05], [0.19, 0.42, 0.035, 0.06], // North America
+    [0.36, 0.09, 0.035, 0.06],                                                                                 // Greenland
+    [0.32, 0.62, 0.055, 0.09], [0.35, 0.74, 0.035, 0.085],                                                     // South America
+    [0.52, 0.19, 0.055, 0.05], [0.53, 0.12, 0.03, 0.045],                                                      // Europe / Scandinavia
+    [0.55, 0.54, 0.075, 0.13], [0.56, 0.44, 0.07, 0.055],                                                      // Africa
+    [0.62, 0.37, 0.04, 0.05],                                                                                  // Middle East
+    [0.75, 0.22, 0.15, 0.10], [0.82, 0.14, 0.12, 0.055],                                                       // Asia / Siberia
+    [0.71, 0.41, 0.045, 0.06],                                                                                 // India
+    [0.79, 0.45, 0.04, 0.04],                                                                                  // SE Asia
+    [0.83, 0.55, 0.06, 0.028],                                                                                 // Indonesia
+    [0.885, 0.28, 0.02, 0.045],                                                                                // Japan
+    [0.86, 0.72, 0.07, 0.055],                                                                                 // Australia
+    [0.965, 0.85, 0.015, 0.03],                                                                                // New Zealand
+  ];
+
+  function isLand(nx, ny) {
+    for (let i = 0; i < CONTINENTS.length; i++) {
+      const cc = CONTINENTS[i];
+      const dx = (nx - cc[0]) / cc[2];
+      const dy = (ny - cc[1]) / cc[3];
+      if (dx * dx + dy * dy <= 1) return true;
+    }
+    return false;
+  }
+
+  let cols, rows, nodes = [], edges = [], packets = [];
+  let land = [], coast = [];
+  const staticLayer = document.createElement('canvas');
+  const sctx = staticLayer.getContext('2d');
+
+  const COLORS = [
+    { fill: '#00e5ff', glow: 'rgba(0,229,255,0.35)'  },
+    { fill: '#ff8c42', glow: 'rgba(255,140,66,0.35)' },
+    { fill: '#a78bfa', glow: 'rgba(167,139,250,0.35)'}
+  ];
 
   function resize() {
-    canvas.width  = window.innerWidth;
-    canvas.height = window.innerHeight;
+    canvas.width  = staticLayer.width  = window.innerWidth;
+    canvas.height = staticLayer.height = window.innerHeight;
     cols = Math.ceil(canvas.width  / CELL);
     rows = Math.ceil(canvas.height / CELL);
     build();
+    paintStatic();
   }
 
   function build() {
-    nodes = [];
-    edges = [];
-    const placed = new Map();
-    const GAP = 7;
+    // 1. Land + coastline masks over the grid.
+    land = [];
+    for (let r = 0; r < rows; r++) {
+      land[r] = [];
+      for (let c = 0; c < cols; c++) {
+        land[r][c] = isLand((c + 0.5) / cols, (r + 0.5) / rows);
+      }
+    }
+    coast = [];
+    for (let r = 0; r < rows; r++) {
+      coast[r] = [];
+      for (let c = 0; c < cols; c++) {
+        // A coast cell is land with at least one sea neighbour (4-connected).
+        coast[r][c] = land[r][c] && (
+          !land[r-1]?.[c] || !land[r+1]?.[c] || !land[r][c-1] || !land[r][c+1]
+        );
+      }
+    }
 
-    for (let r = 2; r < rows - 2; r += GAP) {
-      for (let c = 2; c < cols - 2; c += GAP) {
-        if (Math.random() < 0.7) {
-          const nr = r + (Math.random() * 4 | 0) - 1;
-          const nc = c + (Math.random() * 4 | 0) - 1;
-          const k  = nr + ',' + nc;
-          if (!placed.has(k)) {
-            placed.set(k, nodes.length);
-            const rnd = Math.random();
-            nodes.push({
-              r: nr, c: nc,
-              hub:   Math.random() < 0.22,
-              phase: Math.random() * Math.PI * 2,
-              hue:   rnd < 0.65 ? 0 : rnd < 0.82 ? 1 : 2   // 0=cyan 1=amber 2=violet
-            });
-          }
+    // 2. Place network nodes on land only, spaced out.
+    nodes = [];
+    const placed = new Set();
+    for (let r = 1; r < rows - 1; r += 2) {
+      for (let c = 1; c < cols - 1; c += 2) {
+        if (!land[r][c]) continue;
+        if (Math.random() < 0.17) {
+          const k = r + ',' + c;
+          if (placed.has(k)) continue;
+          placed.add(k);
+          const rnd = Math.random();
+          nodes.push({
+            r, c,
+            hub:   Math.random() < 0.20,
+            phase: Math.random() * Math.PI * 2,
+            hue:   rnd < 0.66 ? 0 : rnd < 0.84 ? 1 : 2   // 0=cyan 1=amber 2=violet
+          });
         }
       }
     }
 
+    // 3. Short regional edges (nearest neighbours). These may cross water,
+    //    which reads as submarine cable — exactly the theme we want.
+    edges = [];
+    const seen = new Set();
+    function addEdge(a, b) {
+      const key = a < b ? a + '-' + b : b + '-' + a;
+      if (seen.has(key)) return;
+      seen.add(key);
+      edges.push({ a, b });
+    }
     for (let i = 0; i < nodes.length; i++) {
       const ni = nodes[i];
       const close = [];
@@ -570,14 +638,19 @@ html,body {
         if (i === j) continue;
         const nj = nodes[j];
         const d  = Math.abs(ni.r - nj.r) + Math.abs(ni.c - nj.c);
-        if (d > 1 && d < 16) close.push({ j, d });
+        if (d > 1 && d < 14) close.push({ j, d });
       }
       close.sort((a, b) => a.d - b.d);
       const cnt = 1 + (Math.random() * 2 | 0);
-      for (let k = 0; k < Math.min(cnt, close.length); k++) {
-        const j = close[k].j;
-        if (!edges.find(e => (e.a===i&&e.b===j)||(e.a===j&&e.b===i)))
-          edges.push({ a: i, b: j });
+      for (let k = 0; k < Math.min(cnt, close.length); k++) addEdge(i, close[k].j);
+    }
+
+    // 4. A few long-haul trans-ocean links between hubs — the backbone cables.
+    const hubs = nodes.map((n, i) => ({ n, i })).filter(o => o.n.hub);
+    for (let a = 0; a < hubs.length; a++) {
+      for (let b = a + 1; b < hubs.length; b++) {
+        const d = Math.abs(hubs[a].n.r - hubs[b].n.r) + Math.abs(hubs[a].n.c - hubs[b].n.c);
+        if (d >= 14 && d < 46 && Math.random() < 0.06) addEdge(hubs[a].i, hubs[b].i);
       }
     }
   }
@@ -589,11 +662,41 @@ html,body {
     };
   }
 
-  const COLORS = [
-    { fill: '#00e5ff', glow: 'rgba(0,229,255,0.35)'  },
-    { fill: '#ff8c42', glow: 'rgba(255,140,66,0.35)' },
-    { fill: '#a78bfa', glow: 'rgba(167,139,250,0.35)'}
-  ];
+  // Render the unchanging layers (space, graticule, continents, cables) once
+  // into an offscreen canvas so the animation loop only redraws packets/nodes.
+  function paintStatic() {
+    sctx.fillStyle = '#050a0f';
+    sctx.fillRect(0, 0, staticLayer.width, staticLayer.height);
+
+    // Faint lat/long graticule.
+    sctx.strokeStyle = '#070d16';
+    sctx.lineWidth = 1;
+    sctx.beginPath();
+    for (let c = 0; c <= cols; c += 2) { sctx.moveTo(c * CELL, 0); sctx.lineTo(c * CELL, staticLayer.height); }
+    for (let r = 0; r <= rows; r += 2) { sctx.moveTo(0, r * CELL); sctx.lineTo(staticLayer.width, r * CELL); }
+    sctx.stroke();
+
+    // Continents as dim pixel blocks; brighter along the coastline.
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (!land[r][c]) continue;
+        sctx.fillStyle = coast[r][c] ? '#123249' : '#0b1b29';
+        sctx.fillRect(c * CELL + 1, r * CELL + 1, CELL - 2, CELL - 2);
+      }
+    }
+
+    // Cables as thin orthogonal (L-shaped) traces between nodes.
+    sctx.strokeStyle = '#0d2236';
+    sctx.lineWidth = 1;
+    sctx.beginPath();
+    for (const e of edges) {
+      const a = px(nodes[e.a]), b = px(nodes[e.b]);
+      sctx.moveTo(a.x, a.y);
+      sctx.lineTo(b.x, a.y);
+      sctx.lineTo(b.x, b.y);
+    }
+    sctx.stroke();
+  }
 
   function spawn() {
     if (!edges.length) return;
@@ -627,37 +730,8 @@ html,body {
   }
 
   function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // BG
-    ctx.fillStyle = '#050a0f';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Grid
-    ctx.strokeStyle = '#080e18';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let c = 0; c <= cols; c++) {
-      ctx.moveTo(c * CELL, 0);
-      ctx.lineTo(c * CELL, canvas.height);
-    }
-    for (let r = 0; r <= rows; r++) {
-      ctx.moveTo(0, r * CELL);
-      ctx.lineTo(canvas.width, r * CELL);
-    }
-    ctx.stroke();
-
-    // Edges
-    ctx.strokeStyle = '#0b1e30';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (const e of edges) {
-      const a = px(nodes[e.a]), b = px(nodes[e.b]);
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, a.y);
-      ctx.lineTo(b.x, b.y);
-    }
-    ctx.stroke();
+    // Blit the pre-rendered map, then paint the live layer on top.
+    ctx.drawImage(staticLayer, 0, 0);
 
     // Packets
     for (const p of packets) {
@@ -666,34 +740,27 @@ html,body {
       const pos  = packetXY(p);
       const col  = COLORS[p.ci];
       const s    = p.sz;
-
-      // Glow trail
       ctx.fillStyle = col.glow;
       ctx.fillRect(pos.x - s - 1, pos.y - s - 1, (s + 1) * 2, (s + 1) * 2);
-
-      // Pixel body
       ctx.fillStyle = col.fill;
       ctx.fillRect(pos.x - s, pos.y - s, s * 2, s * 2);
     }
     packets = packets.filter(p => !p.done);
+    if (packets.length < 26 && Math.random() < 0.10) spawn();
 
-    if (packets.length < 22 && Math.random() < 0.09) spawn();
-
-    // Nodes
-    tick++;
+    // Nodes (pulsing)
     for (const n of nodes) {
       const { x, y } = px(n);
       n.phase += 0.018;
       const pulse = 0.55 + 0.45 * Math.sin(n.phase);
       const col   = COLORS[n.hue];
-
       if (n.hub) {
         const a = (0.5 + 0.5 * pulse) * 0.85;
         ctx.fillStyle = col.fill + Math.round(a * 255).toString(16).padStart(2,'0');
-        ctx.fillRect(x - 4, y - 1, 8, 2);   // horizontal bar
-        ctx.fillRect(x - 1, y - 4, 2, 8);   // vertical bar
+        ctx.fillRect(x - 4, y - 1, 8, 2);
+        ctx.fillRect(x - 1, y - 4, 2, 8);
         ctx.fillStyle = col.fill;
-        ctx.fillRect(x - 2, y - 2, 4, 4);   // bright center
+        ctx.fillRect(x - 2, y - 2, 4, 4);
       } else {
         const a = (0.3 + 0.5 * pulse) * 0.7;
         ctx.fillStyle = col.fill + Math.round(a * 255).toString(16).padStart(2,'0');
@@ -708,7 +775,7 @@ html,body {
   }
 
   resize();
-  for (let i = 0; i < 10; i++) spawn();
+  for (let i = 0; i < 12; i++) spawn();
   loop();
 
   let resizeTimer;
@@ -716,9 +783,6 @@ html,body {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(resize, 150);
   });
-
-  // Wire up the RouteBuilder link (update href here)
-  // document.querySelector('.card-builder').href = 'https://your-app.vercel.app';
 })();
 </script>
 </body>
