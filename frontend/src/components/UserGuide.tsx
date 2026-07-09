@@ -1,3 +1,24 @@
+/**
+ * ============================================================================
+ *  UserGuide.tsx — the in-app platform guide / help & onboarding screens.
+ * ============================================================================
+ *
+ * A full-screen, multi-page guide shown to end users. Mounted from App.tsx (and
+ * MobileLayout) as a portal overlay when the user clicks the RouteBuilder logo /
+ * the "?" help tab; App wraps it in a fixed backdrop with a close button.
+ *
+ * It paginates (state `page`, 1..8) through: a step-by-step how-to (the STEPS
+ * array — open RouteFinder, pick endpoints, set diversity, add constraints,
+ * search, review/sort, pin & export), a product roadmap (ROADMAP), and a
+ * feature-request form that reads/writes via api.getFeatureRequests /
+ * submitFeatureRequest.
+ *
+ * Notable behaviour: it can also "print all" — when `printAll` is set it injects
+ * a print stylesheet and renders every page into a hidden print portal so the
+ * whole guide prints as one document. A separate util (generateUserGuide.ts)
+ * produces the downloadable PDF version.
+ * ============================================================================
+ */
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '../theme'

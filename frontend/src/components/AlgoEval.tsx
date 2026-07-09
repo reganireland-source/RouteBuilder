@@ -1,3 +1,27 @@
+/**
+ * ============================================================================
+ *  AlgoEval.tsx — the routing-algorithm evaluation / regression harness.
+ * ============================================================================
+ *
+ * A full-screen modal (opened from the Controls menu → "Algo Eval") that runs a
+ * suite of predefined test cases against the live route-search backend and
+ * reports pass/fail, so engineers can sanity-check the routing algorithm after
+ * changes. It is a QA/diagnostics tool, not part of the normal user flow.
+ *
+ * Each TestCase pairs a RouteRequest with a list of Assertions about the
+ * expected result — e.g. "at least N routes found", "path includes system X",
+ * "wet hops ≤ K", "routes are wet/full diverse", "excludes country Y". The
+ * harness fires each request via api.searchRoutes, evaluates the assertions,
+ * and aggregates them into a TestRun (counts + per-test/per-assertion detail).
+ *
+ * CORE_TESTS below is the built-in catalogue, grouped by Category (endpoint /
+ * diversity / constraint / preference / edge_case). A test may carry a
+ * `knownLimitation`: a failure there is shown in amber as an accepted network
+ * gap rather than a red bug.
+ *
+ * Mounted from: App.tsx (`algoEvalOpen`). Props: reference data + onClose.
+ * ============================================================================
+ */
 import { useState, useCallback, useRef } from 'react'
 import { useTheme } from '../theme'
 import { api } from '../api/client'

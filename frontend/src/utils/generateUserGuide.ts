@@ -1,3 +1,23 @@
+/**
+ * ============================================================================
+ *  generateUserGuide.ts — build the downloadable RouteBuilder platform guide PDF.
+ * ============================================================================
+ *
+ * Renders a branded, multi-page A4 PORTRAIT PDF version of the in-app UserGuide
+ * (cover, feature overview, step-by-step how-to, roadmap, etc.) entirely with
+ * jsPDF drawing primitives — there is no HTML involved.
+ *
+ * The only PUBLIC export is `generateUserGuidePDF(nodeCount, segmentCount,
+ * systemCount)`: it constructs the jsPDF document, draws each page in turn, and
+ * triggers a browser download. The counts are stamped into the "features" page
+ * so the guide reflects the current dataset size.
+ *
+ * Everything else here is private: a colour palette, page-chrome helpers
+ * (`footer`, `pageHeader`, `sectionTitle`, `bodyText`) and one `draw*` function
+ * per page. All measurements are in millimetres; `_totalPages` is a module-level
+ * counter used only to print "page X / N" in the footer.
+ * ============================================================================
+ */
 import jsPDF from 'jspdf'
 
 const PAGE_W  = 210
@@ -986,6 +1006,11 @@ function drawVision(doc: jsPDF, pageNum: number) {
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
+/**
+ * PUBLIC EXPORT. Build the platform-guide PDF and download it. The three counts
+ * (nodes / segments / systems) are rendered onto the features page so the guide
+ * reflects the current network size.
+ */
 export function generateUserGuidePDF(nodeCount = 0, segmentCount = 0, systemCount = 0) {
   _totalPages = 11
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })

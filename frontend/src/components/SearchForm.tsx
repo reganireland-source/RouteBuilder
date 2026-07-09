@@ -1,3 +1,35 @@
+/**
+ * ============================================================================
+ *  SearchForm.tsx — the route search form (routebuilder mode, left panel).
+ * ============================================================================
+ *
+ * Mounted by App.tsx in the left panel when mode === 'routebuilder' (and by
+ * MobileLayout). It gathers everything needed to describe a route search and,
+ * on submit, hands App a fully-built `RouteRequest` via the `onSearch` prop;
+ * App then calls the backend and renders the results in RouteList.
+ *
+ * WHAT THE USER PICKS:
+ *   • Origin & destination nodes (via the type-ahead <NodeCombobox>), with a
+ *     ⇅ swap button.
+ *   • Diversity type — whether/how to also compute a physically separate backup
+ *     path (none / wet / full / full-node / terrestrial variants).
+ *   • "Optimise for" objective (hops / distance / latency / margin / …).
+ *   • Advanced constraints (in a modal): force-include or avoid specific nodes,
+ *     segments, cable systems or whole countries, plus max wet/terrestrial hops.
+ *
+ * KEY PROPS:
+ *   • nodes / segments / systems — reference data used to populate the pickers.
+ *   • onSearch(req) — called with the assembled RouteRequest on submit.
+ *   • loading — disables/animates the submit button while a search runs.
+ *   • prefilledOrigin / prefilledDest — origin/dest pushed in from a map click
+ *     or another panel (synced into local state via effects).
+ *   • prefill — a full partial RouteRequest pushed in from the NLP assistant;
+ *     a new object reference re-applies it to every field.
+ *
+ * All the field state lives locally here; handleSubmit() bundles it into the
+ * RouteRequest shape the backend expects.
+ * ============================================================================
+ */
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import type { CableNode, CableSegment, CableSystem, DiversityType, RouteRequest } from '../types'
@@ -56,10 +88,13 @@ function countryName(code: string) {
   return COUNTRY_NAMES[code] ?? code
 }
 
+/** Add `id` to a multi-select list if absent, else remove it (immutably). */
 function toggleMulti(id: string, list: string[], setter: (v: string[]) => void) {
   setter(list.includes(id) ? list.filter(x => x !== id) : [...list, id])
 }
 
+// Metadata for the tabs inside the Advanced Constraints modal (label, icon,
+// which include/avoid list each drives).
 const CONSTRAINT_DEFS = [
   {
     id: 'optimise_for',
@@ -173,6 +208,8 @@ const OPTIMISE_OPTIONS: OptimiseOption[] = [
   },
 ]
 
+/** Reusable searchable multi-select list: filter box + checkable rows, used for
+ *  the system / country constraint pickers. */
 function FilteredMulti({ items, selected, onToggle, placeholder, listHeight = 130 }: {
   items: { id: string; primary: string; secondary?: string }[]
   selected: string[]
@@ -257,6 +294,8 @@ function FilteredMulti({ items, selected, onToggle, placeholder, listHeight = 13
   )
 }
 
+/** Like FilteredMulti but specialised for choosing nodes (searches id/name/
+ *  country and can exclude certain ids, e.g. the current origin/destination). */
 function FilteredNodeMulti({ nodes, exclude, selected, onToggle, listHeight = 130 }: {
   nodes: CableNode[]
   exclude: string[]
@@ -350,6 +389,7 @@ function FilteredNodeMulti({ nodes, exclude, selected, onToggle, listHeight = 13
   )
 }
 
+/** −/+ stepper for a "max hops" numeric constraint (blank = unlimited). */
 function HopStepper({ label, icon, value, onChange }: {
   label: string
   icon: string
@@ -417,6 +457,8 @@ function HopStepper({ label, icon, value, onChange }: {
   )
 }
 
+/** Type-ahead combobox for choosing a single node (origin or destination):
+ *  filters as you type, supports keyboard navigation, stores the node id. */
 function NodeCombobox({ nodes, value, onChange, placeholder }: {
   nodes: CableNode[]
   value: string
@@ -584,6 +626,9 @@ function NodeCombobox({ nodes, value, onChange, placeholder }: {
   )
 }
 
+/** The Advanced Constraints modal: tabbed include/avoid pickers for nodes,
+ *  segments, systems and countries, plus max wet/terrestrial hop steppers.
+ *  Edits the constraint state owned by the parent SearchForm. */
 function AdvancedConstraintsModal({
   open, onClose,
   nodes, segments, systemOptions,
@@ -982,6 +1027,13 @@ function AdvancedConstraintsModal({
   )
 }
 
+/**
+ * The route search form. Owns all the search-field state (endpoints, diversity,
+ * optimise-for, and every advanced constraint) and, on submit, assembles it into
+ * a RouteRequest passed to `onSearch`. Effects keep it in sync with origin/dest
+ * pushed from map clicks (prefilledOrigin/Dest) and full prefills from the NLP
+ * assistant (prefill).
+ */
 export function SearchForm({ nodes, segments, systems = [], onSearch, loading, prefilledOrigin = '', prefilledDest = '', prefill }: Props) {
   const t = useTheme()
   const [startNode, setStartNode] = useState(prefilledOrigin)
@@ -1056,6 +1108,8 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
     return opts.sort((a, b) => a.name.localeCompare(b.name))
   }, [nodes])
 
+  /** Bundle all the field state into a RouteRequest and fire onSearch. Requires
+   *  both endpoints; blank "max hops" become undefined (unlimited). */
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!startNode || !endNode) return
@@ -1077,6 +1131,7 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
     })
   }
 
+  /** Reset every advanced constraint back to empty. */
   function clearAllConstraints() {
     setMustIncludeNodes([])
     setMustAvoidNodes([])

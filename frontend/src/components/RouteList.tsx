@@ -1,3 +1,36 @@
+/**
+ * ============================================================================
+ *  RouteList.tsx — the middle-panel list of routes (results + pins).
+ * ============================================================================
+ *
+ * Mounted by App.tsx in the middle column (and by MobileLayout on phones). It
+ * renders, in order:
+ *   1. The pinned routes bar — routes the user kept on the map (props.pinnedRoutes),
+ *      shown as cards (or compressed chips) with unpin / add-to-project actions.
+ *   2. The search results — props.primaryRoutes and, when a diverse search was
+ *      run, props.diverseRoutes. When the two arrays line up they are shown as
+ *      worker/protect PAIRS (see PairCard); otherwise as individual RouteCards.
+ *
+ * KEY PROPS:
+ *   • primaryRoutes / diverseRoutes — the RouteResponse split; diverse = the
+ *     physically-separate backup paths for a diversity search.
+ *   • selectedRouteIds + onSelectRoute — which cards are ticked onto the map.
+ *   • pinnedRoutes + onPin/onUnpin/onPinPair — the persistent pin bar.
+ *   • onNetOwnership — Set of ownership types that count as On-Net (drives the
+ *     On-Net/Off-Net/Mixed badge and the "ownership" sort).
+ *   • externalSortKey / externalPushOutagesDown — sort intents pushed in from
+ *     the NLP assistant; otherwise the user controls sort via the header.
+ *   • flippedPairIds + onFlipPair — which worker/protect pairs are swapped.
+ *   • activeProject + onAddToProject / onEnrichCircuit — project integration.
+ *
+ * SORTING lives here: the user picks a SortKey (hops/distance/latency/…); the
+ * sortRoutes() helper compares routes by that key, and outage-affected routes
+ * can optionally be pushed to the bottom. See SortKey and SORT_OPTIONS below.
+ *
+ * Glossary: diverse route = the physically separate backup path · on-net = on
+ * our own network · margin = the commercial score derived from a system's margin.
+ * ============================================================================
+ */
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import type { Route, CableNode, CableSystem, SegmentCapacity, SegmentOutage, PinnedRoute, Project, ProjectCircuit, EndpointConfig, SolutionNote } from '../types'
@@ -5,6 +38,7 @@ import { useTheme } from '../theme'
 import { api } from '../api/client'
 import { SolutionNotesOverlay } from './SolutionNotesOverlay'
 
+/** How complete a project circuit's technical enrichment (A/Z-End specs) is. */
 type EnrichLevel = 'none' | 'partial' | 'full'
 
 function enrichLevel(c: ProjectCircuit | undefined): EnrichLevel {
@@ -31,6 +65,9 @@ function useIsMobile(): boolean {
 
 type NetClass = 'on_net' | 'off_net' | 'mixed'
 
+/** Classify a route as On-Net / Off-Net / Mixed by what fraction of its wet
+ *  (submarine) distance runs over ownership types configured as On-Net. Returns
+ *  the class plus the on-net percentage (used for the badge and ownership sort). */
 function classifyRoute(route: Route, onNetOwnership: Set<string>): { type: NetClass; onNetPct: number } {
   const wetSegs = route.segments.filter(s => s.type === 'wet')
   if (wetSegs.length === 0) return { type: 'on_net', onNetPct: 100 }
@@ -104,6 +141,8 @@ const SORT_OPTIONS: { key: SortKey; icon: string; label: string; dir: 'asc' | 'd
   { key: 'ownership',    icon: '◉',  label: 'Own',       dir: 'desc' },
 ]
 
+/** Distance-weighted average of the per-system margin across a route's wet
+ *  segments — the route's overall commercial "margin" score (null if unknown). */
 function computeRouteMargin(route: Route, systemsById: Record<string, CableSystem>): number | null {
   const wetSegs = route.segments.filter(s => s.type === 'wet')
   if (wetSegs.length === 0) return null
@@ -124,6 +163,8 @@ function routeHasOutage(route: Route, outagesById: Record<string, SegmentOutage>
 
 function routeKey(r: Route) { return r.nodes.join('|') }
 
+/** A route's usable capacity is limited by its lowest-capacity wet segment.
+ *  Returns that bottleneck capacity (in Tbps) and which system caused it. */
 function estimatedCapacity(route: Route, capacityById: Record<string, SegmentCapacity>): { cap: number; systemId: string | null } {
   const wetSegs = route.segments.filter(s => s.type === 'wet')
   if (wetSegs.length === 0) return { cap: 0, systemId: null }
@@ -135,6 +176,9 @@ function estimatedCapacity(route: Route, capacityById: Record<string, SegmentCap
   return { cap: min === Infinity ? 0 : min, systemId: bottleneck }
 }
 
+/** Return a new array of `routes` sorted by the chosen `key`. Each key has a
+ *  natural direction (e.g. fewer hops / lower latency / higher availability
+ *  first); `dirFlipped` reverses it when the user re-clicks the active sort. */
 function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, SegmentCapacity>, onNetSet: Set<string>, systemsById: Record<string, CableSystem>, dirFlipped = false): Route[] {
   return [...routes].sort((a, b) => {
     let result: number
@@ -157,6 +201,12 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
   })
 }
 
+/**
+ * The routes panel. Renders the pinned-routes bar and the (optionally paired)
+ * search results, with a sort header and per-card select/pin/project actions.
+ * Sorting and the "show N" count are local state here; selection, pins and
+ * project actions are lifted to App via the callback props.
+ */
 export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown, optimiseFor, flippedPairIds, onFlipPair, onPinPair, onAddToProject, onEnrichCircuit, activeProject, onOpenRefDataForNote }: Props) {
   const t = useTheme()
   const onNetSet = new Set(onNetOwnership)
@@ -183,6 +233,8 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
   const [allNotes, setAllNotes] = useState<SolutionNote[]>([])
   useEffect(() => { api.getSolutionNotes().then(setAllNotes).catch(() => {}) }, [])
 
+  /** True if any solution note is attached to a node or segment on this route
+   *  (drives the little note badge on a card). */
   function routeHasNotes(route: Route): boolean {
     const nodeSet = new Set(route.nodes)
     const segSet = new Set(route.segments.map(s => s.segment_id))
@@ -199,6 +251,9 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
     return null
   }
 
+  /** Apply the active sort to a list of routes, then (optionally) move any
+   *  outage-affected routes to the bottom. With no sort key and no push-down,
+   *  returns the routes in their original backend order. */
   function applySort(routes: Route[]): Route[] {
     if (sortKey === null) {
       if (!pushOutagesDown) return routes
@@ -580,6 +635,9 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
   )
 }
 
+/** Card rendering a worker/protect diversity PAIR side by side: the two routes,
+ *  their shared vs. diverse segments, a flip (⇅) control to swap roles, and a
+ *  combined pin/add-to-project action. */
 function PairCard({
   pair, idx, selected, onSelectPair,
   nodesById, capacityById, outagesById, onNetSet, systemsById,
@@ -769,6 +827,8 @@ function CompressedPinCard({ pinned, onUnpin, systemsById }: {
   )
 }
 
+/** A route in the pinned bar, drawn in its pin colour with an unpin control and
+ *  (in project mode) circuit label / enrichment actions. */
 function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, onNetSet, systemsById, onEnrichCircuit, onAddToProject, activeProject, protectPin, onShowNotes, hasNotes }: {
   pinned: PinnedRoute
   onUnpin: () => void
@@ -1022,6 +1082,8 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   )
 }
 
+/** Card for a single (non-paired) route: path summary, key stats, margin/on-net
+ *  badges, capacity, and select / pin / add-to-project controls. */
 function RouteCard({ route, selected, onSelect, nodesById, capacityById, outagesById, color, isPinned, canPin, onPin, onNetSet, systemsById, onAddToProject, onShowNotes, hasNotes }: {
   route: Route
   selected: boolean
