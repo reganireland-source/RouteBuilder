@@ -176,10 +176,16 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
   }
 
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 12000, background: 'rgba(0,0,0,0.55)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-    }}>
+    <div
+      // This modal is rendered inside RefDataModal, whose backdrop closes on
+      // click. Stop clicks here from bubbling up to it, or every click in the
+      // parser (including into the textarea) would close the whole Ref Data modal.
+      onClick={e => e.stopPropagation()}
+      onMouseDown={e => e.stopPropagation()}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 12000, background: 'rgba(0,0,0,0.55)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+      }}>
       <div style={{
         width: 'min(1100px, 96vw)', maxHeight: '92vh', background: t.bgPanel,
         border: `1px solid ${t.border}`, borderRadius: 10, display: 'flex', flexDirection: 'column',
