@@ -68,3 +68,43 @@ class AnthropicProvider(LLMProvider):
             messages=[{"role": "user", "content": content_blocks}],
         )
         return json.loads(_extract_json_text(response))
+
+    def stream_json_multimodal(
+        self,
+        system_prompt: str,
+        content_blocks: list,
+        model: str | None = None,
+        max_tokens: int = 4096,
+    ):
+        """Streaming variant — yields live progress so the UI can show a token
+        counter while the model thinks. See LLMProvider.stream_json_multimodal.
+
+        Progress is estimated from streamed thinking+text deltas (~4 chars per
+        token) and throttled so we emit roughly every 20 tokens rather than on
+        every delta. The final "done" carries the exact output_tokens from the
+        response usage.
+        """
+        chars = 0
+        last_emit = 0
+        with self._client.messages.stream(
+            model=model or self._VISION_MODEL,
+            max_tokens=max_tokens,
+            system=system_prompt,
+            messages=[{"role": "user", "content": content_blocks}],
+        ) as stream:
+            for event in stream:
+                if getattr(event, "type", "") == "content_block_delta":
+                    delta = getattr(event, "delta", None)
+                    piece = getattr(delta, "text", None) or getattr(delta, "thinking", None) or ""
+                    if piece:
+                        chars += len(piece)
+                        est = chars // 4
+                        if est - last_emit >= 20:
+                            last_emit = est
+                            yield {"type": "progress", "tokens": est}
+            final = stream.get_final_message()
+
+        text = _extract_json_text(final)
+        usage = getattr(final, "usage", None)
+        total = getattr(usage, "output_tokens", None) or (chars // 4)
+        yield {"type": "done", "data": json.loads(text), "output_tokens": total}

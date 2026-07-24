@@ -35,6 +35,27 @@ class LLMProvider(ABC):
             "Set ANTHROPIC_API_KEY to use the Outage Parser."
         )
 
+    def stream_json_multimodal(
+        self,
+        system_prompt: str,
+        content_blocks: list,
+        model: str | None = None,
+        max_tokens: int = 4096,
+    ):
+        """Generator variant of complete_json_multimodal for progress reporting.
+
+        Yields dicts as the model works:
+          {"type": "progress", "tokens": <running output-token estimate>}
+          {"type": "done", "data": <parsed JSON dict>, "output_tokens": <final>}
+
+        The default implementation is non-streaming — it just does the blocking
+        call and emits a single "done". Providers that can stream (Anthropic)
+        override this to emit live "progress" events so the UI can show a token
+        counter while a long parse (with thinking) is in flight.
+        """
+        data = self.complete_json_multimodal(system_prompt, content_blocks, model, max_tokens)
+        yield {"type": "done", "data": data, "output_tokens": 0}
+
 
 def get_provider() -> LLMProvider:
     """

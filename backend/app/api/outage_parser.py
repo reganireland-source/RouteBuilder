@@ -32,6 +32,7 @@ import json
 import logging
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 
 from ..data_loader import load_nodes, load_segments, load_systems, load_outages
 
@@ -214,36 +215,71 @@ async def parse_outages(text: str = Form(None), files: list[UploadFile] = File(N
                 + "\n\nThe outage table follows below.",
     })
 
-    # ── Call the vision LLM ──────────────────────────────────────────────────
+    # ── Resolve the provider up front so config errors are plain HTTP (not SSE) ─
     try:
         provider = get_provider()
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
 
-    try:
-        # Generous budget: Sonnet may spend part of it on a thinking block before
-        # the JSON, and a large table can be many rows — avoid truncation.
-        result = provider.complete_json_multimodal(_SYSTEM_PROMPT, blocks, max_tokens=16000)
-    except NotImplementedError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-    except Exception as e:
-        logger.warning("Outage parse failed: %s", e)
-        raise HTTPException(status_code=502, detail=f"AI parsing failed: {str(e)[:200]}")
+    existing_count = len(load_outages())
+    model_id = getattr(provider, "_VISION_MODEL", "unknown")
 
-    # ── Validate + normalise the model output ────────────────────────────────
+    # ── Stream progress while the model works, then the final result ──────────
+    # The response is Server-Sent-Events: repeated {"type":"progress","tokens":N}
+    # lines let the UI show a live token counter, followed by one
+    # {"type":"result",...} (or {"type":"error",...}). Starlette runs this sync
+    # generator in a threadpool, so the blocking LLM stream doesn't stall the loop.
+    def event_stream():
+        try:
+            data = None
+            for ev in provider.stream_json_multimodal(_SYSTEM_PROMPT, blocks, max_tokens=16000):
+                if ev.get("type") == "progress":
+                    yield _sse({"type": "progress", "tokens": ev.get("tokens", 0)})
+                elif ev.get("type") == "done":
+                    data = ev.get("data")
+            proposals = _normalise_proposals(data, valid_ids)
+            yield _sse({
+                "type": "result",
+                "proposals": proposals,
+                "existing_count": existing_count,
+                "model": model_id,
+            })
+        except NotImplementedError as e:
+            yield _sse({"type": "error", "detail": str(e)})
+        except Exception as e:  # noqa: BLE001 — surface a clean message to the UI
+            logger.warning("Outage parse failed: %s", e)
+            yield _sse({"type": "error", "detail": f"AI parsing failed: {str(e)[:200]}"})
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+def _sse(obj: dict) -> str:
+    """Format one Server-Sent-Events data frame."""
+    return f"data: {json.dumps(obj)}\n\n"
+
+
+def _normalise_proposals(result, valid_ids: set) -> list:
+    """Validate + normalise the model's raw rows into review proposals.
+
+    Rejects invented segment ids (demoting the row to unmatched/red), keeps only
+    real candidate ids, and auto-fills a placeholder fault id when one is
+    missing. `result` is the parsed model output ({"outages": [...]}).
+    """
     raw_rows = result.get("outages", []) if isinstance(result, dict) else []
     proposals = []
     for i, row in enumerate(raw_rows):
         if not isinstance(row, dict):
             continue
         seg_id = (row.get("segment_id") or "").strip()
-        # Reject any id the model invented; demote to an unmatched row.
         matched = seg_id in valid_ids
         confidence = row.get("confidence", "none")
         if not matched:
             seg_id = ""
             confidence = "none"
-        # Keep only candidate ids that actually exist.
         candidates = [c for c in (row.get("candidates") or []) if c in valid_ids]
         fault_id = (row.get("fault_id") or "").strip() or f"TMP-{i + 1:03d}"
         proposals.append({
@@ -253,16 +289,10 @@ async def parse_outages(text: str = Form(None), files: list[UploadFile] = File(N
             "repair_start": row.get("repair_start") or None,
             "estimated_repair_date": row.get("estimated_repair_date") or None,
             "description": (row.get("description") or "").strip(),
-            # Review-only metadata (not part of the SegmentOutage model):
             "matched": matched,
             "confidence": confidence,
             "candidates": candidates,
             "raw_cable": (row.get("raw_cable") or "").strip(),
             "raw_segment": (row.get("raw_segment") or "").strip(),
         })
-
-    return {
-        "proposals": proposals,
-        "existing_count": len(load_outages()),
-        "model": getattr(provider, "_VISION_MODEL", "unknown"),
-    }
+    return proposals

@@ -146,19 +146,46 @@ async function uploadFile<T>(path: string, file: File): Promise<T> {
 }
 
 /**
- * POST an arbitrary multipart/form-data body (text fields and/or files). Used by
- * the Outage Parser, whose input can be pasted text, an image, or a spreadsheet.
- * The admin token is sent when unlocked. As with post(), FastAPI's `detail` is
- * surfaced in the thrown Error for the UI.
+ * Stream the Outage Parser: POST the input as multipart, then read the
+ * Server-Sent-Events response — {type:'progress',tokens} frames drive the live
+ * counter (via onProgress), and a final {type:'result'} resolves the promise
+ * ({type:'error'} rejects). Falls back gracefully if the body isn't streamable
+ * (some proxies buffer): the counter just jumps at the end.
  */
-async function postForm<T>(path: string, form: FormData): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers: adminHeaders(), body: form })
-  if (!res.ok) {
+async function parseOutagesStream(text: string, files: File[], onProgress?: (tokens: number) => void): Promise<OutageParseResponse> {
+  const form = new FormData()
+  if (text) form.append('text', text)
+  for (const f of files) form.append('files', f)
+  const res = await fetch(`${BASE_URL}/api/outages/parse`, { method: 'POST', headers: adminHeaders(), body: form })
+  if (!res.ok || !res.body) {
     let detail = ''
     try { detail = (await res.json()).detail ?? '' } catch { /* ignore */ }
     throw new Error(`${res.status}${detail ? `: ${detail}` : ''}`)
   }
-  return res.json()
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buf = ''
+  let result: OutageParseResponse | null = null
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buf += decoder.decode(value, { stream: true })
+    // SSE frames are separated by a blank line.
+    let sep: number
+    while ((sep = buf.indexOf('\n\n')) >= 0) {
+      const frame = buf.slice(0, sep).trim()
+      buf = buf.slice(sep + 2)
+      if (!frame) continue
+      const json = frame.startsWith('data:') ? frame.slice(5).trim() : frame
+      let ev: { type: string; tokens?: number; detail?: string; proposals?: unknown; existing_count?: number; model?: string }
+      try { ev = JSON.parse(json) } catch { continue }
+      if (ev.type === 'progress') onProgress?.(ev.tokens ?? 0)
+      else if (ev.type === 'error') throw new Error(ev.detail || 'Parse failed')
+      else if (ev.type === 'result') result = ev as unknown as OutageParseResponse
+    }
+  }
+  if (!result) throw new Error('Parser returned no result')
+  return result
 }
 
 /**
@@ -205,12 +232,12 @@ export const api = {
   // AI. Does not save. `replaceAllOutages` is the destructive "Accept All"
   // commit. Multiple images are sent as repeated `files` fields and read
   // together in a single vision call.
-  parseOutages:   (text: string, files: File[])                        => {
-    const form = new FormData()
-    if (text) form.append('text', text)
-    for (const f of files) form.append('files', f)
-    return postForm<OutageParseResponse>('/api/outages/parse', form)
-  },
+  // Streams the parse: the backend sends Server-Sent-Events — repeated
+  // {type:'progress',tokens} frames (drive the live token counter) then a final
+  // {type:'result',...} or {type:'error',detail}. onProgress is called with the
+  // running output-token estimate; resolves with the final OutageParseResponse.
+  parseOutages:   (text: string, files: File[], onProgress?: (tokens: number) => void) =>
+    parseOutagesStream(text, files, onProgress),
   replaceAllOutages: (data: SegmentOutage[])                           => put<SegmentOutage[]>('/api/outages', data),
 
   // Config

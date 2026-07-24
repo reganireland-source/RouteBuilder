@@ -61,6 +61,7 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
   const [text, setText] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const [parsing, setParsing] = useState(false)
+  const [parseTokens, setParseTokens] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<Row[] | null>(null)
   const [existingCount, setExistingCount] = useState(0)
@@ -111,9 +112,9 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
 
   async function runParse() {
     if (!text.trim() && files.length === 0) { setError('Paste a table, paste a screenshot, or choose a file first.'); return }
-    setParsing(true); setError(null)
+    setParsing(true); setError(null); setParseTokens(0)
     try {
-      const res = await api.parseOutages(text.trim(), files)
+      const res = await api.parseOutages(text.trim(), files, tokens => setParseTokens(tokens))
       setRows(res.proposals)
       setExistingCount(res.existing_count)
       setModelUsed(res.model)
@@ -186,6 +187,7 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
         position: 'fixed', inset: 0, zIndex: 12000, background: 'rgba(0,0,0,0.55)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
       }}>
+      <style>{'@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }'}</style>
       <div style={{
         width: 'min(1100px, 96vw)', maxHeight: '92vh', background: t.bgPanel,
         border: `1px solid ${t.border}`, borderRadius: 10, display: 'flex', flexDirection: 'column',
@@ -255,7 +257,7 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
                 </div>
               )}
 
-              <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <button
                   onClick={runParse}
                   disabled={parsing}
@@ -263,6 +265,14 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
                 >
                   {parsing ? 'Parsing with AI…' : `Parse with AI${files.length ? ` (${files.length} file${files.length === 1 ? '' : 's'})` : ''}`}
                 </button>
+                {parsing && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: t.textMuted, fontFamily: 'ui-monospace, monospace' }}>
+                    <span style={{ width: 12, height: 12, borderRadius: '50%', border: `2px solid ${t.border}`, borderTopColor: t.blue, display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />
+                    {parseTokens > 0
+                      ? <>thinking… <strong style={{ color: t.text }}>{parseTokens.toLocaleString()}</strong> tokens</>
+                      : <>contacting model…</>}
+                  </span>
+                )}
               </div>
             </div>
           )}
