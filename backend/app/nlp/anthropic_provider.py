@@ -3,6 +3,29 @@ import os
 from .provider import LLMProvider
 
 
+def _extract_json_text(response) -> str:
+    """Pull the assistant's text out of an Anthropic response and strip fences.
+
+    A response's `content` is a list of blocks. Newer models (e.g. Sonnet with
+    extended thinking) put a `thinking` block FIRST, which has no `.text`, so we
+    must select the first block whose type is `text` rather than blindly taking
+    content[0]. Falls back to concatenating any text found.
+    """
+    text = ""
+    for block in response.content:
+        if getattr(block, "type", None) == "text" and hasattr(block, "text"):
+            text = block.text
+            break
+    if not text:
+        # Fallback: join whatever text-bearing blocks exist.
+        text = "".join(getattr(b, "text", "") for b in response.content)
+    text = text.strip()
+    # Strip a markdown code fence if the model wrapped its JSON.
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+    return text
+
+
 class AnthropicProvider(LLMProvider):
     def __init__(self):
         import anthropic
@@ -15,11 +38,7 @@ class AnthropicProvider(LLMProvider):
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
         )
-        text = response.content[0].text.strip()
-        # Strip markdown code fences if the model wraps its output
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-        return json.loads(text)
+        return json.loads(_extract_json_text(response))
 
     # Default vision model for the Outage Parser. Sonnet is stronger than the
     # Haiku used for route-search NLP, which matters for reading a messy
@@ -48,7 +67,4 @@ class AnthropicProvider(LLMProvider):
             system=system_prompt,
             messages=[{"role": "user", "content": content_blocks}],
         )
-        text = response.content[0].text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-        return json.loads(text)
+        return json.loads(_extract_json_text(response))

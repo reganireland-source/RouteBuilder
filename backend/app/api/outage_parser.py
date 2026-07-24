@@ -221,7 +221,9 @@ async def parse_outages(text: str = Form(None), files: list[UploadFile] = File(N
         raise HTTPException(status_code=503, detail=str(e))
 
     try:
-        result = provider.complete_json_multimodal(_SYSTEM_PROMPT, blocks, max_tokens=8192)
+        # Generous budget: Sonnet may spend part of it on a thinking block before
+        # the JSON, and a large table can be many rows — avoid truncation.
+        result = provider.complete_json_multimodal(_SYSTEM_PROMPT, blocks, max_tokens=16000)
     except NotImplementedError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
