@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from .api import nodes, segments, systems, routes, capacity, rules, health, config, city_pairs, outages, bulk, interfaces, projects, tech_lookups, feature_requests, solution_notes, auth as auth_api
+from .api import nodes, segments, systems, routes, capacity, rules, health, config, city_pairs, outages, bulk, interfaces, projects, tech_lookups, feature_requests, solution_notes, auth as auth_api, outage_parser
 from .db import init_db
 
 logger = logging.getLogger("routebuilder.security")
@@ -117,6 +117,7 @@ app.include_router(health.router, prefix="/api")
 app.include_router(config.router, prefix="/api")
 app.include_router(city_pairs.router, prefix="/api")
 app.include_router(outages.router, prefix="/api")
+app.include_router(outage_parser.router, prefix="/api")
 app.include_router(bulk.router, prefix="/api")
 app.include_router(interfaces.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")

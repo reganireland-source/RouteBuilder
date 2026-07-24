@@ -37,7 +37,7 @@
  * requests). Request/response shapes are the interfaces in ../types.
  */
 
-import type { AppConfig, CableNode, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, NlpParseResponse, NoteCategory, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
+import type { AppConfig, CableNode, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, NlpParseResponse, NoteCategory, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
 
 // Backend origin baked in at build time. Empty string = same-origin (dev proxy).
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
@@ -146,6 +146,22 @@ async function uploadFile<T>(path: string, file: File): Promise<T> {
 }
 
 /**
+ * POST an arbitrary multipart/form-data body (text fields and/or files). Used by
+ * the Outage Parser, whose input can be pasted text, an image, or a spreadsheet.
+ * The admin token is sent when unlocked. As with post(), FastAPI's `detail` is
+ * surfaced in the thrown Error for the UI.
+ */
+async function postForm<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers: adminHeaders(), body: form })
+  if (!res.ok) {
+    let detail = ''
+    try { detail = (await res.json()).detail ?? '' } catch { /* ignore */ }
+    throw new Error(`${res.status}${detail ? `: ${detail}` : ''}`)
+  }
+  return res.json()
+}
+
+/**
  * The typed endpoint catalogue used by every component. Each entry is a
  * one-line wrapper mapping a method to a backend REST path; see the header
  * comment of this file for cross-cutting behaviour (base URL, errors, admin
@@ -184,6 +200,16 @@ export const api = {
   createOutage:   (data: SegmentOutage)                                => post<SegmentOutage>('/api/outages', data),
   updateOutage:   (faultId: string, data: Partial<SegmentOutage>)      => put<SegmentOutage>(`/api/outages/${faultId}`, data),
   deleteOutage:   (faultId: string)                                    => del(`/api/outages/${faultId}`),
+  // Outage Parser: send pasted text and/or a file (image/CSV/XLSX) to be parsed
+  // into proposed outages by AI. Does not save. `replaceAllOutages` is the
+  // destructive "Accept All & Replace" commit.
+  parseOutages:   (text: string, file: File | null)                    => {
+    const form = new FormData()
+    if (text) form.append('text', text)
+    if (file) form.append('file', file)
+    return postForm<OutageParseResponse>('/api/outages/parse', form)
+  },
+  replaceAllOutages: (data: SegmentOutage[])                           => put<SegmentOutage[]>('/api/outages', data),
 
   // Config
   getConfig:    ()                    => get<AppConfig>('/api/config'),

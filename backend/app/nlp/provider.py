@@ -10,6 +10,31 @@ class LLMProvider(ABC):
         """Complete a request and return the parsed JSON response."""
         ...
 
+    def complete_json_multimodal(
+        self,
+        system_prompt: str,
+        content_blocks: list,
+        model: str | None = None,
+        max_tokens: int = 4096,
+    ) -> dict:
+        """Complete a request whose user turn is a list of content blocks
+        (a mix of {"type": "text", ...} and {"type": "image", ...}) and return
+        the parsed JSON response.
+
+        Used by the Outage Parser to read a screenshot/spreadsheet/pasted table
+        and map it to structured outages in one call. `model` optionally
+        overrides the provider's default (the parser uses a stronger vision
+        model than the route-search NLP).
+
+        Providers that cannot do this raise NotImplementedError; callers should
+        surface a clear "this provider doesn't support image/table parsing"
+        message.
+        """
+        raise NotImplementedError(
+            "The configured LLM provider does not support multimodal (image/table) parsing. "
+            "Set ANTHROPIC_API_KEY to use the Outage Parser."
+        )
+
 
 def get_provider() -> LLMProvider:
     """

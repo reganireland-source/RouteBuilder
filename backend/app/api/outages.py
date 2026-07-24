@@ -12,6 +12,7 @@
 # Endpoints:
 #   GET    /api/outages             — list all outages.
 #   POST   /api/outages             — record a new outage.
+#   PUT    /api/outages             — REPLACE the whole outage set (bulk).
 #   PUT    /api/outages/{fault_id}  — patch an outage.
 #   DELETE /api/outages/{fault_id}  — clear/delete an outage.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -20,6 +21,24 @@ from ..data_loader import load_outages, save_outages
 from ..models import SegmentOutage, SegmentOutageUpdate
 
 router = APIRouter()
+
+
+@router.put("/outages", response_model=list[SegmentOutage])
+def replace_all_outages(entries: list[SegmentOutage]):
+    """PUT /api/outages — replace the ENTIRE outage set in one call.
+
+    Destructive bulk operation: every existing outage is discarded and replaced
+    by `entries`. This backs the Outage Parser's "Accept All & Replace" flow,
+    where a freshly parsed table supersedes the whole current fault list.
+
+    Params: request body is a JSON array of SegmentOutage objects.
+    Response: the stored array (echoes what was saved).
+
+    Auth: requires the x-admin-token header when ADMIN_KEY is set — enforced
+    centrally by the admin_write_guard middleware in app/main.py, not here.
+    """
+    save_outages(entries)
+    return entries
 
 
 @router.get("/outages", response_model=list[SegmentOutage])

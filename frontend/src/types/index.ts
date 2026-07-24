@@ -284,6 +284,30 @@ export interface SegmentOutage {
 }
 
 /** A pair of cable systems that must NOT interconnect at a node (see InterconnectRule). */
+// ── Outage Parser ─────────────────────────────────────────────────────────────
+// A single proposed outage returned by POST /api/outages/parse. The first six
+// fields are the SegmentOutage shape that gets saved; the rest are review-only
+// metadata driving the traffic-light UI (green/amber/red) and the segment picker.
+export interface ParsedOutage {
+  segment_id: string
+  fault_id: string
+  fault_date: string
+  repair_start: string | null
+  estimated_repair_date: string | null
+  description: string
+  matched: boolean                       // did the AI map it to a real segment_id?
+  confidence: 'high' | 'low' | 'none'    // green / amber / red
+  candidates: string[]                   // other plausible segment_ids (for amber)
+  raw_cable: string                      // cable name as written in the source
+  raw_segment: string                    // segment text as written in the source
+}
+
+export interface OutageParseResponse {
+  proposals: ParsedOutage[]
+  existing_count: number                 // how many outages the replace would overwrite
+  model: string                          // model id used for the parse
+}
+
 export interface DisallowedPair {
   system_a: string
   system_b: string

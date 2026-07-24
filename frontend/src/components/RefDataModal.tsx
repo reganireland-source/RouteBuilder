@@ -61,6 +61,7 @@ import { api } from '../api/client'
 import { ProductCoveragePanel } from './ProductCoveragePanel'
 import { BulkImportPanel } from './BulkImportPanel'
 import { TechEnrichmentPanel } from './TechEnrichmentPanel'
+import { OutageParserModal } from './OutageParserModal'
 
 // ── Verification status components — module-level so React never remounts them
 // on a parent re-render (which would swallow busy/error state mid-save).
@@ -517,6 +518,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   const [mapsProvider, setMapsProvider] = useState<'osm' | 'google'>(() => config.maps_provider ?? 'osm')   // active map tile provider
   const [mapsStatus, setMapsStatus] = useState<'checking' | 'ok' | 'error'>('checking')                     // live reachability of the map provider (status light)
   const [capSegmentOpen, setCapSegmentOpen] = useState(false)
+  const [outageParserOpen, setOutageParserOpen] = useState(false)
 
   // Probe whether the selected map provider is actually reachable, driving the
   // status light on the Config tab. For Google, poll for the async-loaded SDK;
@@ -1283,6 +1285,18 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     )
     return (
       <>
+        {/* AI Outage Parser launcher — admin-only bulk entry via paste/upload */}
+        {isAdmin && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: isMobile ? '8px 12px' : '8px 20px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
+            <button
+              onClick={() => setOutageParserOpen(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 6, cursor: 'pointer', border: `1px solid ${t.blue}55`, background: t.blue + '18', color: t.blue }}
+            >
+              ⚡ AI Outage Parser
+            </button>
+            <span style={{ fontSize: 11, color: t.textFaint }}>Paste or upload your outage table to bulk-replace all outages with AI.</span>
+          </div>
+        )}
         {adding && (
           <div style={{ ...editFormRow, margin: isMobile ? '8px 12px' : undefined }}>
             <Field label="Segment ID *"   k="segment_id"            src={addValues} setSrc={setAddValues} />
@@ -2481,6 +2495,15 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         </div>
 
       </div>
+
+      {/* AI Outage Parser overlay (opened from the Outages tab) */}
+      {outageParserOpen && (
+        <OutageParserModal
+          segments={segments}
+          onClose={() => setOutageParserOpen(false)}
+          onReplaced={async () => { await onDataChange() }}
+        />
+      )}
     </div>
   )
 }
