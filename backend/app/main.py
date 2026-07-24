@@ -47,9 +47,10 @@ async def security_headers(request: Request, call_next):
     return response
 
 # ── Request body size cap ──────────────────────────────────────────────────────
-# Rejects oversized payloads before they reach a handler. Bulk import is the
-# largest legitimate payload; 10 MB leaves ample headroom.
-_MAX_BODY_BYTES = int(os.getenv("MAX_BODY_BYTES", str(10 * 1024 * 1024)))
+# Rejects oversized payloads before they reach a handler. The largest legitimate
+# payload is the Outage Parser (several pasted screenshots of one big table);
+# 25 MB leaves ample headroom while still bounding abuse.
+_MAX_BODY_BYTES = int(os.getenv("MAX_BODY_BYTES", str(25 * 1024 * 1024)))
 
 @app.middleware("http")
 async def body_size_limit(request: Request, call_next):

@@ -19,12 +19,27 @@
  * State lives entirely here; on a successful replace it calls onReplaced() so
  * the parent can refresh, then closes.
  */
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { useTheme } from '../theme'
 import type { CableSegment, ParsedOutage, SegmentOutage } from '../types'
 
 type Row = ParsedOutage
+
+/** Pull image files out of a clipboard payload (screenshot paste). */
+function imagesFromClipboard(dt: DataTransfer): File[] {
+  const out: File[] = []
+  for (const item of Array.from(dt.items)) {
+    if (item.kind === 'file' && item.type.startsWith('image/')) {
+      const blob = item.getAsFile()
+      if (blob) {
+        const ext = blob.type.split('/')[1] || 'png'
+        out.push(new File([blob], `pasted-${Date.now()}-${out.length}.${ext}`, { type: blob.type }))
+      }
+    }
+  }
+  return out
+}
 
 /** A row is savable only once it points at a real segment_id. */
 function isRowValid(r: Row): boolean {
@@ -44,7 +59,7 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
 }) {
   const t = useTheme()
   const [text, setText] = useState('')
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
   const [parsing, setParsing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<Row[] | null>(null)
@@ -64,11 +79,41 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
   const validCount = rows ? rows.filter(isRowValid).length : 0
   const invalidCount = rows ? rows.length - validCount : 0
 
+  // Thumbnail previews for uploaded/pasted files; object URLs are revoked when
+  // the file set changes or the modal unmounts to avoid leaks.
+  const previews = useMemo(() => files.map(f => ({
+    file: f,
+    isImage: f.type.startsWith('image/'),
+    url: f.type.startsWith('image/') ? URL.createObjectURL(f) : '',
+  })), [files])
+  useEffect(() => () => { previews.forEach(p => p.url && URL.revokeObjectURL(p.url)) }, [previews])
+
+  // Capture screenshots pasted from the clipboard (⌘/Ctrl+V) anywhere in the
+  // input stage — regardless of focus — while still letting plain-text paste
+  // fall through to the textarea. Only active before parsing (rows === null).
+  useEffect(() => {
+    if (rows) return
+    function onPaste(e: ClipboardEvent) {
+      if (!e.clipboardData) return
+      const imgs = imagesFromClipboard(e.clipboardData)
+      if (imgs.length) { e.preventDefault(); setFiles(fs => [...fs, ...imgs]) }
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [rows])
+
+  function addFiles(list: FileList | null) {
+    if (list && list.length) setFiles(fs => [...fs, ...Array.from(list)])
+  }
+  function removeFile(i: number) {
+    setFiles(fs => fs.filter((_, idx) => idx !== i))
+  }
+
   async function runParse() {
-    if (!text.trim() && !file) { setError('Paste a table or choose a file first.'); return }
+    if (!text.trim() && files.length === 0) { setError('Paste a table, paste a screenshot, or choose a file first.'); return }
     setParsing(true); setError(null)
     try {
-      const res = await api.parseOutages(text.trim(), file)
+      const res = await api.parseOutages(text.trim(), files)
       setRows(res.proposals)
       setExistingCount(res.existing_count)
       setModelUsed(res.model)
@@ -158,26 +203,59 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
                 value={text}
                 onChange={e => setText(e.target.value)}
                 placeholder="Cable   Segment   Fault Date   Reference   Status ..."
-                style={{ ...inp, minHeight: 160, fontFamily: 'ui-monospace, monospace', resize: 'vertical' }}
+                style={{ ...inp, minHeight: 120, fontFamily: 'ui-monospace, monospace', resize: 'vertical' }}
               />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 12, color: t.textFaint }}>or upload an image / CSV / XLSX:</span>
+
+              {/* Screenshot paste zone — captures ⌘/Ctrl+V images anywhere on the page */}
+              <div
+                onClick={() => fileRef.current?.click()}
+                style={{
+                  border: `1.5px dashed ${t.border}`, borderRadius: 8, padding: '16px 14px',
+                  textAlign: 'center', cursor: 'pointer', background: t.bgDeep,
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 600, color: t.textMuted }}>
+                  📋 Paste screenshot(s) here — press ⌘/Ctrl + V
+                </div>
+                <div style={{ fontSize: 11, color: t.textFaint, marginTop: 3 }}>
+                  Paste multiple images for a large table · or click to choose image / CSV / XLSX files
+                </div>
                 <input
                   ref={fileRef}
                   type="file"
+                  multiple
                   accept="image/png,image/jpeg,image/gif,image/webp,.csv,.xlsx,.xlsm,text/csv"
-                  onChange={e => setFile(e.target.files?.[0] ?? null)}
-                  style={{ fontSize: 12, color: t.textMuted }}
+                  onChange={e => { addFiles(e.target.files); if (fileRef.current) fileRef.current.value = '' }}
+                  style={{ display: 'none' }}
                 />
-                {file && <button onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = '' }} style={{ fontSize: 11, color: t.textFaint, background: 'transparent', border: `1px solid ${t.border}`, borderRadius: 4, padding: '2px 8px', cursor: 'pointer' }}>clear</button>}
               </div>
+
+              {/* Thumbnails / file chips */}
+              {previews.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' }}>
+                  {previews.map((p, i) => (
+                    <div key={i} style={{ position: 'relative', border: `1px solid ${t.border}`, borderRadius: 6, overflow: 'hidden', background: t.bgCard }}>
+                      {p.isImage
+                        ? <img src={p.url} alt="" style={{ display: 'block', width: 96, height: 72, objectFit: 'cover' }} />
+                        : <div style={{ width: 120, height: 72, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 6, fontSize: 10, color: t.textMuted, textAlign: 'center', wordBreak: 'break-all' }}>📄 {p.file.name}</div>}
+                      <button
+                        onClick={e => { e.stopPropagation(); removeFile(i) }}
+                        title="Remove"
+                        style={{ position: 'absolute', top: 2, right: 2, width: 18, height: 18, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 12, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >×</button>
+                    </div>
+                  ))}
+                  <button onClick={() => setFiles([])} style={{ alignSelf: 'center', fontSize: 11, color: t.textFaint, background: 'transparent', border: `1px solid ${t.border}`, borderRadius: 4, padding: '3px 10px', cursor: 'pointer' }}>Clear all</button>
+                </div>
+              )}
+
               <div>
                 <button
                   onClick={runParse}
                   disabled={parsing}
                   style={{ padding: '9px 20px', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: parsing ? 'default' : 'pointer', border: 'none', background: t.blue, color: '#04121f', opacity: parsing ? 0.6 : 1 }}
                 >
-                  {parsing ? 'Parsing with AI…' : 'Parse with AI'}
+                  {parsing ? 'Parsing with AI…' : `Parse with AI${files.length ? ` (${files.length} file${files.length === 1 ? '' : 's'})` : ''}`}
                 </button>
               </div>
             </div>

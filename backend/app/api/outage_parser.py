@@ -40,7 +40,9 @@ logger = logging.getLogger("routebuilder.outage_parser")
 
 # Anthropic accepts these image media types for vision.
 _IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
-_MAX_UPLOAD = 10 * 1024 * 1024  # 10 MB, matches the body-size middleware
+# Combined cap across all uploaded files (a large table may be several
+# screenshots). Kept in step with the body-size middleware in main.py.
+_MAX_UPLOAD_TOTAL = 25 * 1024 * 1024  # 25 MB
 
 
 def _build_segment_catalogue() -> tuple[list[dict], set[str]]:
@@ -162,14 +164,16 @@ def _extract_file_block(file_bytes: bytes, content_type: str, filename: str) -> 
 
 
 @router.post("/outages/parse")
-async def parse_outages(text: str = Form(None), file: UploadFile = File(None)):
+async def parse_outages(text: str = Form(None), files: list[UploadFile] = File(None)):
     """POST /api/outages/parse — parse a pasted/uploaded outage table into
     proposed SegmentOutage rows (does NOT save).
 
     Params (multipart form):
       - text (optional): a pasted/typed outage table.
-      - file (optional): a screenshot image, or a CSV/XLSX file.
-      At least one of the two must be provided.
+      - files (optional, repeatable): one or more screenshot images (e.g. pasted
+        from the clipboard — a large table can be several screenshots), and/or a
+        CSV/XLSX file. All images are read together in one vision call.
+      At least one of text or files must be provided.
     Response:
       {
         "proposals": [ { ...outage fields..., "matched": bool,
@@ -183,19 +187,23 @@ async def parse_outages(text: str = Form(None), file: UploadFile = File(None)):
     """
     from ..nlp.provider import get_provider
 
-    # ── Assemble the user content blocks (text + optional file) ──────────────
+    # ── Assemble the user content blocks (files first, then pasted text) ─────
+    # Each image becomes its own block; the vision model reads them in order, so
+    # multiple screenshots of one long table are stitched together naturally.
     blocks: list = []
-    if file is not None:
-        raw = await file.read()
-        if len(raw) > _MAX_UPLOAD:
-            raise HTTPException(status_code=413, detail="Uploaded file too large (max 10 MB).")
+    total = 0
+    for f in (files or []):
+        raw = await f.read()
+        total += len(raw)
+        if total > _MAX_UPLOAD_TOTAL:
+            raise HTTPException(status_code=413, detail="Uploaded files too large (max 25 MB total).")
         if raw:
-            blocks.append(_extract_file_block(raw, file.content_type or "", file.filename or ""))
+            blocks.append(_extract_file_block(raw, f.content_type or "", f.filename or ""))
     if text and text.strip():
         blocks.append({"type": "text", "text": text.strip()})
 
     if not blocks:
-        raise HTTPException(status_code=400, detail="Provide pasted text or upload a file to parse.")
+        raise HTTPException(status_code=400, detail="Provide pasted text or upload/paste a file to parse.")
 
     # ── Build the segment catalogue and prepend the task instruction ─────────
     catalogue, valid_ids = _build_segment_catalogue()

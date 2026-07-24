@@ -200,13 +200,15 @@ export const api = {
   createOutage:   (data: SegmentOutage)                                => post<SegmentOutage>('/api/outages', data),
   updateOutage:   (faultId: string, data: Partial<SegmentOutage>)      => put<SegmentOutage>(`/api/outages/${faultId}`, data),
   deleteOutage:   (faultId: string)                                    => del(`/api/outages/${faultId}`),
-  // Outage Parser: send pasted text and/or a file (image/CSV/XLSX) to be parsed
-  // into proposed outages by AI. Does not save. `replaceAllOutages` is the
-  // destructive "Accept All & Replace" commit.
-  parseOutages:   (text: string, file: File | null)                    => {
+  // Outage Parser: send pasted text and/or one-or-more files (screenshots pasted
+  // from the clipboard, and/or a CSV/XLSX) to be parsed into proposed outages by
+  // AI. Does not save. `replaceAllOutages` is the destructive "Accept All"
+  // commit. Multiple images are sent as repeated `files` fields and read
+  // together in a single vision call.
+  parseOutages:   (text: string, files: File[])                        => {
     const form = new FormData()
     if (text) form.append('text', text)
-    if (file) form.append('file', file)
+    for (const f of files) form.append('files', f)
     return postForm<OutageParseResponse>('/api/outages/parse', form)
   },
   replaceAllOutages: (data: SegmentOutage[])                           => put<SegmentOutage[]>('/api/outages', data),
