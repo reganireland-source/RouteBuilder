@@ -5,7 +5,14 @@ WORKDIR /app
 COPY requirements.txt requirements-nlp.txt ./
 RUN pip install --no-cache-dir -r requirements.txt -r requirements-nlp.txt
 
-COPY . .
+# Copy only what the service needs at runtime (docker:S6470 — a recursive
+# `COPY . .` can sweep .env files, local certificates, __pycache__ or ad-hoc
+# scratch files sitting in the working tree into the image). The ops scripts
+# (add_waypoints.py, dump_postgres_to_json.py, populate_capabilities.py) and the
+# test suite are deliberately NOT shipped: they are developer tooling and only
+# widen the runtime surface. .dockerignore is a backstop, not a substitute.
+COPY app ./app
+COPY data ./data
 
 # Run as an unprivileged user; the data dir must stay writable for the
 # JSON-file storage mode and the dump-to-json admin endpoint.
