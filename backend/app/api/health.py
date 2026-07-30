@@ -16,8 +16,17 @@
 # local JSON files under backend/data/ (dev fallback). The reseed/dump endpoints
 # only do anything in Postgres mode; in JSON mode they return "skipped".
 #
+#
+# LIVENESS vs READINESS (review finding #5): /api/health is the READINESS probe —
+# it reports whether this instance can actually serve traffic, so a failed DB
+# probe returns HTTP 503 (not 200), letting Railway's healthcheckPath and the
+# docker-compose healthcheck detect a DB outage. /api/health/live is the
+# LIVENESS probe: trivially 200 as long as the process is running, so a DB
+# outage does not get the container needlessly killed and restarted.
+#
 # Endpoints:
-#   GET  /api/health               — service + DB connectivity + data counts.
+#   GET  /api/health               — READINESS: DB connectivity + data counts.
+#   GET  /api/health/live          — LIVENESS: always 200, touches nothing.
 #   GET  /api/health/checks        — run all data-integrity checks, summarised.
 #   POST /api/health/admin/reseed  — overwrite Postgres from the JSON seed files.
 #   POST /api/health/admin/dump-to-json — export Postgres back to the JSON files.
@@ -25,8 +34,10 @@
 # ─────────────────────────────────────────────────────────────────────────────
 import os
 import json
+import logging
 from pathlib import Path
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 from ..data_loader import load_nodes, load_segments, load_systems, save_nodes, save_systems, save_segments, save_capacity, save_outages, save_rules, load_capacity, load_outages, load_rules
 from ..data_checks import run_all_checks, checks_summary
 
@@ -35,27 +46,69 @@ router = APIRouter(prefix="/health", tags=["health"])
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
 
 
+@router.get("/live")
+def liveness_probe():
+    """GET /api/health/live — LIVENESS probe (review finding #5).
+
+    Deliberately trivial: it touches no storage, no database, and no data
+    loaders, so it answers exactly one question — "is this process up and
+    serving HTTP?". Use this for container liveness/restart policies, where
+    killing the process because a *dependency* is down would be wrong.
+
+    Params: none.
+    Response: {"status": "ok"} with HTTP 200, always.
+
+    Auth: public read endpoint; no token required.
+    """
+    return {"status": "ok"}
+
+
 @router.get("")
 def health_check():
-    """GET /api/health — overall service health and data summary.
+    """GET /api/health — READINESS probe: service health and data summary.
 
     Loads the core tables (nodes, segments, systems) and, if a DATABASE_URL is
     configured, runs a trivial "SELECT 1" to confirm the database is reachable.
 
+    Review finding #5: this endpoint used to return HTTP 200 with status "ok"
+    even when the DB probe failed, which meant Railway's healthcheckPath and the
+    docker-compose healthcheck (both pointed here) could NEVER detect a database
+    outage. It is now a real readiness probe:
+      - Postgres mode (DATABASE_URL set) + DB probe fails → HTTP 503, status
+        "degraded", db_ok false. Orchestration can act on that.
+      - Postgres mode + DB reachable → HTTP 200, status "ok".
+      - JSON-file mode (no DATABASE_URL) → HTTP 200, status "ok": there is no DB
+        dependency to be unready about, the data lives in backend/data/*.json.
+    Use /api/health/live if you want a probe that ignores dependencies.
+
     Params: none.
-    Response: JSON with:
-      - status: always "ok" if the handler runs.
+    Response: JSON with the same fields as before (the frontend HealthBar reads
+    all of them, so the shape must not change):
+      - status: "ok", or "degraded" when the DB dependency is down.
       - nodes / segments / systems: row counts of each core table.
       - storage: "postgres" or "json" depending on DATABASE_URL.
       - db_ok: bool, whether the DB connectivity probe succeeded.
       - db_detail: human-readable connectivity note (never leaks DSN/host).
+    Status code: 200 when ready, 503 when degraded.
 
     Auth: public read endpoint; no token required.
     """
     from ..db import DATABASE_URL, get_conn
-    nodes    = load_nodes()
-    segments = load_segments()
-    systems  = load_systems()
+
+    # Load the core collections defensively. In Postgres mode these go through
+    # the DB too, so an outage makes them raise — and an unhandled 500 here would
+    # defeat the point of the probe (review finding #5): we want a structured
+    # "degraded" answer, not a stack trace. On failure we report zero counts and
+    # force the degraded verdict below.
+    load_ok = True
+    nodes = segments = systems = []
+    try:
+        nodes    = load_nodes()
+        segments = load_segments()
+        systems  = load_systems()
+    except Exception as e:
+        load_ok = False
+        logging.getLogger("routebuilder.health").warning("Data load failed during health check: %s", e)
 
     db_ok = False
     db_detail = "No DATABASE_URL configured"
@@ -71,12 +124,23 @@ def health_check():
             # Security: log the real error server-side only; the client response
             # must never echo DSN/host fragments that could leak credentials.
             # Log full detail server-side; never echo DSN/host fragments to clients
-            import logging
             logging.getLogger("routebuilder.health").warning("DB health check failed: %s", e)
             db_detail = "Connection failed (see server logs)"
 
-    return {
-        "status":    "ok",
+    # Readiness verdict. Two things can make this instance unready:
+    #   - the Postgres dependency is down (only meaningful when DATABASE_URL is
+    #     set — in JSON-file mode db_ok is False simply because there is no DB to
+    #     probe, which must NOT be reported as degraded); or
+    #   - the core collections could not be read at all, in either mode: we
+    #     cannot serve routes without nodes and segments.
+    degraded = (bool(DATABASE_URL) and not db_ok) or not load_ok
+    if not load_ok and not DATABASE_URL:
+        # File mode: there is no DB to blame, so say what actually broke (still
+        # without leaking paths or raw exception text).
+        db_detail = "Data files unreadable (see server logs)"
+
+    payload = {
+        "status":    "degraded" if degraded else "ok",
         "nodes":     len(nodes),
         "segments":  len(segments),
         "systems":   len(systems),
@@ -84,6 +148,10 @@ def health_check():
         "db_ok":     db_ok,
         "db_detail": db_detail,
     }
+    # 503 Service Unavailable is what Railway / docker-compose / k8s treat as a
+    # failed probe. Returning JSONResponse lets us keep the body identical while
+    # controlling the status code.
+    return JSONResponse(status_code=503, content=payload) if degraded else payload
 
 
 @router.get("/checks")

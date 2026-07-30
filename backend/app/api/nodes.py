@@ -72,6 +72,10 @@ def update_node(node_id: str, updates: NodeUpdate):
     Auth: requires the x-admin-token header when ADMIN_KEY is set — enforced
     centrally by the admin_write_guard middleware in app/main.py, not here.
     """
+    # Review finding #7: create_node() stores normalize_id(id) (upper-cased), so
+    # the path id MUST be normalised the same way before comparing — otherwise a
+    # node created as "SIN1" would 404 at PUT /api/nodes/sin1.
+    node_id = normalize_id(node_id, "node")
     nodes = load_nodes()
     for i, node in enumerate(nodes):
         if node.id == node_id:
@@ -95,6 +99,9 @@ def delete_node(node_id: str):
     Auth: requires the x-admin-token header when ADMIN_KEY is set — enforced
     centrally by the admin_write_guard middleware in app/main.py, not here.
     """
+    # Review finding #7: normalise the path id so DELETE matches the identity
+    # create_node() stored (see update_node above).
+    node_id = normalize_id(node_id, "node")
     nodes = load_nodes()
     new_nodes = [n for n in nodes if n.id != node_id]
     # No rows removed => id did not exist.

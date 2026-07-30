@@ -26,10 +26,30 @@ def _extract_json_text(response) -> str:
     return text
 
 
+# Review finding #19: give the client an EXPLICIT request timeout. The Anthropic
+# SDK defaults to 10 minutes, so a hanging upstream would pin a backend worker
+# for that long — an easy way to exhaust the worker pool via the unauthenticated
+# /api/nlp/parse endpoint. 30s is generous for the small Haiku JSON extraction
+# route-search NLP does. Override with NLP_TIMEOUT_SECONDS.
+_REQUEST_TIMEOUT = float(os.getenv("NLP_TIMEOUT_SECONDS", "30"))
+
+# The Outage Parser's vision calls (complete_json_multimodal /
+# stream_json_multimodal) are a different workload: a Sonnet model reading a
+# screenshot, optionally with extended thinking, routinely takes well over 30s.
+# They therefore override the client default with this longer per-request
+# timeout so adding the cap above does not break them. Override with
+# OUTAGE_PARSER_TIMEOUT_SECONDS.
+_VISION_TIMEOUT = float(os.getenv("OUTAGE_PARSER_TIMEOUT_SECONDS", "300"))
+
+
 class AnthropicProvider(LLMProvider):
     def __init__(self):
         import anthropic
-        self._client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        self._client = anthropic.Anthropic(
+            api_key=os.getenv("ANTHROPIC_API_KEY"),
+            # Client-wide default; individual calls may pass a longer timeout=.
+            timeout=_REQUEST_TIMEOUT,
+        )
 
     def complete_json(self, system_prompt: str, user_prompt: str) -> dict:
         response = self._client.messages.create(
@@ -66,6 +86,9 @@ class AnthropicProvider(LLMProvider):
             max_tokens=max_tokens,
             system=system_prompt,
             messages=[{"role": "user", "content": content_blocks}],
+            # Vision workload: override the 30s client default (#19) — see
+            # _VISION_TIMEOUT.
+            timeout=_VISION_TIMEOUT,
         )
         return json.loads(_extract_json_text(response))
 
@@ -91,6 +114,9 @@ class AnthropicProvider(LLMProvider):
             max_tokens=max_tokens,
             system=system_prompt,
             messages=[{"role": "user", "content": content_blocks}],
+            # Vision workload: override the 30s client default (#19) — see
+            # _VISION_TIMEOUT.
+            timeout=_VISION_TIMEOUT,
         ) as stream:
             for event in stream:
                 if getattr(event, "type", "") == "content_block_delta":

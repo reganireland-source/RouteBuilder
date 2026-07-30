@@ -71,6 +71,11 @@ def update_segment(segment_id: str, updates: CableSegmentUpdate):
     Auth: requires the x-admin-token header when ADMIN_KEY is set — enforced
     centrally by the admin_write_guard middleware in app/main.py, not here.
     """
+    # Review finding #7: create_segment() stores normalize_id(id) (upper-cased),
+    # so the path id MUST be normalised the same way before comparing —
+    # otherwise a segment created as "EAC-S1" would 404 at PUT
+    # /api/segments/eac-s1.
+    segment_id = normalize_id(segment_id, "segment")
     segments = load_segments()
     for i, seg in enumerate(segments):
         if seg.id == segment_id:
@@ -92,6 +97,9 @@ def delete_segment(segment_id: str):
     Auth: requires the x-admin-token header when ADMIN_KEY is set — enforced
     centrally by the admin_write_guard middleware in app/main.py, not here.
     """
+    # Review finding #7: normalise the path id so DELETE matches the identity
+    # create_segment() stored (see update_segment above).
+    segment_id = normalize_id(segment_id, "segment")
     segments = load_segments()
     new_segments = [s for s in segments if s.id != segment_id]
     # No rows removed => id did not exist.

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional
 from enum import Enum
 
@@ -65,8 +65,11 @@ class NodeCapabilities(BaseModel):
 class Node(BaseModel):
     id: str
     name: str
-    lat: float
-    lng: float
+    # Review finding #11: constrain fields whose domain is fixed, so bad input is
+    # rejected at the API boundary (422) instead of silently poisoning the map /
+    # the routing graph. lat/lng are WGS-84 degrees, so the valid range is fixed.
+    lat: float = Field(ge=-90,  le=90)
+    lng: float = Field(ge=-180, le=180)
     type: NodeType
     country: str
     owner: str = "Telstra"
@@ -94,11 +97,15 @@ class CableSegment(BaseModel):
     start_node_id: str
     end_node_id: str
     type: SegmentType
-    length_km: float
-    reliability: float        # 0-1, annualised availability
-    cost_weight: float        # relative cost units
+    # Review finding #11: physical/derived quantities can never be negative, and
+    # reliability is a probability. gt=0 (not ge=0) on reliability because a
+    # zero-availability segment would make end_to_end_reliability collapse to 0
+    # for every route through it — that is a data error, not a valid segment.
+    length_km: float   = Field(ge=0)
+    reliability: float = Field(gt=0, le=1)   # 0-1, annualised availability
+    cost_weight: float = Field(ge=0)         # relative cost units
     ownership: Ownership
-    latency: Optional[float] = None
+    latency: Optional[float] = Field(default=None, ge=0)
     waypoints: Optional[list[list[float]]] = None
     verification_status: VerificationStatus = VerificationStatus.draft
     last_verified_date: Optional[str] = None
@@ -143,8 +150,20 @@ class InterconnectRuleUpdate(BaseModel):
 
 class SegmentCapacity(BaseModel):
     segment_id: str
-    total_capacity_t: float
-    available_capacity_t: float
+    # Review finding #11: capacity is in Tbps — never negative, and you cannot
+    # have more capacity free than the segment physically has.
+    total_capacity_t: float     = Field(ge=0)
+    available_capacity_t: float = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _available_within_total(self):
+        """Cross-field check: available capacity cannot exceed total capacity."""
+        if self.available_capacity_t > self.total_capacity_t:
+            raise ValueError(
+                f"available_capacity_t ({self.available_capacity_t}) cannot exceed "
+                f"total_capacity_t ({self.total_capacity_t})"
+            )
+        return self
 
 
 class RouteRequest(BaseModel):
@@ -159,8 +178,11 @@ class RouteRequest(BaseModel):
     must_include_countries: list[str] = []
     must_avoid_countries: list[str] = []
     diversity: DiversityType = DiversityType.none
-    max_wet_hops: Optional[int] = None
-    max_terrestrial_hops: Optional[int] = None
+    # Review finding #11: a hop cap below 1 can never match any route, so treat it
+    # as a client bug (422) rather than silently returning zero routes. None means
+    # "no cap" and stays allowed.
+    max_wet_hops: Optional[int]         = Field(default=None, ge=1)
+    max_terrestrial_hops: Optional[int] = Field(default=None, ge=1)
     optimise_for: Optional[str] = None
 
 
@@ -199,8 +221,10 @@ class RouteResponse(BaseModel):
 
 class NodeUpdate(BaseModel):
     name: Optional[str] = None
-    lat: Optional[float] = None
-    lng: Optional[float] = None
+    # Review finding #11: mirror the Node constraints here — a PUT must not be a
+    # back door around the validation the POST enforces.
+    lat: Optional[float] = Field(default=None, ge=-90,  le=90)
+    lng: Optional[float] = Field(default=None, ge=-180, le=180)
     type: Optional[NodeType] = None
     country: Optional[str] = None
     owner: Optional[str] = None
@@ -219,11 +243,12 @@ class CableSegmentUpdate(BaseModel):
     start_node_id: Optional[str] = None
     end_node_id: Optional[str] = None
     type: Optional[SegmentType] = None
-    length_km: Optional[float] = None
-    reliability: Optional[float] = None
-    cost_weight: Optional[float] = None
+    # Review finding #11: same constraints as CableSegment (see above).
+    length_km: Optional[float]   = Field(default=None, ge=0)
+    reliability: Optional[float] = Field(default=None, gt=0, le=1)
+    cost_weight: Optional[float] = Field(default=None, ge=0)
     ownership: Optional[Ownership] = None
-    latency: Optional[float] = None
+    latency: Optional[float] = Field(default=None, ge=0)
     waypoints: Optional[list[list[float]]] = None
     verification_status: Optional[VerificationStatus] = None
     last_verified_date: Optional[str] = None
@@ -234,8 +259,30 @@ class CableSystemUpdate(BaseModel):
     margin: Optional[float] = None
 
 class SegmentCapacityUpdate(BaseModel):
-    total_capacity_t: Optional[float] = None
-    available_capacity_t: Optional[float] = None
+    # Review finding #11: same non-negativity constraints as SegmentCapacity.
+    total_capacity_t: Optional[float]     = Field(default=None, ge=0)
+    available_capacity_t: Optional[float] = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def _available_within_total(self):
+        """Cross-field check, only enforceable when BOTH fields are supplied.
+
+        This is a PARTIAL update model, so when only one field is sent we cannot
+        compare against the other without loading the stored row. The router
+        merges via model_copy(), which does not re-validate in Pydantic v2, so a
+        single-field update that inverts the invariant is not caught here — see
+        review finding #11; tightening that needs a re-validate in capacity.py.
+        """
+        if (
+            self.total_capacity_t is not None
+            and self.available_capacity_t is not None
+            and self.available_capacity_t > self.total_capacity_t
+        ):
+            raise ValueError(
+                f"available_capacity_t ({self.available_capacity_t}) cannot exceed "
+                f"total_capacity_t ({self.total_capacity_t})"
+            )
+        return self
 
 
 class SegmentOutage(BaseModel):
@@ -389,7 +436,11 @@ class ProjectUpdate(BaseModel):
 # ── NLP route parsing ─────────────────────────────────────────────────────────
 
 class NlpParseRequest(BaseModel):
-    text: str
+    # Review findings #11 / #19: /api/nlp/parse is an unauthenticated POST that
+    # spends real LLM API budget, so the free-text field must be capped. 2000
+    # chars is far more than any genuine route query needs, and stops the
+    # endpoint being used to push arbitrarily large prompts upstream.
+    text: str = Field(max_length=2000)
 
 
 class NlpParseResponse(BaseModel):

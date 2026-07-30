@@ -70,17 +70,237 @@ After that, all reads/writes go through ``app/data_loader.py``, not this file.
 """
 
 import json
+import logging
 import os
+import threading
 from pathlib import Path
 
 import psycopg2
 import psycopg2.extras
+import psycopg2.pool
 
 # Connection string, injected by the hosting environment (Railway) in
 # production. If unset, the whole DB layer is disabled and data_loader.py
 # reads/writes the JSON files in backend/data/ instead.
 DATABASE_URL = os.environ.get("DATABASE_URL")
 DATA_DIR = Path(__file__).parent.parent / "data"
+
+_log = logging.getLogger("routebuilder.db")
+
+
+# ── Connection pooling and timeouts (Finding #13) ─────────────────────────────
+# WHY: get_conn() used to call psycopg2.connect() on every single call, and it
+# is called ~40 times across the API layer (once per read AND once per write).
+# That meant a full TCP + TLS + Postgres auth handshake per operation — tens of
+# milliseconds of latency each, and under load enough concurrent connects to
+# exhaust the server's max_connections. Worse, there was no connect_timeout and
+# no statement_timeout, so a network black-hole or one pathological query could
+# hang a worker thread forever with no upper bound.
+#
+# THE FIX: one process-wide ThreadedConnectionPool, created lazily on first use
+# (so importing this module never touches the network, and JSON-file mode never
+# builds a pool at all). Connections carry:
+#   - connect_timeout      → a dead/unreachable DB fails fast instead of hanging.
+#   - statement_timeout    → any single statement is killed server-side after
+#                            the limit, so one bad query cannot pin a worker.
+#
+# COMPATIBILITY: every existing caller does `conn = get_conn(); ...;
+# conn.close()`. Rewriting ~40 call sites would be a large, risky diff, so
+# get_conn() keeps its signature and instead returns a _PooledConnection
+# wrapper whose close() RETURNS the connection to the pool rather than closing
+# the socket. Existing code is therefore correct and unchanged, but now reuses
+# connections.
+def _env_int(name: str, default: int) -> int:
+    """Read a positive int from the environment, falling back to `default`.
+
+    Deliberately forgiving: a typo'd env var must not crash the whole app at
+    import time, it should just log and use the default.
+    """
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        _log.warning("Invalid %s=%r — using default %d", name, raw, default)
+        return default
+    if value <= 0:
+        _log.warning("Non-positive %s=%r — using default %d", name, raw, default)
+        return default
+    return value
+
+
+# Tunables (all optional; the defaults are sane for a single Railway service).
+DB_POOL_MAX = _env_int("DB_POOL_MAX", 10)                # max pooled connections
+DB_CONNECT_TIMEOUT = _env_int("DB_CONNECT_TIMEOUT", 10)  # seconds to connect
+# Per-statement cap in milliseconds, enforced server-side.
+DB_STATEMENT_TIMEOUT_MS = _env_int("DB_STATEMENT_TIMEOUT_MS", 30000)
+
+# Module-level pool + the lock that guards its lazy creation. The lock matters
+# because FastAPI runs sync endpoints in a thread pool: two threads can race
+# into get_conn() on the very first request and would otherwise build two pools
+# (leaking one of them).
+_pool: "psycopg2.pool.ThreadedConnectionPool | None" = None
+_pool_lock = threading.Lock()
+
+
+def _connect_kwargs() -> dict:
+    """Keyword args shared by the pool and by the direct-connect fallback.
+
+    `options='-c statement_timeout=...'` is passed on the wire at connection
+    setup, so it applies to every statement on that connection without needing
+    a per-transaction SET.
+    """
+    return {
+        "cursor_factory": psycopg2.extras.RealDictCursor,
+        "connect_timeout": DB_CONNECT_TIMEOUT,
+        "options": f"-c statement_timeout={DB_STATEMENT_TIMEOUT_MS}",
+    }
+
+
+def _get_pool():
+    """Return the process-wide pool, creating it on first use (or None on failure).
+
+    Returns None (rather than raising) if the pool cannot be built — get_conn()
+    then degrades to a direct connection so a transient startup problem does not
+    permanently break the app.
+    """
+    global _pool
+    if _pool is not None:
+        return _pool
+    with _pool_lock:
+        # Re-check inside the lock: another thread may have built it while we
+        # were waiting.
+        if _pool is not None:
+            return _pool
+        try:
+            _pool = psycopg2.pool.ThreadedConnectionPool(
+                1, DB_POOL_MAX, DATABASE_URL, **_connect_kwargs()
+            )
+        except Exception as e:
+            # Leave _pool as None so the next call retries pool creation.
+            _log.warning(
+                "Could not create DB connection pool (%s) — using direct connections", e
+            )
+            _pool = None
+        return _pool
+
+
+class _PooledConnection:
+    """A psycopg2 connection borrowed from the pool, with close() = "give back".
+
+    WHY THIS EXISTS (Finding #13): all existing call sites own their connection
+    and call conn.close() in a finally block. If close() really closed the
+    socket, pooling would achieve nothing. So this thin proxy overrides close()
+    to hand the connection back to the pool and forwards everything else
+    (cursor/commit/rollback/`with` support and any other attribute) straight
+    through to the real connection.
+
+    Notes:
+    - Double close() is a no-op: putconn() must never be called twice for one
+      connection, or the same connection would sit in the pool's free list
+      twice and two threads could use it simultaneously.
+    - `pool` is None for the direct-connect fallback path, in which case
+      close() really closes.
+    - psycopg2's putconn() rolls back any open transaction and discards
+      connections in an unknown state, so a caller that forgot to commit cannot
+      leak an open transaction into the next borrower.
+    """
+
+    def __init__(self, conn, pool=None):
+        self._conn = conn
+        self._pool = pool
+        self._released = False
+
+    # ── the handful of methods call sites actually use ────────────────────────
+    def cursor(self, *args, **kwargs):
+        return self._conn.cursor(*args, **kwargs)
+
+    def commit(self):
+        return self._conn.commit()
+
+    def rollback(self):
+        return self._conn.rollback()
+
+    def close(self) -> None:
+        """Return the connection to the pool (or close it, if unpooled)."""
+        if self._released:
+            return
+        self._released = True
+        if self._pool is None:
+            self._conn.close()
+            return
+        try:
+            self._pool.putconn(self._conn)
+        except Exception as e:
+            # Pool already closed / connection unusable: don't leak the socket.
+            _log.warning("Failed to return connection to pool (%s) — closing it", e)
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+
+    # `with conn:` in psycopg2 means "transaction scope" (commit on success,
+    # rollback on exception) and explicitly does NOT close the connection —
+    # so it is safe to delegate both ends to the real connection.
+    def __enter__(self):
+        self._conn.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return self._conn.__exit__(exc_type, exc, tb)
+
+    def __getattr__(self, name):
+        # Anything not overridden above (closed, info, autocommit, notices, ...)
+        # is proxied to the underlying connection.
+        return getattr(self._conn, name)
+
+
+def get_conn() -> "_PooledConnection":
+    """Borrow a Postgres connection from the pool (create the pool if needed).
+
+    Uses RealDictCursor so every fetched row is a plain dict
+    (row["data"], row["id"], ...) instead of a positional tuple — all query
+    code in this file and in data_loader.py relies on that.
+
+    Callers keep the exact same contract as before this was pooled: use the
+    connection, commit if you wrote anything, and ALWAYS call conn.close() in a
+    finally block. close() now hands the connection back to the pool instead of
+    tearing down the socket (see _PooledConnection).
+
+    Finding #13: if the pool is exhausted (more concurrent operations than
+    DB_POOL_MAX) we fall back to a direct, unpooled connection rather than
+    raising — the app degrades in latency instead of returning 500s under a
+    traffic spike.
+    """
+    pool = _get_pool()
+    if pool is not None:
+        try:
+            return _PooledConnection(pool.getconn(), pool)
+        except psycopg2.pool.PoolError as e:
+            _log.warning(
+                "DB pool exhausted (%s) — falling back to a direct connection", e
+            )
+    return _PooledConnection(psycopg2.connect(DATABASE_URL, **_connect_kwargs()), None)
+
+
+def close_pool() -> None:
+    """Close every pooled connection. Call on process shutdown.
+
+    Finding #13: without this, a graceful shutdown (or a test that flips
+    DATABASE_URL) would leave server-side backends lingering until Postgres
+    times them out. Safe to call when no pool was ever created.
+    """
+    global _pool
+    with _pool_lock:
+        if _pool is None:
+            return
+        try:
+            _pool.closeall()
+        except Exception as e:
+            _log.warning("Error closing DB connection pool: %s", e)
+        finally:
+            _pool = None
 
 # The "core" tables that have a matching seed file in backend/data/.
 # _seed_if_empty() walks this list: if a table is empty, it bulk-inserts the
@@ -238,20 +458,6 @@ _DEFAULT_TECH_LOOKUPS: dict[str, list[dict]] = {
 }
 
 
-def get_conn() -> psycopg2.extensions.connection:
-    """Open a new Postgres connection using DATABASE_URL.
-
-    Uses RealDictCursor so every fetched row is a plain dict
-    (row["data"], row["id"], ...) instead of a positional tuple — all query
-    code in this file and in data_loader.py relies on that.
-
-    Callers are responsible for closing the connection (and committing);
-    there is no pooling — each request/operation opens and closes its own
-    short-lived connection.
-    """
-    return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
-
-
 def _once(cur, name: str, fn) -> None:
     """Run fn(cur) exactly once, tracked by name in _migrations table.
 
@@ -292,6 +498,16 @@ def init_db() -> None:
     conn = get_conn()
     try:
         with conn.cursor() as cur:
+            # Finding #13 side-effect guard: pooled connections now carry a
+            # statement_timeout (default 30s) so no API request can pin a worker
+            # forever. Migrations and seeding are different — they are
+            # startup-only, single-threaded, and MUST run to completion; a bulk
+            # UPDATE or a multi-thousand-row seed legitimately taking >30s would
+            # otherwise abort the deploy. Lift the cap for this connection and
+            # restore it in the finally block below (the connection goes back to
+            # the pool afterwards, so leaving it at 0 would silently remove the
+            # timeout from a connection later reused to serve API traffic).
+            cur.execute("SET statement_timeout = 0")
             cur.execute(_CREATE_SQL)
 
             # Legacy migrations: if _migrations is empty but data already exists,
@@ -409,6 +625,15 @@ def init_db() -> None:
         conn.commit()
         _seed_if_empty(conn)
     finally:
+        # Restore the normal per-statement cap before this connection returns to
+        # the pool (see the SET above). Best-effort: if the connection is already
+        # broken there is nothing to restore and putconn() will discard it.
+        try:
+            with conn.cursor() as cur:
+                cur.execute(f"SET statement_timeout = {DB_STATEMENT_TIMEOUT_MS:d}")
+            conn.commit()
+        except Exception:  # nosec B110 — nothing useful to do; conn is being released
+            pass
         conn.close()
 
 

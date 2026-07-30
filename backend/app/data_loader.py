@@ -41,9 +41,21 @@ TYPICAL FLOW
 else ``_db_load_all("nodes", "id", Node)`` (or read nodes.json) → cache and
 return ``list[Node]``. A subsequent ``PUT`` → ``save_nodes(...)`` → bust
 cache → ``_db_replace_all`` (or rewrite nodes.json).
+
+TWO WRITE GRANULARITIES (see Finding #1 below)
+----------------------------------------------
+- ``save_X(list)``  — REPLACE THE WHOLE COLLECTION. Correct only when the
+  caller genuinely means "this list is now the entire collection" (e.g. the
+  Outage Parser replacing every outage record, or a bulk import).
+- ``upsert_X(item)`` / ``delete_X_row(id)`` — touch exactly ONE row. This is
+  what single-entity endpoints (POST/PUT/DELETE /api/nodes/{id}, ...) should
+  use: concurrent writers to *different* rows can no longer clobber each
+  other, and the write cost stops being proportional to collection size.
 """
 
 import json
+import os
+import tempfile
 from pathlib import Path
 from .models import Node, CableSystem, CableSegment, InterconnectRule, SegmentCapacity, SegmentOutage, InterfaceType, TechLookupItem, Project, SolutionNote, NoteCategory
 
@@ -87,10 +99,40 @@ def _get_conn():
     return get_conn()
 
 
-def _write(path: Path, data: list) -> None:
-    """JSON-file mode: overwrite `path` with `data` pretty-printed (2-space indent)."""
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
+def _write(path: Path, data) -> None:
+    """JSON-file mode: overwrite `path` with `data` pretty-printed (2-space indent).
+
+    Finding #23: this used to be `open(path, "w")` + `json.dump()`, which
+    TRUNCATES the real file first and then streams the new content into it. If
+    the process died, the disk filled, or the serialisation raised part-way
+    through (e.g. an un-JSON-able value deep in a document), the seed file was
+    left truncated or half-written — i.e. permanent data loss, and a backend
+    that then fails to start because nodes.json no longer parses. Any concurrent
+    reader could also observe a partial file.
+
+    The fix is the standard atomic-replace dance: serialise into a temp file in
+    the SAME directory (same filesystem, so the rename cannot cross devices),
+    fsync it so the bytes are really on disk, then os.replace() — which is
+    atomic on POSIX and Windows. Readers see either the complete old file or the
+    complete new one, never a mixture. On any failure we remove the temp file
+    and leave the original untouched.
+    """
+    fd, tmp_path = tempfile.mkstemp(
+        dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())      # durability: content hits disk before the swap
+        os.replace(tmp_path, path)    # atomic swap — the whole point of Finding #23
+    except BaseException:
+        # Never leave stray .tmp files behind, and never damage the original.
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 # ── Generic DB helpers ────────────────────────────────────────────────────────
@@ -178,6 +220,14 @@ def _db_replace_all(table: str, pk: str, pk_field: str, items) -> None:
 
     Example:
         _db_replace_all("capacity", "segment_id", "segment_id", capacity_list)
+
+    Finding #1 — WHEN NOT TO USE THIS: because it DELETEs everything first, it
+    is only safe when the caller's `items` really is the whole intended
+    collection. Using it to persist a single-row edit means "load all → mutate
+    one → rewrite all", and two concurrent single-row edits then silently lose
+    one of the two changes (last writer wins over the *entire* table, not just
+    over the row it touched). Single-row edits must use _db_upsert_one /
+    _db_delete_one below.
     """
     import psycopg2.extras
     table, pk = _safe_ident(table), _safe_ident(pk)
@@ -196,6 +246,124 @@ def _db_replace_all(table: str, pk: str, pk_field: str, items) -> None:
         conn.close()
 
 
+# ── Per-row DB primitives (Finding #1) ────────────────────────────────────────
+# WHY THESE EXIST
+# ---------------
+# Every write used to funnel through _db_replace_all, i.e. DELETE the whole
+# table then re-INSERT the in-memory list. Two problems:
+#
+# 1. LOST UPDATES (data integrity, the serious one). Request A loads all 900
+#    nodes, edits node X. Request B loads all 900 nodes, edits node Y. Both save
+#    the full list. Whoever commits second wipes the other's row — no error, no
+#    conflict, the edit just disappears. That is unavoidable with
+#    load-all/save-all: the write's footprint is the whole table even though the
+#    user changed one field.
+# 2. WRITE AMPLIFICATION. Editing one node rewrote every row (O(N) I/O, N dead
+#    tuples for VACUUM, and a table-wide lock for the duration).
+#
+# A single-row UPSERT/DELETE fixes both: the statement's footprint is exactly
+# the row being changed, so concurrent edits to different rows commit
+# independently and cost O(1).
+
+def _db_upsert_one(table: str, pk: str, pk_value: str, item_dict: dict) -> None:
+    """Insert-or-replace ONE row of a JSONB document table, atomically.
+
+    Parameters:
+        table:     allowlisted table name, e.g. "nodes".
+        pk:        allowlisted primary-key COLUMN, e.g. "segment_id".
+        pk_value:  the key value for this row.
+        item_dict: the document to store (already model_dump()ed to plain JSON
+                   types) — becomes the row's `data` JSONB column.
+
+    Uses INSERT ... ON CONFLICT DO UPDATE so create and update are the same
+    statement (and the same single round trip); no read-modify-write window
+    exists for another writer to slip into.
+    """
+    table, pk = _safe_ident(table), _safe_ident(pk)
+    conn = _get_conn()
+    try:
+        with conn.cursor() as cur:
+            # nosec B608 — table/pk went through the _safe_ident allowlist above
+            cur.execute(
+                f"INSERT INTO {table} ({pk}, data) VALUES (%s, %s::jsonb) "
+                f"ON CONFLICT ({pk}) DO UPDATE SET data = EXCLUDED.data",
+                (pk_value, json.dumps(item_dict)),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _db_delete_one(table: str, pk: str, pk_value: str) -> bool:
+    """Delete ONE row by primary key. Returns True if a row was actually removed
+    (so callers can turn a miss into a 404 instead of a silent success)."""
+    table, pk = _safe_ident(table), _safe_ident(pk)
+    conn = _get_conn()
+    try:
+        with conn.cursor() as cur:
+            # nosec B608 — identifiers allowlisted by _safe_ident above
+            cur.execute(f"DELETE FROM {table} WHERE {pk} = %s", (pk_value,))
+            deleted = cur.rowcount > 0
+        conn.commit()
+    finally:
+        conn.close()
+    return deleted
+
+
+# ── Per-row JSON-file primitives (Finding #1, file mode) ──────────────────────
+# File mode has no transactions, so "atomic" here means: read the current file,
+# apply the one-row change, and swap the new file in with _write() (which is
+# atomic since Finding #23). The read-modify-write window still exists in file
+# mode — but file mode is the local-dev/test backend (single process, single
+# developer), and behaviour stays identical to the save_* path, which is the
+# requirement.
+
+def _file_read_docs(path: Path) -> list[dict]:
+    """Return the raw JSON list stored at `path` ([] if the file is absent).
+
+    Deliberately returns plain dicts rather than Pydantic models: a per-row
+    write must not silently rewrite the OTHER rows through the current model
+    schema (that would inject new default fields into documents the caller never
+    touched, turning a one-row edit back into a whole-file rewrite).
+    """
+    if not path.exists():
+        return []
+    with open(path) as f:
+        return json.load(f)
+
+
+def _file_upsert_one(path: Path, pk_field: str, item) -> None:
+    """Replace-or-append ONE document in a JSON collection file, then swap it in.
+
+    `pk_field` is the document key that identifies the row ("id",
+    "segment_id", "fault_id"); `item` is a Pydantic model. Existing rows keep
+    their position in the file (so diffs stay readable); new rows are appended,
+    matching what save_X(list) produced before.
+    """
+    docs = _file_read_docs(path)
+    doc = item.model_dump()
+    key = getattr(item, pk_field)
+    for i, existing in enumerate(docs):
+        if existing.get(pk_field) == key:
+            docs[i] = doc
+            break
+    else:
+        docs.append(doc)
+    _write(path, docs)
+
+
+def _file_delete_one(path: Path, pk_field: str, pk_value: str) -> bool:
+    """Remove ONE document from a JSON collection file. Returns True if it was
+    present (mirrors _db_delete_one's contract so both modes behave the same).
+    No write happens at all when nothing matched."""
+    docs = _file_read_docs(path)
+    remaining = [d for d in docs if d.get(pk_field) != pk_value]
+    if len(remaining) == len(docs):
+        return False
+    _write(path, remaining)
+    return True
+
+
 # ── Nodes ─────────────────────────────────────────────────────────────────────
 # NOTE: every load_X/save_X pair from here down to Projects follows the same
 # template, so their docstrings are kept short:
@@ -205,6 +373,13 @@ def _db_replace_all(table: str, pk: str, pk_field: str, items) -> None:
 #             (_db_replace_all) or rewrite the JSON file.
 # Writers therefore work "wholesale": callers load the full list, modify it in
 # memory, and save the full list back.
+#
+# Finding #1: each entity below now ALSO has a row-level pair:
+#   upsert_X(item)     → insert-or-replace just that one record.
+#   delete_X_row(id)   → delete just that one record; returns False if absent.
+# Prefer those in single-entity endpoints. save_X(list) is retained unchanged
+# for the genuine "this is the whole collection now" cases (bulk import,
+# reseed, the Outage Parser's replace-all).
 
 def load_nodes() -> list[Node]:
     """Return all nodes (CLSs, PoPs, branching units) as list[Node]. Cached."""
@@ -226,6 +401,23 @@ def save_nodes(nodes: list[Node]) -> None:
         _db_replace_all("nodes", "id", "id", nodes)
         return
     _write(DATA_DIR / "nodes.json", [n.model_dump() for n in nodes])
+
+def upsert_node(node: Node) -> Node:
+    """Finding #1: create-or-update ONE node without rewriting the collection.
+    Returns the node as stored. Use this for POST/PUT /api/nodes/{id}."""
+    _bust("nodes")
+    if _use_db():
+        _db_upsert_one("nodes", "id", node.id, node.model_dump())
+    else:
+        _file_upsert_one(DATA_DIR / "nodes.json", "id", node)
+    return node
+
+def delete_node_row(node_id: str) -> bool:
+    """Finding #1: delete ONE node. True if it existed, False if not found."""
+    _bust("nodes")
+    if _use_db():
+        return _db_delete_one("nodes", "id", node_id)
+    return _file_delete_one(DATA_DIR / "nodes.json", "id", node_id)
 
 
 # ── Systems ───────────────────────────────────────────────────────────────────
@@ -250,6 +442,22 @@ def save_systems(systems: list[CableSystem]) -> None:
         _db_replace_all("systems", "id", "id", systems)
         return
     _write(DATA_DIR / "systems.json", [s.model_dump() for s in systems])
+
+def upsert_system(system: CableSystem) -> CableSystem:
+    """Finding #1: create-or-update ONE cable system, row-level."""
+    _bust("systems")
+    if _use_db():
+        _db_upsert_one("systems", "id", system.id, system.model_dump())
+    else:
+        _file_upsert_one(DATA_DIR / "systems.json", "id", system)
+    return system
+
+def delete_system_row(system_id: str) -> bool:
+    """Finding #1: delete ONE cable system. True if it existed."""
+    _bust("systems")
+    if _use_db():
+        return _db_delete_one("systems", "id", system_id)
+    return _file_delete_one(DATA_DIR / "systems.json", "id", system_id)
 
 
 # ── Segments ──────────────────────────────────────────────────────────────────
@@ -276,6 +484,25 @@ def save_segments(segments: list[CableSegment]) -> None:
         return
     _write(DATA_DIR / "segments.json", [s.model_dump() for s in segments])
 
+def upsert_segment(segment: CableSegment) -> CableSegment:
+    """Finding #1: create-or-update ONE segment, row-level. Especially important
+    here — segments are the biggest collection and the one most often edited
+    one-at-a-time (waypoint tweaks), so whole-table rewrites were both the
+    slowest and the likeliest to lose a concurrent edit."""
+    _bust("segments")
+    if _use_db():
+        _db_upsert_one("segments", "id", segment.id, segment.model_dump())
+    else:
+        _file_upsert_one(DATA_DIR / "segments.json", "id", segment)
+    return segment
+
+def delete_segment_row(segment_id: str) -> bool:
+    """Finding #1: delete ONE segment. True if it existed."""
+    _bust("segments")
+    if _use_db():
+        return _db_delete_one("segments", "id", segment_id)
+    return _file_delete_one(DATA_DIR / "segments.json", "id", segment_id)
+
 
 # ── Capacity ──────────────────────────────────────────────────────────────────
 
@@ -300,6 +527,25 @@ def save_capacity(capacity: list[SegmentCapacity]) -> None:
         _db_replace_all("capacity", "segment_id", "segment_id", capacity)
         return
     _write(DATA_DIR / "capacity.json", [c.model_dump() for c in capacity])
+
+def upsert_capacity(capacity: SegmentCapacity) -> SegmentCapacity:
+    """Finding #1: create-or-update ONE capacity record, row-level. Keyed by
+    segment_id (the capacity table's primary key), not 'id'."""
+    _bust("capacity")
+    if _use_db():
+        _db_upsert_one(
+            "capacity", "segment_id", capacity.segment_id, capacity.model_dump()
+        )
+    else:
+        _file_upsert_one(DATA_DIR / "capacity.json", "segment_id", capacity)
+    return capacity
+
+def delete_capacity_row(segment_id: str) -> bool:
+    """Finding #1: delete ONE capacity record by segment_id. True if it existed."""
+    _bust("capacity")
+    if _use_db():
+        return _db_delete_one("capacity", "segment_id", segment_id)
+    return _file_delete_one(DATA_DIR / "capacity.json", "segment_id", segment_id)
 
 
 # ── Outages ───────────────────────────────────────────────────────────────────
@@ -329,6 +575,25 @@ def save_outages(outages: list[SegmentOutage]) -> None:
         _db_replace_all("outages", "fault_id", "fault_id", outages)
         return
     _write(DATA_DIR / "outages.json", [o.model_dump() for o in outages])
+
+def upsert_outage(outage: SegmentOutage) -> SegmentOutage:
+    """Finding #1: create-or-update ONE outage record, row-level (keyed by
+    fault_id). NOTE: the Outage Parser deliberately keeps using
+    save_outages(list) — for it, "replace the whole collection" is the intended
+    semantic, not an accident."""
+    _bust("outages")
+    if _use_db():
+        _db_upsert_one("outages", "fault_id", outage.fault_id, outage.model_dump())
+    else:
+        _file_upsert_one(DATA_DIR / "outages.json", "fault_id", outage)
+    return outage
+
+def delete_outage_row(fault_id: str) -> bool:
+    """Finding #1: delete ONE outage record by fault_id. True if it existed."""
+    _bust("outages")
+    if _use_db():
+        return _db_delete_one("outages", "fault_id", fault_id)
+    return _file_delete_one(DATA_DIR / "outages.json", "fault_id", fault_id)
 
 
 # ── Rules ─────────────────────────────────────────────────────────────────────
@@ -411,6 +676,22 @@ def save_interfaces(interfaces: list[InterfaceType]) -> None:
         return
     _write(DATA_DIR / "interfaces.json", [i.model_dump() for i in interfaces])
 
+def upsert_interface(interface: InterfaceType) -> InterfaceType:
+    """Finding #1: create-or-update ONE interface type, row-level."""
+    _bust("interfaces")
+    if _use_db():
+        _db_upsert_one("interfaces", "id", interface.id, interface.model_dump())
+    else:
+        _file_upsert_one(DATA_DIR / "interfaces.json", "id", interface)
+    return interface
+
+def delete_interface_row(interface_id: str) -> bool:
+    """Finding #1: delete ONE interface type. True if it existed."""
+    _bust("interfaces")
+    if _use_db():
+        return _db_delete_one("interfaces", "id", interface_id)
+    return _file_delete_one(DATA_DIR / "interfaces.json", "id", interface_id)
+
 
 # ── Technical Enrichment Lookups ──────────────────────────────────────────────
 
@@ -479,6 +760,25 @@ def save_projects(projects: list[Project]) -> None:
         _db_replace_all("projects", "id", "id", projects)
         return
     _write(DATA_DIR / "projects.json", [p.model_dump() for p in projects])
+
+def upsert_project(project: Project) -> Project:
+    """Finding #1: create-or-update ONE project, row-level. Projects are the
+    documents users edit most concurrently (two people saving different
+    solutions at the same time), so this is where load-all/save-all lost real
+    customer work."""
+    _bust("projects")
+    if _use_db():
+        _db_upsert_one("projects", "id", project.id, project.model_dump())
+    else:
+        _file_upsert_one(DATA_DIR / "projects.json", "id", project)
+    return project
+
+def delete_project_row(project_id: str) -> bool:
+    """Finding #1: delete ONE project. True if it existed."""
+    _bust("projects")
+    if _use_db():
+        return _db_delete_one("projects", "id", project_id)
+    return _file_delete_one(DATA_DIR / "projects.json", "id", project_id)
 
 
 # ── Solution Notes & Note Categories ─────────────────────────────────────────
@@ -563,6 +863,44 @@ def create_solution_note(note: SolutionNote) -> SolutionNote:
     return note
 
 
+def _get_note_by_id(note_id: str) -> SolutionNote | None:
+    """Fetch one note by id, or None. Finding #8: used by update_solution_note to
+    answer a no-op PATCH with the current state instead of building broken SQL."""
+    if _use_db():
+        conn = _get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, node_id, segment_id, category_id, title, text,"
+                    " severity, created_at FROM solution_notes WHERE id = %s",
+                    (note_id,),
+                )
+                row = cur.fetchone()
+        finally:
+            conn.close()
+        return _row_to_note(row) if row else None
+    return next((n for n in _json_notes() if n.id == note_id), None)
+
+
+def _get_cat_by_id(cat_id: str) -> NoteCategory | None:
+    """Fetch one note category by id, or None (Finding #8 counterpart of
+    _get_note_by_id, used for no-op PATCHes on categories)."""
+    if _use_db():
+        conn = _get_conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT id, label, applies_to, order_num"
+                    " FROM note_categories WHERE id = %s",
+                    (cat_id,),
+                )
+                row = cur.fetchone()
+        finally:
+            conn.close()
+        return _row_to_cat(row) if row else None
+    return next((c for c in _json_cats() if c.id == cat_id), None)
+
+
 def update_solution_note(note_id: str, updates: dict) -> SolutionNote | None:
     """PATCH-style partial update of one note.
 
@@ -573,7 +911,16 @@ def update_solution_note(note_id: str, updates: dict) -> SolutionNote | None:
     interpolated into the SET clause (values stay parameterized).
 
     Returns the updated note, or None if no note has that id.
+
+    Finding #8: an empty `updates` dict (a PATCH with no recognised fields, e.g.
+    `{}` or a body of only unknown keys — perfectly legal for the client to
+    send) used to produce `UPDATE solution_notes SET  WHERE id = %s`, a syntax
+    error that surfaced as an HTTP 500. "Change nothing" is not an error, so we
+    now short-circuit: fetch and return the row as it stands (or None if the id
+    does not exist, matching the normal not-found contract).
     """
+    if not updates:
+        return _get_note_by_id(note_id)
     if _use_db():
         conn = _get_conn()
         try:
@@ -660,7 +1007,14 @@ def create_note_category(cat: NoteCategory) -> NoteCategory:
 def update_note_category(cat_id: str, updates: dict) -> NoteCategory | None:
     """PATCH-style partial update of one category (same pattern as
     update_solution_note: keys of `updates` become SQL column names via the
-    _safe_ident allowlist). Returns None if no category has that id."""
+    _safe_ident allowlist). Returns None if no category has that id.
+
+    Finding #8: same empty-PATCH guard as update_solution_note — with no fields
+    to set, `SET  WHERE id = %s` is a SQL syntax error (HTTP 500). Return the
+    unchanged row instead; a PATCH that asks for no changes has succeeded.
+    """
+    if not updates:
+        return _get_cat_by_id(cat_id)
     if _use_db():
         # Model field 'order' → SQL column 'order_num' (ORDER is reserved in SQL)
         col_map = {"order": "order_num"}
@@ -725,5 +1079,7 @@ def save_config(config: dict) -> None:
         finally:
             conn.close()
         return
-    with open(DATA_DIR / "config.json", "w") as f:
-        json.dump(config, f, indent=2)
+    # Finding #23: go through _write() (temp file + os.replace) like every other
+    # file-mode write, so a crash mid-write cannot leave config.json truncated —
+    # an unparseable config file breaks every request that reads on_net rules.
+    _write(DATA_DIR / "config.json", config)
