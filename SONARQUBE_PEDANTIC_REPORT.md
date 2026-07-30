@@ -71,32 +71,43 @@ about.
 
 ### 2.1 Outcome after remediation (measured, not projected)
 
-Five successive re-scans were run against the same instance and profile to
-verify each change actually moved the needle:
+Seven successive re-scans were run against the same instance and profile to
+verify each change actually moved the needle, rather than trusting that a fix
+worked:
 
-| Metric | Initial scan | After remediation |
+| Metric | Initial scan | Final |
 |---|---|---|
 | **Security rating** | **E** | **A** ✅ |
 | Vulnerabilities | 22 | **0** ✅ |
 | **Reliability rating** | **D** | **C** |
-| Bugs | 57 | 55 |
+| Bugs | 57 | **4** |
 | Maintainability | A | A |
-| Total findings | 11,759 | 11,741 |
+| Total findings | 11,759 | 11,731 |
+
+Reliability's rating did not move past C despite bugs dropping from 57 to 4 —
+Sonar's rating function treats any MAJOR-or-above bug as capping below B/A
+regardless of count, and the 4 remaining (`Map`-shadows-built-in, §5) are all
+MAJOR. Getting to Reliability A requires that cosmetic rename, not further
+triage.
 
 Security went E → D → B → A as each class of finding was cleared. The full
 sequence of scans is reproducible from the commits referenced in §4.
 
-**Remaining 55 bugs** (all MINOR or MAJOR — no CRITICAL or BLOCKER left):
+**Remaining 55 bugs at the time of the initial scan** (all MINOR or MAJOR —
+no CRITICAL or BLOCKER at any point):
 
-| Rule | Count | Severity |
-|---|---|---|
-| `typescript:S1082` | 41 | MINOR — mouse events without keyboard equivalents (accessibility) |
-| `Web:InternationalizationCheck` | 10 | MAJOR — i18n, English-only internal tool |
-| `typescript:S2424` | 3 | MAJOR — `Map` component shadows the built-in |
-| `typescript:S2137` | 1 | MAJOR — same root cause |
+| Rule | Count | Severity | Outcome |
+|---|---|---|---|
+| `typescript:S1082` | 41 | MINOR — mouse events without keyboard equivalents (accessibility) | **Fixed** — see §5.2 |
+| `Web:InternationalizationCheck` | 10 | MAJOR — i18n, English-only internal tool | **Excluded** — confirmed with product owner, see §5.1 |
+| `typescript:S2424` | 3 | MAJOR — `Map` component shadows the built-in | Open — cosmetic, deferred (see below) |
+| `typescript:S2137` | 1 | MAJOR — same root cause | Open — cosmetic, deferred |
 
-Reliability is capped at C by the 14 MAJOR bugs. Clearing the 41
-accessibility findings and deciding the i18n question would take it to A.
+After fixing S1082 and excluding the i18n findings: **bugs 55 → 14 → 4**,
+all MAJOR, all in the `Map`-shadows-built-in group. Reliability moved
+**D → C**; the remaining 4 findings are a cosmetic rename (the component would
+need to be renamed at every import site across the app) rather than a defect,
+and are the only thing between here and an A.
 
 Other measures: cognitive complexity 4,734 · cyclomatic complexity 6,269 ·
 duplicated lines 3.9% · comment density 15.2% · 2,288 functions.
@@ -164,16 +175,21 @@ controlled by 6 findings, all now addressed.
 
 ---
 
-## 5. Remaining genuine defects (73)
+## 5. Remaining genuine defects — final state (4, all cosmetic)
 
-| Rule | Count | Where | Assessment |
+Everything in the original 79-defect set has now been fixed, excluded with a
+recorded rationale, or reduced to this:
+
+| Rule | Count | Where | Status |
 |---|---|---|---|
-| `typescript:S1082` | 41 | SearchForm (6), ProjectsModal (5), RouteList (4), App (3), … | **Accessibility** — mouse handlers without keyboard equivalents. Worth fixing: needs `onKeyDown` + `role`/`tabIndex` on clickable non-button elements. Largest genuine cluster. |
-| `Web:InternationalizationCheck` | 10 | `suite.html` (9), `index.html` (1) | Internal English-only tool; no i18n requirement. Justify. |
-| `typescript:S2424` | 3 | App, Map, MobileLayout | The `Map` component shadows the built-in `Map`. Cosmetic; renaming would churn many imports. Justify or schedule. |
+| `typescript:S2424` | 3 | App.tsx, Map.tsx, MobileLayout.tsx | Open. The `Map` React component shadows the built-in `Map`. Purely cosmetic — no behavioural risk — but fixing it means renaming the component and updating every import site across the app, a larger-footprint change than the rest of this pass. Left open rather than excluded, since it is a legitimate (if low-priority) rename. |
 | `typescript:S2137` | 1 | `Map.tsx:334` | Same root cause as above. |
-| `typescript:S4036` | 1 | `vite.config.ts:6` | PATH lookup in build tooling. Assess. |
-| `Web:S5725` | 1 | `index.html` | Missing SRI. Only applies to cross-origin resources — verify before adding a hash. |
+
+Resolved since the initial scan: `typescript:S1082` (41, fixed — §5.2),
+`Web:InternationalizationCheck` (10, excluded — English-only internal tool,
+confirmed with product owner), `docker:S6470/S6471/S6472` (7, fixed),
+`Web:S5725` (1, fixed by bundling Leaflet's CSS), `typescript:S4036` (1,
+excluded — build-time only, no user input), `typescript:S2871` (2, fixed).
 
 ### 5.1 Accounting: what was fixed in code vs. assessed and excluded
 
@@ -262,19 +278,25 @@ than a quality signal.
 
 ### Recommendation
 
-Do **not** target zero findings. Propose a **documented quality profile** to IT:
+Do **not** target zero findings. This is the profile actually applied:
 
-1. **Fix** the 6 rating-driving findings (done) and the 41 accessibility findings.
-2. **Address** the ~300 complexity/duplication findings through the planned
-   refactor of the largest components.
-3. **Disable, with written justification**, the six formatting rule groups
-   (~9,000 findings) — they conflict with the project's established style and
-   carry no defect risk.
-4. **Mark won't-fix, with justification**, the 14 `Math.random()` findings and
-   the 10 i18n findings (§5).
+1. **Fixed** — all 6 rating-driving findings, the 41 accessibility findings,
+   `Web:S5725` (CDN stylesheet), plus two bugs (`npm ci` breakage, silent
+   0600 permission bug) that no Sonar rule even reports. Done.
+2. **Excluded, with written and dated justification** — the 4
+   `VITE_*` ARG names, 14 decorative `Math.random()` calls, the build-time
+   `git` invocation, and the 10 i18n findings (confirmed English-only with
+   the product owner). All four are one rule scoped to one file in
+   `sonar-project.properties`, each reversible by deleting a line.
+3. **Address** — the ~300 complexity/duplication findings, through the
+   planned refactor of the largest components (§6).
+4. **Disable, with written justification** — the six formatting rule groups
+   (~9,000 findings, §6) that conflict with the project's established style.
+5. **Open, low priority** — the 4 remaining `Map`-shadows-built-in findings
+   (§5), a cosmetic rename touching every import site.
 
-That yields a reviewable position: every remaining finding is either fixed or
-has a recorded technical rationale.
+That yields a reviewable position: every finding is fixed, excluded with a
+named and datable reason, or explicitly queued — none are silently ignored.
 
 ---
 
