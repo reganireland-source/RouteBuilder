@@ -8,6 +8,13 @@
  */
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+// Leaflet's stylesheet, bundled from the npm package rather than fetched from
+// unpkg.com at runtime (SonarQube Web:S5725). Loading it from a CDN without an
+// SRI hash meant a compromised or hijacked CDN could serve arbitrary CSS into
+// the app, and it made first paint depend on a third party being reachable.
+// The version is pinned by package.json/package-lock.json like any other
+// dependency, so it cannot drift underneath us.
+import 'leaflet/dist/leaflet.css'
 import App from './App'
 import { PasswordGate } from './components/PasswordGate'
 import { AuthProvider } from './context/AuthContext'
