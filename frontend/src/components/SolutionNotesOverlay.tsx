@@ -253,12 +253,14 @@ export function SolutionNotesOverlay({ route, nodesById, onClose, onAddNote }: P
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
 
   const overlay = (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 9000,
-      background: 'rgba(0,0,0,0.75)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: 'system-ui, sans-serif',
-    }}
+    <div
+      role="presentation"
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9000,
+        background: 'rgba(0,0,0,0.75)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: 'system-ui, sans-serif',
+      }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div style={{

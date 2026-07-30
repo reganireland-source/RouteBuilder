@@ -668,6 +668,7 @@ export function CountryNodeDiagram({
 
   return (
     <div
+      role="presentation"
       style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.72)',
                display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
@@ -702,6 +703,7 @@ export function CountryNodeDiagram({
         {/* Diagram — zoom (scroll wheel) + pan (drag) */}
         <div
           ref={diagramRef}
+          tabIndex={0}
           style={{ flex: 1, overflow: 'hidden', position: 'relative',
                    cursor: isDragging ? 'grabbing' : 'grab' }}
           onMouseDown={startDrag}
@@ -709,6 +711,7 @@ export function CountryNodeDiagram({
           onMouseUp={endDrag}
           onMouseLeave={() => { endDrag(); setTip(null) }}
           onClick={() => { if (!dragMoved.current) setSelected(null) }}
+          onKeyDown={e => { if (e.key === 'Escape') setSelected(null) }}
         >
           {/* zoom-pan transform wrapper */}
           <div style={{
@@ -916,6 +919,7 @@ export function CountryNodeDiagram({
           {/* Info panel — bottom right, shown on click */}
           {selected && (
             <div
+              role="presentation"
               style={{
                 position: 'absolute', bottom: 12, right: 12,
                 width: 280, maxHeight: 320, overflowY: 'auto',

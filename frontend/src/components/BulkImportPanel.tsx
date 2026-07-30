@@ -334,6 +334,8 @@ export function BulkImportPanel({ counts, onDataChange }: Props) {
 
           {/* Drop zone */}
           <div
+            role="button"
+            tabIndex={0}
             onDragOver={e => { e.preventDefault(); setDragOver(true) }}
             onDragLeave={() => setDragOver(false)}
             onDrop={e => {
@@ -341,6 +343,7 @@ export function BulkImportPanel({ counts, onDataChange }: Props) {
               acceptFile(e.dataTransfer.files[0] ?? null)
             }}
             onClick={() => fileInputRef.current?.click()}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click() } }}
             style={{
               border: `2px dashed ${dragOver ? TEAL : file ? '#22c55e' : t.border}`,
               borderRadius: 10, padding: '28px 20px', textAlign: 'center',

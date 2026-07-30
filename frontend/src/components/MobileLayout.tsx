@@ -192,7 +192,12 @@ function MobileModeBanner({ activeProject, onSwitch, onExit, t }: {
 
       {open && (
         <>
-          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 499 }} />
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setOpen(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 499, border: 'none', background: 'transparent', padding: 0, cursor: 'default' }}
+          />
           <div style={{
             position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 500,
             background: t.bgPanel, border: `1px solid ${t.border}`,
@@ -353,7 +358,10 @@ export function MobileLayout({
 
       {/* ── Top-left branding ───────────────────────────────────────────── */}
       <div
+        role="button"
+        tabIndex={0}
         onClick={onOpenGuide}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenGuide() } }}
         title="Open platform guide"
         style={{
           position: 'absolute', top: 14, left: 14, zIndex: 100,
@@ -397,9 +405,11 @@ export function MobileLayout({
         {drawerOpen && (
           <>
             {/* Backdrop to close on outside tap */}
-            <div
+            <button
+              type="button"
+              aria-label="Close menu"
               onClick={() => setDrawerOpen(false)}
-              style={{ position: 'fixed', inset: 0, zIndex: -1 }}
+              style={{ position: 'fixed', inset: 0, zIndex: -1, border: 'none', background: 'transparent', padding: 0, cursor: 'default' }}
             />
             <div style={{
               position: 'absolute', top: 50, right: 0,

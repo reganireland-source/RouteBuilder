@@ -181,7 +181,12 @@ function ModeBanner({ activeProject, onSwitch, onExit, theme }: {
 
       {open && (
         <>
-          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 499 }} />
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setOpen(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 499, border: 'none', background: 'transparent', padding: 0, cursor: 'default' }}
+          />
           <div style={{
             position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 500,
             background: theme.bgPanel, border: `1px solid ${theme.border}`,
@@ -1003,7 +1008,12 @@ export default function App() {
 
               {ctrlMenuOpen && (
                 <>
-                  <div onClick={() => setCtrlMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: -1 }} />
+                  <button
+                    type="button"
+                    aria-label="Close menu"
+                    onClick={() => setCtrlMenuOpen(false)}
+                    style={{ position: 'fixed', inset: 0, zIndex: -1, border: 'none', background: 'transparent', padding: 0, cursor: 'default' }}
+                  />
                   <div style={{
                     position: 'absolute', top: 42, right: 0,
                     width: 240,
@@ -1100,7 +1110,10 @@ export default function App() {
           <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${theme.border}` }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 2 }}>
               <div
+                role="button"
+                tabIndex={0}
                 onClick={() => setGuideOpen(true)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setGuideOpen(true) } }}
                 style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', flex: 1, minWidth: 0 }}
                 title="Open platform guide"
               >

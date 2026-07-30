@@ -201,6 +201,7 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
 
   return (
     <div
+      role="presentation"
       onClick={onClose}
       style={{
         position: 'fixed', inset: 0, zIndex: 2000,
@@ -210,6 +211,7 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
       }}
     >
       <div
+        role="presentation"
         onClick={e => e.stopPropagation()}
         style={{
           width: '100%', maxWidth: 980,

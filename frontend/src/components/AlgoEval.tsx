@@ -1262,7 +1262,10 @@ export function AlgoEval({ nodes, systems, onClose }: Props) {
                       return (
                         <div
                           key={tc.id}
+                          role="button"
+                          tabIndex={0}
                           onClick={() => setSelectedTestId(tc.id)}
+                          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedTestId(tc.id) } }}
                           style={{
                             padding: '10px 14px', cursor: 'pointer', borderBottom: `1px solid ${t.border}22`,
                             background: isSelected ? `${t.blue}18` : 'transparent',
@@ -1377,7 +1380,10 @@ export function AlgoEval({ nodes, systems, onClose }: Props) {
                     return (
                       <div
                         key={tc.id}
+                        role="button"
+                        tabIndex={0}
                         onClick={() => setSelectedRandomId(tc.id)}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedRandomId(tc.id) } }}
                         style={{
                           padding: '9px 14px', cursor: 'pointer', borderBottom: `1px solid ${t.border}22`,
                           background: isSelected ? `${t.blue}18` : 'transparent',

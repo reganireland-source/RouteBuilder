@@ -305,7 +305,10 @@ function RouteCard({ route, selected, origin, dest, sysColorMap, systemsById, ne
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={onSelect}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect() } }}
       style={{
         background: selected ? t.bgCardSelected : t.bgCard,
         border: `1px solid ${selected ? t.blue : t.border}`,

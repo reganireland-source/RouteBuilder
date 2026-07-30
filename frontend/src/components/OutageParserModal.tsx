@@ -178,6 +178,7 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
 
   return (
     <div
+      role="presentation"
       // This modal is rendered inside RefDataModal, whose backdrop closes on
       // click. Stop clicks here from bubbling up to it, or every click in the
       // parser (including into the textarea) would close the whole Ref Data modal.
@@ -216,7 +217,10 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
 
               {/* Screenshot paste zone — captures ⌘/Ctrl+V images anywhere on the page */}
               <div
+                role="button"
+                tabIndex={0}
                 onClick={() => fileRef.current?.click()}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileRef.current?.click() } }}
                 style={{
                   border: `1.5px dashed ${t.border}`, borderRadius: 8, padding: '16px 14px',
                   textAlign: 'center', cursor: 'pointer', background: t.bgDeep,

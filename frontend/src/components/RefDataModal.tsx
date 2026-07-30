@@ -2406,8 +2406,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div style={modalBg} onClick={onClose}>
-      <div style={modalBox} onClick={e => e.stopPropagation()}>
+    <div role="presentation" style={modalBg} onClick={onClose}>
+      <div role="presentation" style={modalBox} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>

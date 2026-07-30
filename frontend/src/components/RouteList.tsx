@@ -774,6 +774,7 @@ function PairCard({
       {/* Side-by-side segment breakdown */}
       {segmentsOpen && (
         <div
+          role="presentation"
           style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6, padding: '10px 10px 6px', borderRadius: 6, background: t.bgDeep, border: `1px solid ${t.border}` }}
           onClick={e => e.stopPropagation()}
         >
@@ -1127,7 +1128,10 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
   return (
     <div
       ref={cardRef}
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(route.id)}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(route.id) } }}
       onMouseEnter={() => !isMobile && setHovered(true)}
       onMouseLeave={() => !isMobile && setHovered(false)}
       style={{
@@ -1229,7 +1233,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
       </div>
 
       {isMobile && segmentsOpen && (
-        <div style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
+        <div role="presentation" style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
           <SegmentBreakdownRows route={route} capacityById={capacityById} outagesById={outagesById} onNetSet={onNetSet} />
         </div>
       )}
@@ -1497,6 +1501,7 @@ function SegmentTooltip({ route, capacityById, outagesById, pos, onNetSet }: {
   const t = useTheme()
   return (
     <div
+      role="presentation"
       onClick={e => e.stopPropagation()}
       style={{
         position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999,

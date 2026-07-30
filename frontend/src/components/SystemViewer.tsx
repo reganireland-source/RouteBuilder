@@ -93,7 +93,10 @@ export function SystemViewer({ systems, selected, onToggle }: Props) {
           return (
             <div
               key={sys.id}
+              role="button"
+              tabIndex={isDisabled ? -1 : 0}
               onClick={() => !isDisabled && onToggle(sys.id)}
+              onKeyDown={e => { if (!isDisabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onToggle(sys.id) } }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 padding: '8px 10px', cursor: isDisabled ? 'not-allowed' : 'pointer',

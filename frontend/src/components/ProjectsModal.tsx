@@ -355,8 +355,11 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
         )}
         {!pendingTargetProject && projects.map(p => (
           <div key={p.id}
+            role="button"
+            tabIndex={0}
             style={{ ...s.card, borderColor: confirmDelete === p.id ? '#f38ba8' : pendingCircuit ? t.blue + '88' : t.border }}
-            onClick={() => handleProjectClick(p)}>
+            onClick={() => handleProjectClick(p)}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleProjectClick(p) } }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15, color: t.text, marginBottom: 3 }}>{p.name || '(Untitled)'}</div>
@@ -370,7 +373,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
                   }}>{p.visibility}</span>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+              <div role="presentation" style={{ display: 'flex', gap: 6, alignItems: 'center' }} onClick={e => e.stopPropagation()}>
                 {confirmDelete === p.id ? (
                   <>
                     <button style={s.btn('#fff', '#f38ba8')} onClick={() => deleteProject(p.id)}>Confirm Delete</button>
@@ -730,7 +733,11 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
               <div style={{ fontSize: 12, color: t.textMuted }}>{item.desc}</div>
             </div>
             <div
+              role="switch"
+              aria-checked={cfg[item.key]}
+              tabIndex={0}
               onClick={() => toggle(item.key)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(item.key) } }}
               style={{
                 width: 44, height: 24, borderRadius: 12, cursor: 'pointer',
                 background: cfg[item.key] ? t.blue : t.border,
@@ -788,8 +795,8 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
   }
 
   return (
-    <div style={s.overlay} onClick={onClose}>
-      <div style={s.modal} onClick={e => e.stopPropagation()}>
+    <div role="presentation" style={s.overlay} onClick={onClose}>
+      <div role="presentation" style={s.modal} onClick={e => e.stopPropagation()}>
         <div style={s.header}>
           <div style={{ fontWeight: 700, fontSize: 18, color: t.text }}>
             Solution Projects

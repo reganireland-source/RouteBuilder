@@ -133,6 +133,8 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
           }}
           onMouseOver={e => (e.currentTarget.style.opacity = '0.85')}
           onMouseOut={e => (e.currentTarget.style.opacity = '1')}
+          onFocus={e => (e.currentTarget.style.opacity = '0.85')}
+          onBlur={e => (e.currentTarget.style.opacity = '1')}
         >
           Enter
         </button>

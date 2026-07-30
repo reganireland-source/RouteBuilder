@@ -292,8 +292,11 @@ export function ProductCoveragePanel({ nodes, onDataChange }: Props) {
                             return (
                               <div
                                 key={speed}
+                                role="button"
+                                tabIndex={applicable ? 0 : -1}
                                 style={speedChip(active, applicable)}
                                 onClick={() => applicable && toggleSpeed(key, speed)}
+                                onKeyDown={e => { if (applicable && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleSpeed(key, speed) } }}
                               >
                                 {applicable ? speed : '—'}
                               </div>
@@ -317,8 +320,11 @@ export function ProductCoveragePanel({ nodes, onDataChange }: Props) {
                             return (
                               <div
                                 key={speed}
+                                role="button"
+                                tabIndex={applicable ? 0 : -1}
                                 style={speedChip(active, applicable)}
                                 onClick={() => applicable && toggleSpeed(key, speed)}
+                                onKeyDown={e => { if (applicable && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggleSpeed(key, speed) } }}
                               >
                                 {applicable ? speed : '—'}
                               </div>

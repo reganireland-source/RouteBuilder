@@ -221,7 +221,10 @@ export function CountryViewer({ nodes, segments, systems, onSelect }: Props) {
           return (
             <div
               key={c.code}
+              role="button"
+              tabIndex={0}
               onClick={() => handleSelect(c.code)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSelect(c.code) } }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 padding: '7px 10px', cursor: 'pointer',

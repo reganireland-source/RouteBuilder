@@ -241,7 +241,10 @@ function FilteredMulti({ items, selected, onToggle, placeholder, listHeight = 13
           {selectedItems.map(it => (
             <span
               key={it.id}
+              role="button"
+              tabIndex={0}
               onClick={() => onToggle(it.id)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(it.id) } }}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: '2px 6px', borderRadius: 10,
@@ -272,7 +275,10 @@ function FilteredMulti({ items, selected, onToggle, placeholder, listHeight = 13
               return (
                 <div
                   key={it.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => onToggle(it.id)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(it.id) } }}
                   style={{
                     padding: '5px 8px', cursor: 'pointer', fontSize: 12,
                     background: isSelected ? t.blue + '18' : 'transparent',
@@ -333,7 +339,10 @@ function FilteredNodeMulti({ nodes, exclude, selected, onToggle, listHeight = 13
           {selectedNodes.map(n => (
             <span
               key={n.id}
+              role="button"
+              tabIndex={0}
               onClick={() => onToggle(n.id)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(n.id) } }}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 4,
                 padding: '2px 6px', borderRadius: 10,
@@ -364,7 +373,10 @@ function FilteredNodeMulti({ nodes, exclude, selected, onToggle, listHeight = 13
               return (
                 <div
                   key={n.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => onToggle(n.id)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(n.id) } }}
                   style={{
                     padding: '5px 8px', cursor: 'pointer', fontSize: 12,
                     background: isSelected ? t.blue + '18' : 'transparent',
@@ -839,6 +851,7 @@ function AdvancedConstraintsModal({
   return createPortal(
     <>
       <div
+        role="presentation"
         onClick={onClose}
         style={{ position: 'fixed', inset: 0, zIndex: 1999, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(2px)' }}
       />
@@ -899,7 +912,10 @@ function AdvancedConstraintsModal({
                 return (
                   <div
                     key={def.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setActiveTab(def.id)}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveTab(def.id) } }}
                     style={{
                       padding: '9px 12px',
                       cursor: 'pointer',
