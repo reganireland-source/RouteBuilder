@@ -7,12 +7,49 @@ surprise.
 | | |
 |---|---|
 | SonarQube | **26.7.0.124771** (Community), run locally in Docker |
-| Scan date | 2026-07-30 |
-| Analysed | **28,961 NCLOC** / 36,888 lines across **77 files** |
+| Scan date | 2026-07-30 (initial pass); re-verified same day after the Planned Events feature landed |
+| Analysed | **29,468 NCLOC** across the repo (up from 28,961 — the Planned Events feature) |
 | Languages | TypeScript, JavaScript, Python, HTML, CSS, Docker |
-| Quality gate | ✅ **PASSING** |
+| Quality gate | See §0 below — substantively clean, one configuration gap |
 | Raw data | `sonar-reports/*.json` (committed, so results outlive the container) |
 | Reproduce | see §7 |
+
+---
+
+## 0. Final verification (after the Planned Events feature)
+
+Re-ran the identical scan against the latest commit (`5bb04d4`) after adding
+the Planned Events feature (backend `event_type` support + frontend UI), the
+CORS middleware-ordering fix, and the `fault_id` collision fix. This is the
+state that matters for a go/no-go call.
+
+| Metric | Value |
+|---|---|
+| **Bugs** | **0** |
+| **Vulnerabilities** | **0** |
+| **Security rating** | **A** |
+| **Reliability rating** | **A** |
+| **Maintainability rating** | **A** |
+| Code smells (repo-wide, max-pedantic profile) | 11,847 |
+| Duplication | 3.9% |
+
+Bugs and vulnerabilities are unchanged at zero — the new feature (several
+hundred lines across 6 backend files and 8 frontend files) introduced no new
+defect of either kind.
+
+**The SonarQube quality-gate widget itself shows `ERROR`**, on two conditions
+— worth being precise about rather than glossing over:
+
+| Failing condition | What it actually means |
+|---|---|
+| `new_coverage: 0.0` | No test-coverage report (e.g. `pytest --cov` → `coverage.xml`) has ever been wired into these scans. This has been true since the very first scan — it is a **scan-configuration gap**, not something the new code did. The default gate wants ≥80% coverage on new lines; since we never fed it a coverage file, every scan run so far would show this as failing. Not a code-quality regression — a follow-up worth doing if coverage instrumentation matters to IT. |
+| `new_violations: 258` | 262 issues total in the "new code" period (everything changed since the previous scan). **All 262 are `CODE_SMELL` — zero are `BUG` or `VULNERABILITY`.** Verified via the issue search API, not assumed. Top rules: `S1438` missing semicolons (80), `S1774` ternary operator (48), `S6819` "prefer a real `<button>` tag over `role=\"button\"`" (33 — flagging the accessibility fix from §5.2, an example of two pedantic rules pulling in different directions), `S122`/`S1537`/`S103` (braces/commas/line-length, 44 combined) — the same six formatting-rule groups already characterised in §6 as reasonable to disable. The 24 CRITICAL-severity smells are complexity findings (`S1541`, `S3776`, `S2004`, `S1192`) in the same already-known worst-offender files (`RefDataModal.tsx`, `OutageParserModal.tsx`) — consistent with, not a departure from, the complexity backlog in §6.
+
+**Bottom line:** nothing in the new code is a bug, a vulnerability, or a
+security issue. The gate failure is (a) a missing coverage-report wiring that
+predates this feature and (b) more of the exact same style/complexity
+categories already documented as a deliberate, justified exclusion candidate
+— not new problems requiring new treatment.
 
 ---
 
