@@ -228,7 +228,10 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
 
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
-  const outagesById = Object.fromEntries(outages.map(o => [o.segment_id, o]))
+  // Only real CURRENT outages drive the outage badge/push-down sort — a future
+  // Planned Event (event_type === 'planned_event') must never be mistaken for a
+  // live fault here. Legacy rows with no event_type stored default to 'outage'.
+  const outagesById = Object.fromEntries(outages.filter(o => (o.event_type ?? 'outage') !== 'planned_event').map(o => [o.segment_id, o]))
   const [notesRoute, setNotesRoute] = useState<Route | null>(null)
   const [allNotes, setAllNotes] = useState<SolutionNote[]>([])
   useEffect(() => { api.getSolutionNotes().then(setAllNotes).catch(() => {}) }, [])

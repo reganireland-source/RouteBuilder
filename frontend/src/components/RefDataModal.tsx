@@ -1267,88 +1267,187 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   // ── Outages tab ──────────────────────────────────────────────────────────────
 
   // ── Outages tab ── active cable faults per segment with repair dates. ─────
+  // ── Outages tab ── shared CRUD for both record kinds this table holds:
+  //    Active Outages (event_type 'outage', or absent on legacy rows) and
+  //    Planned Events (event_type 'planned_event'). The two are rendered as
+  //    two clearly separated groups — own header, own column set, own accent
+  //    colour (red vs amber) — but share one filter box, one edit/add form
+  //    scaffold and the same api.createOutage/updateOutage/deleteOutage calls
+  //    (event_type just rides along as a normal field on the payload). See
+  //    addDefaults.outages / PLANNED_EVENT_ADD_DEFAULTS below for the two
+  //    distinct "+ Add" seed values.
   function OutagesTab() {
     const filtered = outages.filter(o =>
       !filter || o.segment_id.toLowerCase().includes(filter.toLowerCase()) ||
       o.fault_id.toLowerCase().includes(filter.toLowerCase())
     )
-    const outageEditDefaults = (o: SegmentOutage) => ({ fault_id: o.fault_id, fault_date: o.fault_date, repair_start: o.repair_start ?? '', estimated_repair_date: o.estimated_repair_date ?? '', description: o.description })
-    const outageEditForm = (o: SegmentOutage) => (
-      <div style={{ ...editFormRow }}>
-        <Field label="Fault ID"    k="fault_id"              src={editValues} setSrc={setEditValues} />
-        <Field label="Fault Date"  k="fault_date"            src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD" />
-        <Field label="Repair Start" k="repair_start"         src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD or TBC" />
-        <Field label="ETA Repair"  k="estimated_repair_date" src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD or TBC" />
-        <Field label="Description" k="description"           src={editValues} setSrc={setEditValues} />
-        <SaveCancel onSave={() => saveEdit(() => api.updateOutage(o.fault_id, editValues as Partial<SegmentOutage>))} onCancel={() => setEditId(null)} />
+    // Legacy rows with no event_type stored default to 'outage' — unaffected.
+    const activeOutages = filtered.filter(o => (o.event_type ?? 'outage') === 'outage')
+    const plannedEvents = filtered.filter(o => o.event_type === 'planned_event')
+
+    const outageEditDefaults = (o: SegmentOutage) => ({
+      event_type: o.event_type ?? 'outage',
+      fault_id: o.fault_id, fault_date: o.fault_date,
+      repair_start: o.repair_start ?? '', estimated_repair_date: o.estimated_repair_date ?? '',
+      planned_start: o.planned_start ?? '', planned_end: o.planned_end ?? '',
+      description: o.description,
+    })
+    // Field set is conditional on the ROW's own event_type (not the live edit
+    // buffer) — a row never changes kind mid-edit, only its dates/description.
+    const outageEditForm = (o: SegmentOutage) => {
+      const isPlanned = (o.event_type ?? 'outage') === 'planned_event'
+      return (
+        <div style={{ ...editFormRow }}>
+          <Field label="Fault ID" k="fault_id" src={editValues} setSrc={setEditValues} />
+          {isPlanned ? (
+            <>
+              <Field label="Date Raised"    k="fault_date"     src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD" />
+              <Field label="Planned Start"  k="planned_start"  src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD" />
+              <Field label="Planned End"    k="planned_end"    src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD" />
+            </>
+          ) : (
+            <>
+              <Field label="Fault Date"   k="fault_date"            src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD" />
+              <Field label="Repair Start" k="repair_start"          src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD or TBC" />
+              <Field label="ETA Repair"   k="estimated_repair_date" src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD or TBC" />
+            </>
+          )}
+          <Field label="Description" k="description" src={editValues} setSrc={setEditValues} />
+          <SaveCancel onSave={() => saveEdit(() => api.updateOutage(o.fault_id, editValues as Partial<SegmentOutage>))} onCancel={() => setEditId(null)} />
+        </div>
+      )
+    }
+
+    // Field set for the ADD form is conditional on the in-progress addValues.event_type
+    // (set by whichever of the two "+ Add" buttons the admin clicked).
+    const isAddingPlanned = addValues.event_type === 'planned_event'
+    const addForm = adding && (
+      <div style={{ ...editFormRow, margin: isMobile ? '8px 12px' : undefined }}>
+        <Field label="Segment ID *" k="segment_id" src={addValues} setSrc={setAddValues} />
+        <Field label="Fault ID *"   k="fault_id"   src={addValues} setSrc={setAddValues} />
+        {isAddingPlanned ? (
+          <>
+            <Field label="Date Raised *"   k="fault_date"     src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD" />
+            <Field label="Planned Start *" k="planned_start"  src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD" />
+            <Field label="Planned End *"   k="planned_end"    src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD" />
+          </>
+        ) : (
+          <>
+            <Field label="Fault Date *"  k="fault_date"            src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD" />
+            <Field label="Repair Start"  k="repair_start"          src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD or TBC" />
+            <Field label="ETA Repair"    k="estimated_repair_date" src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD or TBC" />
+          </>
+        )}
+        <Field label="Description *" k="description" src={addValues} setSrc={setAddValues} />
+        <SaveCancel onSave={() => saveAdd(() => api.createOutage(addValues as unknown as SegmentOutage))} onCancel={() => { setAdding(false); setAddValues({}) }} />
       </div>
     )
+
+    /** One group's table (desktop) or card list (mobile) — reused for both Active
+     *  Outages and Planned Events, just with different columns/colour/rows. */
+    function OutageGroup({ label, icon, color, rows, kind }: {
+      label: string; icon: string; color: string; rows: SegmentOutage[]; kind: 'outage' | 'planned_event'
+    }) {
+      const isPlanned = kind === 'planned_event'
+      return (
+        <div style={{ marginBottom: isMobile ? 4 : 0 }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: isMobile ? '10px 12px 6px' : '10px 20px 6px',
+          }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color }}>{icon} {label}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color, background: color + '22', padding: '2px 7px', borderRadius: 10 }}>
+              {rows.length}
+            </span>
+          </div>
+          {isMobile ? (
+            <div style={{ padding: '2px 0 16px' }}>
+              {rows.length === 0 && isPlanned && (
+                <div style={{ margin: '0 12px', fontSize: 11, color: t.textFaint, fontStyle: 'italic' }}>No planned events</div>
+              )}
+              {rows.map(o => (
+                <MobileCard key={o.fault_id} id={o.fault_id}
+                  title={o.fault_id}
+                  subtitle={<><code style={{ fontSize: 10 }}>{o.segment_id}</code> · {isPlanned ? 'raised' : 'faulted'} {o.fault_date}</>}
+                  fields={isPlanned ? [
+                    { label: 'Planned Start', value: o.planned_start ?? '—' },
+                    { label: 'Planned End',   value: o.planned_end ?? '—' },
+                    { label: 'Description',   value: o.description },
+                  ] : [
+                    { label: 'Repair Start', value: o.repair_start ?? '—' },
+                    { label: 'ETA', value: <span style={{ color: o.estimated_repair_date === 'TBC' ? t.orange : t.text }}>{o.estimated_repair_date ?? '—'}</span> },
+                    { label: 'Description', value: o.description },
+                  ]}
+                  onEdit={() => editId === o.fault_id ? setEditId(null) : startEdit(o.fault_id, outageEditDefaults(o))}
+                  onDelete={() => confirmDelete(() => api.deleteOutage(o.fault_id))}
+                >
+                  {editId === o.fault_id && outageEditForm(o)}
+                </MobileCard>
+              ))}
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', padding: '6px 20px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
+                <div style={colH(2)}>Segment</div><div style={colH(2)}>Fault ID</div>
+                <div style={colH(2)}>{isPlanned ? 'Date Raised' : 'Fault Date'}</div>
+                <div style={colH(2)}>{isPlanned ? 'Planned Start' : 'Repair Start'}</div>
+                <div style={colH(2)}>{isPlanned ? 'Planned End' : 'ETA'}</div>
+                <div style={colH(3)}>Description</div>
+                <div style={{ width: 140 }} />
+              </div>
+              {rows.length === 0 && (
+                <div style={{ padding: '10px 20px', fontSize: 12, color: t.textFaint, fontStyle: isPlanned ? 'italic' : 'normal' }}>
+                  {isPlanned ? 'No planned events' : 'No active outages'}
+                </div>
+              )}
+              {rows.map(o => (
+                <div key={o.fault_id} style={rowStyle(editId === o.fault_id)}>
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '7px 20px', minHeight: 36 }}>
+                    <div style={cell(2)}><code style={{ fontSize: 11 }}>{o.segment_id}</code></div>
+                    <div style={cell(2)}>{o.fault_id}</div>
+                    <div style={cell(2)}>{o.fault_date}</div>
+                    {isPlanned ? (
+                      <>
+                        <div style={cell(2)}>{o.planned_start ?? '—'}</div>
+                        <div style={cell(2)}>{o.planned_end ?? '—'}</div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={cell(2)}>{o.repair_start ?? '—'}</div>
+                        <div style={{ ...cell(2), color: o.estimated_repair_date === 'TBC' ? t.orange : t.text }}>{o.estimated_repair_date ?? '—'}</div>
+                      </>
+                    )}
+                    <div style={{ ...cell(3), fontSize: 11, color: t.textMuted }}>{o.description}</div>
+                    <ActionsCell id={o.fault_id} onEdit={() => startEdit(o.fault_id, outageEditDefaults(o))} onDelete={() => confirmDelete(() => api.deleteOutage(o.fault_id))} />
+                  </div>
+                  {editId === o.fault_id && outageEditForm(o)}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )
+    }
+
     return (
       <>
-        {/* AI Outage Parser launcher — admin-only bulk entry via paste/upload */}
+        {/* AI Outage Parser launcher (one button, mode toggle lives inside the
+            modal) + the two type-specific "+ Add" entry points. */}
         {isAdmin && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: isMobile ? '8px 12px' : '8px 20px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: isMobile ? '8px 12px' : '8px 20px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
             <button
               onClick={() => setOutageParserOpen(true)}
               style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 6, cursor: 'pointer', border: `1px solid ${t.blue}55`, background: t.blue + '18', color: t.blue }}
             >
               ⚡ AI Outage Parser
             </button>
-            <span style={{ fontSize: 11, color: t.textFaint }}>Paste or upload your outage table to bulk-replace all outages with AI.</span>
+            <span style={{ fontSize: 11, color: t.textFaint, flex: 1, minWidth: 160 }}>Paste or upload a table to bulk-replace outages or planned events with AI.</span>
+            <button onClick={() => startAdd(addDefaults.outages)} style={{ ...actionBtn('add'), padding: '5px 12px' }}>+ Add Outage</button>
+            <button onClick={() => startAdd(PLANNED_EVENT_ADD_DEFAULTS)} style={{ ...actionBtn('add'), padding: '5px 12px', borderColor: t.orange, color: t.orange }}>+ Add Planned Event</button>
           </div>
         )}
-        {adding && (
-          <div style={{ ...editFormRow, margin: isMobile ? '8px 12px' : undefined }}>
-            <Field label="Segment ID *"   k="segment_id"            src={addValues} setSrc={setAddValues} />
-            <Field label="Fault ID *"     k="fault_id"              src={addValues} setSrc={setAddValues} />
-            <Field label="Fault Date *"   k="fault_date"            src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD" />
-            <Field label="Repair Start"   k="repair_start"          src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD or TBC" />
-            <Field label="ETA Repair"     k="estimated_repair_date" src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD or TBC" />
-            <Field label="Description *"  k="description"           src={addValues} setSrc={setAddValues} />
-            <SaveCancel onSave={() => saveAdd(() => api.createOutage(addValues as unknown as SegmentOutage))} onCancel={() => { setAdding(false); setAddValues({}) }} />
-          </div>
-        )}
-        {isMobile ? (
-          <div style={{ padding: '8px 0 32px' }}>
-            {filtered.map(o => (
-              <MobileCard key={o.fault_id} id={o.fault_id}
-                title={o.fault_id}
-                subtitle={<><code style={{ fontSize: 10 }}>{o.segment_id}</code> · faulted {o.fault_date}</>}
-                fields={[
-                  { label: 'Repair Start', value: o.repair_start ?? '—' },
-                  { label: 'ETA', value: <span style={{ color: o.estimated_repair_date === 'TBC' ? t.orange : t.text }}>{o.estimated_repair_date ?? '—'}</span> },
-                  { label: 'Description', value: o.description },
-                ]}
-                onEdit={() => editId === o.fault_id ? setEditId(null) : startEdit(o.fault_id, outageEditDefaults(o))}
-                onDelete={() => confirmDelete(() => api.deleteOutage(o.fault_id))}
-              >
-                {editId === o.fault_id && outageEditForm(o)}
-              </MobileCard>
-            ))}
-          </div>
-        ) : (
-          <>
-            <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
-              <div style={colH(2)}>Segment</div><div style={colH(2)}>Fault ID</div><div style={colH(2)}>Fault Date</div>
-              <div style={colH(2)}>Repair Start</div><div style={colH(2)}>ETA</div><div style={colH(3)}>Description</div>
-              <div style={{ width: 140 }} />
-            </div>
-            {filtered.map(o => (
-              <div key={o.fault_id} style={rowStyle(editId === o.fault_id)}>
-                <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
-                  <div style={cell(2)}><code style={{ fontSize: 11 }}>{o.segment_id}</code></div>
-                  <div style={cell(2)}>{o.fault_id}</div>
-                  <div style={cell(2)}>{o.fault_date}</div>
-                  <div style={cell(2)}>{o.repair_start ?? '—'}</div>
-                  <div style={{ ...cell(2), color: o.estimated_repair_date === 'TBC' ? t.orange : t.text }}>{o.estimated_repair_date ?? '—'}</div>
-                  <div style={{ ...cell(3), fontSize: 11, color: t.textMuted }}>{o.description}</div>
-                  <ActionsCell id={o.fault_id} onEdit={() => startEdit(o.fault_id, outageEditDefaults(o))} onDelete={() => confirmDelete(() => api.deleteOutage(o.fault_id))} />
-                </div>
-                {editId === o.fault_id && outageEditForm(o)}
-              </div>
-            ))}
-          </>
-        )}
+        {addForm}
+        <OutageGroup label="Active Outages" icon="⚠️" color={t.red}    rows={activeOutages} kind="outage" />
+        <OutageGroup label="Planned Events" icon="🗓️" color={t.orange} rows={plannedEvents} kind="planned_event" />
       </>
     )
   }
@@ -2399,8 +2498,14 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     segments: { id: '', name: '', system_id: '', start_node_id: '', end_node_id: '', type: 'wet', length_km: 0, latency: 0, cost_weight: 1, reliability: 0.9999, ownership: 'consortium' },
     systems:  { id: '', name: '', description: '', margin: 8 },
     capacity: { segment_id: '', total_capacity_t: 1.0, available_capacity_t: 1.0 },
-    outages:  { segment_id: '', fault_id: '', fault_date: '', repair_start: '', estimated_repair_date: 'TBC', description: '' },
+    outages:  { segment_id: '', fault_id: '', fault_date: '', repair_start: '', estimated_repair_date: 'TBC', description: '', event_type: 'outage' },
     rules:    { node_id: '', kind: 'blacklist', system_a: '', system_b: '', reason: '' },
+  }
+  // Seed values for the Outages tab's dedicated "+ Add Planned Event" button
+  // (see OutagesTab) — distinct from addDefaults.outages ("+ Add Outage")
+  // above: no repair_start/estimated_repair_date, instead a planned window.
+  const PLANNED_EVENT_ADD_DEFAULTS: Record<string, unknown> = {
+    segment_id: '', fault_id: '', fault_date: '', planned_start: '', planned_end: '', description: '', event_type: 'planned_event',
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -2459,7 +2564,10 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
               onChange={e => setFilter(e.target.value)}
               style={{ ...inputStyle, flex: 1, padding: '5px 8px' }}
             />
-            {isAdmin && (
+            {/* Outages has its own two type-specific "+ Add" buttons (Outage /
+                Planned Event) rendered inside OutagesTab itself — skip the
+                generic single button here to avoid a third, ambiguous one. */}
+            {isAdmin && tab !== 'outages' && (
               <button onClick={() => startAdd(addDefaults[tab as DataTab])} style={{ ...actionBtn('add'), padding: '5px 12px', flexShrink: 0 }}>
                 + Add {tab === 'rules' ? 'pair' : tab.slice(0, -1)}
               </button>

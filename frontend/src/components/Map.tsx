@@ -27,6 +27,14 @@
  *     segment with an active outage on a highlighted route is drawn red
  *     with a distinctive dash pattern. `hideNonActive` removes background
  *     segments entirely; `showAllOutages` switches to an outage-only map.
+ *     This entire ladder (and showAllOutages) only ever considers rows
+ *     where event_type !== 'planned_event' — i.e. real CURRENT outages —
+ *     so a future Planned Event can never make a segment look "down" here.
+ *     Planned Events are a wholly separate, additive overlay: when the
+ *     independent `showPlannedEvents` toggle is on, segments with an
+ *     active/upcoming planned_event row are drawn on top in amber/orange
+ *     with their own (more open) dash pattern, regardless of the ladder
+ *     above or of showAllOutages, so both overlays can be read together.
  *  4. Node styling. NODE_STYLE defines the visual hierarchy by node type
  *     (CLS largest/orange, then primary/secondary/extension PoPs, tiny
  *     branching units, muted off-net). Nodes on routes/pins are recoloured
@@ -99,6 +107,7 @@ interface Props {
   showSegmentLabels?: boolean
   showNodeLabels?: boolean
   showAllOutages?: boolean
+  showPlannedEvents?: boolean
   outages?: SegmentOutage[]
   countryHighlight?: CountryHighlight | null
   subseaOnly?: boolean
@@ -331,24 +340,58 @@ function geoLines(
   return [[[lat1, nLng1], [lat2, nLng1 + d]]]
 }
 
+/**
+ * Format an ISO date string for the Planned Events tooltip window, e.g.
+ * "2026-08-12" → "12 Aug 2026". Falls back to the raw string if it doesn't
+ * parse as a date (defensive — planned dates are free-text until saved).
+ */
+function formatPlannedDate(iso: string): string {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return iso
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider }: Props) {
   const t = useTheme()
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
 
+  // Real CURRENT outages only — a Planned Event (event_type === 'planned_event')
+  // must NEVER feed the "down" styling ladder below or the showAllOutages map.
+  // Legacy rows with no event_type stored default to 'outage'.
+  const realOutages = outages.filter(o => (o.event_type ?? 'outage') !== 'planned_event')
+  // Planned Events only — the separate, additive overlay driven by showPlannedEvents.
+  const plannedEvents = outages.filter(o => o.event_type === 'planned_event')
+
   // segment_id → all faults on that segment (a segment can have multiple active faults)
-  const outagesBySegId = outages.reduce<Record<string, typeof outages>>((acc, o) => {
+  const outagesBySegId = realOutages.reduce<Record<string, typeof realOutages>>((acc, o) => {
     ;(acc[o.segment_id] ??= []).push(o)
     return acc
   }, {})
-  const outageSegIds = new Set(outages.map(o => o.segment_id))
+  const outageSegIds = new Set(realOutages.map(o => o.segment_id))
 
-  // In outage-map mode, collect nodes that belong to downed segments
+  // segment_id → all planned events on that segment, mirroring outagesBySegId above.
+  const plannedBySegId = plannedEvents.reduce<Record<string, typeof plannedEvents>>((acc, o) => {
+    ;(acc[o.segment_id] ??= []).push(o)
+    return acc
+  }, {})
+
+  // In outage-map mode, collect nodes that belong to downed (real-outage) segments
   const outageNodeIds = showAllOutages
-    ? new Set(outages.flatMap(o => {
+    ? new Set(realOutages.flatMap(o => {
+        const seg = segments.find(s => s.id === o.segment_id)
+        return seg ? [seg.start_node_id, seg.end_node_id] : []
+      }))
+    : null
+
+  // Mirrors outageNodeIds above, but for the independent Planned Events overlay:
+  // nodes touching a segment with an active/upcoming planned event get highlighted
+  // whenever showPlannedEvents is on (additive — it never hides other nodes).
+  const plannedNodeIds = showPlannedEvents
+    ? new Set(plannedEvents.flatMap(o => {
         const seg = segments.find(s => s.id === o.segment_id)
         return seg ? [seg.start_node_id, seg.end_node_id] : []
       }))
@@ -584,6 +627,47 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         ))
       })}
 
+      {/*
+        Planned Events overlay — wholly additive and independent of the
+        precedence ladder / showAllOutages above (see the header comment).
+        Drawn on top so it stays visible whether or not a real outage is also
+        highlighted on the same segment; its dash pattern ('10 6', long/open)
+        is deliberately distinct from the outage dash ('6 3 2 3') so the two
+        never get confused when both toggles are on at once.
+      */}
+      {showPlannedEvents && segments.flatMap(seg => {
+        const start = nodesById[seg.start_node_id]
+        const end = nodesById[seg.end_node_id]
+        if (!start || !end) return []
+        const segEvents = plannedBySegId[seg.id]
+        if (!segEvents || segEvents.length === 0) return []
+
+        const lines = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined)
+        const plannedTooltip = (
+          <Tooltip sticky className="planned-event-tooltip">
+            <strong>{seg.name}</strong>
+            <br />{start.name} → {end.name} · {seg.length_km.toLocaleString()} km
+            {segEvents.map(f => (
+              <span key={f.fault_id}>
+                <br /><strong style={{ color: t.orange }}>{f.fault_id}</strong> · logged {f.fault_date}
+                {f.planned_start && f.planned_end && (
+                  <><br />Planned: {formatPlannedDate(f.planned_start)} – {formatPlannedDate(f.planned_end)}</>
+                )}
+                <br /><span style={{ fontSize: 11 }}>{f.description}</span>
+              </span>
+            ))}
+          </Tooltip>
+        )
+        const pathOptions = {
+          color: t.orange, weight: 2.5, opacity: 0.9, dashArray: '10 6',
+        }
+        return lines.map((positions, i) => (
+          <Polyline key={`planned-${seg.id}-${i}`} positions={positions} pathOptions={pathOptions}>
+            {i === 0 && plannedTooltip}
+          </Polyline>
+        ))
+      })}
+
       {nodes.map(node => {
         const isRouteNode   = routeNodeIds.has(node.id)
         const sysColor      = systemNodeColor[node.id]
@@ -639,6 +723,26 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
               </Tooltip>
             )}
           </CircleMarker>
+        )
+      })}
+
+      {/*
+        Planned Events node highlight — mirrors the outageNodeIds/showAllOutages
+        pattern (nodes touching a highlighted segment get included), adapted to
+        the independent showPlannedEvents toggle. Unlike showAllOutages this
+        never hides other nodes: it's a non-interactive amber ring drawn on top
+        of whichever node marker is already there.
+      */}
+      {showPlannedEvents && plannedNodeIds && nodes.filter(n => plannedNodeIds.has(n.id)).map(node => {
+        const ns = NODE_STYLE[node.type] ?? NODE_STYLE.extension_pop
+        return (
+          <CircleMarker
+            key={`planned-node-${node.id}`}
+            center={[node.lat, normalizeLng(node.lng)]}
+            radius={ns.radius + 4}
+            pathOptions={{ color: t.orange, fillOpacity: 0, weight: 2, dashArray: '3 2' }}
+            interactive={false}
+          />
         )
       })}
 

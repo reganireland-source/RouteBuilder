@@ -305,6 +305,7 @@ export default function App() {
   const [showSegmentLabels, setShowSegmentLabels]   = useState(false)
   const [showNodeLabels,    setShowNodeLabels]       = useState(false)
   const [showAllOutages, setShowAllOutages]         = useState(false)  // show every outage, not just those on shown routes
+  const [showPlannedEvents, setShowPlannedEvents]   = useState(false)  // show future planned network events (maintenance windows); separate, manually-controlled toggle — NOT auto-enabled by outageviewer mode
   const [subseaOnly, setSubseaOnly]                 = useState(false)  // draw only wet (submarine) segments
   const [backhaulOnly, setBackhaulOnly]             = useState(false)  // draw only terrestrial (backhaul) segments
   const [nlpSortKey, setNlpSortKey]                 = useState<SortKey | undefined>(undefined)   // sort key requested by the NLP assistant
@@ -793,6 +794,8 @@ export default function App() {
           onToggleShowNodeLabels={() => setShowNodeLabels(v => !v)}
           showAllOutages={showAllOutages}
           onToggleShowAllOutages={() => setShowAllOutages(v => !v)}
+          showPlannedEvents={showPlannedEvents}
+          onToggleShowPlannedEvents={() => setShowPlannedEvents(v => !v)}
           subseaOnly={subseaOnly}
           onToggleSubseaOnly={() => { setSubseaOnly(v => !v); if (!subseaOnly) setBackhaulOnly(false) }}
           backhaulOnly={backhaulOnly}
@@ -980,7 +983,7 @@ export default function App() {
 
         {/* Top-right control menu */}
         {(() => {
-          const activeToggles = [showAllOutages, hideNonActive, showSegmentLabels, showNodeLabels, subseaOnly, backhaulOnly].filter(Boolean).length
+          const activeToggles = [showAllOutages, showPlannedEvents, hideNonActive, showSegmentLabels, showNodeLabels, subseaOnly, backhaulOnly].filter(Boolean).length
           return (
             <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 1000 }}>
               <button
@@ -1026,6 +1029,7 @@ export default function App() {
                     {/* Toggles */}
                     {[
                       { label: 'Show All Outages', icon: '🚢', active: showAllOutages, color: theme.red,  onClick: () => setShowAllOutages(v => !v) },
+                      { label: 'Show Planned Events', icon: '🗓️', active: showPlannedEvents, color: theme.orange, onClick: () => setShowPlannedEvents(v => !v) },
                       { label: 'Hide Inactive',    icon: hideNonActive      ? '◉' : '◎', active: hideNonActive,      color: theme.blue, onClick: () => setHideNonActive(v => !v) },
                       { label: 'Seg Labels',       icon: showSegmentLabels  ? '◉' : '◎', active: showSegmentLabels,  color: theme.blue, onClick: () => setShowSegmentLabels(v => !v) },
                       { label: 'Node Labels',      icon: showNodeLabels     ? '◉' : '◎', active: showNodeLabels,     color: theme.blue, onClick: () => setShowNodeLabels(v => !v) },
@@ -1422,6 +1426,7 @@ export default function App() {
               showSegmentLabels={showSegmentLabels}
               showNodeLabels={showNodeLabels}
               showAllOutages={showAllOutages}
+              showPlannedEvents={showPlannedEvents}
               subseaOnly={subseaOnly}
               backhaulOnly={backhaulOnly}
               countryHighlight={countryHighlight}

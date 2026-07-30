@@ -13,8 +13,19 @@
  *   amber  — a best guess / several plausible candidates
  *   red    — no valid segment yet (excluded from saving until fixed or removed)
  * The engineer edits/adds/removes rows, then "Accept All & Replace" performs the
- * destructive PUT /api/outages that wipes the current outage set and inserts the
- * reviewed rows.
+ * destructive, TYPE-SCOPED PUT /api/outages?event_type=... that wipes only the
+ * CURRENT MODE's existing records and inserts the reviewed rows.
+ *
+ * MODE (Outages vs Planned Events)
+ * A segmented toggle at the top of the input stage picks `mode`
+ * ('outage' | 'planned_event', default 'outage') — the SAME modal handles
+ * both record kinds rather than duplicating this whole flow. `mode` is sent
+ * as `eventType` to api.parseOutages so the AI extracts the right date
+ * fields (repair window vs planned window), and the review table's date
+ * columns, the destructive confirm text, and the api.replaceAllOutages call
+ * all key off the CURRENT mode so switching modes never confuses which
+ * record type gets replaced. The per-row segment-matching/status-light logic
+ * is identical for both modes — it only cares about segment_id, not dates.
  *
  * State lives entirely here; on a successful replace it calls onReplaced() so
  * the parent can refresh, then closes.
@@ -22,7 +33,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { useTheme } from '../theme'
-import type { CableSegment, ParsedOutage, SegmentOutage } from '../types'
+import type { CableSegment, OutageEventType, ParsedOutage, SegmentOutage } from '../types'
 
 type Row = ParsedOutage
 
@@ -58,6 +69,7 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
   onReplaced: () => Promise<void> | void
 }) {
   const t = useTheme()
+  const [mode, setMode] = useState<OutageEventType>('outage')
   const [text, setText] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const [parsing, setParsing] = useState(false)
@@ -79,6 +91,14 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
 
   const validCount = rows ? rows.filter(isRowValid).length : 0
   const invalidCount = rows ? rows.length - validCount : 0
+
+  // Mode-derived display strings/colour — keeps the destructive confirm text,
+  // the "Accept All & Replace" button and the replaceAllOutages(payload, mode)
+  // call all consistently reflecting whichever mode is CURRENTLY selected.
+  const modeLabel        = mode === 'planned_event' ? 'planned event' : 'outage'
+  const modeLabelCap     = mode === 'planned_event' ? 'Planned Event' : 'Outage'
+  const otherModeLabelCap = mode === 'planned_event' ? 'Outage' : 'Planned Event'
+  const modeColor        = mode === 'planned_event' ? t.orange : t.red
 
   // Thumbnail previews for uploaded/pasted files; object URLs are revoked when
   // the file set changes or the modal unmounts to avoid leaks.
@@ -114,7 +134,7 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
     if (!text.trim() && files.length === 0) { setError('Paste a table, paste a screenshot, or choose a file first.'); return }
     setParsing(true); setError(null); setParseTokens(0)
     try {
-      const res = await api.parseOutages(text.trim(), files, tokens => setParseTokens(tokens))
+      const res = await api.parseOutages(text.trim(), files, mode, tokens => setParseTokens(tokens))
       setRows(res.proposals)
       setExistingCount(res.existing_count)
       setModelUsed(res.model)
@@ -142,7 +162,7 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
   function addRow() {
     setRows(rs => ([...(rs ?? []), {
       segment_id: '', fault_id: '', fault_date: '', repair_start: null,
-      estimated_repair_date: null, description: '',
+      estimated_repair_date: null, planned_start: null, planned_end: null, description: '',
       matched: false, confidence: 'none', candidates: [], raw_cable: '', raw_segment: '',
     }]))
   }
@@ -152,15 +172,20 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
     setSaving(true); setError(null)
     try {
       // Only the SegmentOutage fields go to the backend; strip review metadata.
+      // event_type always matches the CURRENT mode, and the mode-inapplicable
+      // date pair (repair_*/planned_*) is omitted so a mode switch never
+      // leaves stale dates from the other kind on the saved row.
       const payload: SegmentOutage[] = rows.filter(isRowValid).map(r => ({
         segment_id: r.segment_id,
         fault_id: r.fault_id.trim() || r.segment_id,
         fault_date: r.fault_date,
-        repair_start: r.repair_start || undefined,
-        estimated_repair_date: r.estimated_repair_date || undefined,
+        event_type: mode,
+        ...(mode === 'planned_event'
+          ? { planned_start: r.planned_start || undefined, planned_end: r.planned_end || undefined }
+          : { repair_start: r.repair_start || undefined, estimated_repair_date: r.estimated_repair_date || undefined }),
         description: r.description,
       }))
-      await api.replaceAllOutages(payload)
+      await api.replaceAllOutages(payload, mode)
       await onReplaced()
       onClose()
     } catch (e) {
@@ -198,7 +223,7 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: t.text }}>⚡ AI Outage Parser</div>
           <div style={{ fontSize: 11, color: t.textFaint, flex: 1 }}>
-            Paste or upload your outage table — AI extracts and maps each to a segment.
+            Paste or upload your {mode === 'planned_event' ? 'planned events' : 'outage'} table — AI extracts and maps each to a segment.
           </div>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: t.textMuted, fontSize: 20, cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
@@ -207,7 +232,32 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
           {/* ── Input stage ── */}
           {!rows && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ fontSize: 12, color: t.textMuted }}>Paste a table (from email, a report, or a spreadsheet):</div>
+              {/* Mode toggle — decides whether this parse produces Outages or
+                  Planned Events, sent as `eventType` to api.parseOutages and
+                  carried through to the review table + the destructive replace. */}
+              <div style={{ display: 'flex', gap: 0, alignSelf: 'flex-start', border: `1px solid ${t.border}`, borderRadius: 7, overflow: 'hidden' }}>
+                {([
+                  { id: 'outage' as const,         label: 'Outages',        color: t.red },
+                  { id: 'planned_event' as const,  label: 'Planned Events', color: t.orange },
+                ]).map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => setMode(m.id)}
+                    style={{
+                      padding: '7px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      border: 'none', borderRight: m.id === 'outage' ? `1px solid ${t.border}` : 'none',
+                      background: mode === m.id ? m.color + '22' : 'transparent',
+                      color: mode === m.id ? m.color : t.textFaint,
+                    }}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, color: t.textMuted }}>
+                Paste a table (from email, a report, or a spreadsheet)
+                {mode === 'planned_event' ? ' of upcoming planned works' : ' of current faults'}:
+              </div>
               <textarea
                 value={text}
                 onChange={e => setText(e.target.value)}
@@ -295,14 +345,16 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
                 <button onClick={() => { setRows(null); setError(null) }} style={{ fontSize: 11, color: t.textMuted, background: 'transparent', border: `1px solid ${t.border}`, borderRadius: 4, padding: '3px 10px', cursor: 'pointer' }}>← New input</button>
               </div>
 
-              {/* Column header */}
+              {/* Column header — date columns swap between the two modes:
+                  outage mode shows Fault Date / Repair Start / ETA Repair;
+                  planned_event mode shows Date Raised / Planned Start / Planned End. */}
               <div style={{ display: 'flex', gap: 6, fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: t.textFaint, padding: '0 4px' }}>
                 <div style={{ width: 16 }} />
                 <div style={{ width: 190 }}>Segment</div>
                 <div style={{ width: 110 }}>Fault ID</div>
-                <div style={{ width: 96 }}>Fault Date</div>
-                <div style={{ width: 96 }}>Repair Start</div>
-                <div style={{ width: 96 }}>ETA Repair</div>
+                <div style={{ width: 96 }}>{mode === 'planned_event' ? 'Date Raised' : 'Fault Date'}</div>
+                <div style={{ width: 96 }}>{mode === 'planned_event' ? 'Planned Start' : 'Repair Start'}</div>
+                <div style={{ width: 96 }}>{mode === 'planned_event' ? 'Planned End' : 'ETA Repair'}</div>
                 <div style={{ flex: 1 }}>Description</div>
                 <div style={{ width: 24 }} />
               </div>
@@ -337,8 +389,17 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
                     </div>
                     <div style={{ width: 110 }}><input value={r.fault_id} onChange={e => patchRow(i, { fault_id: e.target.value })} style={inp} /></div>
                     <div style={{ width: 96 }}><input value={r.fault_date} onChange={e => patchRow(i, { fault_date: e.target.value })} placeholder="YYYY-MM-DD" style={inp} /></div>
-                    <div style={{ width: 96 }}><input value={r.repair_start ?? ''} onChange={e => patchRow(i, { repair_start: e.target.value || null })} placeholder="TBC" style={inp} /></div>
-                    <div style={{ width: 96 }}><input value={r.estimated_repair_date ?? ''} onChange={e => patchRow(i, { estimated_repair_date: e.target.value || null })} placeholder="TBC" style={inp} /></div>
+                    {mode === 'planned_event' ? (
+                      <>
+                        <div style={{ width: 96 }}><input value={r.planned_start ?? ''} onChange={e => patchRow(i, { planned_start: e.target.value || null })} placeholder="YYYY-MM-DD" style={inp} /></div>
+                        <div style={{ width: 96 }}><input value={r.planned_end ?? ''} onChange={e => patchRow(i, { planned_end: e.target.value || null })} placeholder="YYYY-MM-DD" style={inp} /></div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ width: 96 }}><input value={r.repair_start ?? ''} onChange={e => patchRow(i, { repair_start: e.target.value || null })} placeholder="TBC" style={inp} /></div>
+                        <div style={{ width: 96 }}><input value={r.estimated_repair_date ?? ''} onChange={e => patchRow(i, { estimated_repair_date: e.target.value || null })} placeholder="TBC" style={inp} /></div>
+                      </>
+                    )}
                     <div style={{ flex: 1 }}>
                       <textarea value={r.description} onChange={e => patchRow(i, { description: e.target.value })}
                         style={{ ...inp, minHeight: 34, resize: 'vertical', lineHeight: 1.4 }} />
@@ -373,25 +434,27 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
             <button
               onClick={() => setConfirming(true)}
               disabled={validCount === 0}
-              style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: validCount === 0 ? t.textFaint : t.red, border: 'none', borderRadius: 5, padding: '8px 16px', cursor: validCount === 0 ? 'default' : 'pointer' }}
+              style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: validCount === 0 ? t.textFaint : modeColor, border: 'none', borderRadius: 5, padding: '8px 16px', cursor: validCount === 0 ? 'default' : 'pointer' }}
             >
-              Accept All &amp; Replace ({validCount})
+              Accept All &amp; Replace {modeLabelCap}s ({validCount})
             </button>
           </div>
         )}
       </div>
 
-      {/* Destructive confirm */}
+      {/* Destructive confirm — text and the replace call both key off the
+          CURRENT mode, so switching Outages/Planned Events never confuses
+          which record type gets wiped and replaced. */}
       {confirming && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 12100, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ width: 'min(440px, 92vw)', background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 10, padding: 20 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 8 }}>Replace all outages?</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 8 }}>Replace all {modeLabel}s?</div>
             <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.6, marginBottom: 18 }}>
-              This will <strong style={{ color: t.red }}>permanently delete all {existingCount} existing outage{existingCount === 1 ? '' : 's'}</strong> and replace them with the <strong style={{ color: t.text }}>{validCount}</strong> reviewed row{validCount === 1 ? '' : 's'}. This cannot be undone.
+              This will <strong style={{ color: modeColor }}>permanently delete all {existingCount} existing {modeLabel}{existingCount === 1 ? '' : 's'}</strong> and replace them with the <strong style={{ color: t.text }}>{validCount}</strong> reviewed row{validCount === 1 ? '' : 's'}. This cannot be undone. Existing {otherModeLabelCap}s are untouched.
             </div>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setConfirming(false)} disabled={saving} style={{ fontSize: 12, color: t.textMuted, background: 'transparent', border: `1px solid ${t.border}`, borderRadius: 5, padding: '8px 14px', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={acceptAndReplace} disabled={saving} style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: t.red, border: 'none', borderRadius: 5, padding: '8px 16px', cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1 }}>
+              <button onClick={acceptAndReplace} disabled={saving} style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: modeColor, border: 'none', borderRadius: 5, padding: '8px 16px', cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1 }}>
                 {saving ? 'Replacing…' : `Replace ${existingCount} → ${validCount}`}
               </button>
             </div>

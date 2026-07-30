@@ -121,6 +121,7 @@ export interface MobileLayoutProps {
   onToggleShowSegmentLabels:     () => void
   onToggleShowNodeLabels:        () => void
   onToggleShowAllOutages:        () => void
+  onToggleShowPlannedEvents:     () => void
   onToggleSubseaOnly:            () => void
   onToggleBackhaulOnly:          () => void
   onApplySort?:                  (mode: NlpSortMode) => void
@@ -242,16 +243,17 @@ export function MobileLayout({
   onSetOrigin, onSetDest, onSetPair, onNodeClick, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
   switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowNodeLabels, onToggleShowAllOutages,
+  onToggleShowPlannedEvents,
   onToggleSubseaOnly, onToggleBackhaulOnly,
   onApplySort, nlpSortKey, nlpPushOutages, optimiseFor, flippedPairIds, onFlipPair,
   onAddToProject, onEnrichCircuit, onOpenProjects, activeProject, onExitProjectMode, onSwitchProject, onOpenGuide,
   manualState, manualCandidates = [], manualResults = [], onManualNodeClick,
   onManualPickHop, onManualUndo, onManualFinish, onManualDiscard,
   countryHighlight, onCountrySelect,
-  hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false,
+  hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false,
   subseaOnly = false, backhaulOnly = false,
 }: MobileLayoutProps & {
-  hideNonActive?: boolean; showSegmentLabels?: boolean; showNodeLabels?: boolean; showAllOutages?: boolean
+  hideNonActive?: boolean; showSegmentLabels?: boolean; showNodeLabels?: boolean; showAllOutages?: boolean; showPlannedEvents?: boolean
   subseaOnly?: boolean; backhaulOnly?: boolean
 }) {
   const t = useTheme()
@@ -339,6 +341,7 @@ export function MobileLayout({
             showSegmentLabels={showSegmentLabels}
             showNodeLabels={showNodeLabels}
             showAllOutages={showAllOutages}
+            showPlannedEvents={showPlannedEvents}
             subseaOnly={subseaOnly}
             backhaulOnly={backhaulOnly}
             countryHighlight={countryHighlight}
@@ -428,6 +431,13 @@ export function MobileLayout({
                   active: showAllOutages,
                   color: t.red,
                   onClick: () => { onToggleShowAllOutages(); setDrawerOpen(false) },
+                },
+                {
+                  label: 'Show Planned Events',
+                  icon: '🗓️',
+                  active: showPlannedEvents,
+                  color: t.orange,
+                  onClick: () => { onToggleShowPlannedEvents(); setDrawerOpen(false) },
                 },
                 {
                   label: 'Segment Labels',

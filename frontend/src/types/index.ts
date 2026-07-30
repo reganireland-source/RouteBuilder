@@ -269,10 +269,29 @@ export interface SegmentCapacity {
 }
 
 /**
- * An active or historical cable fault on a segment (GET /api/outages).
- * Drives the 'outageviewer' mode (OutagePanel) and outage warnings/sorting
- * in route results. Dates are ISO strings; repair fields are null while
- * unknown.
+ * Which of the two outage record kinds a SegmentOutage/ParsedOutage row is:
+ *  - 'outage': a CURRENT live fault on the network (the original/default kind
+ *    — legacy rows with no event_type stored are treated as this).
+ *  - 'planned_event': a FUTURE scheduled network work (e.g. a maintenance
+ *    window) that MAY take the segment down later. Never counts as a live
+ *    outage for map "down" styling or route outage warnings.
+ */
+export type OutageEventType = 'outage' | 'planned_event'
+
+/**
+ * An active/historical cable fault OR a future planned network event on a
+ * segment (GET /api/outages). Drives the 'outageviewer' mode (OutagePanel)
+ * and outage warnings/sorting in route results. Dates are ISO strings;
+ * repair fields are null while unknown.
+ *
+ * `event_type` distinguishes the two kinds this record can represent
+ * (defaults to 'outage' when absent, so legacy rows are unaffected):
+ *  - 'outage' rows use fault_date/repair_start/estimated_repair_date as
+ *    before.
+ *  - 'planned_event' rows leave repair_start/estimated_repair_date null and
+ *    instead carry planned_start/planned_end — the maintenance window to
+ *    show. fault_date still means "date this record was logged/raised" for
+ *    both kinds.
  */
 export interface SegmentOutage {
   segment_id: string
@@ -281,6 +300,9 @@ export interface SegmentOutage {
   repair_start?: string | null
   estimated_repair_date?: string | null
   description: string
+  event_type?: OutageEventType
+  planned_start?: string | null
+  planned_end?: string | null
 }
 
 /** A pair of cable systems that must NOT interconnect at a node (see InterconnectRule). */
@@ -300,6 +322,9 @@ export interface ParsedOutage {
   candidates: string[]                   // other plausible segment_ids (for amber)
   raw_cable: string                      // cable name as written in the source
   raw_segment: string                    // segment text as written in the source
+  event_type?: OutageEventType           // 'outage' (default) or 'planned_event' — mirrors SegmentOutage
+  planned_start?: string | null          // Planned Events only: ISO window start date
+  planned_end?: string | null            // Planned Events only: ISO window end date
 }
 
 export interface OutageParseResponse {

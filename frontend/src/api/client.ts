@@ -37,7 +37,7 @@
  * requests). Request/response shapes are the interfaces in ../types.
  */
 
-import type { AppConfig, CableNode, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, NlpParseResponse, NoteCategory, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
+import type { AppConfig, CableNode, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, NlpParseResponse, NoteCategory, OutageEventType, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
 
 // Backend origin baked in at build time. Empty string = same-origin (dev proxy).
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
@@ -151,11 +151,15 @@ async function uploadFile<T>(path: string, file: File): Promise<T> {
  * counter (via onProgress), and a final {type:'result'} resolves the promise
  * ({type:'error'} rejects). Falls back gracefully if the body isn't streamable
  * (some proxies buffer): the counter just jumps at the end.
+ * `eventType` ('outage' or 'planned_event') is sent as the `event_type` form
+ * field so the backend extracts the right date fields (repair window vs
+ * planned window) and scopes `existing_count` to that same type.
  */
-async function parseOutagesStream(text: string, files: File[], onProgress?: (tokens: number) => void): Promise<OutageParseResponse> {
+async function parseOutagesStream(text: string, files: File[], eventType: OutageEventType, onProgress?: (tokens: number) => void): Promise<OutageParseResponse> {
   const form = new FormData()
   if (text) form.append('text', text)
   for (const f of files) form.append('files', f)
+  form.append('event_type', eventType)
   const res = await fetch(`${BASE_URL}/api/outages/parse`, { method: 'POST', headers: adminHeaders(), body: form })
   if (!res.ok || !res.body) {
     let detail = ''
@@ -231,14 +235,18 @@ export const api = {
   // from the clipboard, and/or a CSV/XLSX) to be parsed into proposed outages by
   // AI. Does not save. `replaceAllOutages` is the destructive "Accept All"
   // commit. Multiple images are sent as repeated `files` fields and read
-  // together in a single vision call.
+  // together in a single vision call. `eventType` selects Outage vs Planned
+  // Event parsing/review mode (see OutageEventType) and is required on both
+  // calls so the right record type is parsed/replaced.
   // Streams the parse: the backend sends Server-Sent-Events — repeated
   // {type:'progress',tokens} frames (drive the live token counter) then a final
   // {type:'result',...} or {type:'error',detail}. onProgress is called with the
   // running output-token estimate; resolves with the final OutageParseResponse.
-  parseOutages:   (text: string, files: File[], onProgress?: (tokens: number) => void) =>
-    parseOutagesStream(text, files, onProgress),
-  replaceAllOutages: (data: SegmentOutage[])                           => put<SegmentOutage[]>('/api/outages', data),
+  parseOutages:   (text: string, files: File[], eventType: OutageEventType, onProgress?: (tokens: number) => void) =>
+    parseOutagesStream(text, files, eventType, onProgress),
+  // TYPE-SCOPED replace: wipes and reinserts only the rows of `eventType`,
+  // leaving the other type's records (outage vs planned_event) untouched.
+  replaceAllOutages: (data: SegmentOutage[], eventType: OutageEventType)  => put<SegmentOutage[]>(`/api/outages?event_type=${eventType}`, data),
 
   // Config
   getConfig:    ()                    => get<AppConfig>('/api/config'),
