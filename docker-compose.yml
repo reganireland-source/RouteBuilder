@@ -59,7 +59,10 @@ services:
         VITE_ENABLE_NLP:   ${NLP_ENABLED:-false}
     restart: unless-stopped
     ports:
-      - "80:80"
+      # Container listens on 8080 so nginx can run as the unprivileged `nginx`
+      # user (ports <1024 would need CAP_NET_BIND_SERVICE). Host port is still
+      # 80, so http://localhost is unchanged.
+      - "80:8080"
     depends_on:
       - backend
 

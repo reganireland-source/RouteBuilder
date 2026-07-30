@@ -1521,7 +1521,12 @@ function latestRepairDate(route: Route, outagesById: Record<string, SegmentOutag
   const isoDates = route.segments
     .map(s => outagesById[s.segment_id]?.estimated_repair_date)
     .filter((d): d is string => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d))
-    .sort()
+    // The filter above guarantees strict YYYY-MM-DD, for which lexicographic
+    // order IS chronological order. The comparator is explicit and
+    // locale-INDEPENDENT on purpose: String.localeCompare could reorder these
+    // fixed-width numeric strings under some collations, and we then take the
+    // LAST element as the latest date.
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
   if (isoDates.length === 0) return 'Date TBC'
   return formatRepairDate(isoDates[isoDates.length - 1])
 }

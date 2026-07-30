@@ -382,7 +382,14 @@ export function CountryNodeDiagram({
   const edgeGroups = useMemo(() => {
     const g = new Map<string, CableSegment[]>()
     for (const seg of internalSegs) {
-      const key = [seg.start_node_id, seg.end_node_id].sort().join('§')
+      // Canonical key for an UNDIRECTED edge: sort the two endpoint ids so
+      // A→B and B→A group together. The comparator is deliberately explicit
+      // and locale-INDEPENDENT (code-unit ordering, what bare .sort() does):
+      // a locale-aware String.localeCompare would make this key vary by
+      // runtime locale and silently split groups that should merge.
+      const key = [seg.start_node_id, seg.end_node_id]
+        .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+        .join('§')
       if (!g.has(key)) g.set(key, [])
       g.get(key)!.push(seg)
     }
