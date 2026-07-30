@@ -56,12 +56,51 @@ def replace_all_outages(entries: list[SegmentOutage], event_type: str = "outage"
         matching `event_type` are kept; others are silently dropped).
     Response: the stored array for this type (echoes what was saved).
 
+    Raises HTTP 409 if any fault_id in `entries` collides — either duplicated
+    within the new data, or already used by a KEPT record of the other type.
+    fault_id is the table's shared primary key across both outages and
+    planned events, so an unvalidated collision would otherwise reach
+    Postgres as an unhandled UniqueViolation: a raw 500 with no CORS headers,
+    which a browser cannot tell apart from a network failure ("Failed to
+    fetch"). This was hit in practice — the Outage Parser generates a
+    placeholder fault_id for any row missing a reference number, and an
+    Outage and a Planned Event parsed independently could each be missing
+    theirs. Checking up front turns that into a clear, actionable 409 instead.
+
     Auth: requires the x-admin-token header when ADMIN_KEY is set — enforced
     centrally by the admin_write_guard middleware in app/main.py, not here.
     """
     existing = load_outages()
     kept = [o for o in existing if o.event_type != event_type]
     incoming = [e for e in entries if e.event_type == event_type]
+
+    seen: set[str] = set()
+    duplicated_within: set[str] = set()
+    for e in incoming:
+        if e.fault_id in seen:
+            duplicated_within.add(e.fault_id)
+        seen.add(e.fault_id)
+    kept_ids = {o.fault_id for o in kept}
+    collides_with_other_type = seen & kept_ids
+    if duplicated_within or collides_with_other_type:
+        other_type_label = "planned event" if event_type == "outage" else "outage"
+        parts = []
+        if duplicated_within:
+            parts.append(f"duplicated within the new data: {', '.join(sorted(duplicated_within))}")
+        if collides_with_other_type:
+            parts.append(
+                f"already used by an existing {other_type_label}: "
+                f"{', '.join(sorted(collides_with_other_type))}"
+            )
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Reference number(s) " + "; ".join(parts) + ". "
+                "fault_id must be unique across ALL outages and planned events "
+                "combined — edit the conflicting row(s) and try again."
+            ),
+        )
+
     save_outages(kept + incoming)
     return incoming
 

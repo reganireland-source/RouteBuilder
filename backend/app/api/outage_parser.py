@@ -39,6 +39,7 @@ import base64
 import io
 import json
 import logging
+import uuid
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
@@ -360,7 +361,7 @@ def _normalise_proposals(result, valid_ids: set, event_type: str = "outage") -> 
     raw_rows = result.get("outages", []) if isinstance(result, dict) else []
     is_planned = event_type == "planned_event"
     proposals = []
-    for i, row in enumerate(raw_rows):
+    for row in raw_rows:
         if not isinstance(row, dict):
             continue
         seg_id = (row.get("segment_id") or "").strip()
@@ -370,7 +371,19 @@ def _normalise_proposals(result, valid_ids: set, event_type: str = "outage") -> 
             seg_id = ""
             confidence = "none"
         candidates = [c for c in (row.get("candidates") or []) if c in valid_ids]
-        fault_id = (row.get("fault_id") or "").strip() or f"TMP-{i + 1:03d}"
+        # fault_id is the table's PRIMARY KEY (see db.py's outages schema), so a
+        # placeholder for a missing reference number must be globally unique —
+        # not just unique within this one parse. A per-parse sequential index
+        # (the previous "TMP-{i+1:03d}" scheme) restarts at TMP-001 on every
+        # call, so two independent parses (or an Outages parse and a Planned
+        # Events parse) each missing their first reference number produce the
+        # SAME id — the second save then hits a Postgres UniqueViolation on
+        # outages_pkey. That is an unhandled exception, which (unlike a
+        # deliberate HTTPException) reaches the browser as a raw 500 with no
+        # CORS headers — indistinguishable from "Failed to fetch". A short
+        # random suffix makes a collision practically impossible regardless of
+        # how many times parsing has run before.
+        fault_id = (row.get("fault_id") or "").strip() or f"TMP-{uuid.uuid4().hex[:8].upper()}"
         proposals.append({
             "segment_id": seg_id,
             "fault_id": fault_id,
