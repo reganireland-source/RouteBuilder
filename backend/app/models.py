@@ -286,12 +286,32 @@ class SegmentCapacityUpdate(BaseModel):
 
 
 class SegmentOutage(BaseModel):
+    """A time-bound event on a cable segment — either a live fault ("outage")
+    or a future scheduled work window ("planned_event"). Both share this one
+    model/table (see data_loader.py's module docstring: JSONB documents, so
+    adding fields needs no migration and old rows without them parse fine via
+    the Optional/default values below), distinguished purely by `event_type`.
+
+    Field usage differs by event_type:
+      - fault_date: doubles as "date this record was raised/logged" for BOTH
+        types (the fault report date for an outage, the notification/raised
+        date for a planned event).
+      - repair_start / estimated_repair_date: the OUTAGE repair window. Only
+        populated when event_type == "outage".
+      - planned_start / planned_end: the PLANNED EVENT maintenance window.
+        Only populated when event_type == "planned_event".
+    A given row only populates the pair matching its own event_type — the
+    other pair stays null.
+    """
     segment_id: str
     fault_id: str
     fault_date: str
     repair_start: Optional[str] = None
     estimated_repair_date: Optional[str] = None
     description: str
+    event_type: str = "outage"   # "outage" (a current live fault) | "planned_event" (a future scheduled work window)
+    planned_start: Optional[str] = None   # Planned Events only: window start date (YYYY-MM-DD)
+    planned_end: Optional[str] = None     # Planned Events only: window end date (YYYY-MM-DD)
 
 
 class SolutionNote(BaseModel):
@@ -328,11 +348,16 @@ class NoteCategoryUpdate(BaseModel):
 
 
 class SegmentOutageUpdate(BaseModel):
+    """Partial update for SegmentOutage — see that model's docstring for which
+    field pair (repair_* vs planned_*) applies to which event_type."""
     fault_id: Optional[str] = None
     fault_date: Optional[str] = None
     repair_start: Optional[str] = None
     estimated_repair_date: Optional[str] = None
     description: Optional[str] = None
+    event_type: Optional[str] = None
+    planned_start: Optional[str] = None
+    planned_end: Optional[str] = None
 
 
 # ── Interface Types (reference table) ────────────────────────────────────────

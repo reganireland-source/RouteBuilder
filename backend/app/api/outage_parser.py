@@ -1,21 +1,29 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# outage_parser.py — AI-assisted bulk outage entry ("Outage Parser").
+# outage_parser.py — AI-assisted bulk outage / planned-event entry.
 #
 # Route prefix: /api/outages/parse  (registered under "/api" in main.py).
 #
 # WHAT IT DOES
-# A network engineer pastes / uploads their current outage table (as text, a
-# screenshot image, or a CSV/XLSX file). This endpoint sends that content to a
-# vision-capable LLM (Sonnet) together with a catalogue of every real segment
-# in the system, and the model:
-#   1. EXTRACTS each outage row (fault ref, dates, description), and
+# A network engineer pastes / uploads their current outage table — OR a
+# planned-events (scheduled maintenance) table — as text, a screenshot image,
+# or a CSV/XLSX file. This endpoint sends that content to a vision-capable LLM
+# (Sonnet) together with a catalogue of every real segment in the system, and
+# the model:
+#   1. EXTRACTS each row (fault/reference id, dates, description), and
 #   2. MAPS the human cable/segment name (e.g. "C2C Segment 3C (Korea - Japan)")
 #      to a real segment_id in this database (e.g. "C2C-S3C") using geography —
 #      the endpoint node names and countries carry more signal than the code.
 #
-# It returns PROPOSED outages with a per-row confidence; it never writes data.
+# Which table the model expects is chosen by the `event_type` form field:
+#   - "outage"        (default) — a CURRENT CABLE OUTAGES table. Extracts
+#                        fault_id/fault_date/repair_start/estimated_repair_date.
+#   - "planned_event"  — a PLANNED EVENTS table (future scheduled work windows).
+#                        Extracts fault_id/fault_date/planned_start/planned_end;
+#                        repair_start/estimated_repair_date stay null.
+#
+# It returns PROPOSED rows with a per-row confidence; it never writes data.
 # The frontend shows them in an editable review table; the actual save is the
-# separate destructive PUT /api/outages (replace-all).
+# separate destructive PUT /api/outages?event_type=... (replace-all-of-type).
 #
 # Confidence per row:
 #   "high" — a single clear segment match.
@@ -24,7 +32,8 @@
 #            until the engineer picks a segment or deletes it.
 #
 # Endpoint:
-#   POST /api/outages/parse  (admin-only; multipart form: `text` and/or `file`)
+#   POST /api/outages/parse  (admin-only; multipart form: `text`, `files`,
+#                             and optional `event_type`)
 # ─────────────────────────────────────────────────────────────────────────────
 import base64
 import io
@@ -121,6 +130,67 @@ OUTPUT — return ONLY this JSON, no prose, no code fences:
 }"""
 
 
+_PLANNED_EVENT_SYSTEM_PROMPT = """You are an expert submarine-cable network operations assistant.
+
+You will be given (a) a table of PLANNED EVENTS — future scheduled network works \
+(e.g. maintenance windows) that MAY take a cable segment down later, as opposed to \
+current live faults — in whatever messy form the user provides — pasted text, a \
+screenshot image, or spreadsheet rows — and (b) a CATALOGUE of every real cable \
+segment in our system as JSON.
+
+Your job: extract every distinct planned-event row and map it to the correct \
+segment_id from the catalogue, then return STRICT JSON.
+
+MAPPING RULES (most important):
+- Match on GEOGRAPHY first. The endpoints in the source (e.g. "(Hongkong - \
+Taiwan)") and the cable/system name are stronger signals than the segment code. \
+Compare against each catalogue entry's system, "from" and "to" (which include \
+country codes).
+- Only ever return a segment_id that appears VERBATIM in the catalogue. Never \
+invent one.
+- confidence: "high" when exactly one catalogue segment clearly fits; "low" when \
+you are guessing or 2-3 segments plausibly fit (put the alternates in \
+"candidates"); "none" when nothing in the catalogue reasonably matches (leave \
+segment_id as "").
+
+FIELD RULES:
+- Planned-event source tables typically have columns like: Cable, Segment, \
+Reference Number / Change Ref / PN Number, Notification/Raised Date, \
+Description/Reason, Planned Start Date, Planned End Date (or "Maintenance Window \
+Start/End").
+- fault_id: the reference / change / PN number. Copy it verbatim even if it looks \
+malformed. If truly absent, use "".
+- fault_date: ISO "YYYY-MM-DD" — when the planned event was raised/notified. \
+Parse ordinal/'12th Oct 2025' style dates. If a cell has two dates, use the first \
+and mention the second in the description.
+- planned_start: ISO "YYYY-MM-DD" — the window start date, parsed from whatever \
+date format appears. Leave null only if genuinely absent from the source — never \
+invent a date.
+- planned_end: ISO "YYYY-MM-DD" — the window end date, same parsing rule as \
+planned_start. Leave null only if genuinely absent — never invent a date.
+- description: the full reason / scope text, kept faithful (you may tidy \
+whitespace). Preserve work detail and notes.
+- Skip blank spacer rows and header rows.
+
+OUTPUT — return ONLY this JSON, no prose, no code fences:
+{
+  "outages": [
+    {
+      "raw_cable": "<cable name as written>",
+      "raw_segment": "<segment text as written>",
+      "segment_id": "<catalogue id or ''>",
+      "confidence": "high" | "low" | "none",
+      "candidates": ["<other plausible ids>"],
+      "fault_id": "<ref or ''>",
+      "fault_date": "YYYY-MM-DD",
+      "planned_start": "YYYY-MM-DD" | null,
+      "planned_end": "YYYY-MM-DD" | null,
+      "description": "<full text>"
+    }
+  ]
+}"""
+
+
 def _extract_file_block(file_bytes: bytes, content_type: str, filename: str) -> dict:
     """Turn an uploaded file into one LLM content block.
 
@@ -165,21 +235,30 @@ def _extract_file_block(file_bytes: bytes, content_type: str, filename: str) -> 
 
 
 @router.post("/outages/parse")
-async def parse_outages(text: str = Form(None), files: list[UploadFile] = File(None)):
-    """POST /api/outages/parse — parse a pasted/uploaded outage table into
-    proposed SegmentOutage rows (does NOT save).
+async def parse_outages(
+    text: str = Form(None),
+    files: list[UploadFile] = File(None),
+    event_type: str = Form("outage"),
+):
+    """POST /api/outages/parse — parse a pasted/uploaded outage OR planned-event
+    table into proposed SegmentOutage rows (does NOT save).
 
     Params (multipart form):
-      - text (optional): a pasted/typed outage table.
+      - text (optional): a pasted/typed table.
       - files (optional, repeatable): one or more screenshot images (e.g. pasted
         from the clipboard — a large table can be several screenshots), and/or a
         CSV/XLSX file. All images are read together in one vision call.
+      - event_type (optional, default "outage"): "outage" or "planned_event" —
+        selects which system prompt/field guidance the LLM uses and is echoed
+        onto every returned proposal.
       At least one of text or files must be provided.
     Response:
       {
-        "proposals": [ { ...outage fields..., "matched": bool,
-                         "confidence": "high|low|none", "candidates": [...] } ],
-        "existing_count": <how many outages are currently stored>,
+        "proposals": [ { ...outage/planned-event fields..., "event_type": ...,
+                         "matched": bool, "confidence": "high|low|none",
+                         "candidates": [...] } ],
+        "existing_count": <how many EXISTING records of this same event_type
+                           are currently stored>,
         "model": "<model id used>"
       }
 
@@ -187,6 +266,9 @@ async def parse_outages(text: str = Form(None), files: list[UploadFile] = File(N
     app/main.py requires the x-admin-token header when ADMIN_KEY is set.
     """
     from ..nlp.provider import get_provider
+
+    event_type = event_type if event_type == "planned_event" else "outage"
+    system_prompt = _PLANNED_EVENT_SYSTEM_PROMPT if event_type == "planned_event" else _SYSTEM_PROMPT
 
     # ── Assemble the user content blocks (files first, then pasted text) ─────
     # Each image becomes its own block; the vision model reads them in order, so
@@ -221,7 +303,7 @@ async def parse_outages(text: str = Form(None), files: list[UploadFile] = File(N
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
 
-    existing_count = len(load_outages())
+    existing_count = len([o for o in load_outages() if o.event_type == event_type])
     model_id = getattr(provider, "_VISION_MODEL", "unknown")
 
     # ── Stream progress while the model works, then the final result ──────────
@@ -232,12 +314,12 @@ async def parse_outages(text: str = Form(None), files: list[UploadFile] = File(N
     def event_stream():
         try:
             data = None
-            for ev in provider.stream_json_multimodal(_SYSTEM_PROMPT, blocks, max_tokens=16000):
+            for ev in provider.stream_json_multimodal(system_prompt, blocks, max_tokens=16000):
                 if ev.get("type") == "progress":
                     yield _sse({"type": "progress", "tokens": ev.get("tokens", 0)})
                 elif ev.get("type") == "done":
                     data = ev.get("data")
-            proposals = _normalise_proposals(data, valid_ids)
+            proposals = _normalise_proposals(data, valid_ids, event_type)
             yield _sse({
                 "type": "result",
                 "proposals": proposals,
@@ -262,14 +344,21 @@ def _sse(obj: dict) -> str:
     return f"data: {json.dumps(obj)}\n\n"
 
 
-def _normalise_proposals(result, valid_ids: set) -> list:
+def _normalise_proposals(result, valid_ids: set, event_type: str = "outage") -> list:
     """Validate + normalise the model's raw rows into review proposals.
 
     Rejects invented segment ids (demoting the row to unmatched/red), keeps only
     real candidate ids, and auto-fills a placeholder fault id when one is
     missing. `result` is the parsed model output ({"outages": [...]}).
+
+    `event_type` is the mode the parse was run in ("outage" or
+    "planned_event") — it is echoed onto every proposal, and it decides which
+    date-window fields get populated: outage rows fill repair_start /
+    estimated_repair_date and leave planned_start / planned_end null;
+    planned_event rows do the reverse.
     """
     raw_rows = result.get("outages", []) if isinstance(result, dict) else []
+    is_planned = event_type == "planned_event"
     proposals = []
     for i, row in enumerate(raw_rows):
         if not isinstance(row, dict):
@@ -286,9 +375,12 @@ def _normalise_proposals(result, valid_ids: set) -> list:
             "segment_id": seg_id,
             "fault_id": fault_id,
             "fault_date": (row.get("fault_date") or "").strip(),
-            "repair_start": row.get("repair_start") or None,
-            "estimated_repair_date": row.get("estimated_repair_date") or None,
+            "repair_start": None if is_planned else (row.get("repair_start") or None),
+            "estimated_repair_date": None if is_planned else (row.get("estimated_repair_date") or None),
+            "planned_start": (row.get("planned_start") or None) if is_planned else None,
+            "planned_end": (row.get("planned_end") or None) if is_planned else None,
             "description": (row.get("description") or "").strip(),
+            "event_type": event_type,
             "matched": matched,
             "confidence": confidence,
             "candidates": candidates,

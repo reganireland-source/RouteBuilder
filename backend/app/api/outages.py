@@ -1,20 +1,32 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# outages.py — CRUD for cable outages (faults) on segments.
+# outages.py — CRUD for cable outages AND planned events on segments.
 #
 # Route prefix: /api/outages  (this router has no prefix of its own; the paths
 # below start with "/outages", and main.py mounts the router under "/api").
 #
-# Domain: an "outage" is a cable fault — a segment that is currently down. Each
-# record is a SegmentOutage keyed by a fault_id and references the affected
-# segment_id. The route-search pathfinder reads the set of outaged segment_ids
-# so it can avoid routing traffic over broken cables.
+# Domain: this table holds two kinds of time-bound segment event, distinguished
+# by `event_type`:
+#   - "outage"        — a cable fault: a segment that is CURRENTLY down. The
+#                        route-search pathfinder reads the set of outaged
+#                        segment_ids so it can avoid routing traffic over
+#                        broken cables.
+#   - "planned_event"  — a FUTURE scheduled work window (e.g. a maintenance
+#                        window) that MAY take a segment down later. Purely
+#                        informational: it must never affect route search (see
+#                        app/api/routes.py, which filters to event_type ==
+#                        "outage" before building the avoidance set).
+# Each record is a SegmentOutage keyed by a fault_id and references the
+# affected segment_id.
 #
 # Endpoints:
-#   GET    /api/outages             — list all outages.
-#   POST   /api/outages             — record a new outage.
-#   PUT    /api/outages             — REPLACE the whole outage set (bulk).
-#   PUT    /api/outages/{fault_id}  — patch an outage.
-#   DELETE /api/outages/{fault_id}  — clear/delete an outage.
+#   GET    /api/outages                          — list all records (both types).
+#   POST   /api/outages                           — record a new outage or planned event.
+#   PUT    /api/outages?event_type=outage|planned_event
+#                                                  — REPLACE all records of just that
+#                                                    type (bulk); the other type's
+#                                                    records are left untouched.
+#   PUT    /api/outages/{fault_id}                — patch a record.
+#   DELETE /api/outages/{fault_id}                — clear/delete a record.
 # ─────────────────────────────────────────────────────────────────────────────
 from fastapi import APIRouter, HTTPException
 from ..data_loader import load_outages, save_outages
@@ -24,21 +36,34 @@ router = APIRouter()
 
 
 @router.put("/outages", response_model=list[SegmentOutage])
-def replace_all_outages(entries: list[SegmentOutage]):
-    """PUT /api/outages — replace the ENTIRE outage set in one call.
+def replace_all_outages(entries: list[SegmentOutage], event_type: str = "outage"):
+    """PUT /api/outages?event_type=outage|planned_event — replace only the
+    records of the given type, leaving the other type's records untouched.
 
-    Destructive bulk operation: every existing outage is discarded and replaced
-    by `entries`. This backs the Outage Parser's "Accept All & Replace" flow,
-    where a freshly parsed table supersedes the whole current fault list.
+    Destructive bulk operation, but TYPE-SCOPED: since outages and planned
+    events share this one table, a full-table wipe would delete the other
+    type's records as a side effect of parsing/replacing this one. Instead we
+    load everything, keep every record whose event_type differs from the one
+    requested, and splice in `entries` (filtered to the same event_type, as a
+    safety net against a caller sending mixed-type rows) in place of the old
+    ones of that type. This backs the Outage Parser's "Accept All & Replace"
+    flow, where a freshly parsed table supersedes the current fault list OR
+    the current planned-event list — never both.
 
-    Params: request body is a JSON array of SegmentOutage objects.
-    Response: the stored array (echoes what was saved).
+    Params:
+      - event_type (query, default "outage"): which type's records to replace.
+      - request body: a JSON array of SegmentOutage objects (only entries
+        matching `event_type` are kept; others are silently dropped).
+    Response: the stored array for this type (echoes what was saved).
 
     Auth: requires the x-admin-token header when ADMIN_KEY is set — enforced
     centrally by the admin_write_guard middleware in app/main.py, not here.
     """
-    save_outages(entries)
-    return entries
+    existing = load_outages()
+    kept = [o for o in existing if o.event_type != event_type]
+    incoming = [e for e in entries if e.event_type == event_type]
+    save_outages(kept + incoming)
+    return incoming
 
 
 @router.get("/outages", response_model=list[SegmentOutage])

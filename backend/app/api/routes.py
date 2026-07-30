@@ -62,7 +62,11 @@ def search_routes(request: RouteRequest):
     G = build_graph(nodes, segments)
     segments_by_id = {s.id: s for s in segments}
     capacities_by_id = {c.segment_id: c for c in capacities}
-    outage_segment_ids = {o.segment_id for o in outages}
+    # Planned Events share this table with real outages but are purely
+    # informational (a future maybe, not a current fault) — they must never
+    # cause a segment to be treated as down for routing/avoidance purposes, so
+    # only event_type == "outage" rows feed the pathfinder's avoidance set.
+    outage_segment_ids = {o.segment_id for o in outages if o.event_type == "outage"}
 
     # Build non-BU node index by country for country constraints.
     # Branching units (undersea splits) are excluded because they are not real
