@@ -91,6 +91,14 @@ def _save_file_requests(items: list[dict]) -> None:
     try:
         with os.fdopen(fd, "w") as f:
             json.dump(items, f, indent=2)
+        # mkstemp() creates 0600; without this the stored feedback file would be
+        # readable only by the writing user, unlike every other file in data/.
+        # Preserve the existing mode where there is one, else use 0644.
+        try:
+            mode = os.stat(FEATURE_REQUESTS_FILE).st_mode & 0o777
+        except FileNotFoundError:
+            mode = 0o644
+        os.chmod(tmp_path, mode)
         os.replace(tmp_path, FEATURE_REQUESTS_FILE)
     except BaseException:
         # Never leave a stray temp file behind if serialisation/replace failed.

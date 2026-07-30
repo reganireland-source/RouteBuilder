@@ -125,6 +125,17 @@ def _write(path: Path, data) -> None:
             json.dump(data, f, indent=2)
             f.flush()
             os.fsync(f.fileno())      # durability: content hits disk before the swap
+        # tempfile.mkstemp() deliberately creates 0600 files. Left as-is, every
+        # runtime write would silently tighten the permissions of a tracked data
+        # file from 0644 to 0600 — which breaks any process running as a
+        # different user from the writer (e.g. the non-root appuser in
+        # backend/Dockerfile) and diverges from what git has checked out.
+        # Preserve the destination's existing mode, else fall back to 0644.
+        try:
+            mode = os.stat(path).st_mode & 0o777
+        except FileNotFoundError:
+            mode = 0o644
+        os.chmod(tmp_path, mode)
         os.replace(tmp_path, path)    # atomic swap — the whole point of Finding #23
     except BaseException:
         # Never leave stray .tmp files behind, and never damage the original.
