@@ -2,7 +2,8 @@
 import csv
 import io
 import json
-from typing import Any, Literal
+import logging
+from typing import Any, Literal, get_args
 
 from fastapi import APIRouter, File, Query, UploadFile
 from fastapi.responses import StreamingResponse
@@ -25,9 +26,15 @@ from ..models import (
     ColocationCapabilities,
     Node,
     NodeCapabilities,
+    NodeType,
+    Ownership,
     SegmentCapacity,
+    SegmentType,
     UnderlayCapabilities,
+    VerificationStatus,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/bulk", tags=["bulk"])
 
@@ -51,10 +58,34 @@ COVERAGE_COLS = [
     "gid_speeds", "ipvpn_speeds", "colocation_category",
 ]
 
-VALID_NODE_TYPES   = {"landing_station", "primary_pop", "secondary_pop", "extension_pop", "branching_unit"}
-VALID_SEG_TYPES    = {"wet", "terrestrial"}
-VALID_OWNERSHIPS   = {"owned", "iru", "consortium", "integrated_lit_lease", "offnet_resell"}
-VALID_VERIF_STATUS = {"draft", "under_verification", "verified"}
+# ── Allowed-value sets ─────────────────────────────────────────────────────────
+#
+# Finding #10: these sets used to be hand-copied literals and had DRIFTED from
+# models.py (VALID_NODE_TYPES was missing "off_net", so validate/nodes rejected
+# a row that import/nodes happily accepted). They are now DERIVED from the
+# single source of truth in models.py, so they can never drift again — adding a
+# member to NodeType / SegmentType / Ownership / VerificationStatus is picked up
+# here automatically. Do NOT re-introduce literal copies.
+
+def _allowed_values(alias: Any) -> set[str]:
+    """Allowed string values of a models.py type alias.
+
+    Handles both spellings so this keeps working if models.py switches between
+    them: ``Literal[...]`` aliases (values come from ``typing.get_args``) and
+    ``str, Enum`` classes (values come from the members).
+    """
+    args = get_args(alias)
+    if args:
+        return {str(getattr(a, "value", a)) for a in args}
+    return {str(member.value) for member in alias}
+
+
+VALID_NODE_TYPES   = _allowed_values(NodeType)
+VALID_SEG_TYPES    = _allowed_values(SegmentType)
+VALID_OWNERSHIPS   = _allowed_values(Ownership)
+VALID_VERIF_STATUS = _allowed_values(VerificationStatus)
+# Speed grades are bulk-CSV-only vocabularies (models.py stores them as free
+# list[str]), so there is no upstream type to derive these two from.
 VALID_BB_SPEEDS  = {"1G", "10G", "100G", "400G"}
 VALID_UL_SPEEDS  = {"1G", "10G"}
 
@@ -150,11 +181,31 @@ def _result(table: str, mode: str, errors: list, warnings: list, changes: list,
     }
 
 
+# Finding #22 (CWE-1236): a cell that starts with one of these is interpreted as
+# a formula by Excel / LibreOffice / Google Sheets when the export is opened, so
+# an exported node name like '=HYPERLINK("http://evil","click")' would execute.
+_CSV_INJECTION_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(v: Any) -> Any:
+    """Neutralise spreadsheet formula injection in a single cell.
+
+    Finding #22: string cells beginning with a formula trigger get a leading
+    single quote, which spreadsheets treat as "the rest is literal text".
+    Non-string values (ints, floats, None) are returned untouched so numeric
+    columns — including genuinely negative numbers — keep their type.
+    """
+    if isinstance(v, str) and v[:1] in _CSV_INJECTION_PREFIXES:
+        return "'" + v
+    return v
+
+
 def _csv_stream(rows: list[dict], cols: list[str], filename: str) -> StreamingResponse:
     buf = io.StringIO()
     w = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
     w.writeheader()
-    w.writerows(rows)
+    # Finding #22: sanitise every string cell on the way out.
+    w.writerows({k: _csv_safe(v) for k, v in row.items()} for row in rows)
     buf.seek(0)
     return StreamingResponse(
         iter([buf.getvalue()]),
@@ -163,10 +214,56 @@ def _csv_stream(rows: list[dict], cols: list[str], filename: str) -> StreamingRe
     )
 
 
-async def _read_csv(file: UploadFile) -> list[dict]:
-    raw = await file.read()
+def _read_csv(file: UploadFile) -> list[dict]:
+    """Read an uploaded CSV synchronously.
+
+    Finding #6: the bulk handlers are plain ``def`` so Starlette runs them in a
+    threadpool instead of on the event loop. That means we cannot ``await
+    file.read()`` here — ``file.file`` is the underlying SpooledTemporaryFile
+    and is the correct blocking accessor for sync code.
+    """
+    raw = file.file.read()
     text = raw.decode("utf-8-sig")  # strip BOM written by Excel
     return list(csv.DictReader(io.StringIO(text)))
+
+
+# ── Import row-failure reporting (Finding #9) ─────────────────────────────────
+#
+# Rows that cannot be turned into a model used to be swallowed by a bare
+# `except Exception: continue`, so operators lost records while the endpoint
+# still answered {"status": "ok"}. Failures are now counted, logged at warning
+# level and returned to the caller.
+
+# CSV data rows are enumerated from 2 so the reported row number matches what
+# the user sees in their spreadsheet (row 1 is the header).
+_FIRST_DATA_ROW = 2
+
+
+def _fail_row(row_errors: list[dict], applied: dict, table: str,
+              row_num: int, reason: str) -> None:
+    """Record (and log) a row that was skipped instead of dropping it silently."""
+    clean = " ".join(str(reason).split())[:300]
+    row_errors.append({"row": row_num, "error": clean})
+    applied["failed"] = applied.get("failed", 0) + 1
+    logger.warning("bulk import %s: row %d skipped — %s", table, row_num, clean)
+
+
+def _import_result(table: str, mode: str, applied: dict,
+                   row_errors: list[dict]) -> dict:
+    """Finding #9: status reflects reality — 'partial' whenever rows were lost.
+
+    Existing keys (status / table / mode / applied) keep their meaning; `applied`
+    stays a flat str→int map for the frontend and gains a "failed" counter.
+    `row_errors` and `failed` are new.
+    """
+    return {
+        "status": "ok" if not row_errors else "partial",
+        "table": table,
+        "mode": mode,
+        "applied": applied,
+        "failed": len(row_errors),
+        "row_errors": row_errors,
+    }
 
 
 def _enum_val(v: Any) -> str:
@@ -183,7 +280,7 @@ def _apply_deletions(updated: dict, existing_keys: set, file_ids: set, mode: str
 # ── Export ─────────────────────────────────────────────────────────────────────
 
 @router.get("/export/nodes")
-async def export_nodes():
+def export_nodes():
     rows = []
     for n in load_nodes():
         rows.append({
@@ -200,7 +297,7 @@ async def export_nodes():
 
 
 @router.get("/export/segments")
-async def export_segments():
+def export_segments():
     rows = []
     for s in load_segments():
         rows.append({
@@ -217,7 +314,7 @@ async def export_segments():
 
 
 @router.get("/export/systems")
-async def export_systems():
+def export_systems():
     rows = []
     for s in load_systems():
         rows.append({
@@ -228,7 +325,7 @@ async def export_systems():
 
 
 @router.get("/export/capacity")
-async def export_capacity():
+def export_capacity():
     rows = []
     for c in load_capacity():
         rows.append({
@@ -240,7 +337,7 @@ async def export_capacity():
 
 
 @router.get("/export/coverage")
-async def export_coverage():
+def export_coverage():
     rows = []
     for n in load_nodes():
         cap = n.capabilities
@@ -262,8 +359,8 @@ async def export_coverage():
 # ── Validate ───────────────────────────────────────────────────────────────────
 
 @router.post("/validate/nodes")
-async def validate_nodes(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
-    rows = await _read_csv(file)
+def validate_nodes(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    rows = _read_csv(file)
     existing = {n.id: n for n in load_nodes()}
 
     errors, warnings, changes = [], [], []
@@ -359,8 +456,8 @@ async def validate_nodes(file: UploadFile = File(...), mode: BulkMode = Query("u
 
 
 @router.post("/validate/segments")
-async def validate_segments(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
-    rows = await _read_csv(file)
+def validate_segments(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    rows = _read_csv(file)
     existing = {s.id: s for s in load_segments()}
     node_ids = {n.id for n in load_nodes()}
     sys_ids  = {s.id for s in load_systems()}
@@ -474,8 +571,8 @@ async def validate_segments(file: UploadFile = File(...), mode: BulkMode = Query
 
 
 @router.post("/validate/systems")
-async def validate_systems(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
-    rows = await _read_csv(file)
+def validate_systems(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    rows = _read_csv(file)
     existing = {s.id: s for s in load_systems()}
 
     errors, warnings, changes = [], [], []
@@ -542,8 +639,8 @@ async def validate_systems(file: UploadFile = File(...), mode: BulkMode = Query(
 
 
 @router.post("/validate/capacity")
-async def validate_capacity(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
-    rows = await _read_csv(file)
+def validate_capacity(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    rows = _read_csv(file)
     existing = {c.segment_id: c for c in load_capacity()}
     seg_ids  = {s.id for s in load_segments()}
 
@@ -617,8 +714,8 @@ async def validate_capacity(file: UploadFile = File(...), mode: BulkMode = Query
 
 
 @router.post("/validate/coverage")
-async def validate_coverage(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
-    rows = await _read_csv(file)
+def validate_coverage(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    rows = _read_csv(file)
     existing = {n.id: n for n in load_nodes()}
 
     errors, warnings, changes = [], [], []
@@ -709,16 +806,22 @@ async def validate_coverage(file: UploadFile = File(...), mode: BulkMode = Query
 # ── Import ─────────────────────────────────────────────────────────────────────
 
 @router.post("/import/nodes")
-async def import_nodes(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
-    rows = await _read_csv(file)
+def import_nodes(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    rows = _read_csv(file)
     existing = {n.id: n for n in load_nodes()}
     updated  = dict(existing)
-    applied  = {"added": 0, "modified": 0, "unchanged": 0, "deleted": 0, "skipped": 0}
+    applied  = {"added": 0, "modified": 0, "unchanged": 0, "deleted": 0,
+                "skipped": 0, "failed": 0}
+    row_errors: list[dict] = []
     file_ids: set[str] = set()
 
-    for row in rows:
+    # Finding #9: enumerate from 2 so a reported row number lines up with the
+    # spreadsheet row the operator is looking at (row 1 = header).
+    for row_num, row in enumerate(rows, _FIRST_DATA_ROW):
         rid = row.get("id", "").strip().upper()
         if not rid:
+            _fail_row(row_errors, applied, "nodes", row_num,
+                      "'id' is empty — row skipped")
             continue
         file_ids.add(rid)
 
@@ -749,7 +852,9 @@ async def import_nodes(file: UploadFile = File(...), mode: BulkMode = Query("ups
                 verification_status=verif,
                 last_verified_date=last_verified or None,
             )
-        except Exception:
+        except Exception as exc:
+            # Finding #9: report the discarded row instead of swallowing it.
+            _fail_row(row_errors, applied, "nodes", row_num, f"id '{rid}': {exc}")
             continue
 
         if rid in existing:
@@ -760,20 +865,25 @@ async def import_nodes(file: UploadFile = File(...), mode: BulkMode = Query("ups
 
     _apply_deletions(updated, set(existing), file_ids, mode, applied)
     save_nodes(list(updated.values()))
-    return {"status": "ok", "table": "nodes", "mode": mode, "applied": applied}
+    return _import_result("nodes", mode, applied, row_errors)
 
 
 @router.post("/import/segments")
-async def import_segments(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
-    rows = await _read_csv(file)
+def import_segments(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    rows = _read_csv(file)
     existing = {s.id: s for s in load_segments()}
     updated  = dict(existing)
-    applied  = {"added": 0, "modified": 0, "unchanged": 0, "deleted": 0, "skipped": 0}
+    applied  = {"added": 0, "modified": 0, "unchanged": 0, "deleted": 0,
+                "skipped": 0, "failed": 0}
+    row_errors: list[dict] = []
     file_ids: set[str] = set()
 
-    for row in rows:
+    # Finding #9: row numbers include the header offset (row 1 = header).
+    for row_num, row in enumerate(rows, _FIRST_DATA_ROW):
         rid = row.get("id", "").strip().upper()
         if not rid:
+            _fail_row(row_errors, applied, "segments", row_num,
+                      "'id' is empty — row skipped")
             continue
         file_ids.add(rid)
 
@@ -806,7 +916,9 @@ async def import_segments(file: UploadFile = File(...), mode: BulkMode = Query("
                 verification_status=seg_verif,
                 last_verified_date=seg_last_verified or None,
             )
-        except Exception:
+        except Exception as exc:
+            # Finding #9: report the discarded row instead of swallowing it.
+            _fail_row(row_errors, applied, "segments", row_num, f"id '{rid}': {exc}")
             continue
 
         if rid in existing:
@@ -817,20 +929,25 @@ async def import_segments(file: UploadFile = File(...), mode: BulkMode = Query("
 
     _apply_deletions(updated, set(existing), file_ids, mode, applied)
     save_segments(list(updated.values()))
-    return {"status": "ok", "table": "segments", "mode": mode, "applied": applied}
+    return _import_result("segments", mode, applied, row_errors)
 
 
 @router.post("/import/systems")
-async def import_systems(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
-    rows = await _read_csv(file)
+def import_systems(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    rows = _read_csv(file)
     existing = {s.id: s for s in load_systems()}
     updated  = dict(existing)
-    applied  = {"added": 0, "modified": 0, "unchanged": 0, "deleted": 0, "skipped": 0}
+    applied  = {"added": 0, "modified": 0, "unchanged": 0, "deleted": 0,
+                "skipped": 0, "failed": 0}
+    row_errors: list[dict] = []
     file_ids: set[str] = set()
 
-    for row in rows:
+    # Finding #9: row numbers include the header offset (row 1 = header).
+    for row_num, row in enumerate(rows, _FIRST_DATA_ROW):
         rid = row.get("id", "").strip().upper()
         if not rid:
+            _fail_row(row_errors, applied, "systems", row_num,
+                      "'id' is empty — row skipped")
             continue
         file_ids.add(rid)
 
@@ -845,7 +962,9 @@ async def import_systems(file: UploadFile = File(...), mode: BulkMode = Query("u
                 description=row.get("description", "").strip(),
                 margin=float(margin_raw) if margin_raw else None,
             )
-        except Exception:
+        except Exception as exc:
+            # Finding #9: report the discarded row instead of swallowing it.
+            _fail_row(row_errors, applied, "systems", row_num, f"id '{rid}': {exc}")
             continue
 
         if rid in existing:
@@ -856,20 +975,25 @@ async def import_systems(file: UploadFile = File(...), mode: BulkMode = Query("u
 
     _apply_deletions(updated, set(existing), file_ids, mode, applied)
     save_systems(list(updated.values()))
-    return {"status": "ok", "table": "systems", "mode": mode, "applied": applied}
+    return _import_result("systems", mode, applied, row_errors)
 
 
 @router.post("/import/capacity")
-async def import_capacity(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
-    rows = await _read_csv(file)
+def import_capacity(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    rows = _read_csv(file)
     existing = {c.segment_id: c for c in load_capacity()}
     updated  = dict(existing)
-    applied  = {"added": 0, "modified": 0, "unchanged": 0, "deleted": 0, "skipped": 0}
+    applied  = {"added": 0, "modified": 0, "unchanged": 0, "deleted": 0,
+                "skipped": 0, "failed": 0}
+    row_errors: list[dict] = []
     file_ids: set[str] = set()
 
-    for row in rows:
+    # Finding #9: row numbers include the header offset (row 1 = header).
+    for row_num, row in enumerate(rows, _FIRST_DATA_ROW):
         rid = row.get("segment_id", "").strip().upper()
         if not rid:
+            _fail_row(row_errors, applied, "capacity", row_num,
+                      "'segment_id' is empty — row skipped")
             continue
         file_ids.add(rid)
 
@@ -883,7 +1007,10 @@ async def import_capacity(file: UploadFile = File(...), mode: BulkMode = Query("
                 total_capacity_t=float(row.get("total_capacity_t", 0) or 0),
                 available_capacity_t=float(row.get("available_capacity_t", 0) or 0),
             )
-        except Exception:
+        except Exception as exc:
+            # Finding #9: report the discarded row instead of swallowing it.
+            _fail_row(row_errors, applied, "capacity", row_num,
+                      f"segment_id '{rid}': {exc}")
             continue
 
         if rid in existing:
@@ -894,19 +1021,29 @@ async def import_capacity(file: UploadFile = File(...), mode: BulkMode = Query("
 
     _apply_deletions(updated, set(existing), file_ids, mode, applied)
     save_capacity(list(updated.values()))
-    return {"status": "ok", "table": "capacity", "mode": mode, "applied": applied}
+    return _import_result("capacity", mode, applied, row_errors)
 
 
 @router.post("/import/coverage")
-async def import_coverage(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
-    rows = await _read_csv(file)
+def import_coverage(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    rows = _read_csv(file)
     nodes_list = load_nodes()
     by_id = {n.id: n for n in nodes_list}
-    applied = {"added": 0, "modified": 0, "unchanged": 0, "deleted": 0, "skipped": 0}
+    applied = {"added": 0, "modified": 0, "unchanged": 0, "deleted": 0,
+               "skipped": 0, "failed": 0}
+    row_errors: list[dict] = []
 
-    for row in rows:
+    # Finding #9: row numbers include the header offset (row 1 = header).
+    for row_num, row in enumerate(rows, _FIRST_DATA_ROW):
         rid = row.get("node_id", "").strip().upper()
-        if not rid or rid not in by_id:
+        if not rid:
+            _fail_row(row_errors, applied, "coverage", row_num,
+                      "'node_id' is empty — row skipped")
+            continue
+        if rid not in by_id:
+            # Finding #9: unknown node used to be dropped without a trace.
+            _fail_row(row_errors, applied, "coverage", row_num,
+                      f"node_id '{rid}' not found in Nodes — row skipped")
             continue
 
         def sp(field: str) -> list[str]:
@@ -914,24 +1051,38 @@ async def import_coverage(file: UploadFile = File(...), mode: BulkMode = Query("
             return [s.strip() for s in raw.split(",") if s.strip()] if raw else []
 
         cat_raw = (row.get("colocation_category") or "").strip()
-        cat_val = int(cat_raw) if cat_raw and cat_raw.isdigit() else None
+        if cat_raw and not cat_raw.isdigit():
+            # Finding #9: previously coerced to None, silently wiping colocation.
+            _fail_row(row_errors, applied, "coverage", row_num,
+                      f"node_id '{rid}': colocation_category '{cat_raw}' is not an "
+                      "integer 1-5 — row skipped")
+            continue
+        cat_val = int(cat_raw) if cat_raw else None
 
         ipt  = sp("ipt_speeds");  epl  = sp("epl_speeds");  evpl = sp("evpl_speeds")
         gid  = sp("gid_speeds");  ipvpn = sp("ipvpn_speeds")
 
-        backbone   = BackboneCapabilities(ipt=ipt or None, epl=epl or None, evpl=evpl or None) if any([ipt, epl, evpl]) else None
-        underlay   = UnderlayCapabilities(gid=gid or None, ipvpn=ipvpn or None)                if any([gid, ipvpn])    else None
-        colocation = ColocationCapabilities(category=cat_val)                                  if cat_val              else None
-        new_cap    = NodeCapabilities(backbone=backbone, underlay=underlay, colocation=colocation) if any([backbone, underlay, colocation]) else None
+        try:
+            backbone   = BackboneCapabilities(ipt=ipt or None, epl=epl or None, evpl=evpl or None) if any([ipt, epl, evpl]) else None
+            underlay   = UnderlayCapabilities(gid=gid or None, ipvpn=ipvpn or None)                if any([gid, ipvpn])    else None
+            colocation = ColocationCapabilities(category=cat_val)                                  if cat_val              else None
+            new_cap    = NodeCapabilities(backbone=backbone, underlay=underlay, colocation=colocation) if any([backbone, underlay, colocation]) else None
 
-        old_n = by_id[rid]
-        by_id[rid] = Node(
-            id=old_n.id, name=old_n.name, lat=old_n.lat, lng=old_n.lng,
-            type=old_n.type, country=old_n.country, owner=old_n.owner,
-            trading_name=old_n.trading_name, description=old_n.description,
-            capabilities=new_cap,
-        )
+            old_n = by_id[rid]
+            new_n = Node(
+                id=old_n.id, name=old_n.name, lat=old_n.lat, lng=old_n.lng,
+                type=old_n.type, country=old_n.country, owner=old_n.owner,
+                trading_name=old_n.trading_name, description=old_n.description,
+                capabilities=new_cap,
+            )
+        except Exception as exc:
+            # Finding #9: report the discarded row instead of swallowing it.
+            _fail_row(row_errors, applied, "coverage", row_num,
+                      f"node_id '{rid}': {exc}")
+            continue
+
+        by_id[rid] = new_n
         applied["modified"] += 1
 
     save_nodes(list(by_id.values()))
-    return {"status": "ok", "table": "coverage", "mode": mode, "applied": applied}
+    return _import_result("coverage", mode, applied, row_errors)
