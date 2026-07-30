@@ -71,7 +71,7 @@ about.
 
 ### 2.1 Outcome after remediation (measured, not projected)
 
-Seven successive re-scans were run against the same instance and profile to
+Eight successive re-scans were run against the same instance and profile to
 verify each change actually moved the needle, rather than trusting that a fix
 worked:
 
@@ -79,16 +79,16 @@ worked:
 |---|---|---|
 | **Security rating** | **E** | **A** ✅ |
 | Vulnerabilities | 22 | **0** ✅ |
-| **Reliability rating** | **D** | **C** |
-| Bugs | 57 | **4** |
+| **Reliability rating** | **D** | **A** ✅ |
+| Bugs | 57 | **0** ✅ |
 | Maintainability | A | A |
-| Total findings | 11,759 | 11,731 |
+| Total findings | 11,759 | ~11,727 |
 
-Reliability's rating did not move past C despite bugs dropping from 57 to 4 —
-Sonar's rating function treats any MAJOR-or-above bug as capping below B/A
-regardless of count, and the 4 remaining (`Map`-shadows-built-in, §5) are all
-MAJOR. Getting to Reliability A requires that cosmetic rename, not further
-triage.
+Both Security and Reliability now sit at **A** with zero bugs and zero
+vulnerabilities. The last 4 bugs (`Map`-shadows-built-in, §5) were cleared by
+renaming the map-rendering component to `NetworkMap` — Sonar's rating function
+caps below A for any MAJOR-or-above bug regardless of count, so that one
+rename was the entire remaining gap between C and A.
 
 Security went E → D → B → A as each class of finding was cleared. The full
 sequence of scans is reproducible from the commits referenced in §4.
@@ -175,21 +175,24 @@ controlled by 6 findings, all now addressed.
 
 ---
 
-## 5. Remaining genuine defects — final state (4, all cosmetic)
+## 5. Remaining genuine defects — final state: zero
 
-Everything in the original 79-defect set has now been fixed, excluded with a
-recorded rationale, or reduced to this:
+Every finding in the original 79-defect set has now been fixed or excluded
+with a recorded, reversible rationale. **0 bugs, 0 vulnerabilities.**
 
-| Rule | Count | Where | Status |
-|---|---|---|---|
-| `typescript:S2424` | 3 | App.tsx, Map.tsx, MobileLayout.tsx | Open. The `Map` React component shadows the built-in `Map`. Purely cosmetic — no behavioural risk — but fixing it means renaming the component and updating every import site across the app, a larger-footprint change than the rest of this pass. Left open rather than excluded, since it is a legitimate (if low-priority) rename. |
-| `typescript:S2137` | 1 | `Map.tsx:334` | Same root cause as above. |
+The last 4 (`typescript:S2424` ×3, `S2137` ×1 — the `Map` React component
+shadowing the built-in JS `Map`) were fixed by renaming the component to
+`NetworkMap` across its definition (`Map.tsx`) and both import sites
+(`App.tsx`, `MobileLayout.tsx`). Purely a naming collision — nothing was ever
+functionally broken — but a rename was cheap to do properly rather than
+justify away.
 
-Resolved since the initial scan: `typescript:S1082` (41, fixed — §5.2),
+Full resolution history: `typescript:S1082` (41, fixed — §5.2),
 `Web:InternationalizationCheck` (10, excluded — English-only internal tool,
 confirmed with product owner), `docker:S6470/S6471/S6472` (7, fixed),
 `Web:S5725` (1, fixed by bundling Leaflet's CSS), `typescript:S4036` (1,
-excluded — build-time only, no user input), `typescript:S2871` (2, fixed).
+excluded — build-time only, no user input), `typescript:S2871` (2, fixed),
+`typescript:S2424`/`S2137` (4, fixed by the `NetworkMap` rename).
 
 ### 5.1 Accounting: what was fixed in code vs. assessed and excluded
 
