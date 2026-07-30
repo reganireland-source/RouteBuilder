@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuth } from './context/AuthContext'
-import { Map } from './components/Map'
+import { NetworkMap } from './components/Map'
 import { SearchForm } from './components/SearchForm'
 import { RouteList } from './components/RouteList'
 import type { SortKey } from './components/RouteList'
@@ -1411,7 +1411,7 @@ export default function App() {
           )}
 
           {nodes.length > 0 ? (
-            <Map
+            <NetworkMap
               nodes={nodes} segments={segments} selectedRoutes={selectedRoutes}
               capacity={capacity} pinnedRoutes={pinnedRoutes} selectedSystems={selectedSystems}
               outages={outages}

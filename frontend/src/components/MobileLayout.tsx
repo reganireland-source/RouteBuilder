@@ -33,7 +33,7 @@
  */
 import { lazy, Suspense, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Map } from './Map'
+import { NetworkMap } from './Map'
 import { SearchForm } from './SearchForm'
 import { RouteList } from './RouteList'
 import type { SortKey } from './RouteList'
@@ -325,7 +325,7 @@ export function MobileLayout({
       {/* ── Full-screen map ─────────────────────────────────────────────── */}
       <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
         {nodes.length > 0 ? (
-          <Map
+          <NetworkMap
             nodes={nodes}
             segments={segments}
             selectedRoutes={selectedRoutes}
