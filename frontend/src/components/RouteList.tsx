@@ -161,6 +161,10 @@ function routeHasOutage(route: Route, outagesById: Record<string, SegmentOutage>
   return route.segments.some(s => !!outagesById[s.segment_id])
 }
 
+function routeHasPlannedEvent(route: Route, plannedById: Record<string, SegmentOutage>): boolean {
+  return route.segments.some(s => !!plannedById[s.segment_id])
+}
+
 function routeKey(r: Route) { return r.nodes.join('|') }
 
 /** A route's usable capacity is limited by its lowest-capacity wet segment.
@@ -232,6 +236,10 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
   // Planned Event (event_type === 'planned_event') must never be mistaken for a
   // live fault here. Legacy rows with no event_type stored default to 'outage'.
   const outagesById = Object.fromEntries(outages.filter(o => (o.event_type ?? 'outage') !== 'planned_event').map(o => [o.segment_id, o]))
+  // Future scheduled works — shown alongside outages but with a deliberately
+  // less severe treatment (amber, smaller) since they are not down yet. Never
+  // affects sort order or route filtering — informational only.
+  const plannedById = Object.fromEntries(outages.filter(o => o.event_type === 'planned_event').map(o => [o.segment_id, o]))
   const [notesRoute, setNotesRoute] = useState<Route | null>(null)
   const [allNotes, setAllNotes] = useState<SolutionNote[]>([])
   useEffect(() => { api.getSolutionNotes().then(setAllNotes).catch(() => {}) }, [])
@@ -393,7 +401,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                     protectPin={protectByWorkerPinId.get(p.pinId)}
                     nodesById={nodesById}
                     capacityById={capacityById}
-                    outagesById={outagesById}
+                    outagesById={outagesById} plannedById={plannedById}
                     onNetSet={onNetSet}
                     systemsById={systemsById}
                     onEnrichCircuit={onEnrichCircuit ? () => onEnrichCircuit(p) : undefined}
@@ -519,7 +527,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                   onSelectPair={selectPair}
                   nodesById={nodesById}
                   capacityById={capacityById}
-                  outagesById={outagesById}
+                  outagesById={outagesById} plannedById={plannedById}
                   onNetSet={onNetSet}
                   systemsById={systemsById}
                   pinnedKeys={pinnedKeys}
@@ -564,7 +572,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                       onSelect={onSelectRoute}
                       nodesById={nodesById}
                       capacityById={capacityById}
-                      outagesById={outagesById}
+                      outagesById={outagesById} plannedById={plannedById}
                       color={t.blue}
                       isPinned={pinnedKeys.has(routeKey(r))}
                       canPin={canPin}
@@ -588,7 +596,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                       onSelect={onSelectRoute}
                       nodesById={nodesById}
                       capacityById={capacityById}
-                      outagesById={outagesById}
+                      outagesById={outagesById} plannedById={plannedById}
                       color={t.green}
                       isPinned={pinnedKeys.has(routeKey(r))}
                       canPin={canPin}
@@ -643,7 +651,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
  *  combined pin/add-to-project action. */
 function PairCard({
   pair, idx, selected, onSelectPair,
-  nodesById, capacityById, outagesById, onNetSet, systemsById,
+  nodesById, capacityById, outagesById, plannedById, onNetSet, systemsById,
   pinnedKeys, canPin, onPin, onPinPair,
   flipped, onFlip, onAddToProject,
   onShowNotes, routeHasNotes,
@@ -655,6 +663,7 @@ function PairCard({
   nodesById: Record<string, { name: string; type?: string }>
   capacityById: Record<string, SegmentCapacity>
   outagesById: Record<string, SegmentOutage>
+  plannedById: Record<string, SegmentOutage>
   onNetSet: Set<string>
   systemsById: Record<string, CableSystem>
   pinnedKeys: Set<string>
@@ -737,7 +746,7 @@ function PairCard({
         onSelect={() => onSelectPair(worker.id, protect.id)}
         nodesById={nodesById}
         capacityById={capacityById}
-        outagesById={outagesById}
+        outagesById={outagesById} plannedById={plannedById}
         color={t.blue}
         isPinned={pinnedKeys.has(routeKey(worker)) && pinnedKeys.has(routeKey(protect))}
         canPin={canPin}
@@ -763,7 +772,7 @@ function PairCard({
         onSelect={() => onSelectPair(protect.id, worker.id)}
         nodesById={nodesById}
         capacityById={capacityById}
-        outagesById={outagesById}
+        outagesById={outagesById} plannedById={plannedById}
         color={t.green}
         isPinned={pinnedKeys.has(routeKey(worker)) && pinnedKeys.has(routeKey(protect))}
         canPin={canPin}
@@ -783,11 +792,11 @@ function PairCard({
         >
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: t.blue, marginBottom: 6, letterSpacing: '0.04em' }}>🔵 Worker</div>
-            <PairBreakdown route={worker} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.blue} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+            <PairBreakdown route={worker} outagesById={outagesById} plannedById={plannedById} sharedIds={sharedIds} accentColor={t.blue} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
           </div>
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: t.green, marginBottom: 6, letterSpacing: '0.04em' }}>🟢 Protect</div>
-            <PairBreakdown route={protect} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.green} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+            <PairBreakdown route={protect} outagesById={outagesById} plannedById={plannedById} sharedIds={sharedIds} accentColor={t.green} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
           </div>
         </div>
       )}
@@ -833,12 +842,13 @@ function CompressedPinCard({ pinned, onUnpin, systemsById }: {
 
 /** A route in the pinned bar, drawn in its pin colour with an unpin control and
  *  (in project mode) circuit label / enrichment actions. */
-function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, onNetSet, systemsById, onEnrichCircuit, onAddToProject, activeProject, protectPin, onShowNotes, hasNotes }: {
+function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, plannedById, onNetSet, systemsById, onEnrichCircuit, onAddToProject, activeProject, protectPin, onShowNotes, hasNotes }: {
   pinned: PinnedRoute
   onUnpin: () => void
   nodesById: Record<string, { name: string; type?: string }>
   capacityById: Record<string, SegmentCapacity>
   outagesById: Record<string, SegmentOutage>
+  plannedById: Record<string, SegmentOutage>
   onNetSet: Set<string>
   systemsById: Record<string, CableSystem>
   onEnrichCircuit?: () => void
@@ -873,6 +883,8 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   const estCapColor = estCap < 0.5 ? t.red : estCap < 1.0 ? t.orange : t.green
   const hasOutage = routeHasOutage(route, outagesById)
   const repairDateLabel = hasOutage ? latestRepairDate(route, outagesById) : ''
+  const hasPlanned = routeHasPlannedEvent(route, plannedById)
+  const plannedStartLabel = hasPlanned ? earliestPlannedStart(route, plannedById) : ''
   const routeMargin = computeRouteMargin(route, systemsById)
 
   return (
@@ -982,6 +994,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
             <NetBadge route={route} onNetSet={onNetSet} />
             <MarginBadge margin={routeMargin} />
             {hasOutage && <OutageBadge repairDate={repairDateLabel} />}
+            {hasPlanned && <PlannedEventBadge startDate={plannedStartLabel} />}
           </div>
           <span style={{ fontSize: 11, color: t.textFaint, flexShrink: 0 }}>{route.nodes.length - 1} hops</span>
         </div>
@@ -1031,7 +1044,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
 
         {isMobile && segmentsOpen && (
           <div style={{ marginTop: 8 }}>
-            <SegmentBreakdownRows route={route} capacityById={capacityById} outagesById={outagesById} onNetSet={onNetSet} />
+            <SegmentBreakdownRows route={route} capacityById={capacityById} outagesById={outagesById} plannedById={plannedById} onNetSet={onNetSet} />
           </div>
         )}
 
@@ -1064,11 +1077,11 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6, padding: '10px 10px 6px', borderRadius: 6, background: t.bgDeep, border: `1px solid ${t.border}` }}>
                   <div>
                     <div style={{ fontSize: 10, fontWeight: 700, color: t.blue, marginBottom: 6, letterSpacing: '0.04em' }}>🔵 Worker</div>
-                    <PairBreakdown route={worker} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.blue} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+                    <PairBreakdown route={worker} outagesById={outagesById} plannedById={plannedById} sharedIds={sharedIds} accentColor={t.blue} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
                   </div>
                   <div>
                     <div style={{ fontSize: 10, fontWeight: 700, color: t.green, marginBottom: 6, letterSpacing: '0.04em' }}>🟢 Protect</div>
-                    <PairBreakdown route={protect} outagesById={outagesById} sharedIds={sharedIds} accentColor={t.green} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+                    <PairBreakdown route={protect} outagesById={outagesById} plannedById={plannedById} sharedIds={sharedIds} accentColor={t.green} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
                   </div>
                 </div>
               )}
@@ -1079,7 +1092,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
       </div>
 
       {!isMobile && hovered && createPortal(
-        <SegmentTooltip route={route} capacityById={capacityById} outagesById={outagesById} pos={tooltipPos} onNetSet={onNetSet} />,
+        <SegmentTooltip route={route} capacityById={capacityById} outagesById={outagesById} plannedById={plannedById} pos={tooltipPos} onNetSet={onNetSet} />,
         document.body
       )}
     </div>
@@ -1088,13 +1101,14 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
 
 /** Card for a single (non-paired) route: path summary, key stats, margin/on-net
  *  badges, capacity, and select / pin / add-to-project controls. */
-function RouteCard({ route, selected, onSelect, nodesById, capacityById, outagesById, color, isPinned, canPin, onPin, onNetSet, systemsById, onAddToProject, onShowNotes, hasNotes }: {
+function RouteCard({ route, selected, onSelect, nodesById, capacityById, outagesById, plannedById, color, isPinned, canPin, onPin, onNetSet, systemsById, onAddToProject, onShowNotes, hasNotes }: {
   route: Route
   selected: boolean
   onSelect: (id: string) => void
   nodesById: Record<string, { name: string; type?: string }>
   capacityById: Record<string, SegmentCapacity>
   outagesById: Record<string, SegmentOutage>
+  plannedById: Record<string, SegmentOutage>
   color: string
   isPinned: boolean
   canPin: boolean
@@ -1126,6 +1140,8 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
   const pinDisabled = !isPinned && !canPin
   const hasOutage = routeHasOutage(route, outagesById)
   const repairDateLabel = hasOutage ? latestRepairDate(route, outagesById) : ''
+  const hasPlanned = routeHasPlannedEvent(route, plannedById)
+  const plannedStartLabel = hasPlanned ? earliestPlannedStart(route, plannedById) : ''
   const routeMargin = computeRouteMargin(route, systemsById)
 
   return (
@@ -1151,6 +1167,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
           <NetBadge route={route} onNetSet={onNetSet} />
           <MarginBadge margin={routeMargin} />
           {hasOutage && <OutageBadge repairDate={repairDateLabel} />}
+          {hasPlanned && <PlannedEventBadge startDate={plannedStartLabel} />}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: t.textFaint }}>{route.nodes.length - 1} hops</span>
@@ -1237,12 +1254,12 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
 
       {isMobile && segmentsOpen && (
         <div role="presentation" style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
-          <SegmentBreakdownRows route={route} capacityById={capacityById} outagesById={outagesById} onNetSet={onNetSet} />
+          <SegmentBreakdownRows route={route} capacityById={capacityById} outagesById={outagesById} plannedById={plannedById} onNetSet={onNetSet} />
         </div>
       )}
 
       {!isMobile && hovered && createPortal(
-        <SegmentTooltip route={route} capacityById={capacityById} outagesById={outagesById} pos={tooltipPos} onNetSet={onNetSet} />,
+        <SegmentTooltip route={route} capacityById={capacityById} outagesById={outagesById} plannedById={plannedById} pos={tooltipPos} onNetSet={onNetSet} />,
         document.body
       )}
     </div>
@@ -1284,9 +1301,10 @@ function NetBadge({ route, onNetSet }: { route: Route; onNetSet: Set<string> }) 
   )
 }
 
-function PairBreakdown({ route, outagesById, sharedIds, accentColor, nodesById, sharedNodeIds }: {
+function PairBreakdown({ route, outagesById, plannedById, sharedIds, accentColor, nodesById, sharedNodeIds }: {
   route: Route
   outagesById: Record<string, SegmentOutage>
+  plannedById: Record<string, SegmentOutage>
   sharedIds: Set<string>
   accentColor: string
   nodesById: Record<string, { name: string; type?: string }>
@@ -1311,6 +1329,7 @@ function PairBreakdown({ route, outagesById, sharedIds, accentColor, nodesById, 
         // Segment details (computed only when seg exists)
         const isSharedSeg = seg ? sharedIds.has(seg.segment_id) : false
         const segOutage = seg ? outagesById[seg.segment_id] : undefined
+        const segPlanned = seg ? plannedById[seg.segment_id] : undefined
         const isWet = seg?.type === 'wet'
         const trackColor = isSharedSeg ? t.orange + '99' : t.border
 
@@ -1385,6 +1404,7 @@ function PairBreakdown({ route, outagesById, sharedIds, accentColor, nodesById, 
                         </span>
                       )}
                       {segOutage && <span style={{ fontSize: 11 }} title="Active outage">⚠️</span>}
+                      {segPlanned && <span style={{ fontSize: 11 }} title={`Planned work: ${segPlanned.planned_start ?? 'TBC'} – ${segPlanned.planned_end ?? 'TBC'}`}>🗓️</span>}
                       <span style={{ fontSize: 9, color: t.textFaint, textTransform: 'uppercase' as const }}>{seg.type}</span>
                     </div>
                   </div>
@@ -1404,10 +1424,11 @@ function PairBreakdown({ route, outagesById, sharedIds, accentColor, nodesById, 
   )
 }
 
-function SegmentBreakdownRows({ route, capacityById, outagesById, onNetSet }: {
+function SegmentBreakdownRows({ route, capacityById, outagesById, plannedById, onNetSet }: {
   route: Route
   capacityById: Record<string, SegmentCapacity>
   outagesById: Record<string, SegmentOutage>
+  plannedById: Record<string, SegmentOutage>
   onNetSet: Set<string>
 }) {
   const t = useTheme()
@@ -1434,6 +1455,7 @@ function SegmentBreakdownRows({ route, capacityById, outagesById, onNetSet }: {
         const netColor = onNet === true ? t.green : onNet === false ? t.red : null
         const netLabel = onNet === true ? 'ON-NET' : onNet === false ? 'OFF-NET' : null
         const outage = outagesById[seg.segment_id]
+        const planned = plannedById[seg.segment_id]
         return (
           <div key={seg.segment_id} style={{ marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${t.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1467,6 +1489,26 @@ function SegmentBreakdownRows({ route, capacityById, outagesById, onNetSet }: {
                     </span>
                   </span>
                 )}
+                {/* Deliberately quieter than the outage indicator above (smaller
+                    icon, no bold red text) — a future planned window is not a
+                    current problem. */}
+                {planned && (
+                  <span
+                    title={[
+                      `Reference: ${planned.fault_id}`,
+                      `Raised: ${planned.fault_date}`,
+                      `Planned Start: ${planned.planned_start ?? 'TBC'}`,
+                      `Planned End: ${planned.planned_end ?? 'TBC'}`,
+                      planned.description,
+                    ].join('\n')}
+                    style={{ cursor: 'help', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                  >
+                    <span style={{ fontSize: 11, lineHeight: 1 }}>🗓️</span>
+                    <span style={{ fontSize: 10, fontWeight: 500, color: t.orange }}>
+                      {formatRepairDate(planned.planned_start)} – {formatRepairDate(planned.planned_end)}
+                    </span>
+                  </span>
+                )}
               </div>
               <span style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase' }}>{seg.type}</span>
             </div>
@@ -1494,10 +1536,11 @@ function SegmentBreakdownRows({ route, capacityById, outagesById, onNetSet }: {
   )
 }
 
-function SegmentTooltip({ route, capacityById, outagesById, pos, onNetSet }: {
+function SegmentTooltip({ route, capacityById, outagesById, plannedById, pos, onNetSet }: {
   route: Route
   capacityById: Record<string, SegmentCapacity>
   outagesById: Record<string, SegmentOutage>
+  plannedById: Record<string, SegmentOutage>
   pos: { top: number; left: number }
   onNetSet: Set<string>
 }) {
@@ -1513,7 +1556,7 @@ function SegmentTooltip({ route, capacityById, outagesById, pos, onNetSet }: {
         fontFamily: 'system-ui, sans-serif', pointerEvents: 'none',
       }}
     >
-      <SegmentBreakdownRows route={route} capacityById={capacityById} outagesById={outagesById} onNetSet={onNetSet} />
+      <SegmentBreakdownRows route={route} capacityById={capacityById} outagesById={outagesById} plannedById={plannedById} onNetSet={onNetSet} />
     </div>
   )
 }
@@ -1539,6 +1582,18 @@ function latestRepairDate(route: Route, outagesById: Record<string, SegmentOutag
   return formatRepairDate(isoDates[isoDates.length - 1])
 }
 
+function earliestPlannedStart(route: Route, plannedById: Record<string, SegmentOutage>): string {
+  const isoDates = route.segments
+    .map(s => plannedById[s.segment_id]?.planned_start)
+    .filter((d): d is string => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d))
+    // Same rationale as latestRepairDate: strict YYYY-MM-DD sorts correctly
+    // with a plain, locale-independent comparator, and here we want the
+    // EARLIEST (soonest) window across the route rather than the latest.
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+  if (isoDates.length === 0) return 'Date TBC'
+  return formatRepairDate(isoDates[0])
+}
+
 function OutageBadge({ repairDate }: { repairDate: string }) {
   const t = useTheme()
   return (
@@ -1551,6 +1606,23 @@ function OutageBadge({ repairDate }: { repairDate: string }) {
         ⚠ 🚢 UNDER REPAIR
       </span>
       <span style={{ fontSize: 10, color: t.red, fontWeight: 600 }}>{repairDate}</span>
+    </span>
+  )
+}
+
+/**
+ * Deliberately quieter than OutageBadge — a future planned work window is not
+ * a current problem, so it gets plain text (no solid pill, no border, lighter
+ * weight) rather than the loud red "UNDER REPAIR" block. Shows the earliest
+ * upcoming planned_start across the route's segments; per-segment detail
+ * (including the full window and description) is in the segment breakdown.
+ */
+function PlannedEventBadge({ startDate }: { startDate: string }) {
+  const t = useTheme()
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', fontSize: 10, color: t.orange, fontWeight: 500 }}>
+      <span style={{ fontSize: 11, lineHeight: 1 }}>🗓️</span>
+      Planned work from {startDate}
     </span>
   )
 }
