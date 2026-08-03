@@ -39,6 +39,7 @@ import base64
 import io
 import json
 import logging
+import re
 import uuid
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
@@ -54,6 +55,27 @@ _IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
 # Combined cap across all uploaded files (a large table may be several
 # screenshots). Kept in step with the body-size middleware in main.py.
 _MAX_UPLOAD_TOTAL = 25 * 1024 * 1024  # 25 MB
+
+# "Not yet assigned" placeholder text that source tables commonly put in the
+# reference-number column (e.g. a planned event raised before its formal
+# change/PN number is issued). The system prompt already asks the model to
+# return "" for these rather than copying the placeholder text, but that is a
+# request, not a guarantee — a model can still echo "PN TBD" verbatim. Since
+# fault_id is the table's PRIMARY KEY, several rows sharing one placeholder
+# would collide the moment they are saved. This set is the deterministic
+# backstop: normalised here in code, so the outcome does not depend on the
+# model having followed the prompt correctly.
+_MISSING_REF_PLACEHOLDERS = {
+    "tbd", "pn tbd", "pending", "tbc", "n/a", "na", "-", "none", "unknown", "",
+}
+
+
+def _is_missing_ref(value: str) -> bool:
+    """True if `value` is empty or one of the common "not yet assigned" tokens
+    (case/whitespace-insensitive, with any leading "PN"/"REF"/"CHANGE" label
+    stripped) — see _MISSING_REF_PLACEHOLDERS above."""
+    normalised = re.sub(r"^(pn|ref|change)[\s:.-]*", "", value.strip().lower()).strip()
+    return normalised in _MISSING_REF_PLACEHOLDERS
 
 
 def _build_segment_catalogue() -> tuple[list[dict], set[str]]:
@@ -102,7 +124,13 @@ segment_id as "").
 
 FIELD RULES:
 - fault_id: the reference number (e.g. "SNI3976365"). Copy it verbatim even if it \
-looks malformed. If truly absent, use "".
+looks malformed. If truly absent, OR if the cell only holds a not-yet-assigned \
+placeholder ("TBD", "PN TBD", "PENDING", "TBC", "N/A", "-", or similar, \
+case-insensitive), return "" — do NOT copy the placeholder text itself. \
+Multiple rows in one table commonly share the exact same "TBD"-style \
+placeholder; fault_id is a unique key, so copying that text verbatim into \
+several rows makes them collide when saved. Returning "" lets each such row \
+get its own distinct id instead.
 - fault_date: ISO "YYYY-MM-DD". Parse ordinal/'12th Oct 2025' style dates. If a \
 cell has two dates, use the first and mention the second in the description.
 - repair_start: ISO "YYYY-MM-DD", or null for "TBD"/"TBC"/blank.
@@ -160,7 +188,14 @@ Reference Number / Change Ref / PN Number, Notification/Raised Date, \
 Description/Reason, Planned Start Date, Planned End Date (or "Maintenance Window \
 Start/End").
 - fault_id: the reference / change / PN number. Copy it verbatim even if it looks \
-malformed. If truly absent, use "".
+malformed. If truly absent, OR if the cell only holds a not-yet-assigned \
+placeholder ("TBD", "PN TBD", "PENDING", "TBC", "N/A", "-", or similar, \
+case-insensitive), return "" — do NOT copy the placeholder text itself. \
+Multiple rows in one table commonly share the exact same "TBD"-style \
+placeholder (a planned event raised before its change number is issued); \
+fault_id is a unique key, so copying that text verbatim into several rows \
+makes them collide when saved. Returning "" lets each such row get its own \
+distinct id instead.
 - fault_date: ISO "YYYY-MM-DD" — when the planned event was raised/notified. \
 Parse ordinal/'12th Oct 2025' style dates. If a cell has two dates, use the first \
 and mention the second in the description.
@@ -373,17 +408,24 @@ def _normalise_proposals(result, valid_ids: set, event_type: str = "outage") -> 
         candidates = [c for c in (row.get("candidates") or []) if c in valid_ids]
         # fault_id is the table's PRIMARY KEY (see db.py's outages schema), so a
         # placeholder for a missing reference number must be globally unique —
-        # not just unique within this one parse. A per-parse sequential index
-        # (the previous "TMP-{i+1:03d}" scheme) restarts at TMP-001 on every
-        # call, so two independent parses (or an Outages parse and a Planned
-        # Events parse) each missing their first reference number produce the
-        # SAME id — the second save then hits a Postgres UniqueViolation on
-        # outages_pkey. That is an unhandled exception, which (unlike a
-        # deliberate HTTPException) reaches the browser as a raw 500 with no
-        # CORS headers — indistinguishable from "Failed to fetch". A short
-        # random suffix makes a collision practically impossible regardless of
-        # how many times parsing has run before.
-        fault_id = (row.get("fault_id") or "").strip() or f"TMP-{uuid.uuid4().hex[:8].upper()}"
+        # not just unique within this one parse. Two things feed into "missing"
+        # here: the cell was genuinely empty, OR it held a "not yet assigned"
+        # token like "TBD"/"PN TBD" (_is_missing_ref) — source tables commonly
+        # put that exact same placeholder text on SEVERAL rows (an event raised
+        # before its change number is issued), and copying it verbatim would
+        # make those rows collide on save just as much as an empty cell would.
+        # The placeholder itself is a short random suffix (not a per-parse
+        # sequential index) so a collision is practically impossible regardless
+        # of how many times parsing has run before, across event types or
+        # sessions — a sequential "TMP-{i+1:03d}" scheme restarts at TMP-001 on
+        # every call and WILL eventually collide with an earlier parse.
+        # Un-normalised, any of this reaches Postgres as an unhandled
+        # UniqueViolation: a raw 500 with no CORS headers, indistinguishable
+        # from "Failed to fetch" in the browser (see replace_all_outages in
+        # outages.py, which now also validates this defensively before saving).
+        raw_fault_id = (row.get("fault_id") or "").strip()
+        placeholder = f"TMP-{uuid.uuid4().hex[:8].upper()}"
+        fault_id = raw_fault_id if raw_fault_id and not _is_missing_ref(raw_fault_id) else placeholder
         proposals.append({
             "segment_id": seg_id,
             "fault_id": fault_id,
