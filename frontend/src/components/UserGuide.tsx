@@ -136,19 +136,23 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     { icon: '📌', title: 'Pinned Routes & SLD Export',
       desc: 'Pin up to 5 routes for comparison, then export a straight-line diagram. Choose a version label (Proposal / Draft / Final) and export as PDF (branded, customer-ready cover page plus per-route diagrams with proportional segment layout) or DrawIO / Visio XML for collaborative editing.' },
     { icon: '🗄', title: 'Ref Data Management',
-      desc: 'Full CRUD for nodes, segments, systems, capacity, outages, interconnect rules and solution notes. Nodes carry city, address and description fields. Verification status (Draft / Under Verification / Verified) is tracked per node and segment — click the status badge in any row to change it without opening the full edit form. Bulk CSV import/export includes all fields.' },
+      desc: 'Full CRUD for nodes, segments, systems, capacity, outages, planned events, interconnect rules and solution notes. Nodes carry city, address and description fields. Verification status (Draft / Under Verification / Verified) is tracked per node and segment — click the status badge in any row to change it without opening the full edit form. The Outages tab is split into two clearly separated sections, Active Outages and Planned Events. A Config tab lets admins switch the live map between OpenStreetMap and Google Maps, with a live status light confirming the chosen provider is actually reachable. Bulk CSV import/export includes all fields.' },
     { icon: '⇄', title: 'Node Handoff Rules',
       desc: 'Four rule types per node — Disallowed Pair, Allowed Pair, No Handoff, and Restricted Handoff Segments. "No Handoff" prevents a node from being used as a circuit endpoint (e.g. where anticompetitive restrictions apply at a CLS). "Restricted Handoff Segments" limits which physical segments may terminate at a node — only those explicitly listed are permitted. All rules are hard constraints that remove non-compliant paths before any result is returned.' },
     { icon: '📋', title: 'Solution Notes — Knowledge Repository',
       desc: 'Capture local expertise, site-specific guidance and operational context against any node or segment in the network. Notes are permanent reference data — raised once, visible on every route that includes that asset. Each note carries a category (Site Access, Handoff Notes, Customs/Regulatory, SLA/Protection, IRU/Lease Terms and more), a severity (Info / Warning / Critical), a title and free-text body. Click the 📋 button on any route card to open the Solution Notes overlay — a metro map view on the left with severity indicators, and all notes in route order on the right. Click "+ Add Note" on any node or segment to jump directly to the Ref Data form pre-filled for that asset.' },
     { icon: '🚨', title: 'Live Outage Awareness',
-      desc: 'Active segment outages appear on route cards with repair date estimates. Push outage-affected routes to the bottom with one click — keeping viable options front and centre during a network incident.' },
+      desc: 'Active segment outages appear on route cards, the segment breakdown and the diverse-route diagram with repair date estimates. Push outage-affected routes to the bottom with one click — keeping viable options front and centre during a network incident.' },
+    { icon: '🗓️', title: 'Planned Events',
+      desc: 'Future scheduled network works — a maintenance window, a firmware upgrade, planned civil works — captured the same way as outages but kept clearly distinct. A Planned Event never affects route search: it does not block a segment and is never pushed down by the outage-push sort, since the work has not happened yet. It shows everywhere an outage does — route card, segment breakdown, diverse-route diagram — but with a deliberately quieter amber treatment (no red pill, smaller icon) instead of the red "UNDER REPAIR" indicator, so you can see an upcoming risk to a customer\'s in-service date without it reading as a current problem. Also shown on the live map: toggle "Show Planned Events" (🗓️, its own control, separate from "Show All Outages") to see every upcoming work window on the network.' },
+    { icon: '⚡', title: 'AI Outage Parser',
+      desc: 'Paste a table, paste a screenshot, or upload an image/CSV/XLSX of your current outage or planned-works tracker, and AI extracts every row and maps it to the correct segment — reading cable names and endpoint geography the same way a human would, not just exact codes. A segmented toggle picks Outages or Planned Events mode before parsing, since the two use different date fields (repair window vs planned window). Every proposed row gets a traffic-light status: green for a confident match, amber for a best guess with alternate candidates offered, red for no match — red rows are excluded until you pick a segment or delete them. Full inline editing before you commit. "Accept All & Replace" is scoped to whichever type you parsed — replacing your Outages never touches your Planned Events, and vice versa. Open via the ⚡ AI Outage Parser button at the top of the Ref Data Outages tab (admin only).' },
     { icon: '📱', title: 'Mobile-First Design',
       desc: 'Full feature parity on phones and tablets — including Country Viewer, Manual Route Builder, City Pairs, Node Search and Outages. Demo routes, answer customer questions and build proposals from anywhere.' },
     { icon: '🎨', title: 'Theme Cycling',
       desc: 'Click the theme button in the top-right control bar to cycle through available colour themes. The theme applies globally — including map tiles, route cards, diagrams and all panels.' },
     { icon: '🔒', title: 'Admin Roles & Access Control',
-      desc: 'When the ADMIN_KEY environment variable is set on the backend, the app enforces two access modes. Viewers can search, explore and export freely. Admins (who know the key) can also create, edit and delete ref data. The AdminBar at the top of the page shows current access mode — click it to enter the key and unlock edit access. Without ADMIN_KEY the app runs in open/dev mode with full access for everyone.' },
+      desc: 'When the ADMIN_KEY environment variable is set on the backend, the app enforces two access modes. Viewers can search, explore and export freely. Admins (who know the key) can also create, edit and delete ref data. The AdminBar at the top of the page shows current access mode — click it to enter the key and unlock edit access. Access now fails CLOSED by design: if ADMIN_KEY is not configured, every write is refused rather than left open to anyone — the opposite of the old open-by-default behaviour. An explicit ALLOW_OPEN_WRITES=true escape hatch exists for local development only and must never be set on a deployed environment.' },
     { icon: '🧪', title: 'Algorithm Evaluation',
       desc: `A built-in UAT test suite that exercises the routing algorithm against ${48} defined scenarios — endpoint connectivity, wet and full diversity, node/system/country constraints, latency budgets, and edge cases. Each test runs the live API, checks assertions, and shows a metro-map route visualisation. Known network limitations are flagged in amber so a "fail" result is always explained in context. Open via the 🧪 Algo Eval button in the control menu. Run history is stored in the browser for up to 20 runs.` },
   ]
@@ -545,7 +549,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             ])}
 
             {flow('C', '#86efac', 'Editing Reference Data', [
-              'You add, update or delete a node, segment, system or outage via the Ref Data panel',
+              'You add, update or delete a node, segment, system, outage or planned event via the Ref Data panel — or paste/upload a table into the AI Outage Parser for bulk entry',
               'Browser calls the appropriate REST API endpoint on the backend (POST, PUT or DELETE)',
               'Backend validates the change and writes it to PostgreSQL',
               'The database update is immediate and permanent — visible to all users on next page load',
@@ -686,7 +690,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           <div style={{ ...card() as React.CSSProperties, padding: '22px 20px' }}>
             <div style={sectionLabel as React.CSSProperties}>Optimise For — Step 3 (Override)</div>
             <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.65, margin: '0 0 14px' }}>
-              Setting an Optimise For dimension replaces the multi-dimension pool entirely. All 50 slots are filled with the best routes for that single metric. Use when you have a clear commercial priority.
+              Setting an Optimise For dimension replaces the multi-dimension pool entirely. All 50 slots are filled with the best routes for that single metric. Use when you have a clear commercial priority. "No Outages" only ever considers CURRENT live faults — a Planned Event (a future scheduled work window) never counts as an outage here and can never exclude a route; it is informational only, everywhere in the app.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {[
@@ -760,7 +764,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             {sortChip('$',  'MARGIN',  '↓ highest first', 'Best weighted margin score')}
             {sortChip('◈', 'CAPACITY', '↓ highest first', 'Highest bottleneck capacity')}
             {sortChip('◉', 'OWN',      '↑ most on-net',   'Highest on-net segment ratio')}
-            {sortChip('🚢', 'UP',      '↓ outages last',  'Push routes under repair to bottom')}
+            {sortChip('🚢', 'UP',      '↓ outages last',  'Push routes under repair to bottom — current outages only, never a Planned Event')}
           </div>
         </div>
 
@@ -870,8 +874,11 @@ export function UserGuide({ nodes, segments, systems }: Props) {
                 fields: 'segment_id · total_capacity_t · available_capacity_t',
                 role: 'Powers the capacity dashboard. Available Tbps at the bottleneck segment sets the est. capacity shown on each route card.' },
               { icon: '🚨', name: 'Outages', color: t.red,
-                fields: 'segment_id · fault_id · fault_date · estimated_repair_date · description',
-                role: 'Flags affected segments on route cards with repair estimates. Drives the "UP" outage-push sort button.' },
+                fields: 'segment_id · fault_id · fault_date · repair_start · estimated_repair_date · description · event_type',
+                role: 'Flags affected segments on route cards with repair estimates. Drives the "UP" outage-push sort button. Shares its table with Planned Events below, distinguished by event_type — outages avoid route search, planned events never do.' },
+              { icon: '🗓️', name: 'Planned Events', color: t.orange,
+                fields: 'segment_id · fault_id · fault_date · planned_start · planned_end · description · event_type',
+                role: 'Same table and fields as Outages (event_type=\'planned_event\'), with planned_start/planned_end in place of the repair window. Shown everywhere an outage is, with a quieter amber treatment — never affects route search, sorting or filtering.' },
               { icon: '⇄', name: 'Interconnect Rules', color: t.orange,
                 fields: 'node_id · disallowed_pairs · allowed_pairs · no_handoff · allowed_handoff_segments',
                 role: 'Four rule types per node: Disallowed Pair (two systems may not interconnect), Allowed Pair (only these systems may interconnect), No Handoff (node cannot be a circuit endpoint), Restricted Handoff Segments (only specific segments may terminate here). All are hard constraints applied before any route is returned.' },
@@ -974,8 +981,11 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               'Static table maintained manually — updated from network planning spreadsheets when capacity changes.',
               'Veritas inventory feed — total and available capacity per segment updated automatically as circuits are provisioned and released.')}
             {todayTomorrowRow('Segment Outages', t.red,
-              'Manually entered in Ref Data by network ops team when a fault is raised or repaired.',
+              'Entered in Ref Data by network ops when a fault is raised or repaired — either by hand, or in bulk via the AI Outage Parser (paste/upload the team\'s tracker, AI maps every row to a segment for review).',
               'Telstra Service Management (TSM, powered by ServiceNow) — fault records pushed to RouteBuilder automatically on creation and status change.')}
+            {todayTomorrowRow('Planned Events', t.orange,
+              'Same Ref Data panel and AI Outage Parser as outages (a mode toggle picks Planned Events), kept structurally distinct — never affects route search, only ever informational.',
+              'Same TSM feed, distinguished by record type — a scheduled change record flows in as a Planned Event rather than a live fault.')}
             {todayTomorrowRow('Latency / RTD', t.blue,
               'Static values from completed engineering RTD tests — the current distance-based propagation estimate is a temporary placeholder.',
               'NMS (Network Management System) — measured round-trip delay per segment in real time, reflecting actual fibre path and amplifier latency.')}
@@ -996,7 +1006,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               { icon: '🏗', color: t.blue,     title: 'Graph Build',            desc: 'On startup, the backend loads all Nodes and Segments from PostgreSQL and builds a weighted NetworkX graph. Edge weights incorporate length, latency, reliability and ownership.' },
               { icon: '⚖️', color: t.orange,   title: 'Constraint Resolution',  desc: 'When a search request arrives, must_include / must_avoid IDs (nodes, segments, systems, countries) are resolved against the live node and segment dataset.' },
               { icon: '◈',  color: t.green,    title: 'Capacity Overlay',        desc: 'Available capacity per segment is loaded from the Capacity table and applied as a secondary filter when sorting by capacity.' },
-              { icon: '🚨', color: t.red,      title: 'Outage Flagging',         desc: 'Each path is checked against the Outages table. Affected routes receive an outage badge and can be pushed to the bottom of results by the UP sort.' },
+              { icon: '🚨', color: t.red,      title: 'Outage Flagging',         desc: 'Each path is checked against the Outages table. Affected routes receive an outage badge and can be pushed to the bottom of results by the UP sort. Planned Events are checked and shown the same way, with a quieter amber badge — but never filtered, sorted or excluded, since the work has not happened yet.' },
               { icon: '$',  color: '#8b5cf6',  title: 'Margin Scoring',          desc: 'Each segment\'s ownership type and its parent system\'s margin score are combined to compute a weighted route margin (1–10) — the commercial attractiveness indicator.' },
             ].map(({ icon, color, title, desc }) => (
               <div key={title} style={{
@@ -1365,6 +1375,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     { title: 'Verification Status Badges',    category: 'Data Management',           desc: 'Draft / Under Verification / Verified status per node and segment — click badge to update inline.' },
     { title: 'Node Handoff Rules',            category: 'Data Management',           desc: 'Four hard-constraint rule types per node — Disallowed Pair, Allowed Pair, No Handoff, and Restricted Handoff Segments — applied as pre-filters before any route is returned.' },
     { title: 'Solution Notes — Knowledge Repository', category: 'Data Management',  desc: 'Permanent notes (site access, customs, SLA, IRU terms, handoff guidance, lifespan and more) attached to any node or segment, visible in a metro-map overlay on every route that includes that asset.' },
+    { title: 'Planned Events',                category: 'Data Management',           desc: 'Future scheduled network works, captured alongside outages but kept structurally and visually distinct — never affects route search, sorting or filtering. Shown on route cards, segment breakdown, the diverse-route diagram and the live map (its own "Show Planned Events" toggle) with a deliberately quieter amber treatment than a current outage.' },
+    { title: 'AI Outage Parser',              category: 'Data Management',           desc: 'Paste or upload an outage or planned-events table (text, screenshot, CSV/XLSX) and AI extracts every row, maps it to the correct segment by reading endpoint geography, and proposes it for review with a green/amber/red confidence status. A mode toggle switches between Outages and Planned Events; "Accept All & Replace" is scoped to whichever type you parsed, so one never overwrites the other.' },
     { title: 'Customer Solution Projects',    category: 'Customer Solutions & SLD',  desc: 'Full project management for customer solutions — circuits, enrichment, SLD export in one workflow.' },
     { title: 'A-End/Z-End Circuit Enrichment',category: 'Customer Solutions & SLD', desc: 'Per-endpoint technical detail including access type, supplier, interface and protection scheme.' },
     { title: 'Quick SLD Export',              category: 'Reporting & Export',        desc: 'Instant branded straight-line diagram from any pinned routes — choose version label (Proposal / Draft / Final) then export as PDF or DrawIO / Visio XML.' },
@@ -1373,6 +1385,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     { title: 'Dark / Light Theme',            category: 'UI/UX & Design',            desc: 'Full dark and light theme support throughout the entire application.' },
     { title: 'Mobile-First Design',           category: 'UI/UX & Design',            desc: 'Full feature parity on phones and tablets — demo routes and answer customer questions from anywhere.' },
     { title: 'White Node Diagram Panel',      category: 'UI/UX & Design',            desc: 'Clean all-white panel for the country node diagram — no dark bands, muted professional colour palette.' },
+    { title: 'Google Maps / OpenStreetMap Toggle', category: 'UI/UX & Design',       desc: 'Admins can switch the live map\'s base layer between OpenStreetMap and Google Maps from Ref Data → Config, with a live status light confirming the chosen provider is actually reachable before you rely on it.' },
   ]
 
   const IN_DEV_FEATURES: { title: string; category: string; desc: string }[] = [
@@ -1694,7 +1707,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           {[
             { icon: '🗄', name: 'PostgreSQL', tier: 'Required', color: '#3b82f6', desc: 'Primary data store. Falls back to JSON files if DATABASE_URL is absent (dev only — not suitable for production multi-user use).' },
             { icon: '🤖', name: 'LLM API (Claude / GPT)', tier: 'Optional', color: '#8b5cf6', desc: 'Powers TSABuddy natural language search. Set NLP_ENABLED=true + one API key. Application is fully functional without it.' },
-            { icon: '🔑', name: 'Microsoft Entra ID / Okta', tier: 'Recommended', color: '#f59e0b', desc: 'SSO / OIDC. Not yet wired in — implementation guide below. No auth exists today; add before production launch.' },
+            { icon: '🔑', name: 'Microsoft Entra ID / Okta', tier: 'Recommended', color: '#f59e0b', desc: 'SSO / OIDC. Not yet wired in — implementation guide below. Today\'s auth is a single shared admin key (ADMIN_KEY): fail-closed, viewer vs admin, no per-user identity. Add SSO before production launch for individual accountability.' },
             { icon: '📦', name: 'CDN / Static Hosting', tier: 'Required', color: '#10b981', desc: 'Frontend build artefacts are static files. Serve via Vercel, S3+CloudFront, or Nginx. No server-side rendering required.' },
           ].map(svc => (
             <div key={svc.name} style={{ background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 10, padding: '16px 18px' }}>
@@ -1716,18 +1729,24 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         <div style={sectionLabel as React.CSSProperties}>Security Posture</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <div style={{ background: '#1c1c2e', border: '1px solid #f38ba844', borderRadius: 10, padding: '18px 20px' }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#f38ba8', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Current State (Prototype)</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#f38ba8', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Current State (Hardened Prototype)</div>
             {[
-              ['⚠️', 'API-key auth (ADMIN_KEY) — viewer vs admin roles live'],
-              ['⚠️', 'Admin-key RBAC: edit access gated — SSO/Entra not yet wired'],
-              ['❌', 'No audit logging'],
-              ['⚠️', 'API keys in environment variables (insecure at rest)'],
-              ['⚠️', 'No rate limiting on API endpoints'],
-              ['⚠️', 'CORS allows all origins in dev mode'],
+              ['✅', 'Fail-closed admin auth — writes are refused (503) if ADMIN_KEY is unset, never silently left open'],
+              ['✅', 'Constant-time token comparison on admin auth — no timing side-channel'],
+              ['✅', 'CORS correctly ordered as the outermost middleware — every response, including a blocked/erroring write, carries proper headers instead of surfacing as an opaque browser network error'],
+              ['✅', 'Per-IP rate limiting on every public endpoint, with a bounded, self-cleaning bucket store'],
+              ['✅', 'Request body cap enforced on bytes actually received — not spoofable via chunked transfer encoding'],
+              ['✅', 'Content-Security-Policy + standard hardening headers (X-Frame-Options, X-Content-Type-Options, HSTS) on every response'],
+              ['✅', 'SQL identifier allowlisting on every dynamically-built query, values always parameterised'],
+              ['✅', 'Docker images run as non-root, minimal build context — no test suite, .env or dev scripts shipped in the image'],
+              ['✅', 'Dependencies patched — fastapi/starlette/pydantic upgraded, pip-audit clean, zero known CVEs'],
+              ['✅', 'SonarQube max-pedantic scan (1,566 rules — 283 more than the tool\'s own default profile): Security A, Reliability A, 0 bugs, 0 vulnerabilities'],
+              ['⚠️', 'API-key auth (ADMIN_KEY) — viewer vs admin roles live; SSO/Entra not yet wired'],
+              ['⚠️', 'Structured per-request access logging is in place (correlation ID, method/path/status/duration); a full before/after change-audit trail is not yet built'],
+              ['⚠️', 'API keys in environment variables — adequate at current scale; a secrets manager is the target-state upgrade'],
               ['✅', 'HTTPS enforced on Railway / Vercel'],
-              ['✅', 'No PII in data model'],
+              ['✅', 'No PII in the data model — customer name/contact fields removed entirely; only opportunity IDs and technical site data are retained'],
               ['✅', 'Input validation via Pydantic on all endpoints'],
-              ['✅', 'Dependencies updated — no known CVEs (as of build date)'],
             ].map(([icon, text]) => (
               <div key={text} style={{ display: 'flex', gap: 8, marginBottom: 6, fontSize: 11, color: t.textMuted, lineHeight: 1.5 }}>
                 <span>{icon}</span><span>{text}</span>
@@ -1739,10 +1758,11 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             {[
               ['✅', 'SSO via Entra ID / Okta (OIDC)'],
               ['✅', 'Role-based access: Viewer / Editor / Admin'],
-              ['✅', 'Immutable audit log (who changed what, when)'],
+              ['✅', 'Immutable audit log (who changed what, when — before/after values)'],
               ['✅', 'API keys stored in secrets manager (AWS Secrets Manager / Azure Key Vault)'],
-              ['✅', 'Rate limiting + WAF on public endpoints'],
+              ['✅', 'WAF on public endpoints (rate limiting is already live in the app itself)'],
               ['✅', 'CORS locked to corporate domain only'],
+              ['✅', 'CI-integrated quality gate — the SonarQube max-pedantic profile run automatically on every PR, not just on demand'],
               ['✅', 'Automated Dependabot / Snyk scanning in CI'],
               ['✅', 'Data classification label: Commercial Confidential'],
               ['✅', 'Penetration test prior to external exposure'],
@@ -2584,6 +2604,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               ['ON-NET / OFF-NET / MIXED', 'Ownership classification. Mixed shows the % of route on our infrastructure.'],
               ['MARGIN X.X', 'Weighted average commercial margin score. Green ≥7.5, amber ≥4.5, red below 4.5.'],
               ['⚠ Repair Date', 'One or more segments on this route have an active outage. Shows estimated repair date.'],
+              ['🗓️ Planned Work', 'One or more segments have a scheduled future work window — shown in amber, deliberately quieter than the red outage badge. Shows the earliest planned start date; never affects search or sort.'],
               ['Hops', 'Number of segments. Branching unit nodes are hidden from the path display for readability.'],
               ['RTD', 'Round-trip delay in milliseconds. Calculated from total route distance at fibre speed.'],
               ['Avail', 'End-to-end reliability as a percentage — product of all segment reliability scores.'],

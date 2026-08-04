@@ -268,9 +268,9 @@ function drawMoreFeatures(doc: jsPDF, nodeCount: number, segmentCount: number, s
     ['📌', 'Pinned Routes & SLD Export',
       'Pin up to 5 routes, then export a branded straight-line diagram PDF ready for customer presentations.'],
     ['🗄', 'Ref Data Management',
-      'Full CRUD for nodes, segments, systems, capacity, outages and interconnect rules — all editable within the app.'],
-    ['🚨', 'Live Outage Awareness',
-      'Active segment outages shown on route cards with repair dates. Push outage routes to the bottom with one click.'],
+      'Full CRUD for nodes, segments, systems, capacity, outages, planned events and interconnect rules — all editable within the app, including AI-assisted bulk entry from a pasted table or screenshot.'],
+    ['🚨', 'Outages & Planned Events',
+      'Active faults appear on route cards with repair dates and push to the bottom with one click. Future scheduled works show alongside them in a lighter amber, without ever affecting route search.'],
     ['📱', 'Mobile-First Design',
       'Full feature parity on phones and tablets — bottom-drawer navigation, collapsible panels and touch-optimised controls.'],
   ]
@@ -446,7 +446,7 @@ function drawAlgorithm(doc: jsPDF, pageNum: number) {
     ['$',  'Margin',    'Fill 30 with best commercial margin',    '↓ highest first'],
     ['◈',  'Capacity',  'Fill 30 with highest bottleneck Tbps',   '↓ most first'],
     ['◉',  'Ownership', 'Fill 30 with most on-net routes',        '↓ most on-net first'],
-    ['🚢', 'No Outages','Exclude any route with an active outage','✓ all segments healthy'],
+    ['🚢', 'No Outages','Exclude routes with a CURRENT active outage (never a Planned Event)','✓ all segments healthy'],
   ] as [string,string,string,string][]) {
     const xOff = col * (halfW + 4)
     doc.setFontSize(8.5)
@@ -833,6 +833,7 @@ function drawDataModel2(doc: jsPDF, pageNum: number) {
   const supporting: SuppRow[] = [
     { entity: 'Capacity',         fields: 'segment_id · total_capacity_t · available_capacity_t',  role: 'Powers the capacity dashboard and available-capacity sort dimension.' },
     { entity: 'Outages',          fields: 'segment_id · fault_id · fault_date · estimated_repair_date · description', role: 'Flags affected segments on route cards. Used by the "UP" outage-push sort.' },
+    { entity: 'Planned Events',   fields: 'segment_id · fault_id · fault_date · planned_start · planned_end · description', role: 'Same table as Outages, distinguished by event_type. Shown alongside outages, never affects route search.' },
     { entity: 'Interconnect Rules', fields: 'node_id · disallowed_pairs · allowed_pairs',          role: 'Enforces which cable systems may or may not connect at a given node — hard constraint in route validation.' },
   ]
   for (const row of supporting) {
@@ -879,7 +880,7 @@ function drawDataModel2(doc: jsPDF, pageNum: number) {
 
   const dataRows: [string, string, string, [number,number,number]][] = [
     ['Network Capacity',  'Static table — manually updated from network planning spreadsheets', 'Veritas inventory feed — live total & available capacity per segment, auto-updated as circuits are provisioned', GREEN],
-    ['Segment Outages',   'Manually entered in Ref Data panel by network ops team', 'Telstra Service Management / TSM (ServiceNow) — fault records pushed automatically on creation & status change', ORANGE],
+    ['Outages & Planned Events', 'Entered in Ref Data by network ops — by hand, or in bulk via the AI Outage Parser', 'Telstra Service Management / TSM (ServiceNow) — fault and change records pushed automatically on creation & status change', ORANGE],
     ['Latency / RTD',     'Static values from engineering RTD tests — distance-based propagation estimate is a temporary placeholder', 'NMS (Network Mgmt System) — measured round-trip delay per segment in real time', BLUE],
     ['Node & Segment IDs','Sourced from the Global PoP List with supplementary engineering data — maintained in PostgreSQL', 'Network inventory auto-sync — new nodes and segments commissioned directly into RouteBuilder on provisioning', PURPLE],
     ['Margin Scores',     'Manual commercial weighting set by the commercial team',  'Pricing engine integration — margin auto-derived from live IRU/lease cost data', RED],
@@ -921,7 +922,7 @@ function drawDataModel2(doc: jsPDF, pageNum: number) {
       ['Graph Build',   BLUE,   'On startup, the backend loads all Nodes and Segments from PostgreSQL and builds a weighted NetworkX graph. Edge weights incorporate length, latency, reliability and ownership.'],
       ['Constraint Resolution', ORANGE, 'When a search request arrives, the system resolves must_include / must_avoid IDs (nodes, segments, systems, countries) against the live node and segment datasets.'],
       ['Capacity Overlay', GREEN,  'Available capacity per segment is loaded from the Capacity table (today: static; tomorrow: live Inventory feed) and applied as a secondary filter when sorting by capacity.'],
-      ['Outage Flagging',  RED,    'Each path is checked against the Outages table (today: manual; tomorrow: TSM feed). Affected routes receive an outage badge and can be pushed to the bottom of results.'],
+      ['Outage Flagging',  RED,    'Each path is checked against the Outages table (today: manual or AI-assisted; tomorrow: TSM feed). Affected routes receive an outage badge and can be pushed to the bottom of results. Planned Events are shown the same way in a lighter amber, but never filtered or sorted — informational only.'],
       ['Margin Scoring',  PURPLE, 'Each segment\'s ownership type and its parent system\'s margin score are combined to compute a weighted route margin (1–10) — the commercial attractiveness indicator.'],
     ]
     for (const [title, color, desc] of steps) {
