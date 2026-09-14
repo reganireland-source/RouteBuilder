@@ -136,7 +136,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     { icon: '📌', title: 'Pinned Routes & SLD Export',
       desc: 'Pin up to 5 routes for comparison, then export a straight-line diagram. Choose a version label (Proposal / Draft / Final) and export as PDF (branded, customer-ready cover page plus per-route diagrams with proportional segment layout) or DrawIO / Visio XML for collaborative editing.' },
     { icon: '🗄', title: 'Ref Data Management',
-      desc: 'Full CRUD for nodes, segments, systems, capacity, outages, planned events, interconnect rules and solution notes. Nodes carry city, address and description fields. Verification status (Draft / Under Verification / Verified) is tracked per node and segment — click the status badge in any row to change it without opening the full edit form. The Outages tab is split into two clearly separated sections, Active Outages and Planned Events. A Config tab lets admins switch the live map between OpenStreetMap and Google Maps, with a live status light confirming the chosen provider is actually reachable. Bulk CSV import/export includes all fields.' },
+      desc: 'Full CRUD for nodes, segments, systems, capacity, outages, planned events, interconnect rules and solution notes. Nodes carry city, address and description fields. Verification status (Draft / Under Verification / Verified) is tracked per node and segment — click the status badge in any row to change it without opening the full edit form. The Outages tab is split into two clearly separated sections, Active Outages and Planned Events. A Config tab lets admins switch the live map between the free tiles (Esri, no key required, English place labels) and Google Maps, with a live status light confirming the chosen provider is actually reachable. Bulk CSV import/export includes all fields.' },
     { icon: '⇄', title: 'Node Handoff Rules',
       desc: 'Four rule types per node — Disallowed Pair, Allowed Pair, No Handoff, and Restricted Handoff Segments. "No Handoff" prevents a node from being used as a circuit endpoint (e.g. where anticompetitive restrictions apply at a CLS). "Restricted Handoff Segments" limits which physical segments may terminate at a node — only those explicitly listed are permitted. All rules are hard constraints that remove non-compliant paths before any result is returned.' },
     { icon: '📋', title: 'Solution Notes — Knowledge Repository',
@@ -565,7 +565,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           <div style={{ ...card() as React.CSSProperties }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
               {[
-                { layer: 'Frontend', items: ['React 18', 'TypeScript', 'Vite', 'Leaflet / OpenStreetMap'] },
+                { layer: 'Frontend', items: ['React 18', 'TypeScript', 'Vite', 'Leaflet / Esri'] },
                 { layer: 'Backend', items: ['Python 3.11', 'FastAPI', 'NetworkX', 'Pydantic'] },
                 { layer: 'Database', items: ['PostgreSQL', 'psycopg2', 'JSONB storage'] },
                 { layer: 'AI', items: ['Claude (Anthropic)', 'Azure OpenAI (alternative)', 'Structured NLP extraction'] },
@@ -1385,7 +1385,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     { title: 'Dark / Light Theme',            category: 'UI/UX & Design',            desc: 'Full dark and light theme support throughout the entire application.' },
     { title: 'Mobile-First Design',           category: 'UI/UX & Design',            desc: 'Full feature parity on phones and tablets — demo routes and answer customer questions from anywhere.' },
     { title: 'White Node Diagram Panel',      category: 'UI/UX & Design',            desc: 'Clean all-white panel for the country node diagram — no dark bands, muted professional colour palette.' },
-    { title: 'Google Maps / OpenStreetMap Toggle', category: 'UI/UX & Design',       desc: 'Admins can switch the live map\'s base layer between OpenStreetMap and Google Maps from Ref Data → Config, with a live status light confirming the chosen provider is actually reachable before you rely on it.' },
+    { title: 'Google Maps / Free Maps Toggle', category: 'UI/UX & Design',       desc: 'Admins can switch the live map\'s base layer between the free tiles (Esri, no key required) and Google Maps from Ref Data → Config, with a live status light confirming the chosen provider is actually reachable before you rely on it.' },
   ]
 
   const IN_DEV_FEATURES: { title: string; category: string; desc: string }[] = [

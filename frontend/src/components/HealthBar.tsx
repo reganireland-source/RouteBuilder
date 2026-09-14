@@ -15,7 +15,7 @@
  * Side effects / polling:
  *   - Calls api.getHealth() (GET /api/health) and api.getNlpHealth() (GET /api/health/nlp)
  *     on mount and every 30 seconds; results drive the Backend, Data, Database and LLM dots.
- *   - Maps check: for OSM it fetches a single tile from tile.openstreetmap.org with a 5 s
+ *   - Maps check: for the free provider it fetches a single Esri basemap tile with a 5 s
  *     timeout — this replaced a check against CARTO's basemaps.cartocdn.com, which now
  *     gates its tiles behind an API key but still returns an HTTP 200 "API KEY REQUIRED"
  *     watermark tile, so that check falsely reported "OK" even when the map was unusable;
@@ -127,11 +127,11 @@ export function HealthBar({ dataLoaded, mapsProvider }: Props) {
     } else {
       const ctrl = new AbortController()
       const timeout = setTimeout(() => ctrl.abort(), 5000)
-      fetch('https://a.tile.openstreetmap.org/3/4/2.png', { signal: ctrl.signal })
+      fetch('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/3/2/4', { signal: ctrl.signal })
         .then(r => {
           if (!cancelled) {
             setMapsStatus(r.ok ? 'ok' : 'error')
-            setMapsDetail(r.ok ? 'OpenStreetMap' : `HTTP ${r.status}`)
+            setMapsDetail(r.ok ? 'Free maps (Esri)' : `HTTP ${r.status}`)
           }
         })
         .catch(() => { if (!cancelled) { setMapsStatus('error'); setMapsDetail('Tile server unreachable') } })

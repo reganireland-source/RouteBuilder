@@ -522,10 +522,10 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   // Probe whether the selected map provider is actually reachable, driving the
   // status light on the Config tab. For Google, poll for the async-loaded SDK;
-  // for OSM, fetch a sample tile from tile.openstreetmap.org with a 5s timeout
-  // (not CARTO's basemaps.cartocdn.com — CARTO now gates its tiles behind an API
-  // key but still returns an HTTP 200 "key required" watermark tile, which would
-  // falsely read as healthy).
+  // for the free provider, fetch a sample Esri tile with a 5s timeout (not CARTO's
+  // basemaps.cartocdn.com — CARTO now gates its tiles behind an API key but still
+  // returns an HTTP 200 "key required" watermark tile, which would falsely read
+  // as healthy).
   useEffect(() => {
     setMapsStatus('checking')
     let cancelled = false
@@ -551,7 +551,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     } else {
       const ctrl = new AbortController()
       const timeout = setTimeout(() => ctrl.abort(), 5000)
-      fetch('https://a.tile.openstreetmap.org/3/4/2.png', { signal: ctrl.signal })
+      fetch('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/3/2/4', { signal: ctrl.signal })
         .then(r => { if (!cancelled) setMapsStatus(r.ok ? 'ok' : 'error') })
         .catch(() => { if (!cancelled) setMapsStatus('error') })
         .finally(() => clearTimeout(timeout))
@@ -2460,7 +2460,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
               }} title={mapsStatus === 'ok' ? 'Service reachable' : mapsStatus === 'error' ? 'Service unreachable' : 'Checking…'} />
             </div>
             <div style={{ fontSize: 11, color: t.textFaint, marginBottom: 12 }}>
-              Switch between OpenStreetMap tiles (free, open-source, no key required) and Google Maps satellite/roadmap.
+              Switch between the free map tiles (Esri, no key required, English place labels) and Google Maps satellite/roadmap.
               Google Maps requires <code>VITE_GMAPS_API_KEY</code> to be set in the environment.
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -2478,7 +2478,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                       color: active ? t.blue : t.textMuted,
                     }}
                   >
-                    {p === 'osm' ? 'OpenStreetMap' : 'Google Maps'}
+                    {p === 'osm' ? 'Free Maps' : 'Google Maps'}
                   </button>
                 )
               })}

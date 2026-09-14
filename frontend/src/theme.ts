@@ -4,20 +4,30 @@
  * Defines the Theme interface (background layers, borders, text emphasis levels, accent
  * colours, map styling) and three concrete palettes: darkTheme (Catppuccin-Mocha-like,
  * the default), lightTheme (Catppuccin-Latte-like) and duskTheme (dark UI over a light,
- * richly-labeled map). Each theme also carries the Leaflet raster tile URL (mapTileUrl),
- * its attribution string (mapAttribution), an optional CSS filter applied to the tile
- * layer (mapTileFilter) and an inactive-segment colour for the map. Components read the
- * active theme with the useTheme() hook via ThemeContext; App.tsx provides the chosen
- * theme at the root.
+ * richly-labeled map). Each theme also carries the Leaflet raster tile URL (mapTileUrl)
+ * and its attribution string (mapAttribution), plus an inactive-segment colour for the
+ * map. Components read the active theme with the useTheme() hook via ThemeContext;
+ * App.tsx provides the chosen theme at the root.
  *
- * Tile source: the standard OpenStreetMap raster tiles (tile.openstreetmap.org) — free,
- * keyless, open-source and open-data (ODbL), maintained by the OSM Foundation itself.
- * Previously this used CARTO's basemaps.cartocdn.com tiles, which now require a paid/
- * free-tier API key and otherwise silently serve a "API KEY REQUIRED" watermark tile
- * with an HTTP 200, which is why the map appeared to load but showed nothing usable.
- * OSM only publishes one free public style (the light "osm-carto" look), so dark/dusk
- * themes apply mapTileFilter — a CSS filter on the Leaflet tile pane (see TileFilter in
- * Map.tsx) — to recolour it rather than switching to a different, non-free tile source.
+ * Tile source: Esri's public "Community Basemaps" (World_Dark_Gray_Base /
+ * World_Light_Gray_Base / World_Street_Map), served from arcgisonline.com — free,
+ * keyless raster tiles with English-first place labels everywhere, including China/
+ * Japan/Korea (genuine OpenStreetMap tiles render those in the local script only,
+ * since OSM has no separate English layer free for third-party use — Wikimedia hosts
+ * one, "osm-intl", but restricts it to Wikimedia-affiliated sites only). Esri is not
+ * open source, unlike OSM, but was chosen as the simpler fix for readable labels; the
+ * alternative (open-source vector tiles with a custom name:en label style) is a much
+ * larger change. Previously this used CARTO's basemaps.cartocdn.com tiles, which now
+ * require a paid/free-tier API key and otherwise silently serve a "API KEY REQUIRED"
+ * watermark tile with an HTTP 200, which is why the map appeared to load but showed
+ * nothing usable.
+ *
+ * The two "Canvas" gray styles (dark/light) ship their geography and their place
+ * labels as TWO separate tile layers — the "_Base" tile has no text at all, labels
+ * live on a second transparent "_Reference" overlay tile meant to be stacked on top
+ * (a common Esri pattern; World_Street_Map is single-layer and already has labels
+ * baked in, so it needs no second layer). mapLabelsUrl carries that second URL where
+ * one exists; Map.tsx mounts it as a second TileLayer above the base one.
  */
 import { createContext, useContext } from 'react'
 
@@ -43,13 +53,12 @@ export interface Theme {
   pink: string
   mapInactiveSegment: string
   mapTileUrl: string
+  mapLabelsUrl?: string
   mapAttribution: string
-  mapTileFilter?: string
   themeId: ThemeMode
 }
 
-const OSM_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+const ESRI_ATTRIBUTION = '&copy; <a href="https://www.esri.com/">Esri</a> &mdash; Sources: Esri, HERE, Garmin, USGS, Intermap, INCREMENT P, NRCan, Esri Japan, METI, Esri China (Hong Kong), Esri Korea, Esri (Thailand), NGCC, &copy; OpenStreetMap contributors, and the GIS User Community'
 
 export type ThemeMode = 'dark' | 'dusk' | 'light'
 
@@ -74,11 +83,9 @@ export const darkTheme: Theme = {
   orange:          '#fab387',
   pink:            '#f5c2e7',
   mapInactiveSegment: '#2a2a3e',
-  mapTileUrl: OSM_TILE_URL,
-  mapAttribution: OSM_ATTRIBUTION,
-  // OSM only has one free public style (light). Invert + hue-rotate recolours it into
-  // a serviceable dark map so it doesn't clash with the dark UI chrome around it.
-  mapTileFilter: 'invert(1) hue-rotate(180deg) brightness(0.95) contrast(90%)',
+  mapTileUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+  mapLabelsUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+  mapAttribution: ESRI_ATTRIBUTION,
   themeId: 'dark',
 }
 
@@ -103,8 +110,9 @@ export const lightTheme: Theme = {
   orange:          '#fe640b',
   pink:            '#ea76cb',
   mapInactiveSegment: '#9090b8',
-  mapTileUrl: OSM_TILE_URL,
-  mapAttribution: OSM_ATTRIBUTION,
+  mapTileUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+  mapLabelsUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+  mapAttribution: ESRI_ATTRIBUTION,
   themeId: 'light',
 }
 
@@ -129,8 +137,8 @@ export const duskTheme: Theme = {
   orange:          '#ea6c00',
   pink:            '#be185d',
   mapInactiveSegment: '#8090aa',
-  mapTileUrl: OSM_TILE_URL,
-  mapAttribution: OSM_ATTRIBUTION,
+  mapTileUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+  mapAttribution: ESRI_ATTRIBUTION,
   themeId: 'dusk',
 }
 

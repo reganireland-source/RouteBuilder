@@ -44,10 +44,8 @@
  * .maps_provider), falling back to the VITE_MAPS_PROVIDER env var —
  * 'google' mounts GoogleMutantLayer (Google tiles via leaflet
  * googlemutant, dark-styled to match the theme, loading the Maps JS API
- * on demand); anything else uses the free, keyless, open-source
- * OpenStreetMap raster TileLayer whose URL and attribution come from the
- * active theme (see theme.ts), recoloured for dark themes by TileFilter
- * since OSM only ships one (light) public style.
+ * on demand); anything else uses the free, keyless Esri raster TileLayer
+ * whose URL and attribution come from the active theme (see theme.ts).
  *
  * Also contains small imperative helpers driven through react-leaflet's
  * useMap(): MapResizer (invalidate size when the side panel resizes),
@@ -130,21 +128,6 @@ function MapResizer({ panelWidth }: { panelWidth?: number }) {
     const timer = setTimeout(() => map.invalidateSize(), 310)
     return () => clearTimeout(timer)
   }, [panelWidth, map])
-  return null
-}
-
-// Applies a CSS filter to Leaflet's tile pane, e.g. to recolour the free OSM tiles
-// (which only ship one light style) into a dark map for dark-themed UIs. Cleared
-// (filter reset to 'none') when `filter` is undefined, so switching themes/providers
-// never leaves a stale filter applied to the next TileLayer.
-function TileFilter({ filter }: { filter?: string }) {
-  const map = useMap()
-  useEffect(() => {
-    const pane = map.getPane('tilePane')
-    if (!pane) return
-    pane.style.filter = filter ?? 'none'
-    return () => { pane.style.filter = 'none' }
-  }, [filter, map])
   return null
 }
 
@@ -557,7 +540,12 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
               attribution={t.mapAttribution}
               noWrap={false}
             />
-            <TileFilter filter={t.mapTileFilter} />
+            {/* Esri's gray-canvas styles ship geography and place labels as two
+                separate tile sets (see theme.ts) — this is the transparent
+                labels overlay, stacked on top so text renders over the base. */}
+            {t.mapLabelsUrl && (
+              <TileLayer key={t.mapLabelsUrl} url={t.mapLabelsUrl} noWrap={false} />
+            )}
           </>
       }
 
