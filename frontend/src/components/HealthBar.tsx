@@ -2,8 +2,11 @@
  * HealthBar — status strip of coloured dots showing the health of every runtime dependency.
  *
  * Renders six indicators (Frontend, Backend, Data, Database, LLM API, Maps) as small
- * green/red/yellow/grey dots with hover tooltips, plus the build number and build date
- * (injected at build time via the __BUILD_NUMBER__ / __BUILD_DATE__ Vite defines).
+ * green/red/yellow/grey dots with hover tooltips, plus a version line — build number,
+ * short commit hash, branch and build timestamp (injected at build time via the
+ * __BUILD_NUMBER__ / __BUILD_COMMIT__ / __BUILD_BRANCH__ / __BUILD_DIRTY__ /
+ * __BUILD_DATE__ Vite defines in vite.config.ts) — with the full detail in a tooltip
+ * since the footer strip is too narrow to show all of it inline at once.
  *
  * Props:
  *   - dataLoaded:   whether the parent has finished loading network data; used to colour
@@ -206,8 +209,15 @@ export function HealthBar({ dataLoaded, mapsProvider }: Props) {
           </div>
         ))}
       </div>
-      <span style={{ fontSize: 10, color: t.textFaint, letterSpacing: '0.04em', opacity: 0.7 }}>
+      <span
+        style={{ fontSize: 10, color: t.textFaint, letterSpacing: '0.04em', opacity: 0.7, fontFamily: 'monospace', cursor: 'default' }}
+        title={`Build ${__BUILD_NUMBER__}\nCommit ${__BUILD_COMMIT__}${__BUILD_DIRTY__ ? ' (uncommitted changes at build time)' : ''}\nBranch ${__BUILD_BRANCH__}\nBuilt ${__BUILD_DATE__} (local time)`}
+      >
         Build <strong style={{ color: t.textMuted }}>{__BUILD_NUMBER__}</strong>
+        <span style={{ margin: '0 5px', opacity: 0.4 }}>·</span>
+        {__BUILD_COMMIT__}{__BUILD_DIRTY__ && <span style={{ color: '#f9e2af' }}>*</span>}
+        <span style={{ margin: '0 5px', opacity: 0.4 }}>·</span>
+        {__BUILD_BRANCH__}
         <span style={{ margin: '0 5px', opacity: 0.4 }}>·</span>
         {__BUILD_DATE__}
       </span>

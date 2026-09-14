@@ -30,5 +30,11 @@ interface ImportMeta {
 
 /** Injected at build time by Vite's `define` — the incrementing CI build number, shown in the UI/footer for support. */
 declare const __BUILD_NUMBER__: string
-/** Injected at build time by Vite's `define` — the ISO date the bundle was built. */
+/** Injected at build time by Vite's `define` — the short (7-char) git commit hash the bundle was built from. */
+declare const __BUILD_COMMIT__: string
+/** Injected at build time by Vite's `define` — the git branch the bundle was built from. */
+declare const __BUILD_BRANCH__: string
+/** Injected at build time by Vite's `define` — true if the working tree had uncommitted changes at build time. */
+declare const __BUILD_DIRTY__: boolean
+/** Injected at build time by Vite's `define` — the local "YYYY-MM-DD HH:MM" the bundle was built at. */
 declare const __BUILD_DATE__: string
