@@ -9,28 +9,49 @@
  * that touches the map lives here so Map.tsx's already-large read-mostly
  * rendering pipeline doesn't have to grow a second interaction model.
  *
- * Phase B (current): Move sub-mode only — every node renders as a draggable
- * Leaflet `Marker` (react-leaflet's `CircleMarker` has no native drag support,
- * so this is the first use of `Marker`/`L.divIcon` in this codebase) styled
- * to match Map.tsx's NODE_STYLE. Releasing a drag on anything except a
- * branching_unit ("physical site" — CLS/PoP/off-net all correspond to a real
- * location) asks for confirmation before staging the move; Cancel snaps the
- * marker back. Later phases add Waypoints/Create/Delete sub-modes here too.
+ * Sub-modes:
+ *  - 'move'      — every node renders as a draggable Leaflet `Marker`
+ *                  (react-leaflet's `CircleMarker` has no native drag support,
+ *                  so this is the first use of `Marker`/`L.divIcon` in this
+ *                  codebase) styled to match Map.tsx's NODE_STYLE. Releasing a
+ *                  drag on anything except a branching_unit ("physical site" —
+ *                  CLS/PoP/off-net all correspond to a real location) asks for
+ *                  confirmation before staging the move; Cancel snaps back.
+ *  - 'waypoints' — a faint clickable overlay over every segment: click one to
+ *                  select it, then its waypoints appear as draggable handles.
+ *                  Clicking the selected segment's own line inserts a new
+ *                  waypoint at that point (spliced into the right position via
+ *                  nearestSegmentIndex); right-clicking a handle deletes it.
+ *
+ * Longitudes: the map draws in Pacific-normalised space (see normalizeLng), so
+ * anything read back out of Leaflet — a dragged marker's position, a click's
+ * latlng — is denormalised before being handed upward for storage.
+ *
+ * Note the segment LINES themselves are still drawn by Map.tsx's normal
+ * rendering pipeline (it already receives the derived base+staged segments),
+ * so this layer only adds interaction affordances on top of them.
  */
+import { useMemo } from 'react'
 import * as L from 'leaflet'
-import { Marker, Tooltip } from 'react-leaflet'
-import type { CableNode } from '../types'
+import { Marker, Polyline, Tooltip } from 'react-leaflet'
+import type { CableNode, CableSegment } from '../types'
 import type { EditorSelection, EditorSubMode } from '../state/editorState'
-import { normalizeLng, denormalizeLng, NODE_STYLE } from '../mapGeometry'
+import { normalizeLng, denormalizeLng, geoLines, nearestSegmentIndex, NODE_STYLE } from '../mapGeometry'
 import { useTheme } from '../theme'
 
 interface Props {
   nodes: CableNode[]
+  segments: CableSegment[]
   subMode: EditorSubMode
   selection: EditorSelection
   pendingNodeIds: Set<string>
+  pendingSegmentIds: Set<string>
   onNodeDragEnd: (nodeId: string, lat: number, lng: number, fromLat: number, fromLng: number) => void
   onNodeSelect: (nodeId: string) => void
+  onSegmentSelect: (segmentId: string) => void
+  onWaypointInsert: (segmentId: string, insertIndex: number, lat: number, lng: number) => void
+  onWaypointDragEnd: (segmentId: string, index: number, lat: number, lng: number) => void
+  onWaypointDelete: (segmentId: string, index: number) => void
 }
 
 const PHYSICAL_SITE_CONFIRM = (name: string) =>
@@ -58,49 +79,147 @@ function buildIcon(type: string, ringColor: string | null, ringDashed: boolean):
   })
 }
 
-export function EditorMapLayer({ nodes, subMode, selection, pendingNodeIds, onNodeDragEnd, onNodeSelect }: Props) {
+/** Small square handle for a segment waypoint — deliberately a different shape
+ *  from the round node markers so the two are never confused on a busy map. */
+function buildWaypointIcon(color: string): L.DivIcon {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:11px;height:11px;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,0.5);cursor:grab;"></div>`,
+    iconSize: [15, 15],
+    iconAnchor: [7.5, 7.5],
+  })
+}
+
+export function EditorMapLayer({
+  nodes, segments, subMode, selection, pendingNodeIds, pendingSegmentIds,
+  onNodeDragEnd, onNodeSelect, onSegmentSelect, onWaypointInsert, onWaypointDragEnd, onWaypointDelete,
+}: Props) {
   const t = useTheme()
+  const nodesById = useMemo(() => Object.fromEntries(nodes.map(n => [n.id, n])), [nodes])
+  const waypointIcon = useMemo(() => buildWaypointIcon(t.blue), [t.blue])
 
-  if (subMode !== 'move') return null
+  if (subMode === 'move') {
+    return (
+      <>
+        {nodes.map(node => {
+          const isSelected = selection?.kind === 'node' && selection.id === node.id
+          const isPending = pendingNodeIds.has(node.id)
+          const icon = isSelected
+            ? buildIcon(node.type, t.blue, false)
+            : isPending
+            ? buildIcon(node.type, t.orange, true)
+            : buildIcon(node.type, null, false)
+          return (
+            <Marker
+              key={node.id}
+              position={[node.lat, normalizeLng(node.lng)]}
+              icon={icon}
+              draggable
+              eventHandlers={{
+                click: () => onNodeSelect(node.id),
+                dragend: (e) => {
+                  const marker = e.target as L.Marker
+                  const { lat, lng } = marker.getLatLng()
+                  const finalLng = denormalizeLng(lng)
+                  const physicalSite = node.type !== 'branching_unit'
+                  if (physicalSite && !window.confirm(PHYSICAL_SITE_CONFIRM(node.name))) {
+                    marker.setLatLng([node.lat, normalizeLng(node.lng)]) // snap back
+                    return
+                  }
+                  onNodeDragEnd(node.id, lat, finalLng, node.lat, node.lng)
+                },
+              }}
+            >
+              <Tooltip>
+                <strong>{node.name}</strong> ({node.id})
+                {isPending && <><br /><span style={{ color: '#c2410c' }}>Pending move — not yet saved</span></>}
+              </Tooltip>
+            </Marker>
+          )
+        })}
+      </>
+    )
+  }
 
-  return (
-    <>
-      {nodes.map(node => {
-        const isSelected = selection?.kind === 'node' && selection.id === node.id
-        const isPending = pendingNodeIds.has(node.id)
-        const icon = isSelected
-          ? buildIcon(node.type, t.blue, false)
-          : isPending
-          ? buildIcon(node.type, t.orange, true)
-          : buildIcon(node.type, null, false)
-        return (
+  if (subMode === 'waypoints') {
+    const selectedId = selection?.kind === 'segment' ? selection.id : null
+    const selectedSeg = selectedId ? segments.find(s => s.id === selectedId) ?? null : null
+
+    return (
+      <>
+        {/* Clickable overlay over every segment — click to select which one to
+            edit, or (on the already-selected one) to insert a waypoint there. */}
+        {segments.map(seg => {
+          const start = nodesById[seg.start_node_id]
+          const end = nodesById[seg.end_node_id]
+          if (!start || !end) return null
+          const isSelected = seg.id === selectedId
+          const isPending = pendingSegmentIds.has(seg.id)
+          const lines = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined)
+          return lines.map((positions, i) => (
+            <Polyline
+              key={`editor-seg-${seg.id}-${i}`}
+              positions={positions}
+              pathOptions={{
+                color: isSelected ? t.blue : isPending ? t.orange : t.textFaint,
+                weight: isSelected ? 10 : 8,
+                opacity: isSelected ? 0.45 : 0.12,
+                lineCap: 'round',
+              }}
+              eventHandlers={{
+                click: (e) => {
+                  L.DomEvent.stopPropagation(e)
+                  if (!isSelected) { onSegmentSelect(seg.id); return }
+                  // Already selected → clicking its line inserts a waypoint at
+                  // the right position along the existing path.
+                  const wps = seg.waypoints ?? []
+                  const refPoints: [number, number][] = [
+                    [start.lat, normalizeLng(start.lng)],
+                    ...wps.map(([wlat, wlng]): [number, number] => [wlat, normalizeLng(wlng)]),
+                    [end.lat, normalizeLng(end.lng)],
+                  ]
+                  const idx = nearestSegmentIndex([e.latlng.lat, e.latlng.lng], refPoints)
+                  onWaypointInsert(seg.id, idx, e.latlng.lat, denormalizeLng(e.latlng.lng))
+                },
+              }}
+            >
+              {i === 0 && (
+                <Tooltip sticky>
+                  <strong>{seg.name}</strong> ({seg.id})
+                  <br />{isSelected ? 'Click the line to add a waypoint · drag a handle to move it · right-click a handle to delete' : 'Click to edit this segment’s path'}
+                </Tooltip>
+              )}
+            </Polyline>
+          ))
+        })}
+
+        {/* Draggable handles for the selected segment's existing waypoints. */}
+        {selectedSeg && (selectedSeg.waypoints ?? []).map(([wlat, wlng], idx) => (
           <Marker
-            key={node.id}
-            position={[node.lat, normalizeLng(node.lng)]}
-            icon={icon}
+            key={`wp-${selectedSeg.id}-${idx}`}
+            position={[wlat, normalizeLng(wlng)]}
+            icon={waypointIcon}
             draggable
             eventHandlers={{
-              click: () => onNodeSelect(node.id),
               dragend: (e) => {
-                const marker = e.target as L.Marker
-                const { lat, lng } = marker.getLatLng()
-                const finalLng = denormalizeLng(lng)
-                const physicalSite = node.type !== 'branching_unit'
-                if (physicalSite && !window.confirm(PHYSICAL_SITE_CONFIRM(node.name))) {
-                  marker.setLatLng([node.lat, normalizeLng(node.lng)]) // snap back
-                  return
-                }
-                onNodeDragEnd(node.id, lat, finalLng, node.lat, node.lng)
+                const { lat, lng } = (e.target as L.Marker).getLatLng()
+                onWaypointDragEnd(selectedSeg.id, idx, lat, denormalizeLng(lng))
+              },
+              contextmenu: (e) => {
+                L.DomEvent.stopPropagation(e)
+                onWaypointDelete(selectedSeg.id, idx)
               },
             }}
           >
             <Tooltip>
-              <strong>{node.name}</strong> ({node.id})
-              {isPending && <><br /><span style={{ color: '#c2410c' }}>Pending move — not yet saved</span></>}
+              Waypoint {idx + 1} of {(selectedSeg.waypoints ?? []).length}
+              <br />Drag to move · right-click to delete
             </Tooltip>
           </Marker>
-        )
-      })}
-    </>
-  )
+        ))}
+      </>
+    )
+  }
+
+  return null
 }

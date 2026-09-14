@@ -713,6 +713,18 @@ export default function App() {
     setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r); setConfig(cfg); setOutages(o)
   }
 
+  /** Stage a waypoint edit (insert / move / delete are all just "here is the
+   *  segment's new full waypoint array") as one PendingChange — one discrete
+   *  user action = one undo step, and the full-array snapshot is what makes
+   *  discarding any single staged change safe. Reads the CURRENT effective
+   *  waypoints (base + already-staged edits), not the persisted ones. */
+  function stageWaypointEdit(segmentId: string, mutate: (wps: [number, number][]) => [number, number][]) {
+    const seg = editorDisplay.segments.find(s => s.id === segmentId)
+    if (!seg) return
+    const from = seg.waypoints ?? null
+    dispatchEditor({ type: 'ADD_CHANGE', change: { kind: 'edit-waypoints', segmentId, from, to: mutate(from ?? []) } })
+  }
+
   /** Network Editor's Save All: applies every staged change sequentially against
    *  the real endpoints (see state/networkEditorSave.ts for ordering/partial-
    *  failure handling), then refetches base data so persisted changes fold into
@@ -1519,8 +1531,13 @@ export default function App() {
               editorSubMode={editorState.subMode}
               editorSelection={editorState.selection}
               pendingNodeIds={editorPendingIds.nodeIds}
+              pendingSegmentIds={editorPendingIds.segmentIds}
               onEditorNodeDragEnd={(nodeId, lat, lng, fromLat, fromLng) => dispatchEditor({ type: 'MOVE_NODE', nodeId, lat, lng, fromLat, fromLng })}
               onEditorNodeSelect={(nodeId) => dispatchEditor({ type: 'SELECT', selection: { kind: 'node', id: nodeId } })}
+              onEditorSegmentSelect={(segmentId) => dispatchEditor({ type: 'SELECT', selection: { kind: 'segment', id: segmentId } })}
+              onEditorWaypointInsert={(segmentId, insertIndex, lat, lng) => stageWaypointEdit(segmentId, wps => { const next = [...wps]; next.splice(insertIndex, 0, [lat, lng]); return next })}
+              onEditorWaypointDragEnd={(segmentId, index, lat, lng) => stageWaypointEdit(segmentId, wps => wps.map((w, i) => (i === index ? [lat, lng] as [number, number] : w)))}
+              onEditorWaypointDelete={(segmentId, index) => stageWaypointEdit(segmentId, wps => wps.filter((_, i) => i !== index))}
             />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.textFaint }}>

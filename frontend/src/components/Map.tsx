@@ -115,8 +115,13 @@ interface Props {
   editorSubMode?: EditorSubMode
   editorSelection?: EditorSelection
   pendingNodeIds?: Set<string>
+  pendingSegmentIds?: Set<string>
   onEditorNodeDragEnd?: (nodeId: string, lat: number, lng: number, fromLat: number, fromLng: number) => void
   onEditorNodeSelect?: (nodeId: string) => void
+  onEditorSegmentSelect?: (segmentId: string) => void
+  onEditorWaypointInsert?: (segmentId: string, insertIndex: number, lat: number, lng: number) => void
+  onEditorWaypointDragEnd?: (segmentId: string, index: number, lat: number, lng: number) => void
+  onEditorWaypointDelete?: (segmentId: string, index: number) => void
 }
 
 function MapResizer({ panelWidth }: { panelWidth?: number }) {
@@ -286,7 +291,7 @@ function formatPlannedDate(iso: string): string {
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, pendingNodeIds, onEditorNodeDragEnd, onEditorNodeSelect }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete }: Props) {
   const t = useTheme()
   const { hoveredSegmentId } = useSegmentHover()
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
@@ -859,11 +864,17 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
       {editorMode && (
         <EditorMapLayer
           nodes={nodes}
+          segments={segments}
           subMode={editorSubMode}
           selection={editorSelection}
           pendingNodeIds={pendingNodeIds ?? EMPTY_STRING_SET}
+          pendingSegmentIds={pendingSegmentIds ?? EMPTY_STRING_SET}
           onNodeDragEnd={onEditorNodeDragEnd ?? (() => {})}
           onNodeSelect={onEditorNodeSelect ?? (() => {})}
+          onSegmentSelect={onEditorSegmentSelect ?? (() => {})}
+          onWaypointInsert={onEditorWaypointInsert ?? (() => {})}
+          onWaypointDragEnd={onEditorWaypointDragEnd ?? (() => {})}
+          onWaypointDelete={onEditorWaypointDelete ?? (() => {})}
         />
       )}
     </MapContainer>

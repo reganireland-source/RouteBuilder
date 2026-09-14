@@ -71,9 +71,13 @@ export const initialEditorState: EditorState = {
   saveInFlight: false,
 }
 
+/** Omit that distributes over a union — a plain Omit<PendingChange, ...> would
+ *  collapse the discriminated union down to only its common keys. */
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
+
 export type EditorAction =
   | { type: 'MOVE_NODE'; nodeId: string; lat: number; lng: number; fromLat: number; fromLng: number }
-  | { type: 'ADD_CHANGE'; change: Omit<PendingChange, 'changeId' | 'ts'> }
+  | { type: 'ADD_CHANGE'; change: DistributiveOmit<PendingChange, 'changeId' | 'ts'> }
   | { type: 'UNDO' }
   | { type: 'REDO' }
   | { type: 'DISCARD_ONE'; changeId: string }

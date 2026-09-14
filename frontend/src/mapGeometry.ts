@@ -78,6 +78,40 @@ export function geoLines(
   return [[[lat1, nLng1], [lat2, nLng1 + d]]]
 }
 
+/**
+ * Given a clicked point and an ordered list of reference points — for a segment
+ * that's [startNode, ...waypoints, endNode] — return the index of the PAIR whose
+ * connecting line is closest to the click. That index is also where a new
+ * waypoint should be spliced into the raw waypoints array: pair 0 is
+ * start→waypoints[0] (insert at 0), pair 1 is waypoints[0]→waypoints[1]
+ * (insert at 1), and so on.
+ *
+ * Planar (lat/lng treated as XY) closest-point-on-line-segment distance. Good
+ * enough for click hit-testing at the zoom levels this editor is used at, and
+ * consistent with how the rest of the app already treats coordinates for
+ * on-screen geometry. Expects every point already Pacific-normalised so the
+ * comparison happens in the same space the map is drawn in.
+ */
+export function nearestSegmentIndex(click: [number, number], points: [number, number][]): number {
+  let bestIdx = 0
+  let bestDist = Infinity
+  for (let i = 0; i < points.length - 1; i++) {
+    const [ax, ay] = points[i]
+    const [bx, by] = points[i + 1]
+    const [px, py] = click
+    const dx = bx - ax
+    const dy = by - ay
+    const lenSq = dx * dx + dy * dy
+    let t = lenSq === 0 ? 0 : ((px - ax) * dx + (py - ay) * dy) / lenSq
+    t = Math.max(0, Math.min(1, t))
+    const cx = ax + t * dx
+    const cy = ay + t * dy
+    const dist = (px - cx) ** 2 + (py - cy) ** 2
+    if (dist < bestDist) { bestDist = dist; bestIdx = i }
+  }
+  return bestIdx
+}
+
 // Visual hierarchy for node types: size + colour scale from most to least significant
 export const NODE_STYLE: Record<string, { color: string; fill: string; radius: number; weight: number; opacity: number }> = {
   landing_station: { color: '#ea580c', fill: '#f97316', radius: 8,   weight: 2.5, opacity: 1    },

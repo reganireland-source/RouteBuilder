@@ -34,7 +34,7 @@ interface Props {
 
 const SUBMODES: { id: EditorSubMode; label: string; icon: string; enabled: boolean }[] = [
   { id: 'move', label: 'Move', icon: '✥', enabled: true },
-  { id: 'waypoints', label: 'Waypoints', icon: '〰', enabled: false },
+  { id: 'waypoints', label: 'Waypoints', icon: '〰', enabled: true },
   { id: 'create', label: 'Create', icon: '+', enabled: false },
   { id: 'delete', label: 'Delete', icon: '🗑', enabled: false },
 ]
@@ -44,6 +44,7 @@ export function NetworkEditor({ nodes, segments, systems, countryHighlight, onCo
   const [filterOpen, setFilterOpen] = useState(false)
 
   const selectedNode = editorState.selection?.kind === 'node' ? nodes.find(n => n.id === editorState.selection!.id) ?? null : null
+  const selectedSegment = editorState.selection?.kind === 'segment' ? segments.find(s => s.id === editorState.selection!.id) ?? null : null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -81,6 +82,21 @@ export function NetworkEditor({ nodes, segments, systems, countryHighlight, onCo
         <div style={{ fontSize: 12, color: t.textFaint }}>
           Drag any node on the map to reposition it. Moving a physical site (CLS/PoP/off-net)
           asks for confirmation first — branching units move freely.
+        </div>
+      )}
+
+      {editorState.subMode === 'waypoints' && (
+        <div style={{ fontSize: 12, color: t.textFaint }}>
+          Click a segment on the map to edit its path. Then click anywhere along its line to
+          insert a waypoint there, drag a square handle to move one, or right-click a handle
+          to delete it. The line re-smooths through the new points on each change.
+          {selectedSegment && (
+            <div style={{ marginTop: 6, padding: '6px 8px', borderRadius: 5, border: `1px solid ${t.blue}55`, background: t.blue + '10', color: t.text }}>
+              <strong>{selectedSegment.name}</strong> <span style={{ color: t.textFaint }}>({selectedSegment.id})</span>
+              <br />
+              <span style={{ color: t.textMuted }}>{(selectedSegment.waypoints ?? []).length} waypoint{(selectedSegment.waypoints ?? []).length === 1 ? '' : 's'}</span>
+            </div>
+          )}
         </div>
       )}
 
