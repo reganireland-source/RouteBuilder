@@ -483,12 +483,12 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         filter: blur(2px);
       }
       @keyframes rb-segment-glow-pulse {
-        0%, 100% { opacity: 0.35; stroke-width: 10; }
-        50%      { opacity: 0.95; stroke-width: 20; }
+        0%, 100% { opacity: 0.15; stroke-width: 8;  }
+        50%      { opacity: 1;    stroke-width: 32; }
       }
       .rb-segment-glow {
-        animation: rb-segment-glow-pulse 1s ease-in-out infinite;
-        filter: blur(3.5px);
+        animation: rb-segment-glow-pulse 1.4s ease-in-out infinite;
+        filter: blur(2px);
       }
     `}</style>
     {/* Node type legend */}
@@ -918,7 +918,7 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
           <Polyline
             key={`glow-${seg.id}-${i}`}
             positions={positions}
-            pathOptions={{ color: '#ffb020', weight: 8, opacity: 0.6, className: 'rb-segment-glow', lineCap: 'round' }}
+            pathOptions={{ color: '#ff4500', weight: 8, opacity: 0.6, className: 'rb-segment-glow', lineCap: 'round' }}
             interactive={false}
           />
         ))
