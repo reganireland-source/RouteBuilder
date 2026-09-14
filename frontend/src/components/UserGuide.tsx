@@ -7,11 +7,12 @@
  * MobileLayout) as a portal overlay when the user clicks the RouteBuilder logo /
  * the "?" help tab; App wraps it in a fixed backdrop with a close button.
  *
- * It paginates (state `page`, 1..8) through: a step-by-step how-to (the STEPS
- * array — open RouteFinder, pick endpoints, set diversity, add constraints,
- * search, review/sort, pin & export), a product roadmap (ROADMAP), and a
- * feature-request form that reads/writes via api.getFeatureRequests /
- * submitFeatureRequest.
+ * It paginates (state `page`, 1..9 — see the `Page` type) through: a
+ * step-by-step how-to (the STEPS array — open RouteFinder, pick endpoints, set
+ * diversity, add constraints, search, review/sort, pin & export), a product
+ * roadmap (ROADMAP), a feature-request form that reads/writes via
+ * api.getFeatureRequests / submitFeatureRequest, and a Product History metro
+ * map of everything shipped so far (ProductHistory.tsx).
  *
  * Notable behaviour: it can also "print all" — when `printAll` is set it injects
  * a print stylesheet and renders every page into a hidden print portal so the
@@ -23,6 +24,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '../theme'
 import { api } from '../api/client'
+import { ProductHistory } from './ProductHistory'
 
 import type { CableNode, CableSegment, CableSystem, FeatureRequest } from '../types'
 
@@ -44,6 +46,10 @@ const ROADMAP = [
   { icon: '🌐', title: 'Customer-Facing Portal',        desc: 'A self-serve experience for enterprise customers to explore the network, model routes and initiate enquiries independently.', tag: 'Future', color: '#3b82f6' },
 ]
 
+/** The guide's pages, in tab order. Kept as a named type so adding a page is
+ *  one edit here plus one row in `pageTabs` — not a hunt through unions. */
+type Page = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+
 interface Props {
   nodes: CableNode[]
   segments: CableSegment[]
@@ -52,7 +58,7 @@ interface Props {
 
 export function UserGuide({ nodes, segments, systems }: Props) {
   const t = useTheme()
-  const [page, setPage] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7 | 8>(1)
+  const [page, setPage] = useState<Page>(1)
   const [printAll, setPrintAll] = useState(false)
   const printRef = useRef<HTMLDivElement>(null)
   const [featureRequests, setFeatureRequests] = useState<FeatureRequest[]>([])
@@ -298,8 +304,10 @@ export function UserGuide({ nodes, segments, systems }: Props) {
   // ── Page switcher tabs ─────────────────────────────────────────────────────
   const pageTabs = (
     <div style={{
-      display: 'flex', gap: 6, justifyContent: 'center',
-      marginBottom: 32, paddingTop: 8,
+      // Wraps: at nine pages the bar no longer fits one line on a laptop, and
+      // an overflowing tab ends up under the modal's close button.
+      display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap',
+      marginBottom: 32, paddingTop: 8, paddingRight: 48,
     }}>
       {([
         [1, '📖 Product Overview'],
@@ -310,7 +318,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         [6, '📋 Feature Backlog'],
         [7, '🔒 IT & Enterprise'],
         [8, '🧪 Algo Evaluation'],
-      ] as [1|2|3|4|5|6|7|8, string][]).map(([p, label]) => (
+        [9, '🕹 Product History'],
+      ] as [Page, string][]).map(([p, label]) => (
         <button
           key={p}
           onClick={() => setPage(p)}
@@ -2201,6 +2210,19 @@ export function UserGuide({ nodes, segments, systems }: Props) {
   )
   if (page === 8 && !printAll) return algoEvalPage
 
+  // ── Product History page ───────────────────────────────────────────────────
+  // The metro map lives in its own component; this just frames it with the
+  // shared page tabs. `printMode` drops the animation and opens every station,
+  // so the printed/PDF version reads as a complete document.
+  const historyPage = (
+    <div style={{ fontFamily: 'system-ui, sans-serif', color: t.text, paddingBottom: 20 }}>
+      {!printAll && pageTabs}
+      <ProductHistory printMode={printAll} />
+    </div>
+  )
+
+  if (page === 9 && !printAll) return historyPage
+
   // ── Page 1: Product Overview ───────────────────────────────────────────────
   const overview = (
     <div style={{
@@ -2690,7 +2712,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{dataModel}</div>
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{projectsGuide}</div>
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{itPage}</div>
-        <div>{algoEvalPage}</div>
+        <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{algoEvalPage}</div>
+        <div>{historyPage}</div>
       </div>
     )
     return createPortal(printContent, document.body)
