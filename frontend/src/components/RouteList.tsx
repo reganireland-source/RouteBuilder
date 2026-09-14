@@ -31,12 +31,13 @@
  * our own network · margin = the commercial score derived from a system's margin.
  * ============================================================================
  */
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import type { Route, CableNode, CableSystem, SegmentCapacity, SegmentOutage, PinnedRoute, Project, ProjectCircuit, EndpointConfig, SolutionNote } from '../types'
 import { useTheme } from '../theme'
 import { api } from '../api/client'
 import { SolutionNotesOverlay } from './SolutionNotesOverlay'
+import { useSegmentHover } from '../context/SegmentHoverContext'
 
 /** How complete a project circuit's technical enrichment (A/Z-End specs) is. */
 type EnrichLevel = 'none' | 'partial' | 'full'
@@ -840,6 +841,30 @@ function CompressedPinCard({ pinned, onUnpin, systemsById }: {
   )
 }
 
+/**
+ * Hover state that survives the cursor moving from a route card onto its
+ * Segment Breakdown tooltip, which isn't a DOM descendant of the card (it's
+ * rendered via createPortal next to it) — so a plain onMouseLeave on the card
+ * would close the tooltip the instant the cursor left it, before it could
+ * ever reach the tooltip to cursor over individual segments. enter() cancels
+ * any pending close; leaveWithGrace() schedules one a beat later so the
+ * card's leaveWithGrace() and the tooltip's enter() can race without a
+ * flicker when the cursor crosses the gap between them.
+ */
+function useHoverWithGrace() {
+  const [hovered, setHovered] = useState(false)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const enter = () => {
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null }
+    setHovered(true)
+  }
+  const leaveWithGrace = () => {
+    closeTimer.current = setTimeout(() => setHovered(false), 150)
+  }
+  useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current) }, [])
+  return { hovered, enter, leaveWithGrace }
+}
+
 /** A route in the pinned bar, drawn in its pin colour with an unpin control and
  *  (in project mode) circuit label / enrichment actions. */
 function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, plannedById, onNetSet, systemsById, onEnrichCircuit, onAddToProject, activeProject, protectPin, onShowNotes, hasNotes }: {
@@ -863,7 +888,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   const { route, color, searchLabel, projectId, circuitLabel } = pinned
   const circuit = activeProject?.circuits.find(c => c.circuit_id === pinned.circuitId)
   const enrich = enrichLevel(circuit)
-  const [hovered, setHovered] = useState(false)
+  const { hovered, enter: enterHover, leaveWithGrace } = useHoverWithGrace()
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
   const [segmentsOpen, setSegmentsOpen] = useState(false)
   const [pathCompareOpen, setPathCompareOpen] = useState(false)
@@ -890,8 +915,8 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   return (
     <div
       ref={cardRef}
-      onMouseEnter={() => !isMobile && setHovered(true)}
-      onMouseLeave={() => !isMobile && setHovered(false)}
+      onMouseEnter={() => !isMobile && enterHover()}
+      onMouseLeave={() => !isMobile && leaveWithGrace()}
       style={{
         padding: '10px 12px', borderRadius: 6, marginBottom: 4,
         border: `1px solid ${color}`,
@@ -1092,7 +1117,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
       </div>
 
       {!isMobile && hovered && createPortal(
-        <SegmentTooltip route={route} capacityById={capacityById} outagesById={outagesById} plannedById={plannedById} pos={tooltipPos} onNetSet={onNetSet} />,
+        <SegmentTooltip route={route} capacityById={capacityById} outagesById={outagesById} plannedById={plannedById} pos={tooltipPos} onNetSet={onNetSet} onMouseEnter={enterHover} onMouseLeave={leaveWithGrace} />,
         document.body
       )}
     </div>
@@ -1121,7 +1146,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
 }) {
   const t = useTheme()
   const isMobile = useIsMobile()
-  const [hovered, setHovered] = useState(false)
+  const { hovered, enter: enterHover, leaveWithGrace } = useHoverWithGrace()
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
   const [segmentsOpen, setSegmentsOpen] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -1151,8 +1176,8 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
       tabIndex={0}
       onClick={() => onSelect(route.id)}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(route.id) } }}
-      onMouseEnter={() => !isMobile && setHovered(true)}
-      onMouseLeave={() => !isMobile && setHovered(false)}
+      onMouseEnter={() => !isMobile && enterHover()}
+      onMouseLeave={() => !isMobile && leaveWithGrace()}
       style={{
         padding: '10px 12px', borderRadius: 6, marginBottom: 4, cursor: 'pointer',
         border: `1px solid ${selected ? color : t.border}`,
@@ -1259,7 +1284,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
       )}
 
       {!isMobile && hovered && createPortal(
-        <SegmentTooltip route={route} capacityById={capacityById} outagesById={outagesById} plannedById={plannedById} pos={tooltipPos} onNetSet={onNetSet} />,
+        <SegmentTooltip route={route} capacityById={capacityById} outagesById={outagesById} plannedById={plannedById} pos={tooltipPos} onNetSet={onNetSet} onMouseEnter={enterHover} onMouseLeave={leaveWithGrace} />,
         document.body
       )}
     </div>
@@ -1432,6 +1457,7 @@ function SegmentBreakdownRows({ route, capacityById, outagesById, plannedById, o
   onNetSet: Set<string>
 }) {
   const t = useTheme()
+  const { hoveredSegmentId, setHoveredSegmentId } = useSegmentHover()
   const nodeIndex = new Map(route.nodes.map((n, i) => [n, i]))
   const sortedSegs = [...route.segments].sort((a, b) => {
     const aIdx = Math.min(nodeIndex.get(a.start_node_id) ?? 0, nodeIndex.get(a.end_node_id) ?? 0)
@@ -1456,8 +1482,19 @@ function SegmentBreakdownRows({ route, capacityById, outagesById, plannedById, o
         const netLabel = onNet === true ? 'ON-NET' : onNet === false ? 'OFF-NET' : null
         const outage = outagesById[seg.segment_id]
         const planned = plannedById[seg.segment_id]
+        const isGlowing = hoveredSegmentId === seg.segment_id
         return (
-          <div key={seg.segment_id} style={{ marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${t.border}` }}>
+          <div
+            key={seg.segment_id}
+            onMouseEnter={() => setHoveredSegmentId(seg.segment_id)}
+            onMouseLeave={() => setHoveredSegmentId(null)}
+            style={{
+              marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${t.border}`,
+              marginLeft: -6, marginRight: -6, paddingLeft: 6, paddingRight: 6,
+              borderRadius: 4,
+              background: isGlowing ? t.orange + '1c' : 'transparent',
+              transition: 'background 0.15s',
+            }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 11, fontWeight: 600, color: seg.type === 'wet' ? t.blue : t.green }}>
@@ -1536,24 +1573,56 @@ function SegmentBreakdownRows({ route, capacityById, outagesById, plannedById, o
   )
 }
 
-function SegmentTooltip({ route, capacityById, outagesById, plannedById, pos, onNetSet }: {
+function SegmentTooltip({ route, capacityById, outagesById, plannedById, pos, onNetSet, onMouseEnter, onMouseLeave }: {
   route: Route
   capacityById: Record<string, SegmentCapacity>
   outagesById: Record<string, SegmentOutage>
   plannedById: Record<string, SegmentOutage>
   pos: { top: number; left: number }
   onNetSet: Set<string>
+  onMouseEnter?: () => void
+  onMouseLeave?: () => void
 }) {
   const t = useTheme()
+  const ref = useRef<HTMLDivElement>(null)
+  const [clamped, setClamped] = useState(pos)
+  const { setHoveredSegmentId } = useSegmentHover()
+
+  // Whatever segment was glowing on the map because the cursor was over one of
+  // this tooltip's rows stops glowing the instant the tooltip itself goes away
+  // (mouse finally left both the card and the tooltip) — otherwise the last
+  // hovered segment would stay lit on the map with nothing pointing at it.
+  useEffect(() => () => setHoveredSegmentId(null), [setHoveredSegmentId])
+
+  // The caller only knows where the hovered card is, not how tall this tooltip will
+  // render once populated with a full segment list — that depends on the route's hop
+  // count and isn't known until after mount. So measure it here and pull the box back
+  // onto the screen (both edges) rather than letting it render past the viewport with
+  // no way to reach the clipped part, since it's a hover overlay with no scroll of its
+  // own. Re-measures whenever the anchor position or route (hop count) changes.
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const margin = 8
+    const { offsetHeight: h, offsetWidth: w } = el
+    const top = Math.max(margin, Math.min(pos.top, window.innerHeight - h - margin))
+    const left = Math.max(margin, Math.min(pos.left, window.innerWidth - w - margin))
+    setClamped({ top, left })
+  }, [pos.top, pos.left, route])
+
   return (
     <div
+      ref={ref}
       role="presentation"
       onClick={e => e.stopPropagation()}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       style={{
-        position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999,
-        width: 300, background: t.bgCard, border: `1px solid ${t.borderSubtle}`,
+        position: 'fixed', top: clamped.top, left: clamped.left, zIndex: 9999,
+        width: 300, maxHeight: 'calc(100vh - 16px)', overflowY: 'auto',
+        background: t.bgCard, border: `1px solid ${t.borderSubtle}`,
         borderRadius: 6, padding: '10px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-        fontFamily: 'system-ui, sans-serif', pointerEvents: 'none',
+        fontFamily: 'system-ui, sans-serif', pointerEvents: 'auto',
       }}
     >
       <SegmentBreakdownRows route={route} capacityById={capacityById} outagesById={outagesById} plannedById={plannedById} onNetSet={onNetSet} />

@@ -66,6 +66,7 @@ import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from
 import type { CableNode, CableSegment, CountryHighlight, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
 import { useTheme } from '../theme'
 import type { ManualState, NextHopCandidate } from './RouteManual'
+import { useSegmentHover } from '../context/SegmentHoverContext'
 
 // Human-readable labels for the Ownership enum, used in segment tooltips.
 const OWNERSHIP_LABEL: Record<string, string> = {
@@ -373,6 +374,7 @@ function formatPlannedDate(iso: string): string {
 // (typescript:S2424 / S2137).
 export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider }: Props) {
   const t = useTheme()
+  const { hoveredSegmentId } = useSegmentHover()
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
 
@@ -448,12 +450,19 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
       segmentOpacity[s.segment_id] = 0.8
     }
   }
+  // Every segment of a route the user has clicked/selected also gets an
+  // "illuminated" glow halo underneath it (see the .rb-route-glow render
+  // below) — the ordinary color/weight/opacity bump above makes the line
+  // itself stand out; this makes the whole selected route visibly light up
+  // on the map rather than just look slightly thicker.
+  const selectedGlowColor: Record<string, string> = {}
   for (const r of selectedRoutes) {
     const color = r.id.startsWith('protected-') ? t.green : t.blue
     for (const s of r.segments) {
       segmentColor[s.segment_id] = color
       segmentWeight[s.segment_id] = 3
       segmentOpacity[s.segment_id] = 0.9
+      selectedGlowColor[s.segment_id] = color
     }
   }
 
@@ -477,6 +486,28 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
 
   return (
     <div style={{ position: 'relative', height: '100%', width: '100%' }}>
+    {/* Pulsing glow keyframes for the hovered-segment highlight below. A plain
+        <style> tag (not an external stylesheet) so the animation stays inline
+        with the rest of the bundle — see main.tsx's note on not fetching CSS
+        from a CDN. */}
+    <style>{`
+      @keyframes rb-route-glow-pulse {
+        0%, 100% { opacity: 0.28; stroke-width: 9; }
+        50%      { opacity: 0.55; stroke-width: 13; }
+      }
+      .rb-route-glow {
+        animation: rb-route-glow-pulse 2.2s ease-in-out infinite;
+        filter: blur(2.5px);
+      }
+      @keyframes rb-segment-glow-pulse {
+        0%, 100% { opacity: 0.35; stroke-width: 10; }
+        50%      { opacity: 0.95; stroke-width: 20; }
+      }
+      .rb-segment-glow {
+        animation: rb-segment-glow-pulse 1s ease-in-out infinite;
+        filter: blur(3.5px);
+      }
+    `}</style>
     {/* Node type legend */}
     <div style={{
       position: 'absolute', bottom: 28, left: 8, zIndex: 1000,
@@ -533,6 +564,30 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
       <MapResizer panelWidth={panelWidth} />
       <MapFlyTo highlight={countryHighlight} />
       <ManualFitBounds manualState={manualState} manualCandidates={manualCandidates} nodes={nodes} />
+
+      {/*
+        Selected-route glow — drawn first (so it sits under every segment line
+        rendered below, neon-tube style) for every segment belonging to a route
+        the user has clicked/selected, in that route's own colour. Purely
+        additive: the ordinary segment styling on top is unchanged, this just
+        makes the whole route visibly light up rather than only look thicker.
+      */}
+      {Object.keys(selectedGlowColor).length > 0 && segments.flatMap(seg => {
+        const glowColor = selectedGlowColor[seg.id]
+        if (!glowColor) return []
+        const start = nodesById[seg.start_node_id]
+        const end = nodesById[seg.end_node_id]
+        if (!start || !end) return []
+        const lines = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined)
+        return lines.map((positions, i) => (
+          <Polyline
+            key={`route-glow-${seg.id}-${i}`}
+            positions={positions}
+            pathOptions={{ color: glowColor, weight: 9, opacity: 0.4, className: 'rb-route-glow', lineCap: 'round' }}
+            interactive={false}
+          />
+        ))
+      })}
 
       {segments.flatMap(seg => {
         const start = nodesById[seg.start_node_id]
@@ -856,6 +911,30 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
           eventHandlers={{ click: (e) => { e.originalEvent.stopPropagation(); onManualNodeClick?.(node) } }}
         />
       ))}
+
+      {/*
+        Segment spotlight — draws a warm pulsing halo under whichever segment the
+        cursor is over in a route's Segment Breakdown panel (RouteList.tsx), via
+        the shared SegmentHoverContext. Drawn last so it sits above every other
+        overlay; non-interactive so it never steals clicks/hover from the real
+        segment line underneath.
+      */}
+      {hoveredSegmentId && (() => {
+        const seg = segmentsById[hoveredSegmentId]
+        if (!seg) return null
+        const start = nodesById[seg.start_node_id]
+        const end = nodesById[seg.end_node_id]
+        if (!start || !end) return null
+        const lines = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined)
+        return lines.map((positions, i) => (
+          <Polyline
+            key={`glow-${seg.id}-${i}`}
+            positions={positions}
+            pathOptions={{ color: '#ffb020', weight: 8, opacity: 0.6, className: 'rb-segment-glow', lineCap: 'round' }}
+            interactive={false}
+          />
+        ))
+      })()}
     </MapContainer>
     </div>
   )

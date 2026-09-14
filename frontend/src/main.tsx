@@ -18,12 +18,15 @@ import 'leaflet/dist/leaflet.css'
 import App from './App'
 import { PasswordGate } from './components/PasswordGate'
 import { AuthProvider } from './context/AuthContext'
+import { SegmentHoverProvider } from './context/SegmentHoverContext'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <AuthProvider>
       <PasswordGate>
-        <App />
+        <SegmentHoverProvider>
+          <App />
+        </SegmentHoverProvider>
       </PasswordGate>
     </AuthProvider>
   </React.StrictMode>
