@@ -1,7 +1,12 @@
 # RouteBuilder — Engineering Backlog
 
-Everything known-but-not-done, as of 2026-09-14. Ordered by kind, not by
-priority — priority is the product owner's call.
+Everything known-but-not-done, as of 2026-09-14. Ordered by kind.
+
+**Decided 2026-09-14** (product owner): RFS becomes a routing constraint with a
+service date defaulting to today (1.1, in progress); the guide pages get
+brought current (3.1, in progress); the lint debt gets cleared (4.3, in
+progress); `generateUserGuide.ts` is deleted (3.2, done); route-path chains
+stay names-only (1.2, closed).
 
 This is the *engineering* backlog. Product ideas from users live in the app's
 own Feature Backlog page (Guide → 📋 Feature Backlog, `/api/feature-requests`),
@@ -12,23 +17,31 @@ and the forward-looking product roadmap lives on the Product Overview page.
 ## 1. Deferred on purpose
 
 ### 1.1 RFS as a routing constraint
-**Asked for, explicitly deferred.** Systems and segments carry `rfs_status`
+**IN PROGRESS.** Systems and segments carry `rfs_status`
 (`in_service` / `planned`) and `rfs_quarter` (`YYYY-Qn`), backfilled to
 in-service by migration m060. Nothing reads them: `pathfinder.py`, `graph.py`
 and `routes.py` ignore both fields entirely, so a planned cable routes today as
 if it were live.
 
-To finish: a service-date input on the search form, and a filter in the graph
-build that drops segments whose RFS quarter is after the requested date. Worth
-deciding whether the date defaults to "today" or "any" — defaulting to today
-silently changes every existing search result.
+Agreed design: a **service date on the search, defaulting to today**, so the
+common case is "only what is in service right now" and you can never quote a
+route over a cable that does not exist yet. Pushing the date forward is how you
+plan against future capacity.
+
+Resolution rules: a segment is unavailable when its effective RFS date is after
+the service date; the effective date is the **later** of the segment's own and
+its owning system's, because a segment cannot be in service before its cable;
+`YYYY-Qn` resolves to the **last** day of that quarter, since RFS promises
+service *by the end of* it; and a row marked planned with a missing or
+malformed quarter is treated as never in service rather than waved through.
+Filtering happens at graph-build time so excluded segments simply do not exist
+for the pathfinder, leaving diversity and k-shortest-path logic untouched.
 
 ### 1.2 Node codes in RouteList path chains
 Route cards render a path as `Sydney → Auckland → Guam`, names only. Everywhere
 else a node is written code-first (`SYD1 - Sydney`) via `utils/nodeLabel.ts`.
-Left as-is because a five-hop chain with codes gets long, and the Segment
-Breakdown underneath already shows codes. Needs a call: codes in the chain, or
-codes only on hover.
+**CLOSED — stays names-only.** A five-hop chain with codes gets long enough to
+wrap, and the Segment Breakdown underneath already shows codes.
 
 ---
 
@@ -71,6 +84,7 @@ each side rather than radially.
 ## 3. Documentation debt
 
 ### 3.1 Guide pages are behind
+**IN PROGRESS.**
 The in-app guide and its print/PDF export were last brought up to date on
 2026-08-04. Since then these shipped and are undocumented: Esri basemaps with
 English labels, segment spotlighting and the 1 Hz route glow, verbose build
@@ -79,12 +93,15 @@ RFS dates, in-app confirm dialogs, node codes in data views, and node Full
 View. (The Product History page covers *that* these happened; the guide should
 cover *how to use* them.)
 
-### 3.2 `generateUserGuide.ts` is dead code — decide its fate
-`generateUserGuidePDF()` is ~1,100 lines of hand-drawn jsPDF and **nothing
-imports it**. The "Export as PDF" button calls `handlePrint`, which uses the
-print-portal path instead. Either wire the jsPDF generator up (it produces a
-much more designed document) or delete it. Right now it is maintenance surface
-that can never be seen to break.
+### 3.2 `generateUserGuide.ts` — DONE, deleted
+`generateUserGuidePDF()` was 1,032 lines of hand-drawn jsPDF that nothing
+imported: the "Export as PDF" button calls `handlePrint`, which uses the
+print-portal path. Deleted rather than wired up, because the print portal
+already exports every guide page automatically and stays correct as pages are
+added, whereas the jsPDF document had to be hand-updated page by page and had
+silently fallen months of features behind. `jspdf` remains a dependency — the
+SLD export
+(`utils/generateDiagram.ts`) still uses it.
 
 ---
 
@@ -105,6 +122,7 @@ instance using the app's own `mapTileUrl` would make it consistent and remove
 the external dependency.
 
 ### 4.3 Pre-existing lint debt
+**IN PROGRESS.**
 `App.tsx`, `Map.tsx` and `MobileLayout.tsx` carry 32 eslint errors between them
 (mostly `sonarjs/no-nested-conditional`, plus `App.tsx`'s render at cognitive
 complexity 62); `ProductHistory.tsx` has 7 of the same kind. None are new and

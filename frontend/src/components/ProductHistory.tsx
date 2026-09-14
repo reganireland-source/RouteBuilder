@@ -239,9 +239,26 @@ function Starfield() {
 // ── One month's header band ─────────────────────────────────────────────────
 // The intensity bar is the "how hard was this month" signal: a 4-cell pixel
 // meter, filled cells coloured by level, and at level 4 the whole band pulses.
+
+/** The colour a month's band, meter and caption are drawn in, by intensity. */
+function intensityColor(intensity: Month['intensity'], t: ReturnType<typeof useTheme>): string {
+  if (intensity >= 4) return '#f43f5e'
+  if (intensity === 3) return '#f59e0b'
+  if (intensity === 2) return '#38bdf8'
+  return t.textFaint
+}
+
+/** The caption printed beside the meter, by intensity. */
+function intensityWording(intensity: Month['intensity']): string {
+  if (intensity >= 4) return 'PEAK SPRINT'
+  if (intensity === 3) return 'SPRINT'
+  if (intensity === 2) return 'STEADY BUILD'
+  return 'QUIET MONTH'
+}
+
 function MonthBand({ month, t }: { month: Month; t: ReturnType<typeof useTheme> }) {
-  const intensityColor = month.intensity >= 4 ? '#f43f5e' : month.intensity === 3 ? '#f59e0b' : month.intensity === 2 ? '#38bdf8' : t.textFaint
-  const intensityWord = month.intensity >= 4 ? 'PEAK SPRINT' : month.intensity === 3 ? 'SPRINT' : month.intensity === 2 ? 'STEADY BUILD' : 'QUIET MONTH'
+  const bandColor = intensityColor(month.intensity, t)
+  const bandWord = intensityWording(month.intensity)
 
   return (
     <div style={{
