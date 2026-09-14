@@ -15,8 +15,11 @@
  * Side effects / polling:
  *   - Calls api.getHealth() (GET /api/health) and api.getNlpHealth() (GET /api/health/nlp)
  *     on mount and every 30 seconds; results drive the Backend, Data, Database and LLM dots.
- *   - Maps check: for OSM it fetches a single CARTO basemap tile with a 5 s timeout; for
- *     Google it polls window.google.maps for up to ~8 s and also verifies that a
+ *   - Maps check: for OSM it fetches a single tile from tile.openstreetmap.org with a 5 s
+ *     timeout — this replaced a check against CARTO's basemaps.cartocdn.com, which now
+ *     gates its tiles behind an API key but still returns an HTTP 200 "API KEY REQUIRED"
+ *     watermark tile, so that check falsely reported "OK" even when the map was unusable;
+ *     for Google it polls window.google.maps for up to ~8 s and also verifies that a
  *     VITE_GMAPS_API_KEY was baked into the build.
  * All checks are best-effort; failures only change dot colours, never crash the app.
  */
@@ -124,7 +127,7 @@ export function HealthBar({ dataLoaded, mapsProvider }: Props) {
     } else {
       const ctrl = new AbortController()
       const timeout = setTimeout(() => ctrl.abort(), 5000)
-      fetch('https://a.basemaps.cartocdn.com/dark_all/3/4/3.png', { signal: ctrl.signal })
+      fetch('https://a.tile.openstreetmap.org/3/4/2.png', { signal: ctrl.signal })
         .then(r => {
           if (!cancelled) {
             setMapsStatus(r.ok ? 'ok' : 'error')
