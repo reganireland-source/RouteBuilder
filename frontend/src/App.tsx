@@ -19,6 +19,10 @@ import { HealthBar } from './components/HealthBar'
 import { MobileLayout } from './components/MobileLayout'
 import { CapacityDashboard } from './components/CapacityDashboard'
 import { UserGuide } from './components/UserGuide'
+import { AssetSearch } from './components/AssetSearch'
+import { parseCityId, type AssetHit } from './utils/assetSearch'
+import { normalizeLng } from './mapGeometry'
+import { useSegmentHover } from './context/SegmentHoverContext'
 import { AlgoEval } from './components/AlgoEval'
 import { generateStraightLineDiagram, generateSldFromProject, generateDrawioXml, generateVisioVsdx } from './utils/generateDiagram'
 import { api } from './api/client'
@@ -298,6 +302,94 @@ export default function App() {
   // Fly-to request from a node-code lookup. `key` increments every time so
   // asking for the same node twice still flies.
   const [flyToNode, setFlyToNode] = useState<{ lat: number; lng: number; key: number } | undefined>(undefined)
+
+  const [fitBounds, setFitBounds] = useState<{ bounds: [[number, number], [number, number]]; key: number } | undefined>(undefined)
+  // Country the Asset Search asked Country Viewer to open. Cleared once
+  // CountryViewer has consumed it so re-picking the same country works.
+  const [prefilledCountry, setPrefilledCountry] = useState<string | null>(null)
+  const { setHoveredSegmentId } = useSegmentHover()
+
+  /** Fit the map to a box, bumping the key so the same box twice still moves. */
+  function fitTo(bounds: [[number, number], [number, number]]) {
+    setFitBounds(f => ({ bounds, key: (f?.key ?? 0) + 1 }))
+  }
+
+  /** Bounding box of a set of points, in the map's normalised longitude space
+   *  so a Pacific-spanning cable doesn't fit to the whole world the wrong way.
+   *  Returns null when there is nothing to fit. */
+  function boundsOf(points: [number, number][]): [[number, number], [number, number]] | null {
+    if (points.length === 0) return null
+    const lats = points.map(p => p[0])
+    const lngs = points.map(p => normalizeLng(p[1]))
+    // A single point has zero extent, which fitBounds renders as maximum zoom;
+    // pad it into a small box so a one-node city lands at a sane scale.
+    const pad = points.length === 1 ? 0.35 : 0
+    return [
+      [Math.min(...lats) - pad, Math.min(...lngs) - pad],
+      [Math.max(...lats) + pad, Math.max(...lngs) + pad],
+    ]
+  }
+
+  /**
+   * Asset Search: go to whatever the user picked. Every kind stays in the
+   * current mode — searching for a node mid-way through building a route must
+   * not throw that work away — with ONE deliberate exception: a country has
+   * nothing useful to show in place, so it opens Country Viewer, which owns the
+   * logic for building a country highlight.
+   */
+  function handleAssetSelect(hit: AssetHit) {
+    switch (hit.kind) {
+      case 'node':
+        handleGoToNode(hit.id)
+        break
+      case 'city': {
+        const { city, country } = parseCityId(hit.id)
+        const pts = nodes.filter(n => n.city === city && n.country === country)
+          .map((n): [number, number] => [n.lat, n.lng])
+        const b = boundsOf(pts)
+        if (b) fitTo(b)
+        break
+      }
+      case 'segment': {
+        const seg = segments.find(s => s.id === hit.id)
+        if (!seg) break
+        const start = nodes.find(n => n.id === seg.start_node_id)
+        const end = nodes.find(n => n.id === seg.end_node_id)
+        const pts: [number, number][] = [
+          ...(start ? [[start.lat, start.lng] as [number, number]] : []),
+          ...(seg.waypoints ?? []),
+          ...(end ? [[end.lat, end.lng] as [number, number]] : []),
+        ]
+        const b = boundsOf(pts)
+        if (b) fitTo(b)
+        // Reuse the Segment Breakdown's spotlight so the found cable is
+        // unmistakable on a map full of other cables.
+        setHoveredSegmentId(seg.id)
+        break
+      }
+      case 'system': {
+        const segs = segments.filter(s => s.system_id === hit.id)
+        const pts: [number, number][] = []
+        for (const seg of segs) {
+          const a = nodes.find(n => n.id === seg.start_node_id)
+          const z = nodes.find(n => n.id === seg.end_node_id)
+          if (a) pts.push([a.lat, a.lng])
+          if (z) pts.push([z.lat, z.lng])
+          for (const w of seg.waypoints ?? []) pts.push(w)
+        }
+        const b = boundsOf(pts)
+        if (b) fitTo(b)
+        // Add to the highlight set rather than replacing it, so searching two
+        // cables in a row lets you compare them. handleToggleSystem caps at 5.
+        if (!selectedSystems.some(s => s.systemId === hit.id)) handleToggleSystem(hit.id)
+        break
+      }
+      case 'country':
+        setPrefilledCountry(hit.id)
+        switchMode('countryviewer')
+        break
+    }
+  }
 
   /** Look a node up by id, fly the map to it and open its info panel — the
    *  Network Explorer "type a 4-alpha code" path. */
@@ -867,6 +959,8 @@ export default function App() {
           onNodeClick={(node, x, y) => setSelectedNode({ node, x, y })}
           onGoToNode={handleGoToNode}
           flyToNode={flyToNode}
+          onAssetSelect={handleAssetSelect}
+          fitBounds={fitBounds}
           onPinChange={handlePinChange}
           onCloseNode={() => setSelectedNode(null)}
           onOpenRefData={() => setRefDataOpen(true)}
@@ -1231,6 +1325,19 @@ export default function App() {
             <p style={{ fontSize: 11, color: theme.textFaint }}>International Telco · Subsea Circuit Design</p>
           </div>
 
+          {/* ── Asset Search — one box over nodes, cities, systems, segments
+                 and countries. Sits above the mode tabs because it works in
+                 every mode: picking a result navigates without changing what
+                 you were doing (see handleAssetSelect). ── */}
+          <div style={{ padding: '0 14px 10px' }}>
+            <AssetSearch
+              nodes={nodes}
+              segments={segments}
+              systems={systems}
+              onSelect={handleAssetSelect}
+            />
+          </div>
+
           {/* ── Two top-level tabs ── */}
           {(() => {
             const isBuilder  = mode === 'routebuilder' || mode === 'routemanual'
@@ -1343,6 +1450,8 @@ export default function App() {
               <CountryViewer
                 nodes={nodes} segments={segments} systems={systems}
                 onSelect={setCountryHighlight}
+                prefilledCountryCode={prefilledCountry}
+                onPrefillConsumed={() => setPrefilledCountry(null)}
               />
             )}
             {mode === 'networkeditor' && isAdmin && (
@@ -1547,6 +1656,7 @@ export default function App() {
               capacity={editorDisplay.capacity} pinnedRoutes={pinnedRoutes} selectedSystems={selectedSystems}
               outages={outages}
               flyToNode={flyToNode}
+              fitBounds={fitBounds}
               onNodeClick={mode === 'routemanual' ? undefined : (node, x, y) => setSelectedNode({ node, x, y })}
               searchPin={searchPin ?? undefined}
               nearestNodeIds={nearestNodeIds}

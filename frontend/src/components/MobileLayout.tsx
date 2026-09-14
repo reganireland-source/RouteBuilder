@@ -45,6 +45,8 @@ import { RouteManual } from './RouteManual'
 import type { ManualState, NextHopCandidate } from './RouteManual'
 import { OutagePanel } from './OutagePanel'
 import { NodeFullView } from './NodeFullView'
+import { AssetSearch } from './AssetSearch'
+import type { AssetHit } from '../utils/assetSearch'
 import { RefDataModal } from './RefDataModal'
 import { HealthBar } from './HealthBar'
 import { CapacityDashboard } from './CapacityDashboard'
@@ -110,6 +112,9 @@ export interface MobileLayoutProps {
   /** Node-code lookup: fly the map to this node and open its info. */
   onGoToNode?:       (nodeId: string) => void
   flyToNode?:        { lat: number; lng: number; key: number }
+  /** Asset Search picked something — the parent navigates to it. */
+  onAssetSelect?:    (hit: AssetHit) => void
+  fitBounds?:        { bounds: [[number, number], [number, number]]; key: number }
   onNodeClick:       (node: CableNode, x: number, y: number) => void
   onPinChange:       (pin: { lat: number; lng: number; label: string } | null, ids: string[]) => void
   onCloseNode:       () => void
@@ -537,7 +542,7 @@ export function MobileLayout({
   prefilledOrigin, prefilledDest, lastSearchDiversity,
   refDataOpen, themeMode, config,
   onSearch, onToggleRoute, onPin, onUnpin, onPinPair, onToggleSystem,
-  onSetOrigin, onSetDest, onSetPair, onGoToNode, flyToNode, onNodeClick, onPinChange,
+  onSetOrigin, onSetDest, onSetPair, onGoToNode, flyToNode, onAssetSelect, fitBounds, onNodeClick, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
   switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowNodeLabels, onToggleShowAllOutages,
   onToggleShowPlannedEvents,
@@ -633,6 +638,7 @@ export function MobileLayout({
             selectedSystems={selectedSystems}
             onNodeClick={mode === 'routemanual' && onManualNodeClick ? onManualNodeClick : onNodeClick}
             flyToNode={flyToNode}
+            fitBounds={fitBounds}
             searchPin={searchPin ?? undefined}
             nearestNodeIds={nearestNodeIds}
             hideNonActive={hideNonActive}
@@ -679,6 +685,20 @@ export function MobileLayout({
           <div style={{ fontSize: 9, color: t.textFaint, letterSpacing: '0.04em', marginTop: 1 }}>International Telco</div>
         </div>
       </div>
+
+      {/* ── Asset Search, collapsed to a magnifier so it costs almost no
+             room in a header that already carries the logo and Controls. ── */}
+      {onAssetSelect && (
+        <div style={{ position: 'absolute', top: 14, right: 92, zIndex: 100 }}>
+          <AssetSearch
+            nodes={nodes}
+            segments={segments}
+            systems={systems}
+            onSelect={hit => { doSnap('peek'); onAssetSelect(hit) }}
+            compact
+          />
+        </div>
+      )}
 
       {/* ── Top-right drawer toggle + panel ────────────────────────────── */}
       <MobileControlsDrawer

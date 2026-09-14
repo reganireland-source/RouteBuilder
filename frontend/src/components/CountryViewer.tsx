@@ -55,9 +55,16 @@ interface Props {
   segments: CableSegment[]
   systems: CableSystem[]
   onSelect: (h: CountryHighlight | null) => void
+  /** ISO code the Asset Search asked us to open. Selecting it here rather than
+   *  building the highlight at the call site keeps the (non-trivial) highlight
+   *  construction in one place — this component — so the two can never drift. */
+  prefilledCountryCode?: string | null
+  /** Called once the prefill has been applied, so the parent can clear it and
+   *  picking the same country again still works. */
+  onPrefillConsumed?: () => void
 }
 
-export function CountryViewer({ nodes, segments, systems, onSelect }: Props) {
+export function CountryViewer({ nodes, segments, systems, onSelect, prefilledCountryCode, onPrefillConsumed }: Props) {
   const t = useTheme()
   const [query, setQuery] = useState('')
   const [selectedCode, setSelectedCode] = useState<string | null>(null)
@@ -138,6 +145,16 @@ export function CountryViewer({ nodes, segments, systems, onSelect }: Props) {
     onSelect(selectedHighlight)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedHighlight])
+
+  // Apply a prefill from Asset Search. Set directly rather than through
+  // handleSelect, because that toggles — and arriving here from a search for
+  // the country already on screen should leave it selected, not clear it.
+  useEffect(() => {
+    if (!prefilledCountryCode) return
+    setSelectedCode(prefilledCountryCode)
+    onPrefillConsumed?.()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefilledCountryCode])
 
   function handleSelect(code: string) {
     setSelectedCode(prev => prev === code ? null : code)
