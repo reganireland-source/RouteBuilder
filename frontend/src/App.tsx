@@ -307,6 +307,10 @@ export default function App() {
   // Country the Asset Search asked Country Viewer to open. Cleared once
   // CountryViewer has consumed it so re-picking the same country works.
   const [prefilledCountry, setPrefilledCountry] = useState<string | null>(null)
+  // Node called out by a mobile Asset Search hit: flown to and tooltip-pinned,
+  // WITHOUT opening the full node panel (which would cover the map and hide the
+  // fly-to the user just asked for).
+  const [spotlightNodeId, setSpotlightNodeId] = useState<string | null>(null)
   const { setHoveredSegmentId } = useSegmentHover()
 
   /** Fit the map to a box, bumping the key so the same box twice still moves. */
@@ -337,11 +341,20 @@ export default function App() {
    * nothing useful to show in place, so it opens Country Viewer, which owns the
    * logic for building a country highlight.
    */
-  function handleAssetSelect(hit: AssetHit) {
+  function handleAssetSelect(hit: AssetHit, opts: { openNodePanel?: boolean } = {}) {
+    const openNodePanel = opts.openNodePanel ?? true
+    // Any new destination clears a previous spotlight, so stale tooltips don't
+    // linger on a node the user has navigated away from.
+    setSpotlightNodeId(null)
     switch (hit.kind) {
-      case 'node':
-        handleGoToNode(hit.id)
+      case 'node': {
+        if (openNodePanel) { handleGoToNode(hit.id); break }
+        const node = nodes.find(n => n.id === hit.id)
+        if (!node) break
+        setFlyToNode(f => ({ lat: node.lat, lng: node.lng, key: (f?.key ?? 0) + 1 }))
+        setSpotlightNodeId(node.id)
         break
+      }
       case 'city': {
         const { city, country } = parseCityId(hit.id)
         const pts = nodes.filter(n => n.city === city && n.country === country)
@@ -959,8 +972,9 @@ export default function App() {
           onNodeClick={(node, x, y) => setSelectedNode({ node, x, y })}
           onGoToNode={handleGoToNode}
           flyToNode={flyToNode}
-          onAssetSelect={handleAssetSelect}
+          onAssetSelect={hit => handleAssetSelect(hit, { openNodePanel: false })}
           fitBounds={fitBounds}
+          spotlightNodeId={spotlightNodeId}
           onPinChange={handlePinChange}
           onCloseNode={() => setSelectedNode(null)}
           onOpenRefData={() => setRefDataOpen(true)}
@@ -1657,6 +1671,7 @@ export default function App() {
               outages={outages}
               flyToNode={flyToNode}
               fitBounds={fitBounds}
+              spotlightNodeId={spotlightNodeId}
               onNodeClick={mode === 'routemanual' ? undefined : (node, x, y) => setSelectedNode({ node, x, y })}
               searchPin={searchPin ?? undefined}
               nearestNodeIds={nearestNodeIds}

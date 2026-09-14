@@ -57,7 +57,7 @@
  * is provided.
  */
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import * as L from 'leaflet'
 import 'leaflet.gridlayer.googlemutant'
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet'
@@ -98,6 +98,10 @@ interface Props {
   /** Fit the map to an arbitrary box — a city's nodes, a segment's path, a
    *  cable system's full extent. Same bumped `key` trick as flyToNode. */
   fitBounds?: { bounds: [[number, number], [number, number]]; key: number }
+  /** Node to call out after a search: drawn emphasised with its tooltip pinned
+   *  open. Used on mobile, where opening the full node panel would cover the
+   *  map and hide the fly-to the user just asked for. */
+  spotlightNodeId?: string | null
   searchPin?: { lat: number; lng: number; label: string }
   nearestNodeIds?: string[]
   hideNonActive?: boolean
@@ -203,6 +207,26 @@ function MapFlyToNode({ target }: { target: { lat: number; lng: number; key: num
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target?.key, map])
   return null
+}
+
+/**
+ * True on phone-width viewports. The legend is the only thing in this file that
+ * cares: stacked vertically it is ~140px tall, which the mobile bottom sheet
+ * sits on top of. A media query rather than a prop because the map is rendered
+ * from two different layouts and a narrow desktop window has the same problem.
+ */
+function useNarrowViewport(): boolean {
+  const [narrow, setNarrow] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth <= 640,
+  )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)')
+    const onChange = () => setNarrow(mq.matches)
+    onChange()
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return narrow
 }
 
 /** Fit an arbitrary box, for Asset Search results that are not a single point
@@ -326,11 +350,66 @@ function formatPlannedDate(iso: string): string {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+/**
+ * Node-type key. Stacked in the bottom-left on a desktop; on a phone it becomes
+ * a short horizontal strip below the header instead, because the bottom sheet
+ * is anchored to the foot of the screen at every snap position and would cover
+ * it there however thin it was. Its own component so the map's render does not
+ * carry the layout branch.
+ */
+function NodeTypeLegend({ narrow }: { narrow: boolean }) {
+  const rows: [string, string][] = narrow
+    ? [
+        ['landing_station', 'CLS'], ['primary_pop', '1\u00b0 PoP'],
+        ['secondary_pop', '2\u00b0 PoP'], ['extension_pop', 'Ext'],
+        ['branching_unit', 'BU'], ['off_net', 'Off-Net'],
+      ]
+    : [
+        ['landing_station', 'CLS'], ['primary_pop', 'Primary PoP'],
+        ['secondary_pop', 'Secondary PoP'], ['extension_pop', 'Extension PoP'],
+        ['branching_unit', 'Branching Unit'], ['off_net', 'Off-Net Node'],
+      ]
+
+  return (
+    <div style={{
+      position: 'absolute', zIndex: 1000,
+      // 62px clears the header row (logo, search and Controls all end by 57px);
+      // left:52 clears Leaflet's own zoom control in the map's top-left corner.
+      ...(narrow ? { top: 62, left: 52, right: 8 } : { bottom: 28, left: 8 }),
+      background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(4px)',
+      border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7,
+      padding: narrow ? '5px 8px' : '7px 10px',
+      display: 'flex',
+      flexDirection: narrow ? 'row' : 'column',
+      flexWrap: narrow ? 'wrap' : 'nowrap',
+      justifyContent: narrow ? 'center' : undefined,
+      columnGap: narrow ? 11 : 0, rowGap: 4,
+      pointerEvents: 'none', userSelect: 'none',
+    }}>
+      {rows.map(([type, label]) => {
+        const ns = NODE_STYLE[type]
+        const sz = Math.round(ns.radius * 1.5)
+        return (
+          <div key={type} style={{ display: 'flex', alignItems: 'center', gap: narrow ? 5 : 7 }}>
+            <div style={{
+              width: sz, height: sz, borderRadius: '50%', flexShrink: 0,
+              background: ns.fill, border: `${ns.weight}px solid ${ns.color}`,
+              opacity: ns.opacity,
+            }} />
+            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.82)', whiteSpace: 'nowrap', fontFamily: 'system-ui, sans-serif' }}>{label}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, flyToNode, fitBounds, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, flyToNode, fitBounds, spotlightNodeId, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
   const t = useTheme()
+  const narrowViewport = useNarrowViewport()
   const { hoveredSegmentId } = useSegmentHover()
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
@@ -465,36 +544,7 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         filter: blur(2px);
       }
     `}</style>
-    {/* Node type legend */}
-    <div style={{
-      position: 'absolute', bottom: 28, left: 8, zIndex: 1000,
-      background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(4px)',
-      border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7,
-      padding: '7px 10px', display: 'flex', flexDirection: 'column', gap: 4,
-      pointerEvents: 'none', userSelect: 'none',
-    }}>
-      {([
-        ['landing_station', 'CLS'],
-        ['primary_pop',     'Primary PoP'],
-        ['secondary_pop',   'Secondary PoP'],
-        ['extension_pop',   'Extension PoP'],
-        ['branching_unit',  'Branching Unit'],
-        ['off_net',         'Off-Net Node'],
-      ] as [string, string][]).map(([type, label]) => {
-        const ns = NODE_STYLE[type]
-        const sz = Math.round(ns.radius * 1.5)
-        return (
-          <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <div style={{
-              width: sz, height: sz, borderRadius: '50%', flexShrink: 0,
-              background: ns.fill, border: `${ns.weight}px solid ${ns.color}`,
-              opacity: ns.opacity,
-            }} />
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.82)', whiteSpace: 'nowrap', fontFamily: 'system-ui, sans-serif' }}>{label}</span>
-          </div>
-        )
-      })}
-    </div>
+    <NodeTypeLegend narrow={narrowViewport} />
     <MapContainer
       center={[10, 130]}
       zoom={3}
@@ -720,7 +770,8 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         } else if (hideNonActive && !isRouteNode && !isSystemNode) return null
         const ns            = NODE_STYLE[node.type] ?? NODE_STYLE.extension_pop
         const isBU          = node.type === 'branching_unit'
-        const isNearest     = nearestNodeIds?.includes(node.id) ?? false
+        const isSpotlit     = spotlightNodeId === node.id
+        const isNearest     = isSpotlit || (nearestNodeIds?.includes(node.id) ?? false)
 
         let color: string, fillColor: string, radius: number, weight: number
         let fillOpacity: number, nodeOpacity: number
@@ -751,7 +802,15 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
             pathOptions={{ color, fillColor, fillOpacity, weight, opacity: nodeOpacity }}
             eventHandlers={{ click: (e) => { e.originalEvent.stopPropagation(); onNodeClick?.(node, e.originalEvent.clientX, e.originalEvent.clientY) } }}
           >
-            <Tooltip>
+            {/* `key` forces a remount when the spotlight moves: react-leaflet
+                reads `permanent` only when the tooltip is first created, so
+                toggling the prop alone would never pin it open. */}
+            <Tooltip
+              key={isSpotlit ? 'pinned' : 'hover'}
+              permanent={isSpotlit}
+              direction={isSpotlit ? 'top' : 'auto'}
+              offset={isSpotlit ? [0, -radius - 4] : [0, 0]}
+            >
               <strong>{node.name}</strong> ({node.id})
               <br />{node.country} · {NODE_TYPE_LABEL[node.type] ?? node.type}
               {node.owner && <><br />Owner: {node.owner}</>}

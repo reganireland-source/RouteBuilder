@@ -115,6 +115,7 @@ export interface MobileLayoutProps {
   /** Asset Search picked something — the parent navigates to it. */
   onAssetSelect?:    (hit: AssetHit) => void
   fitBounds?:        { bounds: [[number, number], [number, number]]; key: number }
+  spotlightNodeId?:  string | null
   onNodeClick:       (node: CableNode, x: number, y: number) => void
   onPinChange:       (pin: { lat: number; lng: number; label: string } | null, ids: string[]) => void
   onCloseNode:       () => void
@@ -542,7 +543,7 @@ export function MobileLayout({
   prefilledOrigin, prefilledDest, lastSearchDiversity,
   refDataOpen, themeMode, config,
   onSearch, onToggleRoute, onPin, onUnpin, onPinPair, onToggleSystem,
-  onSetOrigin, onSetDest, onSetPair, onGoToNode, flyToNode, onAssetSelect, fitBounds, onNodeClick, onPinChange,
+  onSetOrigin, onSetDest, onSetPair, onGoToNode, flyToNode, onAssetSelect, fitBounds, spotlightNodeId, onNodeClick, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
   switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowNodeLabels, onToggleShowAllOutages,
   onToggleShowPlannedEvents,
@@ -639,6 +640,7 @@ export function MobileLayout({
             onNodeClick={mode === 'routemanual' && onManualNodeClick ? onManualNodeClick : onNodeClick}
             flyToNode={flyToNode}
             fitBounds={fitBounds}
+            spotlightNodeId={spotlightNodeId}
             searchPin={searchPin ?? undefined}
             nearestNodeIds={nearestNodeIds}
             hideNonActive={hideNonActive}
