@@ -295,6 +295,20 @@ export default function App() {
   const [lastSearchDiversity, setLastSearchDiversity] = useState<import('./types').DiversityType>('none') // remembers the diversity of the last search (affects how RouteList pairs cards)
   const [lastOptimiseFor, setLastOptimiseFor] = useState<string | undefined>(undefined)                   // remembers the "optimise for" objective of the last search
   const [selectedNode, setSelectedNode] = useState<{ node: CableNode; x: number; y: number } | null>(null) // node whose info popup is open (with click coords)
+  // Fly-to request from a node-code lookup. `key` increments every time so
+  // asking for the same node twice still flies.
+  const [flyToNode, setFlyToNode] = useState<{ lat: number; lng: number; key: number } | undefined>(undefined)
+
+  /** Look a node up by id, fly the map to it and open its info panel — the
+   *  Network Explorer "type a 4-alpha code" path. */
+  function handleGoToNode(nodeId: string) {
+    const node = nodes.find(n => n.id === nodeId)
+    if (!node) return
+    setFlyToNode(f => ({ lat: node.lat, lng: node.lng, key: (f?.key ?? 0) + 1 }))
+    // The popup positions itself from these coords, so put it near the middle
+    // of the map area rather than at a stale mouse position.
+    setSelectedNode({ node, x: Math.round(window.innerWidth / 2), y: Math.round(window.innerHeight / 2) })
+  }
   const [searchPin, setSearchPin]       = useState<{ lat: number; lng: number; label: string } | null>(null) // dropped pin in nodefinder mode
   const [nearestNodeIds, setNearestNodeIds] = useState<string[]>([])   // nodes nearest to the dropped search pin
   const [prefilledOrigin, setPrefilledOrigin] = useState('')           // origin to pre-fill SearchForm (from map click / other panels)
@@ -851,6 +865,8 @@ export default function App() {
           onSetDest={handleSetDest}
           onSetPair={handleSetPair}
           onNodeClick={(node, x, y) => setSelectedNode({ node, x, y })}
+          onGoToNode={handleGoToNode}
+          flyToNode={flyToNode}
           onPinChange={handlePinChange}
           onCloseNode={() => setSelectedNode(null)}
           onOpenRefData={() => setRefDataOpen(true)}
@@ -1347,6 +1363,7 @@ export default function App() {
                 onPinChange={handlePinChange}
                 onSetOrigin={handleSetOrigin}
                 onSetDest={handleSetDest}
+                onGoToNode={handleGoToNode}
               />
             )}
           </div>
@@ -1529,6 +1546,7 @@ export default function App() {
               nodes={editorDisplay.nodes} segments={editorDisplay.segments} selectedRoutes={selectedRoutes}
               capacity={editorDisplay.capacity} pinnedRoutes={pinnedRoutes} selectedSystems={selectedSystems}
               outages={outages}
+              flyToNode={flyToNode}
               onNodeClick={mode === 'routemanual' ? undefined : (node, x, y) => setSelectedNode({ node, x, y })}
               searchPin={searchPin ?? undefined}
               nearestNodeIds={nearestNodeIds}

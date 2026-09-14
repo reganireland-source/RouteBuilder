@@ -44,7 +44,7 @@ import { CityPairPanel } from './CityPairPanel'
 import { RouteManual } from './RouteManual'
 import type { ManualState, NextHopCandidate } from './RouteManual'
 import { OutagePanel } from './OutagePanel'
-import { NodeInfoPanel } from './NodeInfoPanel'
+import { NodeFullView } from './NodeFullView'
 import { RefDataModal } from './RefDataModal'
 import { HealthBar } from './HealthBar'
 import { CapacityDashboard } from './CapacityDashboard'
@@ -107,6 +107,9 @@ export interface MobileLayoutProps {
   onSetOrigin:       (nodeId: string) => void
   onSetDest:         (nodeId: string) => void
   onSetPair:         (originId: string, destId: string) => void
+  /** Node-code lookup: fly the map to this node and open its info. */
+  onGoToNode?:       (nodeId: string) => void
+  flyToNode?:        { lat: number; lng: number; key: number }
   onNodeClick:       (node: CableNode, x: number, y: number) => void
   onPinChange:       (pin: { lat: number; lng: number; label: string } | null, ids: string[]) => void
   onCloseNode:       () => void
@@ -240,7 +243,7 @@ export function MobileLayout({
   prefilledOrigin, prefilledDest, lastSearchDiversity,
   refDataOpen, themeMode, config,
   onSearch, onToggleRoute, onPin, onUnpin, onPinPair, onToggleSystem,
-  onSetOrigin, onSetDest, onSetPair, onNodeClick, onPinChange,
+  onSetOrigin, onSetDest, onSetPair, onGoToNode, flyToNode, onNodeClick, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
   switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowNodeLabels, onToggleShowAllOutages,
   onToggleShowPlannedEvents,
@@ -335,6 +338,7 @@ export function MobileLayout({
             pinnedRoutes={pinnedRoutes}
             selectedSystems={selectedSystems}
             onNodeClick={mode === 'routemanual' && onManualNodeClick ? onManualNodeClick : onNodeClick}
+            flyToNode={flyToNode}
             searchPin={searchPin ?? undefined}
             nearestNodeIds={nearestNodeIds}
             hideNonActive={hideNonActive}
@@ -857,6 +861,13 @@ export function MobileLayout({
                 onPinChange={onPinChange}
                 onSetOrigin={onSetOrigin}
                 onSetDest={onSetDest}
+                onGoToNode={onGoToNode && (id => {
+                  // Drop the sheet to 'peek' first — otherwise the map flies
+                  // to the node behind a full-height panel and the user sees
+                  // nothing happen.
+                  doSnap('peek')
+                  onGoToNode(id)
+                })}
               />
             </div>
           )}
@@ -877,15 +888,21 @@ export function MobileLayout({
       </div>
 
       {/* ── Node info panel ─────────────────────────────────────────────── */}
+      {/* On a phone a tap goes STRAIGHT to Full View rather than to the
+          floating NodeInfoPanel card. That card is a desktop idiom — it is a
+          fixed 380px wide and positions itself from the click's pixel
+          coordinates, which on a ~390px screen leaves it edge to edge and
+          pinned wherever the finger happened to land. Full View is the same
+          information laid out as a sheet, plus the segment fan-out, capacity
+          and notes, which is what "inquire on a node" wants on a phone
+          anyway. */}
       {selectedNode && (
-        <NodeInfoPanel
-          node={selectedNode.node}
+        <NodeFullView
+          nodeId={selectedNode.node.id}
+          nodes={nodes}
           segments={segments}
           systems={systems}
-          nodes={nodes}
           capacity={capacity}
-          initialX={selectedNode.x}
-          initialY={selectedNode.y}
           onClose={onCloseNode}
           onDataChange={onDataChange}
         />

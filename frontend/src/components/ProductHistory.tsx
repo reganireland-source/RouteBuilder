@@ -21,11 +21,23 @@
  * nothing tweens smoothly — to match the animated pixel splash screen
  * (public/splash-animated.svg) the app opens with.
  *
- * Content note: MILESTONES is a hand-curated reading of the project's real
- * history — the numbered migration ladder in backend/app/db.py (m001-m060,
- * which is the country-by-country network build) plus the git log. Dates are
- * month-accurate, not day-accurate, which is all a timeline at this altitude
- * needs.
+ * Content note: the project began in MAY 2026, so the map begins there — no
+ * band precedes it. The first commit in this repository is 2026-06-23, and it
+ * already applies m057 on top of an m053 that had shipped earlier, which means
+ * the first two thirds of the numbered migration ladder in backend/app/db.py
+ * (m002-m056 — the country-by-country network build, then the geography fixes,
+ * then solution notes) were all finished BEFORE git history starts. May and
+ * early June are therefore reconstructed from that ladder rather than from
+ * commits, and are necessarily approximate: the ladder fixes the ORDER of the
+ * work and its latest possible date, not the day any of it landed. From late
+ * June onward the months are git-verified — 8 commits in June, 39 in July, 3 in
+ * August, 17 in September — and INTENSITY is calibrated against those counts
+ * (August really was that quiet; July really was the peak).
+ *
+ * The compression is the honest shape of this project, not a drafting artefact:
+ * the foundation, the pathfinder, the diversity engine, three countries' worth
+ * of network data and fifty-odd migrations all landed inside about six weeks.
+ * Spreading them over more months would read more comfortably and be wrong.
  *
  * Mounted from: UserGuide.tsx (page 9, "🕹 Product History").
  * ============================================================================
@@ -101,48 +113,42 @@ interface Month {
 
 const MONTHS: Month[] = [
   {
-    key: '2026-02', label: 'FEB', sub: '2026', intensity: 2, era: 'Genesis',
+    // Month one. Everything here predates git, so it is dated by the migration
+    // ladder (m002-m029) rather than by a commit: the platform had to exist,
+    // and three markets had to be modelled, before the first commit could
+    // already be applying m057.
+    key: '2026-05', label: 'MAY', sub: '2026', intensity: 4, era: 'Genesis → Diversity Sprint',
     milestones: [
-      { cat: 'arch', icon: '⚡', title: 'FastAPI + React foundation', detail: 'A Python/FastAPI backend behind a Vite + React + TypeScript front end, with Leaflet for the map. The split that everything since has been built on.', major: true },
+      { cat: 'arch', icon: '⚡', title: 'FastAPI + React foundation', detail: 'A Python/FastAPI backend behind a Vite + React + TypeScript front end, with Leaflet for the map. The split that everything since has been built on — stood up from nothing in the project\'s first weeks.', major: true },
       { cat: 'arch', icon: '🧱', title: 'JSONB document store', detail: 'Postgres used as a document store rather than a relational schema, so the network model could keep changing shape without an ALTER TABLE for every idea. A JSON-file fallback mode runs the whole app with no database at all.' },
       { cat: 'algo', icon: '🧭', title: 'The graph and the pathfinder', detail: 'Nodes and segments loaded into an in-memory graph; k-shortest-paths search over it. The engine every route in the product still comes out of.', major: true },
-    ],
-  },
-  {
-    key: '2026-03', label: 'MAR', sub: '2026', intensity: 2, era: 'Genesis',
-    milestones: [
       { cat: 'data', icon: '🗺', title: 'The network data model', detail: 'Cable systems, nodes (landing stations, PoPs, branching units), segments and per-segment capacity — the four tables the entire product reads from.', major: true },
-      { cat: 'arch', icon: '🪜', title: 'The migration ladder', detail: 'Numbered, run-once migrations (m001, m002, …) so real edits to live topology could ship safely and in order. It would eventually reach m060.' },
+      { cat: 'arch', icon: '🪜', title: 'The migration ladder', detail: 'Numbered, run-once migrations (m001, m002, …) so real edits to live topology could ship safely and in order. It would eventually reach m060 — and more than fifty of its rungs were already behind us before the first commit.' },
       { cat: 'data', icon: '🇵🇭', title: 'Philippines & Hong Kong built out', detail: 'The first two markets modelled properly — cable-specific landing stations, terrestrial backhaul, capacity. m003 through m012.' },
-    ],
-  },
-  {
-    key: '2026-04', label: 'APR', sub: '2026', intensity: 3, era: 'Diversity Sprint',
-    milestones: [
+      { cat: 'data', icon: '🇸🇬', title: 'Singapore built out', detail: 'Every Singapore landing station and PoP, plus 21 terrestrial segments. m013 through m029.' },
       { cat: 'algo', icon: '🔀', title: 'The diversity engine', detail: 'Wet, Full, Full-Node and the terrestrial variants — worker/protect pairs that provably share nothing, which is the reason the product exists.', major: true },
       { cat: 'algo', icon: '📊', title: 'Route scoring', detail: 'Latency, distance, availability, hop count and a commercial margin score, all sortable, so a route can be argued for on more than one axis.' },
-      { cat: 'data', icon: '🇸🇬', title: 'Singapore built out', detail: 'Every Singapore landing station and PoP, plus 21 terrestrial segments. m013 through m029.' },
       { cat: 'ui',   icon: '〰', title: 'Curved cables on the map', detail: 'Catmull-Rom spline smoothing over waypoints, and Pacific-normalised longitudes so cables cross the antimeridian without wrapping the map.' },
     ],
   },
   {
-    key: '2026-05', label: 'MAY', sub: '2026', intensity: 3, era: 'APAC Sprint',
+    // The month git history starts. Everything down to Solution Projects is
+    // reconstructed from m030-m056 and had to land before 23 June; from the
+    // land-crossing fixes onward each station has a commit behind it.
+    key: '2026-06', label: 'JUN', sub: '2026', intensity: 4, era: 'APAC Sprint → Data Integrity',
     milestones: [
-      { cat: 'data', icon: '🌏', title: 'Japan, Korea and Taiwan', detail: 'The rest of North Asia — new landing stations, re-landed wet systems, terrestrial backhaul, the RNAL system added and APCN2 retired. m033 through m052.', major: true },
+      { cat: 'data', icon: '🌏', title: 'Japan, Korea and Taiwan', detail: 'The rest of North Asia — new landing stations, re-landed wet systems, terrestrial backhaul, the RNAL system added and APCN2 retired. m033 through m052, all inside a fortnight.', major: true },
       { cat: 'data', icon: '🧭', title: 'Cables stop crossing land', detail: 'A geography pass adding waypoints to every subsea segment that clipped a coastline, so the drawn route matches the real one. m053.' },
       { cat: 'docs', icon: '📐', title: 'Straight-line diagram export', detail: 'Pin up to five routes and export a branded SLD as PDF, or as DrawIO/Visio XML that stays editable.', major: true },
-      { cat: 'arch', icon: '📁', title: 'Solution Projects', detail: 'Saved designs with their own notes and categories, so a piece of work survives the browser session. m054 through m056.' },
-    ],
-  },
-  {
-    key: '2026-06', label: 'JUN', sub: '2026', intensity: 2, era: 'Data Integrity',
-    milestones: [
-      { cat: 'data', icon: '🔧', title: 'The last land crossings', detail: 'Five stubborn segments re-routed through the Sulu Sea, Taiwan Strait and Korea Strait, then the Malay Peninsula, Arabian and Mediterranean corridors. m057 through m059.' },
+      { cat: 'arch', icon: '📁', title: 'Solution Projects', detail: 'Saved designs with their own notes and categories, so a piece of work survives the browser session. m054 through m056 — the last work that predates the repository.' },
+      { cat: 'data', icon: '🔧', title: 'The last land crossings', detail: 'Five stubborn segments re-routed through the Sulu Sea, Taiwan Strait and Korea Strait, then the Malay Peninsula, Arabian and Mediterranean corridors. m057 through m059, and the first commits on record.' },
       { cat: 'arch', icon: '💾', title: 'Postgres → JSON dump', detail: 'An admin endpoint that writes live database state back to the seed files, so the JSON snapshot could never drift behind sixty migrations again.' },
       { cat: 'ui',   icon: '🗺', title: 'Switchable basemaps', detail: 'An admin toggle between Google Maps and OSM tiles, with a live status light in the health bar when a tile source stops answering.' },
     ],
   },
   {
+    // 39 commits — the busiest month on record, and the only one with its own
+    // dated paper trail (SECURITY_REVIEW.md 08 Jul, the Sonar reports 30 Jul).
     key: '2026-07', label: 'JUL', sub: '2026', intensity: 4, era: 'Hardening Sprint',
     milestones: [
       { cat: 'sec',  icon: '🛡', title: 'Enterprise security uplift', detail: 'Fail-closed auth, a content security policy, a rate limiter, a request body cap and an access log — written to pass an enterprise IT review, not to look secure.', major: true },
@@ -154,6 +160,7 @@ const MONTHS: Month[] = [
     ],
   },
   {
+    // 3 commits across two days: genuinely the quiet month, and the meter says so.
     key: '2026-08', label: 'AUG', sub: '2026', intensity: 1, era: 'Consolidation',
     milestones: [
       { cat: 'algo', icon: '⚠', title: 'Events reach the results', detail: 'Planned events surface on route cards with a lighter treatment than hard faults, so a maintenance window reads differently to an outage.' },
@@ -161,6 +168,8 @@ const MONTHS: Month[] = [
     ],
   },
   {
+    // 17 commits, and still open — the editor and the visual work landed in a
+    // single concentrated burst.
     key: '2026-09', label: 'SEP', sub: '2026', intensity: 4, era: 'The Visual Era',
     milestones: [
       { cat: 'ui',   icon: '🛰', title: 'Readable basemaps', detail: 'CARTO started gating its tiles behind an API key — and served a watermarked image with an HTTP 200, which fooled the health check. Moved to Esri, which also renders East Asian place names in English.' },

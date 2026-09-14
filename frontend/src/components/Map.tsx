@@ -91,6 +91,10 @@ interface Props {
   pinnedRoutes: PinnedRoute[]
   selectedSystems: SelectedSystem[]
   onNodeClick?: (node: CableNode, screenX: number, screenY: number) => void
+  /** Fly the map to one node. `key` is bumped by the caller on every request so
+   *  asking for the SAME node twice still flies (the user typed its code
+   *  again); without it the effect would see identical deps and do nothing. */
+  flyToNode?: { lat: number; lng: number; key: number }
   searchPin?: { lat: number; lng: number; label: string }
   nearestNodeIds?: string[]
   hideNonActive?: boolean
@@ -181,6 +185,20 @@ function ManualFitBounds({ manualState, manualCandidates, nodes }: {
     map,
   ])
 
+  return null
+}
+
+/** Fly to a single node — used when someone looks a node up by its 4-alpha
+ *  code in Network Explorer. Longitude goes through normalizeLng for the same
+ *  reason every drawn coordinate does: this map is Pacific-centred, and a raw
+ *  American longitude would fly the long way round the world. */
+function MapFlyToNode({ target }: { target: { lat: number; lng: number; key: number } | undefined }) {
+  const map = useMap()
+  useEffect(() => {
+    if (!target) return
+    map.flyTo([target.lat, normalizeLng(target.lng)], 8, { duration: 1.2 })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target?.key, map])
   return null
 }
 
@@ -295,7 +313,7 @@ function formatPlannedDate(iso: string): string {
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, flyToNode, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
   const t = useTheme()
   const { hoveredSegmentId } = useSegmentHover()
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
@@ -491,6 +509,7 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
 
       <MapResizer panelWidth={panelWidth} />
       <MapFlyTo highlight={countryHighlight} />
+      <MapFlyToNode target={flyToNode} />
       <ManualFitBounds manualState={manualState} manualCandidates={manualCandidates} nodes={nodes} />
 
       {/*

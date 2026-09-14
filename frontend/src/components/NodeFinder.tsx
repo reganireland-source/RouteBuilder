@@ -1,27 +1,50 @@
 /**
- * NodeFinder — "nearest node" search: geocode a customer address and rank nearby PoPs/CLS.
+ * NodeFinder — node lookup by code, or "nearest node" search from an address.
  *
- * The user types either a free-text address or a raw "lat, lng" pair. The component
- * geocodes it with the public OpenStreetMap Nominatim API (forward search for addresses,
- * reverse for coordinates — both direct browser fetch() calls, not our backend), then
- * ranks the network nodes in the resolved country by straight-line (haversine) distance
- * and shows the closest three as cards. Branching units are excluded. Each card shows
- * the owner logo (or a generated initial tile), node type badge (CLS = Cable Landing
- * Station, PoP tiers, etc.), distance, and traffic-light dots for product coverage
- * (Backbone / Underlay / Colocation) when the node has capabilities data.
+ * The one search box serves two lookup paths, decided by what the user typed:
+ *
+ *  1. NODE CODE (e.g. SYD1, PALI, EQ-PE1). If the trimmed input matches a loaded
+ *     node's `id` case-insensitively it is a direct lookup — no geocoding, no
+ *     nearest-neighbour ranking — and `onGoToNode` flies the map to it. Matching is
+ *     done against the real loaded ids rather than a "4 letters" shape rule, because
+ *     ids vary in length (SYD1, BRQ1, EQ-PE1, JGABU1); ids are normalised upper-case
+ *     in this dataset, so upper-casing the input is enough to compare. While typing,
+ *     ids that start with the input are offered as a tappable shortlist — half-
+ *     remembered codes are the common case. An input that LOOKS like a code but
+ *     matches nothing is reported as such instead of being handed to the geocoder,
+ *     which would answer a nonsense string like "ZZZZ" with a confusing address
+ *     error; a one-tap escape hatch runs the address search anyway, so an all-caps
+ *     place name is never a dead end.
+ *
+ *  2. ADDRESS or raw "lat, lng" pair. Geocoded with the public OpenStreetMap
+ *     Nominatim API (forward search for addresses, reverse for coordinates — both
+ *     direct browser fetch() calls, not our backend), then the network nodes in the
+ *     resolved country are ranked by straight-line (haversine) distance and the
+ *     closest three shown as cards. Branching units are excluded.
+ *
+ * Both paths render the same card: owner logo (or a generated initial tile), node type
+ * badge (CLS = Cable Landing Station, PoP tiers, etc.), distance (ranked results only),
+ * and traffic-light dots for product coverage (Backbone / Underlay / Colocation) when
+ * the node has capabilities data.
  *
  * Props:
- *   - nodes:       full CableNode list to rank against.
+ *   - nodes:       full CableNode list — ranked against, and the source of truth for
+ *                  which code lookups/suggestions are valid.
  *   - onPinChange: reports the geocoded pin ({lat, lng, label}) and the nearest node IDs
  *                  so the parent can drop a marker and highlight those nodes on the map;
- *                  called with (null, []) when a new search starts.
+ *                  called with (null, []) when a new search starts, and with
+ *                  (null, [nodeId]) on a code hit so the node lights up on the map even
+ *                  when no onGoToNode handler is wired.
+ *   - onGoToNode:  optional — a code hit asks the parent to fly the map to that node and
+ *                  open its info. Absent, the component still shows the node as a single
+ *                  result card, so the lookup degrades instead of doing nothing.
  *   - onSetOrigin / onSetDest: "Set Origin"/"Set Dest" buttons feed a node straight into
  *                  the route builder's endpoint pickers.
  *
  * Mounted from: App.tsx (desktop sidebar, "Node Finder" mode) and MobileLayout.tsx.
  * Backend endpoints: none of ours — only https://nominatim.openstreetmap.org search/reverse.
  */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { CableNode } from '../types'
 import { useTheme } from '../theme'
 
@@ -30,11 +53,24 @@ interface Props {
   onPinChange: (pin: { lat: number; lng: number; label: string } | null, nearestIds: string[]) => void
   onSetOrigin: (nodeId: string) => void
   onSetDest: (nodeId: string) => void
+  /** Jump the map to this node and select it. When absent, the code lookup
+   *  falls back to showing the node as a single result. */
+  onGoToNode?: (nodeId: string) => void
 }
 
 interface Result {
   node: CableNode
-  distanceKm: number
+  /** null for a direct code lookup — there is no origin point to measure from. */
+  distanceKm: number | null
+}
+
+/** Resolved geocoder answer, shared by the address and lat/lng paths. */
+interface Geo {
+  lat: number
+  lng: number
+  countryCode: string
+  countryName: string
+  displayLabel: string
 }
 
 const OWNER_LOGOS: Record<string, string> = {
@@ -134,64 +170,127 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-export function NodeFinder({ nodes, onPinChange, onSetOrigin, onSetDest }: Props) {
+const LAT_LNG_RE = /^(-?\d+(?:\.\d*)?)\s*,\s*(-?\d+(?:\.\d*)?)$/
+/** One token of letters/digits/hyphens: the shape every node id has, from SYD1 and
+ *  EQ-PE1 up to the longest in the dataset, APRICOTBU1. */
+const CODE_SHAPE_RE = /^[A-Z0-9][A-Z0-9-]{1,11}$/
+const MAX_SUGGESTIONS = 8
+
+/** Node ids are stored upper-case, so upper-casing the input is the whole comparison. */
+function findNodeByCode(nodes: CableNode[], raw: string): CableNode | undefined {
+  const code = raw.trim().toUpperCase()
+  return code ? nodes.find(n => n.id.toUpperCase() === code) : undefined
+}
+
+/**
+ * Would a reasonable user have meant this as a node code? Only consulted once an exact
+ * id match has already failed, to decide between "no such node" and a silent fall-through
+ * to the geocoder. Deliberately conservative: a lower-case word with no digit (paris,
+ * chennai) stays an address, because single-word city searches must keep working.
+ */
+function looksLikeNodeCode(raw: string): boolean {
+  const trimmed = raw.trim()
+  if (!CODE_SHAPE_RE.test(trimmed.toUpperCase())) return false
+  if (!/[A-Z]/i.test(trimmed)) return false
+  return /\d/.test(trimmed) || trimmed === trimmed.toUpperCase()
+}
+
+/** Ids starting with what has been typed so far, for the tap-ahead shortlist. */
+function codeSuggestions(nodes: CableNode[], raw: string): CableNode[] {
+  const code = raw.trim().toUpperCase()
+  if (code.length < 2 || !CODE_SHAPE_RE.test(code)) return []
+  const hits = nodes.filter(n => n.id.toUpperCase().startsWith(code))
+  // A lone exact hit is already one Enter away; a list of one adds nothing.
+  if (hits.length === 1 && hits[0].id.toUpperCase() === code) return []
+  return hits.sort((a, b) => a.id.localeCompare(b.id)).slice(0, MAX_SUGGESTIONS)
+}
+
+async function reverseGeocode(lat: number, lng: number): Promise<Geo> {
+  const res = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`
+  )
+  if (!res.ok) throw new Error('Reverse geocoding failed')
+  const data = await res.json()
+  const countryCode = (data.address?.country_code ?? '').toUpperCase()
+  return {
+    lat, lng, countryCode,
+    countryName: data.address?.country ?? countryCode,
+    displayLabel: `${lat.toFixed(4)}, ${lng.toFixed(4)}`,
+  }
+}
+
+async function forwardGeocode(address: string): Promise<Geo> {
+  const res = await fetch(
+    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&addressdetails=1`
+  )
+  if (!res.ok) throw new Error('Geocoding failed')
+  const data = await res.json()
+  if (!data.length) throw new Error('Address not found — try a more specific address')
+  const countryCode = (data[0].address?.country_code ?? '').toUpperCase()
+  return {
+    lat: parseFloat(data[0].lat),
+    lng: parseFloat(data[0].lon),
+    countryCode,
+    countryName: data[0].address?.country ?? countryCode,
+    displayLabel: data[0].display_name,
+  }
+}
+
+function geocode(raw: string): Promise<Geo> {
+  const latLng = LAT_LNG_RE.exec(raw)
+  return latLng
+    ? reverseGeocode(parseFloat(latLng[1]), parseFloat(latLng[2]))
+    : forwardGeocode(raw)
+}
+
+function rankNearest(nodes: CableNode[], geo: Geo): Result[] {
+  return nodes
+    .filter(n => n.country === geo.countryCode && n.type !== 'branching_unit')
+    .map(n => ({ node: n, distanceKm: haversine(geo.lat, geo.lng, n.lat, n.lng) }))
+    .sort((a, b) => a.distanceKm - b.distanceKm)
+    .slice(0, 3)
+}
+
+export function NodeFinder({ nodes, onPinChange, onSetOrigin, onSetDest, onGoToNode }: Props) {
   const t = useTheme()
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [results, setResults] = useState<Result[]>([])
   const [countryLabel, setCountryLabel] = useState<string | null>(null)
+  /** The unmatched code the user submitted, kept so we can offer to geocode it anyway. */
+  const [missedCode, setMissedCode] = useState<string | null>(null)
 
-  async function handleSearch(e: React.FormEvent) {
-    e.preventDefault()
-    if (!query.trim() || loading) return
-    setLoading(true)
+  const suggestions = useMemo(() => codeSuggestions(nodes, query), [nodes, query])
+
+  function resetOutput() {
     setError(null)
     setResults([])
     setCountryLabel(null)
+    setMissedCode(null)
+  }
+
+  function goToNode(node: CableNode) {
+    resetOutput()
+    setQuery(node.id)
+    // Highlight it even when the parent has no fly-to wired — onPinChange's second
+    // argument is what recolours nodes on the map.
+    onPinChange(null, [node.id])
+    onGoToNode?.(node.id)
+    setResults([{ node, distanceKm: null }])
+  }
+
+  async function runAddressSearch(raw: string) {
+    setLoading(true)
+    resetOutput()
     onPinChange(null, [])
-
     try {
-      let lat: number, lng: number, countryCode: string, displayLabel: string, countryName: string
-
-      const latLngMatch = query.trim().match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/)
-
-      if (latLngMatch) {
-        lat = parseFloat(latLngMatch[1])
-        lng = parseFloat(latLngMatch[2])
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`
-        )
-        if (!res.ok) throw new Error('Reverse geocoding failed')
-        const data = await res.json()
-        countryCode = (data.address?.country_code ?? '').toUpperCase()
-        countryName = data.address?.country ?? countryCode
-        displayLabel = `${lat.toFixed(4)}, ${lng.toFixed(4)}`
-      } else {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query.trim())}&format=json&limit=1&addressdetails=1`
-        )
-        if (!res.ok) throw new Error('Geocoding failed')
-        const data = await res.json()
-        if (!data.length) throw new Error('Address not found — try a more specific address')
-        lat = parseFloat(data[0].lat)
-        lng = parseFloat(data[0].lon)
-        countryCode = (data[0].address?.country_code ?? '').toUpperCase()
-        countryName = data[0].address?.country ?? countryCode
-        displayLabel = data[0].display_name
-      }
-
-      const countryNodes = nodes.filter(n => n.country === countryCode && n.type !== 'branching_unit')
-      if (countryNodes.length === 0) throw new Error(`No nodes found in ${countryName}`)
-
-      const ranked = countryNodes
-        .map(n => ({ node: n, distanceKm: haversine(lat, lng, n.lat, n.lng) }))
-        .sort((a, b) => a.distanceKm - b.distanceKm)
-        .slice(0, 3)
-
+      const geo = await geocode(raw)
+      const ranked = rankNearest(nodes, geo)
+      if (ranked.length === 0) throw new Error(`No nodes found in ${geo.countryName}`)
       setResults(ranked)
-      setCountryLabel(countryName)
-      onPinChange({ lat, lng, label: displayLabel }, ranked.map(r => r.node.id))
+      setCountryLabel(geo.countryName)
+      onPinChange({ lat: geo.lat, lng: geo.lng, label: geo.displayLabel }, ranked.map(r => r.node.id))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Search failed')
     } finally {
@@ -199,17 +298,37 @@ export function NodeFinder({ nodes, onPinChange, onSetOrigin, onSetDest }: Props
     }
   }
 
+  async function handleSearch(e: React.FormEvent) {
+    e.preventDefault()
+    const raw = query.trim()
+    if (!raw || loading) return
+
+    const match = findNodeByCode(nodes, raw)
+    if (match) { goToNode(match); return }
+
+    if (looksLikeNodeCode(raw)) {
+      resetOutput()
+      onPinChange(null, [])
+      setMissedCode(raw.toUpperCase())
+      setError(`No node with code "${raw.toUpperCase()}".`)
+      return
+    }
+
+    await runAddressSearch(raw)
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ fontSize: 11, color: t.textFaint, lineHeight: 1.5 }}>
-        Enter a customer address or lat, lng to find the nearest network nodes.
+        Enter a customer address or lat, lng for the nearest network nodes, or a node
+        code (e.g. SYD1) to jump straight to it.
       </div>
 
       <form onSubmit={handleSearch} style={{ display: 'flex', gap: 6 }}>
         <input
           value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="Address or lat, lng"
+          onChange={e => { setQuery(e.target.value); setError(null); setMissedCode(null) }}
+          placeholder="Address, lat/lng, or node code"
           style={{
             flex: 1, padding: '6px 8px', borderRadius: 4,
             border: `1px solid ${t.border}`, background: t.bgInput,
@@ -231,19 +350,63 @@ export function NodeFinder({ nodes, onPinChange, onSetOrigin, onSetDest }: Props
         </button>
       </form>
 
+      {suggestions.length > 0 && (
+        <div style={{
+          display: 'flex', flexDirection: 'column',
+          borderRadius: 6, border: `1px solid ${t.border}`, background: t.bgCard, overflow: 'hidden',
+        }}>
+          {suggestions.map((n, i) => (
+            <button
+              key={n.id}
+              type="button"
+              onClick={() => goToNode(n)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                padding: '9px 10px', minHeight: 36, textAlign: 'left',
+                border: 'none', borderTop: i === 0 ? 'none' : `1px solid ${t.borderSubtle}`,
+                background: 'transparent', color: t.text, cursor: 'pointer', font: 'inherit',
+              }}
+            >
+              <code style={{ fontSize: 12, fontWeight: 800, color: t.blue, flexShrink: 0 }}>{n.id}</code>
+              <span style={{ fontSize: 11, color: t.textFaint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {n.name}
+              </span>
+              <span style={{ fontSize: 10, color: t.textFaintest, marginLeft: 'auto', flexShrink: 0 }}>
+                {TYPE_SHORT[n.type]}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {error && (
         <div style={{
           fontSize: 12, color: t.red, padding: '6px 8px', borderRadius: 4,
           background: 'rgba(243,139,168,0.1)', border: `1px solid ${t.red}`,
         }}>
           {error}
+          {missedCode && (
+            <button
+              type="button"
+              onClick={() => { const q = missedCode; setMissedCode(null); void runAddressSearch(q) }}
+              style={{
+                display: 'block', marginTop: 6, padding: '5px 8px', minHeight: 30,
+                borderRadius: 3, border: `1px solid ${t.border}`, background: 'transparent',
+                color: t.textMuted, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+              }}
+            >
+              Search “{missedCode}” as an address instead
+            </button>
+          )}
         </div>
       )}
 
       {results.length > 0 && (
         <>
           <div style={{ fontSize: 11, color: t.textFaint }}>
-            Nearest nodes in <strong style={{ color: t.textMuted }}>{countryLabel}</strong>
+            {countryLabel
+              ? <>Nearest nodes in <strong style={{ color: t.textMuted }}>{countryLabel}</strong></>
+              : <>Node <strong style={{ color: t.textMuted }}>{results[0].node.id}</strong></>}
           </div>
 
           {results.map((r, i) => {
@@ -260,7 +423,11 @@ export function NodeFinder({ nodes, onPinChange, onSetOrigin, onSetDest }: Props
                   <OwnerLogo owner={n.owner} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 11, color: t.textFaintest, fontWeight: 700, minWidth: 12 }}>{i + 1}</span>
+                      {/* Rank number only means something for a ranked list; the empty
+                          span keeps the card's 17px text indent for a code lookup. */}
+                      <span style={{ fontSize: 11, color: t.textFaintest, fontWeight: 700, minWidth: 12 }}>
+                        {r.distanceKm == null ? '' : i + 1}
+                      </span>
                       <span style={{ fontSize: 13, fontWeight: 700, color: t.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {n.name}
                       </span>
@@ -291,7 +458,8 @@ export function NodeFinder({ nodes, onPinChange, onSetOrigin, onSetDest }: Props
 
                 {/* Distance + ID */}
                 <div style={{ fontSize: 12, color: t.textFaint, paddingLeft: 41 }}>
-                  {Math.round(r.distanceKm).toLocaleString()} km straight line · <code style={{ fontSize: 11, color: t.textMuted }}>{n.id}</code>
+                  {r.distanceKm != null && `${Math.round(r.distanceKm).toLocaleString()} km straight line · `}
+                  <code style={{ fontSize: 11, color: t.textMuted }}>{n.id}</code>
                 </div>
 
                 {/* Product coverage traffic lights */}
@@ -342,7 +510,8 @@ export function NodeFinder({ nodes, onPinChange, onSetOrigin, onSetDest }: Props
             )
           })}
 
-          <div style={{ fontSize: 10, color: t.textFaintest }}>
+          {/* Attribution is owed only when Nominatim actually produced the result. */}
+          <div style={{ fontSize: 10, color: t.textFaintest, display: countryLabel ? undefined : 'none' }}>
             Geocoding by{' '}
             <a href="https://nominatim.openstreetmap.org" target="_blank" rel="noreferrer" style={{ color: t.textFaintest }}>
               Nominatim / OSM

@@ -69,16 +69,31 @@ function createdAtMillis(note: SolutionNote): number {
   return isNaN(ms) ? -Infinity : ms
 }
 
+/**
+ * One settled self-fetch, stamped with the node it was started for.
+ *
+ * Holding the result as a single stamped value is what lets "loading" be DERIVED
+ * (`result.for !== nodeId` — we have nothing for the node on screen yet) instead of
+ * mirrored in its own state. Mirroring it meant flipping setLoading(true) synchronously
+ * in the effect body on every node change, which is exactly the cascading-render pattern
+ * React's set-state-in-effect rule warns about; now the effect's only job is to start the
+ * request and hand the answer back from the promise callbacks.
+ */
+interface FetchResult {
+  /** The nodeId this fetch was started for. */
+  for: string
+  notes: SolutionNote[]
+  cats: NoteCategory[]
+  error: string | null
+}
+
 export function NodeNotesPanel(props: Props) {
   const { nodeId } = props
   const t = useTheme()
 
-  // Only used on the self-fetching path; when the caller supplies data these stay empty
-  // and are never read, which keeps the "controlled" path free of any fetch flicker.
-  const [fetchedNotes, setFetchedNotes] = useState<SolutionNote[]>([])
-  const [fetchedCats, setFetchedCats] = useState<NoteCategory[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Only used on the self-fetching path; when the caller supplies data this stays null
+  // and is never read, which keeps the "controlled" path free of any fetch flicker.
+  const [result, setResult] = useState<FetchResult | null>(null)
 
   // `notes` is the switch for self-fetching: if the parent gave us notes we never call
   // the API, even if it left categories out (an un-resolvable category just lands the
@@ -90,23 +105,22 @@ export function NodeNotesPanel(props: Props) {
     // Guard against an out-of-order response overwriting a newer node's data: the user
     // can change node faster than the two requests resolve.
     let cancelled = false
-    setLoading(true)
-    setError(null)
     Promise.all([api.getSolutionNotes(), api.getNoteCategories()])
-      .then(([n, c]) => {
-        if (cancelled) return
-        setFetchedNotes(n)
-        setFetchedCats(c)
-      })
-      .catch(e => { if (!cancelled) setError(String(e)) })
-      .finally(() => { if (!cancelled) setLoading(false) })
+      .then(([n, c]) => { if (!cancelled) setResult({ for: nodeId, notes: n, cats: c, error: null }) })
+      .catch(e => { if (!cancelled) setResult({ for: nodeId, notes: [], cats: [], error: String(e) }) })
     return () => { cancelled = true }
     // nodeId is a dependency because the parent may keep this panel mounted and only
     // swap the node; re-fetching then keeps a long-lived Full View from going stale.
   }, [selfFetch, nodeId])
 
-  const allNotes = props.notes ?? fetchedNotes
-  const allCats  = props.categories ?? fetchedCats
+  // Anything stamped with a different node is last node's answer, so it counts as "not
+  // arrived yet" — the same instant the old code showed its spinner for.
+  const settled = result?.for === nodeId ? result : null
+  const loading = selfFetch && settled === null
+  const error = settled?.error ?? null
+
+  const allNotes = props.notes ?? settled?.notes ?? []
+  const allCats  = props.categories ?? settled?.cats ?? []
 
   // The whole point of the client-side filter noted in the file header.
   const nodeNotes = allNotes.filter(n => n.node_id === nodeId)
