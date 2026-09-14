@@ -41,6 +41,17 @@ class VerificationStatus(str, Enum):
     verified = "verified"
 
 
+class RfsStatus(str, Enum):
+    """Ready for Service — whether a CableSystem/CableSegment is already live
+    (in_service, the default — everything in the dataset today is) or a
+    future build that hasn't been commissioned yet (planned, paired with an
+    rfs_quarter). Not yet used as a route-search constraint — that's a
+    follow-up; for now this only records the data so it's there when that
+    constraint is built."""
+    in_service = "in_service"
+    planned = "planned"
+
+
 class BackboneCapabilities(BaseModel):
     ipt:  Optional[list[str]] = None
     epl:  Optional[list[str]] = None
@@ -83,11 +94,37 @@ class Node(BaseModel):
     on_net: Optional[str] = None  # 'on_net' | 'off_net'
 
 
+# "YYYY-QN" — e.g. "2027-Q3". Quarter-precision, not a specific day, since RFS
+# dates are planning-level estimates that shift; matches the shape used
+# whenever the frontend renders/edits it (see frontend/src/types/index.ts).
+_RFS_QUARTER_PATTERN = r"^\d{4}-Q[1-4]$"
+
+
+def _check_rfs_quarter(status: "RfsStatus", quarter: Optional[str]) -> None:
+    """Shared cross-field rule for rfs_status/rfs_quarter on CableSystem and
+    CableSegment: a quarter is required once something is 'planned' (that's
+    the whole point of recording it), and cleared once it's 'in_service' so
+    a system/segment can't carry a stale future date after it goes live."""
+    if status == RfsStatus.planned and not quarter:
+        raise ValueError("rfs_quarter is required when rfs_status is 'planned'")
+    if status == RfsStatus.in_service and quarter:
+        raise ValueError("rfs_quarter must be empty when rfs_status is 'in_service'")
+
+
 class CableSystem(BaseModel):
     id: str
     name: str
     description: str
     margin: Optional[float] = None
+    # Ready for Service — see RfsStatus. Not yet a route-search constraint,
+    # just recorded on the data model for now.
+    rfs_status: RfsStatus = RfsStatus.in_service
+    rfs_quarter: Optional[str] = Field(default=None, pattern=_RFS_QUARTER_PATTERN)
+
+    @model_validator(mode="after")
+    def _rfs_consistent(self):
+        _check_rfs_quarter(self.rfs_status, self.rfs_quarter)
+        return self
 
 
 class CableSegment(BaseModel):
@@ -109,6 +146,15 @@ class CableSegment(BaseModel):
     waypoints: Optional[list[list[float]]] = None
     verification_status: VerificationStatus = VerificationStatus.draft
     last_verified_date: Optional[str] = None
+    # Ready for Service — see RfsStatus. Not yet a route-search constraint,
+    # just recorded on the data model for now.
+    rfs_status: RfsStatus = RfsStatus.in_service
+    rfs_quarter: Optional[str] = Field(default=None, pattern=_RFS_QUARTER_PATTERN)
+
+    @model_validator(mode="after")
+    def _rfs_consistent(self):
+        _check_rfs_quarter(self.rfs_status, self.rfs_quarter)
+        return self
 
 
 class DisallowedPair(BaseModel):
@@ -252,11 +298,15 @@ class CableSegmentUpdate(BaseModel):
     waypoints: Optional[list[list[float]]] = None
     verification_status: Optional[VerificationStatus] = None
     last_verified_date: Optional[str] = None
+    rfs_status: Optional[RfsStatus] = None
+    rfs_quarter: Optional[str] = Field(default=None, pattern=_RFS_QUARTER_PATTERN)
 
 class CableSystemUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     margin: Optional[float] = None
+    rfs_status: Optional[RfsStatus] = None
+    rfs_quarter: Optional[str] = Field(default=None, pattern=_RFS_QUARTER_PATTERN)
 
 class SegmentCapacityUpdate(BaseModel):
     # Review finding #11: same non-negativity constraints as SegmentCapacity.

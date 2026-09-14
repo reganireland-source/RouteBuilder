@@ -3,209 +3,244 @@
     "id": "AJC",
     "name": "Australia-Japan Cable",
     "description": "Cable connecting Australia to Japan via Guam",
-    "margin": 10
+    "margin": 10,
+    "rfs_status": "in_service"
   },
   {
     "id": "PPC1",
     "name": "PIPE Pacific Cable-1",
     "description": "Cable connecting Australia to Guam and Hawaii",
-    "margin": 6
+    "margin": 6,
+    "rfs_status": "in_service"
   },
   {
     "id": "TGA",
     "name": "Tasman Global Access",
     "description": "Cable connecting Australia and New Zealand",
-    "margin": 10
+    "margin": 10,
+    "rfs_status": "in_service"
   },
   {
     "id": "SMW3",
     "name": "SEA-ME-WE 3",
     "description": "Southeast Asia - Middle East - Western Europe 3, connecting Asia to Europe",
-    "margin": 8
+    "margin": 8,
+    "rfs_status": "in_service"
   },
   {
     "id": "SMW4",
     "name": "SEA-ME-WE 4",
     "description": "Southeast Asia - Middle East - Western Europe 4, connecting Asia to Europe",
-    "margin": 8
+    "margin": 8,
+    "rfs_status": "in_service"
   },
   {
     "id": "AAG",
     "name": "Asia America Gateway",
     "description": "Cable connecting Southeast Asia to the United States via Guam and Hawaii",
-    "margin": 8
+    "margin": 8,
+    "rfs_status": "in_service"
   },
   {
     "id": "INDIGO_C",
     "name": "Indigo Central",
     "description": "Cable connecting Australia to Singapore via Indonesia",
-    "margin": 10
+    "margin": 10,
+    "rfs_status": "in_service"
   },
   {
     "id": "INDIGO_W",
     "name": "Indigo West",
     "description": "Cable connecting Australia to India via Singapore",
-    "margin": 10
+    "margin": 10,
+    "rfs_status": "in_service"
   },
   {
     "id": "APG",
     "name": "Asia Pacific Gateway",
     "description": "Cable connecting Japan, Korea, Taiwan, Hong Kong, and Southeast Asia",
-    "margin": 8
+    "margin": 8,
+    "rfs_status": "in_service"
   },
   {
     "id": "EAC",
     "name": "East Asia Crossing",
     "description": "Cable connecting Japan, Korea, and Southeast Asia",
-    "margin": 8
+    "margin": 8,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL",
     "name": "Terrestrial",
-    "description": "Terrestrial fibre segments"
+    "description": "Terrestrial fibre segments",
+    "rfs_status": "in_service"
   },
   {
     "id": "C2C",
     "name": "City to City",
     "description": "Pacnet ring cable system connecting major East Asian cities: Hong Kong, Manila, Taipei, Tokyo, Seoul with branch to Singapore",
-    "margin": 8
+    "margin": 8,
+    "rfs_status": "in_service"
   },
   {
     "id": "BIFROST",
     "name": "BiFrost",
     "description": "Meta/Amazon/Keppel/Telin Pacific cable \u2014 US West Coast to Singapore via Guam, Philippines and Indonesia. RFS Oct 2025. Main trunk 16,556 km.",
-    "margin": 6
+    "margin": 6,
+    "rfs_status": "in_service"
   },
   {
     "id": "ECHO",
     "name": "Echo",
     "description": "Google/Meta transpacific cable \u2014 Singapore (Changi/Telstra) to US West Coast (Eureka CA) via Indonesia and Guam. Main trunk 16,206 km. RFS 2024\u201325.",
-    "margin": 2
+    "margin": 2,
+    "rfs_status": "in_service"
   },
   {
     "id": "TOPAZ",
     "name": "Topaz",
     "description": "Google private cable \u2014 US Pacific Northwest (Vancouver/Port Alberni BC) to Japan (Takahagi/Ibaraki + Shima/Mie). ~10,000 km. RFS Jun 2024.",
-    "margin": 8
+    "margin": 8,
+    "rfs_status": "in_service"
   },
   {
     "id": "TABUA",
     "name": "Tabua",
     "description": "Google (Starfish) South Pacific cable \u2014 Los Angeles to Sydney/Queensland via Hawaii and Fiji. Main trunk 13,323 km. RFS Q1 2026.",
-    "margin": 6
+    "margin": 6,
+    "rfs_status": "in_service"
   },
   {
     "id": "JGA",
     "name": "Japan Guam Australia",
     "description": "Google/Telstra/KDDI/SoftBank/AT&T transpacific cable connecting Japan to Australia via Guam and Darwin. ~9,200 km. RFS 2020.",
-    "margin": 4
+    "margin": 4,
+    "rfs_status": "in_service"
   },
   {
     "id": "SEAUS",
     "name": "SEA-US",
     "description": "Southeast Asia \u2013 United States cable connecting Philippines and Guam to Hawaii and Los Angeles. ~15,000 km. Consortium: Globe, PLDT, Telstra, Teleguam, Hawaiian Telcom.",
-    "margin": 6
+    "margin": 6,
+    "rfs_status": "in_service"
   },
   {
     "id": "SJC2",
     "name": "Southeast Asia Japan Cable 2",
     "description": "High-capacity cable connecting Singapore, Philippines, Taiwan, Japan and South Korea. ~10,500 km. Owners: NTT, SoftBank, PLDT, Globe, Chunghwa, Singtel, KT. RFS 2021.",
-    "margin": 2
+    "margin": 2,
+    "rfs_status": "in_service"
   },
   {
     "id": "ADC",
     "name": "Asia Direct Cable",
     "description": "Regional intra-Asia cable connecting Japan, Taiwan, Hong Kong, Philippines and Singapore. ~6,500 km. Owners: NTT, Chunghwa Telecom, PCCW, PLDT, StarHub.",
-    "margin": 2
+    "margin": 2,
+    "rfs_status": "in_service"
   },
   {
     "id": "JUNO",
     "name": "JUNO",
     "description": "Japan\u2013US trans-Pacific cable connecting Minamiboso (Chiba) and Shima (Mie) to Grover Beach, California. 11,710 km. Owner: Seren Juno. Supplier: NEC. RFS May 2025.",
-    "margin": 8
+    "margin": 8,
+    "rfs_status": "in_service"
   },
   {
     "id": "PROA",
     "name": "Proa",
     "description": "Google-owned regional cable connecting Shima (Japan), Tinian (Northern Mariana Islands) and Guam. 2,891 km. Supplier: NEC. RFS 2026.",
-    "margin": 6
+    "margin": 6,
+    "rfs_status": "in_service"
   },
   {
     "id": "BALIKULA",
     "name": "Balikula",
     "description": "South Pacific cable connecting Brisbane, Vanuatu (Port Vila) and Fiji. ~3,050 km. Google/Telstra. Provides first direct fibre connectivity to Vanuatu.",
-    "margin": 6
+    "margin": 6,
+    "rfs_status": "in_service"
   },
   {
     "id": "SCC_N",
     "name": "Southern Cross Cable \u2013 North",
     "description": "Original Southern Cross north route: Sydney (Brookvale) to Hawaii (Kahe Point, Oahu) via Suva, Fiji, then onward to Nedonna Beach, Oregon. ~13,700 km. Owners: Spark NZ (38%), Singtel (30%), Telstra (25%), Verizon (6%). RFS 2000.",
-    "margin": 8
+    "margin": 8,
+    "rfs_status": "in_service"
   },
   {
     "id": "SCC_S",
     "name": "Southern Cross Cable \u2013 South",
     "description": "Original Southern Cross south route: Sydney (Alexandria) to Morro Bay, California via Auckland (Takapuna) and Hawaii (Spencer Beach, Big Island). ~14,400 km. Same consortium as SCC_N. RFS 2000.",
-    "margin": 8
+    "margin": 8,
+    "rfs_status": "in_service"
   },
   {
     "id": "SXNEXT",
     "name": "Southern Cross NEXT",
     "description": "Upgraded transpacific cable: Hermosa Beach (LA) to Sydney and Auckland via Hawaii, with Fiji branch. 15,857 km, 72 Tbps. Same consortium plus ASN supply. RFS July 2022.",
-    "margin": 8
+    "margin": 8,
+    "rfs_status": "in_service"
   },
   {
     "id": "JUPITER",
     "name": "Jupiter",
     "description": "Meta/Amazon consortium transpacific cable \u2014 US West Coast (Pacific City, Oregon) to Japan (Chikura/Shima) and Philippines (Daet) via North Pacific branching unit. ~14,500 km. RFS 2020.",
-    "margin": 2
+    "margin": 2,
+    "rfs_status": "in_service"
   },
   {
     "id": "APRICOT",
     "name": "Apricot",
     "description": "Google/Meta/NTT/PLDT/SoftBank consortium cable \u2014 Singapore to Japan (Shima/Maruyama) and Guam via Philippines (Daet) and Philippine Sea branching unit. ~12,000 km. RFS 2024.",
-    "margin": 2
+    "margin": 2,
+    "rfs_status": "in_service"
   },
   {
     "id": "FASTER",
     "name": "FASTER",
     "description": "Trans-Pacific, Bandon OR\u2013Chikura\u2013Shima\u2013Tamsui",
-    "margin": 4
+    "margin": 4,
+    "rfs_status": "in_service"
   },
   {
     "id": "PC1N",
     "name": "PC-1 North",
     "description": "Trans-Pacific, Harbour Pointe WA\u2013Ajigaura",
-    "margin": 6
+    "margin": 6,
+    "rfs_status": "in_service"
   },
   {
     "id": "PC1S",
     "name": "PC-1 South",
     "description": "Trans-Pacific, Grover Beach CA\u2013Shima",
-    "margin": 6
+    "margin": 6,
+    "rfs_status": "in_service"
   },
   {
     "id": "UNITY",
     "name": "Unity",
     "description": "Trans-Pacific, Chikura\u2013Hawaii\u2013Los Angeles",
-    "margin": 8
+    "margin": 8,
+    "rfs_status": "in_service"
   },
   {
     "id": "BBG",
     "name": "Bay of Bengal Gateway",
     "description": "Oman\u2013India\u2013Sri Lanka\u2013Malaysia",
-    "margin": 8
+    "margin": 8,
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1",
     "name": "AAE-1",
     "description": "Hong Kong\u2013SE Asia\u2013India\u2013Middle East\u2013Europe",
-    "margin": 8
+    "margin": 8,
+    "rfs_status": "in_service"
   },
   {
     "id": "RNAL",
     "name": "RNAL",
     "margin": 7,
-    "description": "Regional NEC Asia Link \u2014 ring topology connecting Hong Kong, Korea, Japan and Taiwan via two paths."
+    "description": "Regional NEC Asia Link \u2014 ring topology connecting Hong Kong, Korea, Japan and Taiwan via two paths.",
+    "rfs_status": "in_service"
   }
 ]

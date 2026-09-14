@@ -42,6 +42,13 @@ export type NodeType = 'landing_station' | 'primary_pop' | 'secondary_pop' | 'ex
 export type OnNet = 'on_net' | 'off_net'
 /** Data-quality workflow state for reference data records (nodes/segments). */
 export type VerificationStatus = 'draft' | 'under_verification' | 'verified'
+/**
+ * Ready for Service — whether a CableSystem/CableSegment is already live
+ * ('in_service', the default — everything in the dataset is) or a future
+ * build not yet commissioned ('planned', paired with an rfs_quarter like
+ * "2027-Q3"). Not yet a route-search constraint — just recorded for now.
+ */
+export type RfsStatus = 'in_service' | 'planned'
 /** Segment medium: 'wet' = submarine cable section, 'terrestrial' = land fibre. */
 export type SegmentType = 'wet' | 'terrestrial'
 /**
@@ -156,6 +163,8 @@ export interface CableSystem {
   name: string
   description: string
   margin?: number
+  rfs_status?: RfsStatus
+  rfs_quarter?: string | null
 }
 
 /**
@@ -183,6 +192,8 @@ export interface CableSegment {
   waypoints?: [number, number][]
   verification_status?: VerificationStatus
   last_verified_date?: string
+  rfs_status?: RfsStatus
+  rfs_quarter?: string | null
 }
 
 /**

@@ -620,7 +620,8 @@ def init_db() -> None:
             _once(cur, 'm057', _run_migration_057)   # fix remaining subsea waypoints (ADC-BAT-SIN, SJC2, RNAL)
             _once(cur, 'm058', _run_migration_058)   # Malay Peninsula / Arabian / Mediterranean waypoints
             _once(cur, 'm059', _run_migration_059)   # C2C-S3C and EAC-K south-of-Japan re-route
-            # ↑ ADD NEW MIGRATIONS HERE (m060, m061, ...) — see the
+            _once(cur, 'm060', _run_migration_060)   # backfill rfs_status='in_service' on systems/segments
+            # ↑ ADD NEW MIGRATIONS HERE (m061, m062, ...) — see the
             #   "HOW TO ADD A NEW MIGRATION" comment at the top of this list.
         conn.commit()
         _seed_if_empty(conn)
@@ -3267,3 +3268,19 @@ def _run_migration_057(cur) -> None:
             "UPDATE segments SET data = jsonb_set(data, '{waypoints}', %s::jsonb) WHERE id = %s",
             (json.dumps(wps), seg_id),
         )
+
+
+def _run_migration_060(cur) -> None:
+    """Backfill rfs_status='in_service' onto every existing system and segment.
+
+    New fields: CableSystem.rfs_status / CableSegment.rfs_status ("Ready for
+    Service" — in_service | planned) plus an optional rfs_quarter ("YYYY-QN")
+    for planned ones. Everything in the dataset up to this point is a live,
+    already-commissioned system/segment, so it all backfills to in_service
+    with no quarter. Pydantic's field default would already imply this for
+    any row read without the key, but writing it explicitly (matching the
+    convention for every other field-backfill migration in this file) keeps
+    the stored data self-describing rather than relying on a code default.
+    """
+    cur.execute("UPDATE systems SET data = jsonb_set(data, '{rfs_status}', '\"in_service\"'::jsonb)")
+    cur.execute("UPDATE segments SET data = jsonb_set(data, '{rfs_status}', '\"in_service\"'::jsonb)")

@@ -10,7 +10,8 @@
     "reliability": 0.9994,
     "cost_weight": 9,
     "ownership": "owned",
-    "latency": 11.15
+    "latency": 11.15,
+    "rfs_status": "in_service"
   },
   {
     "id": "AJC-SYD-GUM",
@@ -23,7 +24,8 @@
     "reliability": 0.9993,
     "cost_weight": 16,
     "ownership": "owned",
-    "latency": 26.0
+    "latency": 26.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "AJC-GUM-TYO",
@@ -46,7 +48,8 @@
         26,
         141
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "AJC-GUM-OSA",
@@ -59,7 +62,8 @@
     "reliability": 0.9994,
     "cost_weight": 11,
     "ownership": "owned",
-    "latency": 14.25
+    "latency": 14.25,
+    "rfs_status": "in_service"
   },
   {
     "id": "PPC1-SYD-GUM",
@@ -72,7 +76,8 @@
     "reliability": 0.9991,
     "cost_weight": 17,
     "ownership": "iru",
-    "latency": 26.75
+    "latency": 26.75,
+    "rfs_status": "in_service"
   },
   {
     "id": "PPC1-GUM-HAW",
@@ -85,7 +90,8 @@
     "reliability": 0.999,
     "cost_weight": 18,
     "ownership": "iru",
-    "latency": 27.5
+    "latency": 27.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "AAG-SIN-HKG",
@@ -98,7 +104,8 @@
     "reliability": 0.9993,
     "cost_weight": 10,
     "ownership": "consortium",
-    "latency": 13.0
+    "latency": 13.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "AAG-HKG-MNL",
@@ -111,7 +118,8 @@
     "reliability": 0.9995,
     "cost_weight": 5,
     "ownership": "consortium",
-    "latency": 4.5
+    "latency": 4.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "AAG-MNL-GUM",
@@ -124,7 +132,8 @@
     "reliability": 0.9992,
     "cost_weight": 10,
     "ownership": "consortium",
-    "latency": 13.0
+    "latency": 13.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "AAG-GUM-HAW",
@@ -137,7 +146,8 @@
     "reliability": 0.999,
     "cost_weight": 18,
     "ownership": "consortium",
-    "latency": 27.5
+    "latency": 27.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "AAG-HAW-LAX",
@@ -150,7 +160,8 @@
     "reliability": 0.9994,
     "cost_weight": 12,
     "ownership": "consortium",
-    "latency": 20.75
+    "latency": 20.75,
+    "rfs_status": "in_service"
   },
   {
     "id": "INDIGO_C-PER-JAK",
@@ -163,7 +174,8 @@
     "reliability": 0.9994,
     "cost_weight": 11,
     "ownership": "owned",
-    "latency": 14.5
+    "latency": 14.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "INDIGO_C-JAK-SIN",
@@ -190,7 +202,8 @@
         -0.5,
         107.0
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "INDIGO_W-SIN-BOM",
@@ -203,7 +216,8 @@
     "reliability": 0.9992,
     "cost_weight": 15,
     "ownership": "owned",
-    "latency": 21.0
+    "latency": 21.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "INDIGO_W-PER-SIN",
@@ -216,7 +230,8 @@
     "reliability": 0.9993,
     "cost_weight": 14,
     "ownership": "owned",
-    "latency": 19.5
+    "latency": 19.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "SMW3-SIN-BOM",
@@ -229,7 +244,8 @@
     "reliability": 0.9988,
     "cost_weight": 16,
     "ownership": "consortium",
-    "latency": 21.0
+    "latency": 21.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "SMW3-BOM-DJI",
@@ -242,7 +258,8 @@
     "reliability": 0.9987,
     "cost_weight": 13,
     "ownership": "consortium",
-    "latency": 15.5
+    "latency": 15.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "SMW3-DJI-DXB",
@@ -285,7 +302,8 @@
         26.0,
         55.5
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "SMW3-DXB-LON",
@@ -298,7 +316,8 @@
     "reliability": 0.9985,
     "cost_weight": 22,
     "ownership": "consortium",
-    "latency": 31.0
+    "latency": 31.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "SMW4-SIN-BOM",
@@ -311,7 +330,8 @@
     "reliability": 0.9991,
     "cost_weight": 15,
     "ownership": "consortium",
-    "latency": 20.5
+    "latency": 20.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "SMW4-BOM-DXB",
@@ -324,7 +344,8 @@
     "reliability": 0.9992,
     "cost_weight": 9,
     "ownership": "consortium",
-    "latency": 9.5
+    "latency": 9.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "SMW4-DXB-LON",
@@ -337,7 +358,8 @@
     "reliability": 0.9988,
     "cost_weight": 21,
     "ownership": "consortium",
-    "latency": 30.5
+    "latency": 30.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "APG-SIN-HKG",
@@ -350,7 +372,8 @@
     "reliability": 0.9992,
     "cost_weight": 11,
     "ownership": "consortium",
-    "latency": 13.0
+    "latency": 13.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_AU01",
@@ -381,7 +404,8 @@
         -36.75,
         145.57
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_AU02",
@@ -412,7 +436,8 @@
         -28.17,
         153.55
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_AU03",
@@ -447,7 +472,8 @@
         -32.1974,
         121.7756
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_GB01",
@@ -460,7 +486,8 @@
     "reliability": 0.9993,
     "cost_weight": 3,
     "ownership": "iru",
-    "latency": 3.8
+    "latency": 3.8,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG01",
@@ -473,7 +500,8 @@
     "reliability": 0.9992,
     "cost_weight": 2,
     "ownership": "iru",
-    "latency": 1.75
+    "latency": 1.75,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_AU04",
@@ -486,7 +514,8 @@
     "reliability": 0.9997,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 1.4
+    "latency": 1.4,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_AU05",
@@ -521,7 +550,8 @@
         -26.4045,
         146.2578
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_NZ01",
@@ -534,7 +564,8 @@
     "reliability": 0.9995,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 2.5
+    "latency": 2.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG02",
@@ -547,7 +578,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.07
+    "latency": 0.07,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_GU01",
@@ -560,7 +592,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.03
+    "latency": 0.03,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_US01",
@@ -573,7 +606,8 @@
     "reliability": 0.9993,
     "cost_weight": 2,
     "ownership": "owned",
-    "latency": 3.1
+    "latency": 3.1,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_US02",
@@ -586,7 +620,8 @@
     "reliability": 0.9991,
     "cost_weight": 3,
     "ownership": "owned",
-    "latency": 5.5
+    "latency": 5.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_US03",
@@ -599,7 +634,8 @@
     "reliability": 0.9982,
     "cost_weight": 10,
     "ownership": "owned",
-    "latency": 20.5
+    "latency": 20.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_IN01",
@@ -612,7 +648,8 @@
     "reliability": 0.9988,
     "cost_weight": 4,
     "ownership": "owned",
-    "latency": 7.0
+    "latency": 7.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_IN02",
@@ -625,7 +662,8 @@
     "reliability": 0.9995,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 1.75
+    "latency": 1.75,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_DJ01",
@@ -638,7 +676,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.35
+    "latency": 0.35,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_AE01",
@@ -651,7 +690,8 @@
     "reliability": 0.9997,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.75
+    "latency": 0.75,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_GB02",
@@ -664,7 +704,8 @@
     "reliability": 0.9995,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 1.6
+    "latency": 1.6,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_ID01",
@@ -677,7 +718,8 @@
     "reliability": 0.9991,
     "cost_weight": 2,
     "ownership": "owned",
-    "latency": 4.0
+    "latency": 4.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_MY01",
@@ -690,7 +732,8 @@
     "reliability": 0.9995,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 1.75
+    "latency": 1.75,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_AU06",
@@ -703,7 +746,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.05
+    "latency": 0.05,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_AU07",
@@ -716,7 +760,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.06
+    "latency": 0.06,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_AU08",
@@ -729,7 +774,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.01
+    "latency": 0.01,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_AU09",
@@ -742,7 +788,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.01
+    "latency": 0.01,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_AU10",
@@ -755,7 +802,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.01
+    "latency": 0.01,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_NZ02",
@@ -768,7 +816,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.01
+    "latency": 0.01,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_US04",
@@ -781,7 +830,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.01
+    "latency": 0.01,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_US05",
@@ -794,7 +844,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.01
+    "latency": 0.01,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_US06",
@@ -807,7 +858,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.01
+    "latency": 0.01,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_IN03",
@@ -820,7 +872,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.01
+    "latency": 0.01,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_IN04",
@@ -833,7 +886,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.02
+    "latency": 0.02,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_AE02",
@@ -846,7 +900,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.01
+    "latency": 0.01,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_GB03",
@@ -859,7 +914,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.04
+    "latency": 0.04,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_ID02",
@@ -872,7 +928,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.02
+    "latency": 0.02,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_MY02",
@@ -885,7 +942,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.02
+    "latency": 0.02,
+    "rfs_status": "in_service"
   },
   {
     "id": "BIFROST-LAX-GUM",
@@ -898,7 +956,8 @@
     "reliability": 0.9995,
     "cost_weight": 19,
     "ownership": "iru",
-    "latency": 47.0
+    "latency": 47.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "BIFROST-JAK-SIN",
@@ -925,7 +984,8 @@
         -0.5,
         107.0
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "ECHO-SIN-JAK",
@@ -952,7 +1012,8 @@
         -5.5,
         107.5
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "ECHO-JAK-GUM",
@@ -965,7 +1026,8 @@
     "reliability": 0.9995,
     "cost_weight": 12,
     "ownership": "offnet_resell",
-    "latency": 24.0
+    "latency": 24.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "ECHO-GUM-SFO",
@@ -978,7 +1040,8 @@
     "reliability": 0.9995,
     "cost_weight": 20,
     "ownership": "offnet_resell",
-    "latency": 51.0
+    "latency": 51.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "TOPAZ-SEA-TYO",
@@ -1013,7 +1076,8 @@
         39,
         148
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TABUA-LAX-HAW",
@@ -1026,7 +1090,8 @@
     "reliability": 0.9995,
     "cost_weight": 11,
     "ownership": "iru",
-    "latency": 20.5
+    "latency": 20.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "TABUA-HAW-FJI",
@@ -1039,7 +1104,8 @@
     "reliability": 0.9995,
     "cost_weight": 13,
     "ownership": "iru",
-    "latency": 25.5
+    "latency": 25.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "TABUA-FJI-SYD",
@@ -1052,7 +1118,8 @@
     "reliability": 0.9995,
     "cost_weight": 10,
     "ownership": "iru",
-    "latency": 16.0
+    "latency": 16.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "TABUA-SYD-BRI",
@@ -1065,7 +1132,8 @@
     "reliability": 0.9995,
     "cost_weight": 5,
     "ownership": "iru",
-    "latency": 4.5
+    "latency": 4.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "JGA-TYO-GUM",
@@ -1088,7 +1156,8 @@
         18,
         145
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "SEAUS-GUM-HAW",
@@ -1101,7 +1170,8 @@
     "reliability": 0.9989,
     "cost_weight": 17,
     "ownership": "iru",
-    "latency": 26.5
+    "latency": 26.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "SEAUS-HAW-LAX",
@@ -1114,7 +1184,8 @@
     "reliability": 0.9991,
     "cost_weight": 13,
     "ownership": "iru",
-    "latency": 21.0
+    "latency": 21.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "SJC2-SIN-MNL",
@@ -1127,7 +1198,8 @@
     "reliability": 0.9993,
     "cost_weight": 8,
     "ownership": "offnet_resell",
-    "latency": 12.5
+    "latency": 12.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "JUNO-MNB-BU",
@@ -1146,7 +1218,8 @@
         34.9,
         141.5
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "JUNO-SHM-BU",
@@ -1169,7 +1242,8 @@
         34.5,
         141.0
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "JUNO-BU-GRB",
@@ -1204,7 +1278,8 @@
         39,
         -135
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "BALIKULA-BRI-VLI",
@@ -1217,7 +1292,8 @@
     "reliability": 0.9995,
     "cost_weight": 6,
     "ownership": "iru",
-    "latency": 9.75
+    "latency": 9.75,
+    "rfs_status": "in_service"
   },
   {
     "id": "BALIKULA-VLI-FJI",
@@ -1230,7 +1306,8 @@
     "reliability": 0.9996,
     "cost_weight": 4,
     "ownership": "iru",
-    "latency": 5.5
+    "latency": 5.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "JGA-GUM-BU1",
@@ -1243,7 +1320,8 @@
     "reliability": 0.999,
     "cost_weight": 14,
     "ownership": "integrated_lit_lease",
-    "latency": 22.5
+    "latency": 22.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "JGA-BU1-SYD",
@@ -1256,7 +1334,8 @@
     "reliability": 0.9995,
     "cost_weight": 6,
     "ownership": "integrated_lit_lease",
-    "latency": 9.0
+    "latency": 9.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "JGA-BU1-BRI",
@@ -1269,7 +1348,8 @@
     "reliability": 0.9997,
     "cost_weight": 3,
     "ownership": "integrated_lit_lease",
-    "latency": 4.0
+    "latency": 4.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "SCC-N-SYD-FJI",
@@ -1282,7 +1362,8 @@
     "reliability": 0.9991,
     "cost_weight": 11,
     "ownership": "consortium",
-    "latency": 17.7
+    "latency": 17.7,
+    "rfs_status": "in_service"
   },
   {
     "id": "SCC-N-FJI-HAW",
@@ -1295,7 +1376,8 @@
     "reliability": 0.9988,
     "cost_weight": 18,
     "ownership": "consortium",
-    "latency": 29.15
+    "latency": 29.15,
+    "rfs_status": "in_service"
   },
   {
     "id": "SCC-N-HAW-SEA",
@@ -1308,7 +1390,8 @@
     "reliability": 0.9991,
     "cost_weight": 13,
     "ownership": "consortium",
-    "latency": 21.75
+    "latency": 21.75,
+    "rfs_status": "in_service"
   },
   {
     "id": "SCC-S-SYD-AKL",
@@ -1321,7 +1404,8 @@
     "reliability": 0.9994,
     "cost_weight": 7,
     "ownership": "consortium",
-    "latency": 11.4
+    "latency": 11.4,
+    "rfs_status": "in_service"
   },
   {
     "id": "SCC-S-AKL-HAW",
@@ -1334,7 +1418,8 @@
     "reliability": 0.9985,
     "cost_weight": 25,
     "ownership": "consortium",
-    "latency": 40.0
+    "latency": 40.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "SCC-S-HAW-SFO",
@@ -1347,7 +1432,8 @@
     "reliability": 0.9991,
     "cost_weight": 13,
     "ownership": "consortium",
-    "latency": 20.68
+    "latency": 20.68,
+    "rfs_status": "in_service"
   },
   {
     "id": "SXNEXT-LAX-HAW",
@@ -1360,7 +1446,8 @@
     "reliability": 0.9991,
     "cost_weight": 13,
     "ownership": "consortium",
-    "latency": 20.5
+    "latency": 20.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "SXNEXT-HAW-BU",
@@ -1373,7 +1460,8 @@
     "reliability": 0.9992,
     "cost_weight": 10,
     "ownership": "consortium",
-    "latency": 16.0
+    "latency": 16.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "SXNEXT-BU-FJI",
@@ -1386,7 +1474,8 @@
     "reliability": 0.9995,
     "cost_weight": 6,
     "ownership": "consortium",
-    "latency": 9.0
+    "latency": 9.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "SXNEXT-BU-AKL",
@@ -1399,7 +1488,8 @@
     "reliability": 0.9992,
     "cost_weight": 9,
     "ownership": "consortium",
-    "latency": 15.0
+    "latency": 15.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "SXNEXT-AKL-SYD",
@@ -1412,7 +1502,8 @@
     "reliability": 0.9994,
     "cost_weight": 7,
     "ownership": "consortium",
-    "latency": 11.0
+    "latency": 11.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "PROA-OSA-TIN",
@@ -1439,7 +1530,8 @@
         19,
         145
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "PROA-TIN-GUM",
@@ -1452,7 +1544,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "iru",
-    "latency": 1.21
+    "latency": 1.21,
+    "rfs_status": "in_service"
   },
   {
     "id": "JUPITER-SEA-BU",
@@ -1483,7 +1576,8 @@
         46,
         165
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "JUPITER-BU-TYO",
@@ -1502,7 +1596,8 @@
         35,
         150
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "JUPITER-BU-OSA",
@@ -1515,7 +1610,8 @@
     "reliability": 0.9993,
     "cost_weight": 10,
     "ownership": "offnet_resell",
-    "latency": 14.0
+    "latency": 14.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "JUPITER-BU-MNL",
@@ -1528,7 +1624,8 @@
     "reliability": 0.9991,
     "cost_weight": 17,
     "ownership": "offnet_resell",
-    "latency": 24.5
+    "latency": 24.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "APRICOT-BU-OSA",
@@ -1551,7 +1648,8 @@
         30,
         132
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "APRICOT-BU-TYO",
@@ -1574,7 +1672,8 @@
         30,
         136
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "APRICOT-BU-GUM",
@@ -1587,7 +1686,8 @@
     "reliability": 0.9994,
     "cost_weight": 8,
     "ownership": "offnet_resell",
-    "latency": 11.0
+    "latency": 11.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "EAC-2A1",
@@ -1600,7 +1700,8 @@
     "reliability": 0.9992,
     "cost_weight": 10,
     "ownership": "consortium",
-    "latency": 13.0
+    "latency": 13.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "EAC-2B2",
@@ -1623,7 +1724,8 @@
         13.0,
         119.0
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "EAC-A",
@@ -1646,7 +1748,8 @@
         32,
         134
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "EAC-C",
@@ -1659,7 +1762,8 @@
     "reliability": 0.9994,
     "cost_weight": 6,
     "ownership": "consortium",
-    "latency": 7.25
+    "latency": 7.25,
+    "rfs_status": "in_service"
   },
   {
     "id": "EAC-D",
@@ -1672,7 +1776,8 @@
     "reliability": 0.9997,
     "cost_weight": 2,
     "ownership": "consortium",
-    "latency": 1.9
+    "latency": 1.9,
+    "rfs_status": "in_service"
   },
   {
     "id": "EAC-F1",
@@ -1695,7 +1800,8 @@
         30.0,
         122.5
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "EAC-F2",
@@ -1708,7 +1814,8 @@
     "reliability": 0.9996,
     "cost_weight": 3,
     "ownership": "consortium",
-    "latency": 2.3
+    "latency": 2.3,
+    "rfs_status": "in_service"
   },
   {
     "id": "EAC-K",
@@ -1739,7 +1846,8 @@
         35.0,
         140.5
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "EAC-L",
@@ -1766,7 +1874,8 @@
         34.7,
         137.5
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "EAC-M",
@@ -1779,7 +1888,8 @@
     "latency": 1.85,
     "reliability": 0.9997,
     "cost_weight": 2,
-    "ownership": "consortium"
+    "ownership": "consortium",
+    "rfs_status": "in_service"
   },
   {
     "id": "C2C-S1",
@@ -1792,7 +1902,8 @@
     "reliability": 0.9994,
     "cost_weight": 5,
     "ownership": "consortium",
-    "latency": 5.75
+    "latency": 5.75,
+    "rfs_status": "in_service"
   },
   {
     "id": "C2C-S2A",
@@ -1805,7 +1916,8 @@
     "reliability": 0.9997,
     "cost_weight": 2,
     "ownership": "consortium",
-    "latency": 2.0
+    "latency": 2.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "C2C-S3C",
@@ -1832,7 +1944,8 @@
         34.3,
         136
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "C2C-S4",
@@ -1845,7 +1958,8 @@
     "reliability": 0.9997,
     "cost_weight": 2,
     "ownership": "consortium",
-    "latency": 1.75
+    "latency": 1.75,
+    "rfs_status": "in_service"
   },
   {
     "id": "C2C-S5",
@@ -1880,7 +1994,8 @@
         11.0,
         120.0
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "C2C-S6",
@@ -1893,7 +2008,8 @@
     "reliability": 0.9991,
     "cost_weight": 10,
     "ownership": "consortium",
-    "latency": 11.7
+    "latency": 11.7,
+    "rfs_status": "in_service"
   },
   {
     "id": "C2C-S7",
@@ -1906,7 +2022,8 @@
     "reliability": 0.9992,
     "cost_weight": 10,
     "ownership": "consortium",
-    "latency": 13.0
+    "latency": 13.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_AU_SY01",
@@ -1919,7 +2036,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.04
+    "latency": 0.04,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_AU_SY03",
@@ -1932,7 +2050,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.07
+    "latency": 0.07,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_AU_SY04",
@@ -1945,7 +2064,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.015
+    "latency": 0.015,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_AU_ME01",
@@ -1958,7 +2078,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.02
+    "latency": 0.02,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_AU_ME02",
@@ -1971,7 +2092,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.09
+    "latency": 0.09,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_AU_BQ01",
@@ -1984,7 +2106,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.02
+    "latency": 0.02,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_AU_PE01",
@@ -1997,7 +2120,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.02
+    "latency": 0.02,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_US07",
@@ -2010,7 +2134,8 @@
     "reliability": 0.9985,
     "cost_weight": 5.0,
     "ownership": "integrated_lit_lease",
-    "latency": 11.2
+    "latency": 11.2,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_US08",
@@ -2023,7 +2148,8 @@
     "reliability": 0.9987,
     "cost_weight": 4.0,
     "ownership": "integrated_lit_lease",
-    "latency": 7.4
+    "latency": 7.4,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_US09",
@@ -2036,7 +2162,8 @@
     "reliability": 0.9988,
     "cost_weight": 3.0,
     "ownership": "integrated_lit_lease",
-    "latency": 6.35
+    "latency": 6.35,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_US10",
@@ -2049,7 +2176,8 @@
     "reliability": 0.9985,
     "cost_weight": 5.0,
     "ownership": "integrated_lit_lease",
-    "latency": 10.25
+    "latency": 10.25,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_US11",
@@ -2062,7 +2190,8 @@
     "reliability": 0.9985,
     "cost_weight": 5.0,
     "ownership": "integrated_lit_lease",
-    "latency": 10.5
+    "latency": 10.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_US_LA01",
@@ -2075,7 +2204,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.04
+    "latency": 0.04,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_US_LA02",
@@ -2088,7 +2218,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.06
+    "latency": 0.06,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_US_SE02",
@@ -2101,7 +2232,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.02
+    "latency": 0.02,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_US_SE03",
@@ -2114,7 +2246,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.06
+    "latency": 0.06,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_US_CH01",
@@ -2127,7 +2260,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.025
+    "latency": 0.025,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_US_CH02",
@@ -2140,7 +2274,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.15
+    "latency": 0.15,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_US_NY01",
@@ -2153,7 +2288,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.09
+    "latency": 0.09,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_US_NY05",
@@ -2166,7 +2302,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.04
+    "latency": 0.04,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_US_NY09",
@@ -2179,7 +2316,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.03
+    "latency": 0.03,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_US_DA01",
@@ -2192,7 +2330,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.125
+    "latency": 0.125,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_US_DA02",
@@ -2205,7 +2344,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.015
+    "latency": 0.015,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_US_MI01",
@@ -2218,7 +2358,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "integrated_lit_lease",
-    "latency": 0.1
+    "latency": 0.1,
+    "rfs_status": "in_service"
   },
   {
     "id": "EQ_US_MI03",
@@ -2231,7 +2372,8 @@
     "reliability": 0.9992,
     "cost_weight": 1.0,
     "ownership": "offnet_resell",
-    "latency": 0.025
+    "latency": 0.025,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_IN05",
@@ -2244,7 +2386,8 @@
     "reliability": 0.9989,
     "cost_weight": 3,
     "ownership": "iru",
-    "latency": 4.9
+    "latency": 4.9,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_IN06",
@@ -2257,7 +2400,8 @@
     "reliability": 0.9985,
     "cost_weight": 6,
     "ownership": "iru",
-    "latency": 10.5
+    "latency": 10.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_CN01",
@@ -2270,7 +2414,8 @@
     "reliability": 0.9996,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.21
+    "latency": 0.21,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_CN02",
@@ -2283,7 +2428,8 @@
     "reliability": 0.9988,
     "cost_weight": 4,
     "ownership": "owned",
-    "latency": 2.8
+    "latency": 2.8,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG03",
@@ -2296,7 +2442,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.005
+    "latency": 0.005,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG04",
@@ -2309,7 +2456,8 @@
     "reliability": 0.9997,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.09
+    "latency": 0.09,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG05",
@@ -2322,7 +2470,8 @@
     "reliability": 0.9997,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.09
+    "latency": 0.09,
+    "rfs_status": "in_service"
   },
   {
     "id": "FASTER-BDN-CHK",
@@ -2357,7 +2506,8 @@
         36,
         148
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "FASTER-BDN-SHM",
@@ -2392,7 +2542,8 @@
         36,
         144
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "PC1N-HPT-AJI",
@@ -2427,7 +2578,8 @@
         40,
         150
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "PC1S-GRB-SHM",
@@ -2466,7 +2618,8 @@
         35,
         146
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "UNITY-CHK-HAW",
@@ -2501,7 +2654,8 @@
         27,
         -162
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "UNITY-HAW-LAX",
@@ -2514,7 +2668,8 @@
     "reliability": 0.9963,
     "cost_weight": 6,
     "ownership": "consortium",
-    "latency": 20.5
+    "latency": 20.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "BBG-FUJ-OMN",
@@ -2537,7 +2692,8 @@
         23.0,
         57.5
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "BBG-OMN-BOM",
@@ -2550,7 +2706,8 @@
     "reliability": 0.9984,
     "cost_weight": 3,
     "ownership": "consortium",
-    "latency": 9.0
+    "latency": 9.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "BBG-BOM-CMB",
@@ -2585,7 +2742,8 @@
         6.5,
         79.2
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "BBG-CMB-MAA",
@@ -2624,7 +2782,8 @@
         13.0,
         80.8
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "BBG-MAA-PEN",
@@ -2637,7 +2796,8 @@
     "reliability": 0.9981,
     "cost_weight": 3,
     "ownership": "consortium",
-    "latency": 10.5
+    "latency": 10.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1-SIN-VUT",
@@ -2650,7 +2810,8 @@
     "reliability": 0.9987,
     "cost_weight": 2,
     "ownership": "consortium",
-    "latency": 7.5
+    "latency": 7.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1-HKG-VUT",
@@ -2663,7 +2824,8 @@
     "reliability": 0.9986,
     "cost_weight": 2,
     "ownership": "consortium",
-    "latency": 8.0
+    "latency": 8.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1-VUT-SHV",
@@ -2690,7 +2852,8 @@
         9.5,
         103.5
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1-SHV-PEN",
@@ -2703,7 +2866,8 @@
     "reliability": 0.9992,
     "cost_weight": 1,
     "ownership": "consortium",
-    "latency": 4.5
+    "latency": 4.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1-PEN-SAT",
@@ -2726,7 +2890,8 @@
         6.2,
         99.3
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1-SAT-NGW",
@@ -2739,7 +2904,8 @@
     "reliability": 0.9991,
     "cost_weight": 1,
     "ownership": "consortium",
-    "latency": 5.0
+    "latency": 5.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1-NGW-BOM",
@@ -2778,7 +2944,8 @@
         15.0,
         71.5
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1-BOM-KHI",
@@ -2805,7 +2972,8 @@
         23.5,
         65.5
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1-KHI-MCT",
@@ -2818,7 +2986,8 @@
     "reliability": 0.9992,
     "cost_weight": 1,
     "ownership": "consortium",
-    "latency": 4.25
+    "latency": 4.25,
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1-MCT-FUJ",
@@ -2831,7 +3000,8 @@
     "reliability": 0.9997,
     "cost_weight": 1,
     "ownership": "consortium",
-    "latency": 1.5
+    "latency": 1.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1-FUJ-DOH",
@@ -2874,7 +3044,8 @@
         25.8,
         52.5
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1-FUJ-JED",
@@ -2887,7 +3058,8 @@
     "reliability": 0.9987,
     "cost_weight": 2,
     "ownership": "consortium",
-    "latency": 7.5
+    "latency": 7.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1-JED-ADN",
@@ -2922,7 +3094,8 @@
         12.0,
         44.5
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1-ADN-DJI",
@@ -2945,7 +3118,8 @@
         11.5,
         43.0
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1-DJI-EGR",
@@ -2976,7 +3150,8 @@
         27.0,
         33.8
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1-EGM-CHN",
@@ -2989,7 +3164,8 @@
     "reliability": 0.9982,
     "cost_weight": 3,
     "ownership": "consortium",
-    "latency": 10.0
+    "latency": 10.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1-CHN-BAR",
@@ -3002,7 +3178,8 @@
     "reliability": 0.9991,
     "cost_weight": 1,
     "ownership": "consortium",
-    "latency": 5.0
+    "latency": 5.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "AAE1-BAR-MRS",
@@ -3015,7 +3192,8 @@
     "reliability": 0.9989,
     "cost_weight": 2,
     "ownership": "consortium",
-    "latency": 6.0
+    "latency": 6.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_US12",
@@ -3028,7 +3206,8 @@
     "reliability": 0.9996,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 1.95
+    "latency": 1.95,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_US13",
@@ -3041,7 +3220,8 @@
     "reliability": 0.9994,
     "cost_weight": 2,
     "ownership": "owned",
-    "latency": 3.6
+    "latency": 3.6,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_US14",
@@ -3054,7 +3234,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 1.25
+    "latency": 1.25,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_US15",
@@ -3067,7 +3248,8 @@
     "reliability": 0.9997,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 1.75
+    "latency": 1.75,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_US16",
@@ -3080,7 +3262,8 @@
     "reliability": 1.0,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.15
+    "latency": 0.15,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_AE03",
@@ -3093,7 +3276,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.75
+    "latency": 0.75,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_OM01",
@@ -3106,7 +3290,8 @@
     "reliability": 0.9997,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 1.5
+    "latency": 1.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_OM02",
@@ -3119,7 +3304,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 0.35
+    "latency": 0.35,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_QA01",
@@ -3132,7 +3318,8 @@
     "reliability": 0.9996,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 2.0
+    "latency": 2.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_EG01",
@@ -3145,7 +3332,8 @@
     "reliability": 0.9997,
     "cost_weight": 1,
     "ownership": "owned",
-    "latency": 1.75
+    "latency": 1.75,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_EU01",
@@ -3158,7 +3346,8 @@
     "reliability": 0.999,
     "cost_weight": 3,
     "ownership": "owned",
-    "latency": 5.5
+    "latency": 5.5,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_EU02",
@@ -3171,7 +3360,8 @@
     "reliability": 0.9991,
     "cost_weight": 2,
     "ownership": "owned",
-    "latency": 5.0
+    "latency": 5.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_EU03",
@@ -3184,7 +3374,8 @@
     "reliability": 0.9989,
     "cost_weight": 3,
     "ownership": "owned",
-    "latency": 6.0
+    "latency": 6.0,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_PH01",
@@ -3198,7 +3389,8 @@
     "cost_weight": 1,
     "ownership": "owned",
     "latency": 0.17,
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_PH03",
@@ -3212,7 +3404,8 @@
     "cost_weight": 1,
     "ownership": "owned",
     "latency": 0.34,
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_PH05",
@@ -3226,7 +3419,8 @@
     "cost_weight": 1,
     "ownership": "owned",
     "latency": 0.04,
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_PH07",
@@ -3240,7 +3434,8 @@
     "cost_weight": 1,
     "ownership": "owned",
     "latency": 0.01,
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_PH08",
@@ -3254,7 +3449,8 @@
     "cost_weight": 1,
     "ownership": "owned",
     "latency": 0.04,
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_PH10",
@@ -3268,7 +3464,8 @@
     "cost_weight": 1,
     "ownership": "owned",
     "latency": 0.01,
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_PH11",
@@ -3282,7 +3479,8 @@
     "cost_weight": 1,
     "ownership": "owned",
     "latency": 0.47,
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_PH103",
@@ -3296,7 +3494,8 @@
     "cost_weight": 1,
     "ownership": "owned",
     "latency": 1.5,
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_PH02a",
@@ -3310,7 +3509,8 @@
     "cost_weight": 1,
     "ownership": "owned",
     "latency": 0.07,
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_PH02b",
@@ -3324,7 +3524,8 @@
     "cost_weight": 1,
     "ownership": "owned",
     "latency": 0.18,
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_PH06a",
@@ -3338,7 +3539,8 @@
     "cost_weight": 1,
     "ownership": "owned",
     "latency": 0.28,
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_PH06b",
@@ -3352,7 +3554,8 @@
     "cost_weight": 1,
     "ownership": "owned",
     "latency": 0.21,
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "ADC-HKG-BAT",
@@ -3365,7 +3568,8 @@
     "reliability": 0.9995,
     "cost_weight": 4,
     "ownership": "offnet_resell",
-    "latency": 7.14
+    "latency": 7.14,
+    "rfs_status": "in_service"
   },
   {
     "id": "ADC-BAT-SIN",
@@ -3378,7 +3582,8 @@
     "reliability": 0.9995,
     "cost_weight": 4,
     "ownership": "offnet_resell",
-    "latency": 14.54
+    "latency": 14.54,
+    "rfs_status": "in_service"
   },
   {
     "id": "BIFROST-GUM-CVD",
@@ -3391,7 +3596,8 @@
     "reliability": 0.9995,
     "cost_weight": 9,
     "ownership": "iru",
-    "latency": 13.89
+    "latency": 13.89,
+    "rfs_status": "in_service"
   },
   {
     "id": "BIFROST-CVD-JAK",
@@ -3404,7 +3610,8 @@
     "reliability": 0.9995,
     "cost_weight": 9,
     "ownership": "iru",
-    "latency": 15.89
+    "latency": 15.89,
+    "rfs_status": "in_service"
   },
   {
     "id": "SEAUS-GDV-GUM",
@@ -3417,7 +3624,8 @@
     "reliability": 0.9993,
     "cost_weight": 9,
     "ownership": "iru",
-    "latency": 13.85
+    "latency": 13.85,
+    "rfs_status": "in_service"
   },
   {
     "id": "APRICOT-SIN-BU",
@@ -3448,7 +3656,8 @@
         18.0,
         126.0
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "APRICOT-BU-BAU",
@@ -3461,7 +3670,8 @@
     "reliability": 0.9993,
     "cost_weight": 9,
     "ownership": "offnet_resell",
-    "latency": 4.64
+    "latency": 4.64,
+    "rfs_status": "in_service"
   },
   {
     "id": "APRICOT-BU-DGS",
@@ -3474,7 +3684,8 @@
     "reliability": 0.9993,
     "cost_weight": 9,
     "ownership": "offnet_resell",
-    "latency": 9.28
+    "latency": 9.28,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK19",
@@ -3488,7 +3699,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK09",
@@ -3502,7 +3714,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK08",
@@ -3516,7 +3729,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK16",
@@ -3530,7 +3744,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK26",
@@ -3544,7 +3759,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK13",
@@ -3558,7 +3774,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK15",
@@ -3572,7 +3789,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK14",
@@ -3586,7 +3804,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK21",
@@ -3600,7 +3819,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK18",
@@ -3614,7 +3834,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK05",
@@ -3628,7 +3849,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK02",
@@ -3642,7 +3864,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK03",
@@ -3656,7 +3879,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK23",
@@ -3670,7 +3894,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK24",
@@ -3684,7 +3909,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK07",
@@ -3698,7 +3924,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK11",
@@ -3712,7 +3939,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK20",
@@ -3726,7 +3954,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK12",
@@ -3740,7 +3969,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK06",
@@ -3754,7 +3984,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK04A",
@@ -3768,7 +3999,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_HK04B",
@@ -3782,7 +4014,8 @@
     "reliability": 0.9998,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP09",
@@ -3802,7 +4035,8 @@
         35.65,
         139.762
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP10",
@@ -3822,7 +4056,8 @@
         35.64,
         139.742
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP11",
@@ -3842,7 +4077,8 @@
         35.3,
         139.85
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP12",
@@ -3862,7 +4098,8 @@
         35.633,
         139.771
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP14",
@@ -3882,7 +4119,8 @@
         35.28,
         139.92
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP15",
@@ -3902,7 +4140,8 @@
         35.656,
         139.77
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP16",
@@ -3922,7 +4161,8 @@
         35.686,
         139.77
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP17a",
@@ -3942,7 +4182,8 @@
         36.15,
         140.64
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP17b",
@@ -3966,7 +4207,8 @@
         35.72,
         140.05
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP18",
@@ -3986,7 +4228,8 @@
         35.664,
         139.784
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP22",
@@ -4006,7 +4249,8 @@
         34.99,
         139.944
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP23",
@@ -4026,7 +4270,8 @@
         34.998,
         139.975
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP24",
@@ -4046,7 +4291,8 @@
         34.985,
         139.967
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP25",
@@ -4066,7 +4312,8 @@
         34.957,
         139.957
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP27",
@@ -4086,7 +4333,8 @@
         35.613,
         139.732
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP28",
@@ -4106,7 +4354,8 @@
         35.632,
         139.73
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP29",
@@ -4134,7 +4383,8 @@
         36.25,
         140.4
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP30",
@@ -4154,7 +4404,8 @@
         35.675,
         139.756
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP31",
@@ -4174,7 +4425,8 @@
         35.675,
         139.752
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP31_IP",
@@ -4194,7 +4446,8 @@
         35.691,
         139.758
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP32",
@@ -4214,7 +4467,8 @@
         35.686,
         139.769
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP32_IP",
@@ -4234,7 +4488,8 @@
         35.69,
         139.764
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP01",
@@ -4254,7 +4509,8 @@
         34.685,
         135.507
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP04b",
@@ -4274,7 +4530,8 @@
         34.697,
         135.508
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP05",
@@ -4294,7 +4551,8 @@
         34.685,
         135.494
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP02",
@@ -4318,7 +4576,8 @@
         34.3,
         136.5
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP03",
@@ -4342,7 +4601,8 @@
         34.4,
         136.5
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP06a",
@@ -4362,7 +4622,8 @@
         34.33,
         136.855
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP06b",
@@ -4382,7 +4643,8 @@
         34.34,
         136.845
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_JP06c",
@@ -4402,7 +4664,8 @@
         34.3,
         136.845
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "XCONN_JP_CHCC_CKKD",
@@ -4422,7 +4685,8 @@
         34.975,
         139.965
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "XCONN_JP_JSOM_SSNT",
@@ -4442,7 +4706,8 @@
         34.32,
         136.873
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "UNITY-CHK-WAD",
@@ -4456,7 +4721,8 @@
     "reliability": 0.9999,
     "cost_weight": 1,
     "ownership": "owned",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG31",
@@ -4476,7 +4742,8 @@
         1.31,
         103.717
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG28",
@@ -4500,7 +4767,8 @@
         1.342,
         103.75
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG25",
@@ -4524,7 +4792,8 @@
         1.326,
         103.937
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG39",
@@ -4548,7 +4817,8 @@
         1.322,
         103.937
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG11",
@@ -4563,7 +4833,8 @@
     "cost_weight": 1,
     "ownership": "owned",
     "verification_status": "draft",
-    "waypoints": null
+    "waypoints": null,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG35",
@@ -4583,7 +4854,8 @@
         1.305,
         103.848
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG36",
@@ -4598,7 +4870,8 @@
     "cost_weight": 1,
     "ownership": "owned",
     "verification_status": "draft",
-    "waypoints": null
+    "waypoints": null,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG10",
@@ -4613,7 +4886,8 @@
     "cost_weight": 1,
     "ownership": "owned",
     "verification_status": "draft",
-    "waypoints": null
+    "waypoints": null,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG08",
@@ -4633,7 +4907,8 @@
         1.315,
         103.93
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG09",
@@ -4653,7 +4928,8 @@
         1.315,
         103.93
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG41",
@@ -4673,7 +4949,8 @@
         1.342,
         103.75
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG42",
@@ -4697,7 +4974,8 @@
         1.344,
         103.94
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG40",
@@ -4717,7 +4995,8 @@
         1.358,
         103.935
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG06",
@@ -4737,7 +5016,8 @@
         1.358,
         103.935
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG23",
@@ -4752,7 +5032,8 @@
     "cost_weight": 1,
     "ownership": "owned",
     "verification_status": "draft",
-    "waypoints": null
+    "waypoints": null,
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG30",
@@ -4772,7 +5053,8 @@
         1.342,
         103.943
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TERRESTRIAL_SG22",
@@ -4787,7 +5069,8 @@
     "cost_weight": 1,
     "ownership": "owned",
     "verification_status": "draft",
-    "waypoints": null
+    "waypoints": null,
+    "rfs_status": "in_service"
   },
   {
     "id": "BBG-PEN-SIN",
@@ -4801,7 +5084,8 @@
     "reliability": 0.9994,
     "cost_weight": 1,
     "ownership": "consortium",
-    "verification_status": "draft"
+    "verification_status": "draft",
+    "rfs_status": "in_service"
   },
   {
     "id": "RNAL-E",
@@ -4824,7 +5108,8 @@
         29.0,
         124.0
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "RNAL-F",
@@ -4851,7 +5136,8 @@
         33.5,
         139.0
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "RNAL-DC",
@@ -4878,7 +5164,8 @@
         23.5,
         123.0
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "RNAL-BA",
@@ -4905,7 +5192,8 @@
         34.0,
         138.0
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "KR02",
@@ -4928,7 +5216,8 @@
         36.35,
         127.38
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "KR03",
@@ -4941,7 +5230,8 @@
     "latency": 0.025,
     "reliability": 0.999,
     "cost_weight": 3,
-    "ownership": "owned"
+    "ownership": "owned",
+    "rfs_status": "in_service"
   },
   {
     "id": "KR04",
@@ -4964,7 +5254,8 @@
         36.5,
         128.0
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "KR05",
@@ -4983,7 +5274,8 @@
         37.0,
         126.4
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "KR06",
@@ -5002,7 +5294,8 @@
         37.3,
         126.1
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "KR07",
@@ -5015,7 +5308,8 @@
     "latency": 0.085,
     "reliability": 0.999,
     "cost_weight": 3,
-    "ownership": "owned"
+    "ownership": "owned",
+    "rfs_status": "in_service"
   },
   {
     "id": "KR08",
@@ -5028,7 +5322,8 @@
     "latency": 0.072,
     "reliability": 0.999,
     "cost_weight": 3,
-    "ownership": "owned"
+    "ownership": "owned",
+    "rfs_status": "in_service"
   },
   {
     "id": "KR09",
@@ -5041,7 +5336,8 @@
     "latency": 0.104,
     "reliability": 0.999,
     "cost_weight": 3,
-    "ownership": "owned"
+    "ownership": "owned",
+    "rfs_status": "in_service"
   },
   {
     "id": "KR10",
@@ -5054,7 +5350,8 @@
     "latency": 0.078,
     "reliability": 0.999,
     "cost_weight": 3,
-    "ownership": "owned"
+    "ownership": "owned",
+    "rfs_status": "in_service"
   },
   {
     "id": "KR11",
@@ -5067,7 +5364,8 @@
     "latency": 0.085,
     "reliability": 0.999,
     "cost_weight": 3,
-    "ownership": "owned"
+    "ownership": "owned",
+    "rfs_status": "in_service"
   },
   {
     "id": "KR01",
@@ -5080,7 +5378,8 @@
     "latency": 0.072,
     "reliability": 0.999,
     "cost_weight": 3,
-    "ownership": "owned"
+    "ownership": "owned",
+    "rfs_status": "in_service"
   },
   {
     "id": "KR_IP_Lease",
@@ -5093,7 +5392,8 @@
     "latency": 0.025,
     "reliability": 0.999,
     "cost_weight": 3,
-    "ownership": "owned"
+    "ownership": "owned",
+    "rfs_status": "in_service"
   },
   {
     "id": "SJC2-TYO-PUS",
@@ -5120,7 +5420,8 @@
         33.0,
         130.5
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TW01",
@@ -5139,7 +5440,8 @@
         25.05,
         121.54
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TW02",
@@ -5158,7 +5460,8 @@
         25.05,
         121.62
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TW03",
@@ -5177,7 +5480,8 @@
         24.5,
         121.4
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TW04",
@@ -5190,7 +5494,8 @@
     "latency": 0.005,
     "reliability": 0.9995,
     "cost_weight": 1,
-    "ownership": "owned"
+    "ownership": "owned",
+    "rfs_status": "in_service"
   },
   {
     "id": "TW05",
@@ -5209,7 +5514,8 @@
         24.4,
         121.0
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TW07",
@@ -5222,7 +5528,8 @@
     "latency": 0.025,
     "reliability": 0.9995,
     "cost_weight": 1,
-    "ownership": "owned"
+    "ownership": "owned",
+    "rfs_status": "in_service"
   },
   {
     "id": "TW08",
@@ -5241,7 +5548,8 @@
         25.1,
         121.73
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TW09",
@@ -5260,7 +5568,8 @@
         24.99,
         121.73
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TW10",
@@ -5283,7 +5592,8 @@
         23.3,
         120.4
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TW11",
@@ -5306,7 +5616,8 @@
         23.0,
         121.3
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "TW12",
@@ -5319,7 +5630,8 @@
     "latency": 0.335,
     "reliability": 0.9995,
     "cost_weight": 1,
-    "ownership": "owned"
+    "ownership": "owned",
+    "rfs_status": "in_service"
   },
   {
     "id": "C2C-S2B",
@@ -5332,7 +5644,8 @@
     "latency": 2.785,
     "reliability": 0.9994,
     "cost_weight": 5,
-    "ownership": "consortium"
+    "ownership": "consortium",
+    "rfs_status": "in_service"
   },
   {
     "id": "C2C-S2C",
@@ -5345,7 +5658,8 @@
     "latency": 3.09,
     "reliability": 0.9994,
     "cost_weight": 5,
-    "ownership": "consortium"
+    "ownership": "consortium",
+    "rfs_status": "in_service"
   },
   {
     "id": "EAC-2B1",
@@ -5376,7 +5690,8 @@
         15.0,
         122.0
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "EAC-B",
@@ -5389,7 +5704,8 @@
     "latency": 3.505,
     "reliability": 0.9994,
     "cost_weight": 5,
-    "ownership": "consortium"
+    "ownership": "consortium",
+    "rfs_status": "in_service"
   },
   {
     "id": "EAC-E",
@@ -5416,7 +5732,8 @@
         23.0,
         118.0
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "APG-HKG-TUC",
@@ -5443,7 +5760,8 @@
         23.5,
         123.0
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "APG-TUC-TYO",
@@ -5470,7 +5788,8 @@
         33,
         137
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "SJC2-MNL-TAM",
@@ -5501,7 +5820,8 @@
         23.0,
         121.5
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "SJC2-TAM-TYO",
@@ -5528,7 +5848,8 @@
         33,
         135
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   },
   {
     "id": "FASTER-BDN-TAM",
@@ -5563,6 +5884,7 @@
         24.0,
         122.0
       ]
-    ]
+    ],
+    "rfs_status": "in_service"
   }
 ]

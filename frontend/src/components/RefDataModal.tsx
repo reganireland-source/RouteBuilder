@@ -258,6 +258,53 @@ function Field({ label, val, k, src, setSrc, readOnly = false, type = 'text', op
   )
 }
 
+/**
+ * Ready for Service status + quarter, for CableSystem/CableSegment forms.
+ * Not a plain <Field> because the two fields are cross-validated server-side
+ * (rfs_quarter required iff rfs_status='planned', must be empty otherwise —
+ * see backend/app/models.py's _check_rfs_quarter): switching back to
+ * "In Service" here also clears any stale quarter value in the same edit,
+ * so the form can't silently drift into that invalid combination.
+ */
+function RfsFields({ src, setSrc }: { src: Record<string, unknown>; setSrc: (v: Record<string, unknown>) => void }) {
+  const t = useTheme()
+  const inputStyle: React.CSSProperties = {
+    background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 3,
+    color: t.text, fontSize: 12, padding: '3px 6px', width: '100%', boxSizing: 'border-box',
+    fontFamily: 'inherit',
+  }
+  const labelStyle: React.CSSProperties = { fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }
+  const isPlanned = src.rfs_status === 'planned'
+  const quarterValid = !isPlanned || /^\d{4}-Q[1-4]$/.test(String(src.rfs_quarter ?? ''))
+
+  return (
+    <>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <label style={labelStyle}>Ready for Service</label>
+        <select
+          style={inputStyle}
+          value={String(src.rfs_status ?? 'in_service')}
+          onChange={e => setSrc({ ...src, rfs_status: e.target.value, ...(e.target.value === 'in_service' ? { rfs_quarter: null } : {}) })}
+        >
+          <option value="in_service">In Service</option>
+          <option value="planned">Planned</option>
+        </select>
+      </div>
+      {isPlanned && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <label style={labelStyle}>RFS Quarter</label>
+          <input
+            style={{ ...inputStyle, border: `1px solid ${quarterValid ? t.border : t.red}` }}
+            type="text" autoComplete="off" placeholder="2027-Q3"
+            value={String(src.rfs_quarter ?? '')}
+            onChange={e => setSrc({ ...src, rfs_quarter: e.target.value })}
+          />
+        </div>
+      )}
+    </>
+  )
+}
+
 /** Like <Field> but for choosing a node id: a type-ahead combobox that filters
  *  the node list as you type and stores the selected node's id into `src[k]`. */
 function NodeSearchField({ label, k, src, setSrc, nodes }: {
@@ -944,7 +991,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     const filtered = segments.filter(s =>
       !filter || [s.id, s.name, s.system_id, s.start_node_id, s.end_node_id, s.type, s.ownership].some(v => (v ?? '').toLowerCase().includes(sq))
     )
-    const segDefaults = { id: '', name: '', system_id: '', start_node_id: '', end_node_id: '', type: 'wet', length_km: 0, latency: 0, cost_weight: 1, reliability: 0.9999, ownership: 'consortium' }
+    const segDefaults = { id: '', name: '', system_id: '', start_node_id: '', end_node_id: '', type: 'wet', length_km: 0, latency: 0, cost_weight: 1, reliability: 0.9999, ownership: 'consortium', rfs_status: 'in_service' }
     const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
 
     const segEditForm = (s: CableSegment) => (
@@ -959,6 +1006,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         <Field label="Cost Weight"  k="cost_weight"   src={editValues} setSrc={setEditValues} type="number" />
         <Field label="Reliability"  k="reliability"   src={editValues} setSrc={setEditValues} type="number" />
         <Field label="Ownership"    k="ownership"     src={editValues} setSrc={setEditValues} options={ownerOpts} />
+        <RfsFields src={editValues} setSrc={setEditValues} />
         {/* Waypoints editor */}
         <div style={{ gridColumn: '1 / -1', marginTop: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
@@ -992,7 +1040,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         />
       </div>
     )
-    const segEditDefaults = (s: CableSegment) => ({ name: s.name, system_id: s.system_id, start_node_id: s.start_node_id, end_node_id: s.end_node_id, type: s.type, length_km: s.length_km, latency: s.latency, cost_weight: s.cost_weight, reliability: s.reliability, ownership: s.ownership, waypoints: s.waypoints ? JSON.parse(JSON.stringify(s.waypoints)) : [] })
+    const segEditDefaults = (s: CableSegment) => ({ name: s.name, system_id: s.system_id, start_node_id: s.start_node_id, end_node_id: s.end_node_id, type: s.type, length_km: s.length_km, latency: s.latency, cost_weight: s.cost_weight, reliability: s.reliability, ownership: s.ownership, waypoints: s.waypoints ? JSON.parse(JSON.stringify(s.waypoints)) : [], rfs_status: s.rfs_status ?? 'in_service', rfs_quarter: s.rfs_quarter ?? null })
 
     return (
       <>
@@ -1009,6 +1057,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             <Field label="Cost Weight"  k="cost_weight"   src={addValues} setSrc={setAddValues} type="number" />
             <Field label="Reliability"  k="reliability"   src={addValues} setSrc={setAddValues} type="number" />
             <Field label="Ownership"    k="ownership"     src={addValues} setSrc={setAddValues} options={ownerOpts} />
+            <RfsFields src={addValues} setSrc={setAddValues} />
             <SaveCancel
               onSave={() => saveAdd(() => api.createSegment({ ...segDefaults, ...addValues } as CableSegment))}
               onCancel={() => { setAdding(false); setAddValues({}) }}
@@ -1096,6 +1145,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         <Field label="Name"          k="name"        src={editValues} setSrc={setEditValues} />
         <Field label="Description"   k="description" src={editValues} setSrc={setEditValues} />
         <Field label="Margin (1–10)" k="margin"      src={editValues} setSrc={setEditValues} type="number" />
+        <RfsFields src={editValues} setSrc={setEditValues} />
         <SaveCancel onSave={() => saveEdit(() => api.updateSystem(s.id, editValues as Partial<CableSystem>))} onCancel={() => setEditId(null)} />
       </div>
     )
@@ -1107,7 +1157,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             <Field label="Name *"        k="name"        src={addValues} setSrc={setAddValues} />
             <Field label="Description"   k="description" src={addValues} setSrc={setAddValues} />
             <Field label="Margin (1–10)" k="margin"      src={addValues} setSrc={setAddValues} type="number" />
-            <SaveCancel onSave={() => saveAdd(() => api.createSystem(addValues as unknown as CableSystem))} onCancel={() => { setAdding(false); setAddValues({}) }} />
+            <RfsFields src={addValues} setSrc={setAddValues} />
+            <SaveCancel onSave={() => saveAdd(() => api.createSystem({ rfs_status: 'in_service', ...addValues } as unknown as CableSystem))} onCancel={() => { setAdding(false); setAddValues({}) }} />
           </div>
         )}
         {isMobile ? (
@@ -1122,7 +1173,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                     { label: 'Description', value: s.description ?? '—' },
                     { label: 'Margin', value: <span style={{ color: mc, fontWeight: 700 }}>{s.margin != null ? s.margin.toFixed(1) : '—'}</span> },
                   ]}
-                  onEdit={() => editId === s.id ? setEditId(null) : startEdit(s.id, { name: s.name, description: s.description, margin: s.margin })}
+                  onEdit={() => editId === s.id ? setEditId(null) : startEdit(s.id, { name: s.name, description: s.description, margin: s.margin, rfs_status: s.rfs_status ?? 'in_service', rfs_quarter: s.rfs_quarter ?? null })}
                   onDelete={() => confirmDelete(() => api.deleteSystem(s.id))}
                 >
                   {editId === s.id && sysEditForm(s)}
@@ -1145,7 +1196,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                     <div style={cell(3)}>{s.name}</div>
                     <div style={cell(4)}>{s.description}</div>
                     <div style={{ ...cell(1), fontWeight: 700, color: mc }}>{s.margin != null ? s.margin.toFixed(1) : '—'}</div>
-                    <ActionsCell id={s.id} onEdit={() => startEdit(s.id, { name: s.name, description: s.description, margin: s.margin })} onDelete={() => confirmDelete(() => api.deleteSystem(s.id))} />
+                    <ActionsCell id={s.id} onEdit={() => startEdit(s.id, { name: s.name, description: s.description, margin: s.margin, rfs_status: s.rfs_status ?? 'in_service', rfs_quarter: s.rfs_quarter ?? null })} onDelete={() => confirmDelete(() => api.deleteSystem(s.id))} />
                   </div>
                   {editId === s.id && sysEditForm(s)}
                 </div>
