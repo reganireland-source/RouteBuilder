@@ -475,11 +475,11 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         from a CDN. */}
     <style>{`
       @keyframes rb-route-glow-pulse {
-        0%, 100% { opacity: 0.28; stroke-width: 9; }
-        50%      { opacity: 0.55; stroke-width: 13; }
+        0%, 100% { opacity: 0.15; stroke-width: 7; }
+        50%      { opacity: 0.8;  stroke-width: 16; }
       }
       .rb-route-glow {
-        animation: rb-route-glow-pulse 2.2s ease-in-out infinite;
+        animation: rb-route-glow-pulse 3.6s ease-in-out infinite;
         filter: blur(2.5px);
       }
       @keyframes rb-segment-glow-pulse {
