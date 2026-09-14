@@ -28,6 +28,8 @@ import { emptySegmentDraft } from '../state/editorState'
 import { useTheme } from '../theme'
 import { CountryViewer } from './CountryViewer'
 import { SystemViewer } from './SystemViewer'
+import { ConfirmDialog } from './ConfirmDialog'
+import { nodeLabel } from '../utils/nodeLabel'
 import { pathLengthKm, suggestSegmentDefaults, generateSegmentId, generateSegmentName, generateNodeId } from '../utils/editorGeo'
 
 interface Props {
@@ -245,16 +247,18 @@ function NodeLatLngForm({ node, dispatchEditor }: { node: CableNode; dispatchEdi
   const t = useTheme()
   const [lat, setLat] = useState(String(node.lat))
   const [lng, setLng] = useState(String(node.lng))
+  // Same physical-site guard as dragging, asked through the app's own dialog
+  // rather than window.confirm — so it's async, hence the held-back coords.
+  const [pendingMove, setPendingMove] = useState<{ lat: number; lng: number } | null>(null)
+
+  function reset() { setLat(String(node.lat)); setLng(String(node.lng)) }
 
   function commit() {
     const parsedLat = parseFloat(lat)
     const parsedLng = parseFloat(lng)
-    if (Number.isNaN(parsedLat) || Number.isNaN(parsedLng)) { setLat(String(node.lat)); setLng(String(node.lng)); return }
+    if (Number.isNaN(parsedLat) || Number.isNaN(parsedLng)) { reset(); return }
     if (parsedLat === node.lat && parsedLng === node.lng) return
-    const physicalSite = node.type !== 'branching_unit'
-    if (physicalSite && !window.confirm(`"${node.name}" is a physical site — really move it?`)) {
-      setLat(String(node.lat)); setLng(String(node.lng)); return
-    }
+    if (node.type !== 'branching_unit') { setPendingMove({ lat: parsedLat, lng: parsedLng }); return }
     dispatchEditor({ type: 'MOVE_NODE', nodeId: node.id, lat: parsedLat, lng: parsedLng, fromLat: node.lat, fromLng: node.lng })
   }
 
@@ -266,6 +270,29 @@ function NodeLatLngForm({ node, dispatchEditor }: { node: CableNode; dispatchEdi
         <LabeledInput label="Lng" value={lng} onChange={setLng} />
       </div>
       <button onClick={commit} style={actionBtn(t, 'primary')}>Apply coordinates</button>
+      {pendingMove && (
+        <ConfirmDialog
+          title="Move a physical site?"
+          body={<>
+            <strong style={{ color: t.text }}>{node.name}</strong>{' '}
+            <span style={{ color: t.textFaint }}>({node.id})</span> is a physical site — a real
+            building or landing point — not a virtual routing point like a branching unit.
+            Its coordinates should match the actual location.
+            <div style={{ marginTop: 10, fontSize: 12, fontFamily: 'monospace', color: t.textFaint }}>
+              {node.lat.toFixed(4)}, {node.lng.toFixed(4)}
+              {'  →  '}
+              <span style={{ color: t.orange }}>{pendingMove.lat.toFixed(4)}, {pendingMove.lng.toFixed(4)}</span>
+            </div>
+          </>}
+          confirmLabel="Move it"
+          cancelLabel="Put it back"
+          onConfirm={() => {
+            dispatchEditor({ type: 'MOVE_NODE', nodeId: node.id, lat: pendingMove.lat, lng: pendingMove.lng, fromLat: node.lat, fromLng: node.lng })
+            setPendingMove(null)
+          }}
+          onCancel={() => { reset(); setPendingMove(null) }}
+        />
+      )}
     </div>
   )
 }
@@ -323,7 +350,7 @@ function CreatePanel({ nodes, segments, systems, editorState, dispatchEditor }: 
       </div>
       {startNode && (
         <div style={{ padding: '6px 8px', borderRadius: 5, border: `1px solid ${t.green}55`, background: t.green + '10', color: t.text }}>
-          Start: <strong>{startNode.name}</strong> <span style={{ color: t.textFaint }}>({startNode.id})</span>
+          Start: <strong>{startNode.id}</strong> <span style={{ color: t.textMuted }}>- {startNode.name}</span>
         </div>
       )}
     </div>
@@ -441,7 +468,7 @@ function NewSegmentForm({ startNode, endNode, systems, segments, onCancel, onCre
       <div style={{ fontSize: 12, fontWeight: 700, color: t.text }}>
         New segment
         <div style={{ fontSize: 11, fontWeight: 400, color: t.textMuted, marginTop: 2 }}>
-          {startNode.name} → {endNode.name}
+          {nodeLabel(startNode)} → {nodeLabel(endNode)}
         </div>
       </div>
 

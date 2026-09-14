@@ -31,13 +31,14 @@
  * rendering pipeline (it already receives the derived base+staged segments),
  * so this layer only adds interaction affordances on top of them.
  */
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import * as L from 'leaflet'
 import { Marker, Polyline, Tooltip, useMapEvents } from 'react-leaflet'
 import type { CableNode, CableSegment } from '../types'
 import type { EditorSelection, EditorSubMode, SegmentDraft } from '../state/editorState'
 import { normalizeLng, denormalizeLng, geoLines, nearestSegmentIndex, NODE_STYLE } from '../mapGeometry'
 import { useTheme } from '../theme'
+import { ConfirmDialog } from './ConfirmDialog'
 
 interface Props {
   nodes: CableNode[]
@@ -64,9 +65,6 @@ function MapClickCatcher({ onClick }: { onClick: (lat: number, lng: number) => v
   useMapEvents({ click: (e) => onClick(e.latlng.lat, denormalizeLng(e.latlng.lng)) })
   return null
 }
-
-const PHYSICAL_SITE_CONFIRM = (name: string) =>
-  `"${name}" is a physical site (a real building/landing point), not a virtual routing point. Really move it?`
 
 /** Builds a divIcon matching NODE_STYLE for the given type, with an optional
  *  outer ring for "selected" (solid blue) or "pending" (dashed amber) state —
@@ -109,10 +107,44 @@ export function EditorMapLayer({
   const t = useTheme()
   const nodesById = useMemo(() => Object.fromEntries(nodes.map(n => [n.id, n])), [nodes])
   const waypointIcon = useMemo(() => buildWaypointIcon(t.blue), [t.blue])
+  // A physical-site move waiting on the in-app confirmation. The Leaflet marker
+  // is kept here too: unlike window.confirm this is async, so if the user
+  // cancels we need the handle to snap the marker back to where it started.
+  const [pendingMove, setPendingMove] = useState<
+    { node: CableNode; lat: number; lng: number; marker: L.Marker } | null
+  >(null)
+
+  const moveConfirm = pendingMove && (
+    <ConfirmDialog
+      title="Move a physical site?"
+      body={<>
+        <strong style={{ color: t.text }}>{pendingMove.node.name}</strong>{' '}
+        <span style={{ color: t.textFaint }}>({pendingMove.node.id})</span> is a physical site — a
+        real building or landing point — not a virtual routing point like a branching unit.
+        Its coordinates should match the actual location.
+        <div style={{ marginTop: 10, fontSize: 12, fontFamily: 'monospace', color: t.textFaint }}>
+          {pendingMove.node.lat.toFixed(4)}, {pendingMove.node.lng.toFixed(4)}
+          {'  →  '}
+          <span style={{ color: t.orange }}>{pendingMove.lat.toFixed(4)}, {pendingMove.lng.toFixed(4)}</span>
+        </div>
+      </>}
+      confirmLabel="Move it"
+      cancelLabel="Put it back"
+      onConfirm={() => {
+        onNodeDragEnd(pendingMove.node.id, pendingMove.lat, pendingMove.lng, pendingMove.node.lat, pendingMove.node.lng)
+        setPendingMove(null)
+      }}
+      onCancel={() => {
+        pendingMove.marker.setLatLng([pendingMove.node.lat, normalizeLng(pendingMove.node.lng)])
+        setPendingMove(null)
+      }}
+    />
+  )
 
   if (subMode === 'move') {
     return (
       <>
+        {moveConfirm}
         {nodes.map(node => {
           const isSelected = selection?.kind === 'node' && selection.id === node.id
           const isPending = pendingNodeIds.has(node.id)
@@ -133,9 +165,10 @@ export function EditorMapLayer({
                   const marker = e.target as L.Marker
                   const { lat, lng } = marker.getLatLng()
                   const finalLng = denormalizeLng(lng)
-                  const physicalSite = node.type !== 'branching_unit'
-                  if (physicalSite && !window.confirm(PHYSICAL_SITE_CONFIRM(node.name))) {
-                    marker.setLatLng([node.lat, normalizeLng(node.lng)]) // snap back
+                  // Physical sites (CLS/PoP/off-net) ask first; branching units,
+                  // which are virtual routing points, move freely.
+                  if (node.type !== 'branching_unit') {
+                    setPendingMove({ node, lat, lng: finalLng, marker })
                     return
                   }
                   onNodeDragEnd(node.id, lat, finalLng, node.lat, node.lng)

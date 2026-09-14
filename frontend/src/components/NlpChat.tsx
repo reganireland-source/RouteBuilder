@@ -24,6 +24,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { api } from '../api/client'
 import { useTheme } from '../theme'
+import { nodeLabelById } from '../utils/nodeLabel'
 import type { AppMode, CableNode, NlpParseResponse, NlpSortMode, RouteRequest } from '../types'
 
 interface Props {
@@ -270,13 +271,13 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort, on
               }}>
                 {result.start_node_id && (
                   <div><span style={{ color: t.textFaint }}>From: </span>
-                    <strong>{nodesById[result.start_node_id]?.name ?? result.start_node_id}</strong>
+                    <strong>{nodeLabelById(result.start_node_id, nodesById)}</strong>
                     <span style={{ color: t.textFaintest }}> ({result.start_node_id})</span>
                   </div>
                 )}
                 {result.end_node_id && (
                   <div><span style={{ color: t.textFaint }}>To: </span>
-                    <strong>{nodesById[result.end_node_id]?.name ?? result.end_node_id}</strong>
+                    <strong>{nodeLabelById(result.end_node_id, nodesById)}</strong>
                     <span style={{ color: t.textFaintest }}> ({result.end_node_id})</span>
                   </div>
                 )}

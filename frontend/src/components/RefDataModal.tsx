@@ -48,6 +48,7 @@ import { useState, useEffect, useRef } from 'react'
 import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, AllowedHandoffSegment, InterconnectRule, NoteCategory, NoteSeverity, OnNet, SegmentCapacity, SegmentOutage, SolutionNote, VerificationStatus } from '../types'
 import { useTheme, type Theme } from '../theme'
 import { useAuth } from '../context/AuthContext'
+import { nodeLabelById } from '../utils/nodeLabel'
 function useIsMobile(): boolean {
   const [mobile, setMobile] = useState(() => window.innerWidth < 768)
   useEffect(() => {
@@ -1074,8 +1075,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                 title={s.name}
                 subtitle={<><code style={{ fontSize: 10 }}>{s.id}</code> · {s.system_id} · {s.type}</>}
                 fields={[
-                  { label: 'From', value: nodesById[s.start_node_id]?.name ?? s.start_node_id },
-                  { label: 'To', value: nodesById[s.end_node_id]?.name ?? s.end_node_id },
+                  { label: 'From', value: nodeLabelById(s.start_node_id, nodesById) },
+                  { label: 'To', value: nodeLabelById(s.end_node_id, nodesById) },
                   { label: 'Length', value: `${s.length_km.toLocaleString()} km` },
                   { label: 'Latency', value: s.latency != null ? `${s.latency} ms` : '—' },
                   { label: 'Ownership', value: OWNERSHIP_LABEL[s.ownership] ?? s.ownership },
@@ -1105,8 +1106,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                 <div style={cell(1.5)}><code style={{ fontSize: 11 }}>{s.id}</code></div>
                 <div style={cell(2)}>{s.name}</div>
                 <div style={cell(1)}>{s.system_id}</div>
-                <div style={cell(1.5)}>{nodesById[s.start_node_id]?.name ?? s.start_node_id}</div>
-                <div style={cell(1.5)}>{nodesById[s.end_node_id]?.name ?? s.end_node_id}</div>
+                <div style={cell(1.5)}>{nodeLabelById(s.start_node_id, nodesById)}</div>
+                <div style={cell(1.5)}>{nodeLabelById(s.end_node_id, nodesById)}</div>
                 <div style={cell(0.8)}>{s.type}</div>
                 <div style={cell(1)}>{s.length_km.toLocaleString()} km</div>
                 <div style={cell(0.8)}>{s.latency} ms</div>
@@ -2158,7 +2159,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                 const targetId = note.node_id ?? note.segment_id ?? ''
                 const targetKind = note.node_id ? 'node' : 'segment'
                 const targetName = note.node_id
-                  ? (nodeById[note.node_id]?.name ?? note.node_id)
+                  ? nodeLabelById(note.node_id, nodeById)
                   : (segById[note.segment_id ?? '']?.name ?? note.segment_id ?? '')
                 const catLabel = categoryById[note.category_id]?.label ?? note.category_id
                 return (

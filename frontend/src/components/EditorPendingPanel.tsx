@@ -13,6 +13,7 @@ import { useState } from 'react'
 import type { CableNode, CableSegment } from '../types'
 import type { EditorState, EditorAction, PendingChange, SaveStatus } from '../state/editorState'
 import { useTheme } from '../theme'
+import { nodeLabel, nodeLabelById } from '../utils/nodeLabel'
 
 interface Props {
   state: EditorState
@@ -25,13 +26,12 @@ interface Props {
 function describeChange(change: PendingChange, nodesById: Record<string, CableNode>, segmentsById: Record<string, CableSegment>): string {
   switch (change.kind) {
     case 'move-node': {
-      const name = nodesById[change.nodeId]?.name ?? change.nodeId
-      return `Moved ${name} → ${change.to[0].toFixed(4)}, ${change.to[1].toFixed(4)}`
+      return `Moved ${nodeLabelById(change.nodeId, nodesById)} → ${change.to[0].toFixed(4)}, ${change.to[1].toFixed(4)}`
     }
     case 'new-node':
-      return `New node ${change.draft.name || change.draft.id}`
+      return `New node ${nodeLabel(change.draft)}`
     case 'delete-node':
-      return `Delete ${change.snapshot.name || change.nodeId}${change.cascadeSegmentIds.length ? ` (+${change.cascadeSegmentIds.length} segment${change.cascadeSegmentIds.length === 1 ? '' : 's'})` : ''}`
+      return `Delete ${nodeLabel(change.snapshot)}${change.cascadeSegmentIds.length ? ` (+${change.cascadeSegmentIds.length} segment${change.cascadeSegmentIds.length === 1 ? '' : 's'})` : ''}`
     case 'edit-waypoints': {
       const name = segmentsById[change.segmentId]?.name ?? change.segmentId
       return `Edited path — ${name} (${change.to.length} waypoint${change.to.length === 1 ? '' : 's'})`

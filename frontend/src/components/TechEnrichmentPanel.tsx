@@ -5,7 +5,7 @@
  * access types, arranged-by, L1 settings) populate the dropdown options used when
  * enriching a circuit with technical details elsewhere in the app. The panel shows
  * a left sidebar to pick the active table and a right-hand table of its entries,
- * with inline row editing, deletion (behind a confirm() prompt) and an "add row"
+ * with inline row editing, deletion (behind a ConfirmDialog) and an "add row"
  * form. New entry IDs are slugified from the label (lowercase, dashes); display
  * order is a numeric "order" column, auto-suggested as max+10 for new rows.
  *
@@ -25,6 +25,7 @@ import { useTheme } from '../theme'
 import { api } from '../api/client'
 import type { TechLookupItem, TechLookupTable } from '../types'
 import { TECH_LOOKUP_LABELS } from '../types'
+import { ConfirmDialog } from './ConfirmDialog'
 
 const TABLES: TechLookupTable[] = [
   'tech_service_types',
@@ -59,6 +60,10 @@ export function TechEnrichmentPanel() {
   const [newLabel, setNewLabel]       = useState('')
   const [newDesc, setNewDesc]         = useState('')
   const [newOrder, setNewOrder]       = useState(0)
+
+  // Which row the user has asked to delete — held while the in-app
+  // ConfirmDialog is up (it resolves via callbacks, unlike window.confirm).
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   useEffect(() => {
     load(activeTable)
@@ -103,7 +108,6 @@ export function TechEnrichmentPanel() {
   }
 
   async function deleteItem(id: string) {
-    if (!confirm('Delete this entry?')) return
     setSaving(true)
     try {
       await api.deleteTechItem(activeTable, id)
@@ -146,8 +150,26 @@ export function TechEnrichmentPanel() {
     color: t.text, fontSize: 12, padding: '4px 7px', fontFamily: 'inherit', outline: 'none',
   }
 
+  const deleteTarget = confirmDeleteId ? items.find(i => i.id === confirmDeleteId) ?? null : null
+
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete this entry?"
+          body={<>
+            <strong style={{ color: t.text }}>{deleteTarget.label}</strong> will be removed from{' '}
+            {TECH_LOOKUP_LABELS[activeTable]}. Circuits already enriched with it keep their stored
+            value, but it will no longer be offered in the dropdown.
+          </>}
+          confirmLabel="Delete"
+          cancelLabel="Keep it"
+          danger
+          onConfirm={() => { const id = deleteTarget.id; setConfirmDeleteId(null); void deleteItem(id) }}
+          onCancel={() => setConfirmDeleteId(null)}
+        />
+      )}
 
       {/* Left sidebar — table selector */}
       <div style={{
@@ -263,7 +285,7 @@ export function TechEnrichmentPanel() {
                               style={{ padding: '3px 8px', borderRadius: 4, border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted, cursor: 'pointer', fontSize: 11 }}>
                               Edit
                             </button>
-                            <button onClick={() => deleteItem(item.id)} disabled={saving}
+                            <button onClick={() => setConfirmDeleteId(item.id)} disabled={saving}
                               style={{ padding: '3px 8px', borderRadius: 4, border: `1px solid ${t.red}44`, background: 'transparent', color: t.red, cursor: 'pointer', fontSize: 11 }}>
                               ✕
                             </button>
