@@ -33,9 +33,9 @@
  */
 import { useMemo } from 'react'
 import * as L from 'leaflet'
-import { Marker, Polyline, Tooltip } from 'react-leaflet'
+import { Marker, Polyline, Tooltip, useMapEvents } from 'react-leaflet'
 import type { CableNode, CableSegment } from '../types'
-import type { EditorSelection, EditorSubMode } from '../state/editorState'
+import type { EditorSelection, EditorSubMode, SegmentDraft } from '../state/editorState'
 import { normalizeLng, denormalizeLng, geoLines, nearestSegmentIndex, NODE_STYLE } from '../mapGeometry'
 import { useTheme } from '../theme'
 
@@ -44,6 +44,7 @@ interface Props {
   segments: CableSegment[]
   subMode: EditorSubMode
   selection: EditorSelection
+  segmentDraft: SegmentDraft
   pendingNodeIds: Set<string>
   pendingSegmentIds: Set<string>
   onNodeDragEnd: (nodeId: string, lat: number, lng: number, fromLat: number, fromLng: number) => void
@@ -52,6 +53,16 @@ interface Props {
   onWaypointInsert: (segmentId: string, insertIndex: number, lat: number, lng: number) => void
   onWaypointDragEnd: (segmentId: string, index: number, lat: number, lng: number) => void
   onWaypointDelete: (segmentId: string, index: number) => void
+  onPickEndpoint: (nodeId: string) => void
+  onPickEmptySpace: (lat: number, lng: number) => void
+}
+
+/** Empty-map-space clicks for Create sub-mode — clicking anywhere that isn't a
+ *  node or segment offers to drop a brand-new node there. Mounted only in that
+ *  sub-mode so no other mode's map clicks are affected. */
+function MapClickCatcher({ onClick }: { onClick: (lat: number, lng: number) => void }) {
+  useMapEvents({ click: (e) => onClick(e.latlng.lat, denormalizeLng(e.latlng.lng)) })
+  return null
 }
 
 const PHYSICAL_SITE_CONFIRM = (name: string) =>
@@ -91,8 +102,9 @@ function buildWaypointIcon(color: string): L.DivIcon {
 }
 
 export function EditorMapLayer({
-  nodes, segments, subMode, selection, pendingNodeIds, pendingSegmentIds,
+  nodes, segments, subMode, selection, segmentDraft, pendingNodeIds, pendingSegmentIds,
   onNodeDragEnd, onNodeSelect, onSegmentSelect, onWaypointInsert, onWaypointDragEnd, onWaypointDelete,
+  onPickEndpoint, onPickEmptySpace,
 }: Props) {
   const t = useTheme()
   const nodesById = useMemo(() => Object.fromEntries(nodes.map(n => [n.id, n])), [nodes])
@@ -215,6 +227,94 @@ export function EditorMapLayer({
               Waypoint {idx + 1} of {(selectedSeg.waypoints ?? []).length}
               <br />Drag to move · right-click to delete
             </Tooltip>
+          </Marker>
+        ))}
+      </>
+    )
+  }
+
+  if (subMode === 'create') {
+    const { startNodeId, endNodeId } = segmentDraft
+    const startNode = startNodeId ? nodesById[startNodeId] : undefined
+    const endNode = endNodeId ? nodesById[endNodeId] : undefined
+
+    return (
+      <>
+        <MapClickCatcher onClick={onPickEmptySpace} />
+
+        {/* Every node is a pick target; the chosen endpoints are highlighted. */}
+        {nodes.map(node => {
+          const isStart = node.id === startNodeId
+          const isEnd = node.id === endNodeId
+          const ring = isStart ? t.green : isEnd ? t.blue : pendingNodeIds.has(node.id) ? t.orange : null
+          return (
+            <Marker
+              key={`create-${node.id}`}
+              position={[node.lat, normalizeLng(node.lng)]}
+              icon={buildIcon(node.type, ring, ring === t.orange)}
+              eventHandlers={{
+                click: (e) => { L.DomEvent.stopPropagation(e); onPickEndpoint(node.id) },
+              }}
+            >
+              <Tooltip>
+                <strong>{node.name}</strong> ({node.id})
+                <br />{isStart ? 'Start node' : isEnd ? 'End node' : startNodeId ? 'Click to use as the end node' : 'Click to use as the start node'}
+              </Tooltip>
+            </Marker>
+          )
+        })}
+
+        {/* Preview line once both ends are chosen. */}
+        {startNode && endNode && geoLines(startNode.lat, startNode.lng, endNode.lat, endNode.lng).map((positions, i) => (
+          <Polyline
+            key={`create-preview-${i}`}
+            positions={positions}
+            pathOptions={{ color: t.green, weight: 3, opacity: 0.85, dashArray: '8 5' }}
+            interactive={false}
+          />
+        ))}
+      </>
+    )
+  }
+
+  if (subMode === 'delete') {
+    const selectedNodeId = selection?.kind === 'node' ? selection.id : null
+    const selectedSegId = selection?.kind === 'segment' ? selection.id : null
+
+    return (
+      <>
+        {/* Clickable segment overlay — same hit-target trick as Waypoints mode. */}
+        {segments.map(seg => {
+          const start = nodesById[seg.start_node_id]
+          const end = nodesById[seg.end_node_id]
+          if (!start || !end) return null
+          const isSelected = seg.id === selectedSegId
+          const lines = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined)
+          return lines.map((positions, i) => (
+            <Polyline
+              key={`del-seg-${seg.id}-${i}`}
+              positions={positions}
+              pathOptions={{
+                color: isSelected ? t.red : t.textFaint,
+                weight: isSelected ? 10 : 8,
+                opacity: isSelected ? 0.55 : 0.12,
+                lineCap: 'round',
+              }}
+              eventHandlers={{ click: (e) => { L.DomEvent.stopPropagation(e); onSegmentSelect(seg.id) } }}
+            >
+              {i === 0 && <Tooltip sticky><strong>{seg.name}</strong> ({seg.id})<br />Click to select for deletion</Tooltip>}
+            </Polyline>
+          ))
+        })}
+
+        {nodes.map(node => (
+          <Marker
+            key={`del-${node.id}`}
+            position={[node.lat, normalizeLng(node.lng)]}
+            icon={buildIcon(node.type, node.id === selectedNodeId ? t.red : pendingNodeIds.has(node.id) ? t.orange : null, node.id !== selectedNodeId)}
+            eventHandlers={{ click: (e) => { L.DomEvent.stopPropagation(e); onNodeSelect(node.id) } }}
+          >
+            <Tooltip><strong>{node.name}</strong> ({node.id})<br />Click to select for deletion</Tooltip>
           </Marker>
         ))}
       </>

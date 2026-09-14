@@ -9,29 +9,55 @@
  * later step re-attempted; nothing is silently dropped, and failed items
  * stay in the pending list afterward for the user to fix and retry.
  *
+ * Every step reports through `onProgress` before and after its HTTP call, so
+ * the UI can show exactly which record is being written right now and whether
+ * it passed — these writes are one round trip each (and in JSON-file mode the
+ * backend rewrites the whole file per write), so a batch is genuinely slow
+ * enough to need real feedback rather than an undifferentiated spinner.
+ *
  * verification_status is forced to 'draft' on every write this makes,
  * regardless of what it was before — surfaces "edited but unreviewed"
  * through the same status badges RefDataModal already shows.
  */
 import { api } from '../api/client'
-import type { PendingChange } from './editorState'
+import type { PendingChange, SaveStatus } from './editorState'
+import type { CableSegment } from '../types'
 
 export interface SaveAllResult {
   succeededChangeIds: string[]
   errors: { changeId: string; message: string }[]
 }
 
+export type ProgressFn = (changeId: string, status: SaveStatus, message: string) => void
+
 function errMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
 
-export async function saveAll(pending: PendingChange[]): Promise<SaveAllResult> {
+export async function saveAll(pending: PendingChange[], onProgress: ProgressFn = () => {}): Promise<SaveAllResult> {
   const succeededChangeIds: string[] = []
   const errors: { changeId: string; message: string }[] = []
   // Node ids that failed to create — any later change touching that id is skipped,
   // not attempted (it would just fail again, e.g. a segment referencing a node
   // that never got created).
   const failedNodeIds = new Set<string>()
+
+  /** Runs one step with before/after progress reporting and uniform error
+   *  capture, so every branch below reads as a single line of intent. */
+  async function step(change: PendingChange, message: string, run: () => Promise<unknown>): Promise<boolean> {
+    onProgress(change.changeId, 'running', message)
+    try {
+      await run()
+      onProgress(change.changeId, 'ok', `${message} — done`)
+      succeededChangeIds.push(change.changeId)
+      return true
+    } catch (e) {
+      const msg = errMessage(e)
+      onProgress(change.changeId, 'error', `${message} — FAILED: ${msg}`)
+      errors.push({ changeId: change.changeId, message: msg })
+      return false
+    }
+  }
 
   const newNodes = pending.filter((c): c is Extract<PendingChange, { kind: 'new-node' }> => c.kind === 'new-node')
   const newSegments = pending.filter((c): c is Extract<PendingChange, { kind: 'new-segment' }> => c.kind === 'new-segment')
@@ -44,73 +70,76 @@ export async function saveAll(pending: PendingChange[]): Promise<SaveAllResult> 
   const deleteSegments = pending.filter((c): c is Extract<PendingChange, { kind: 'delete-segment' }> => c.kind === 'delete-segment')
   const deleteNodes = pending.filter((c): c is Extract<PendingChange, { kind: 'delete-node' }> => c.kind === 'delete-node')
 
+  // Superseded duplicates never get attempted — mark them resolved up front so
+  // they don't sit at "Queued" forever and still clear from the pending list.
+  for (const c of pending) {
+    if (c.kind === 'move-node' && movesById.get(c.nodeId) !== c) {
+      onProgress(c.changeId, 'ok', `Superseded by a later move of ${c.nodeId}`)
+      succeededChangeIds.push(c.changeId)
+    }
+    if (c.kind === 'edit-waypoints' && waypointEditsById.get(c.segmentId) !== c) {
+      onProgress(c.changeId, 'ok', `Superseded by a later path edit of ${c.segmentId}`)
+      succeededChangeIds.push(c.changeId)
+    }
+  }
+
   // 1. New nodes first — everything else may reference them by id.
   for (const c of newNodes) {
-    try {
+    await step(c, `Creating node ${c.draft.id} (POST /api/nodes)`, async () => {
       await api.createNode({ ...c.draft, verification_status: 'draft' })
-      succeededChangeIds.push(c.changeId)
-    } catch (e) {
-      errors.push({ changeId: c.changeId, message: errMessage(e) })
-      failedNodeIds.add(c.tempId)
-    }
+    })
+    if (errors.some(e => e.changeId === c.changeId)) failedNodeIds.add(c.tempId)
   }
 
   // 2. New segments (+ their capacity) — may reference a node from step 1.
   for (const c of newSegments) {
     if (failedNodeIds.has(c.draft.start_node_id) || failedNodeIds.has(c.draft.end_node_id)) {
-      errors.push({ changeId: c.changeId, message: 'Skipped — an endpoint node failed to create' })
+      const msg = 'Skipped — an endpoint node failed to create'
+      onProgress(c.changeId, 'error', `Segment ${c.draft.id}: ${msg}`)
+      errors.push({ changeId: c.changeId, message: msg })
       continue
     }
-    try {
-      await api.createSegment({ ...c.draft, verification_status: 'draft' })
-      await api.createCapacity(c.capacityDraft)
-      succeededChangeIds.push(c.changeId)
-    } catch (e) {
-      errors.push({ changeId: c.changeId, message: errMessage(e) })
-    }
+    await step(
+      c,
+      `Creating segment ${c.draft.id} + ${c.capacityDraft.total_capacity_t}T capacity (POST /api/segments, /api/capacity)`,
+      async () => {
+        await api.createSegment({ ...c.draft, verification_status: 'draft' })
+        await api.createCapacity(c.capacityDraft)
+      },
+    )
   }
 
   // 3. Move existing nodes.
   for (const c of movesById.values()) {
-    try {
-      await api.updateNode(c.nodeId, { lat: c.to[0], lng: c.to[1], verification_status: 'draft' })
-      succeededChangeIds.push(c.changeId)
-    } catch (e) {
-      errors.push({ changeId: c.changeId, message: errMessage(e) })
-    }
+    await step(
+      c,
+      `Moving ${c.nodeId} to ${c.to[0].toFixed(4)}, ${c.to[1].toFixed(4)} (PUT /api/nodes/${c.nodeId})`,
+      () => api.updateNode(c.nodeId, { lat: c.to[0], lng: c.to[1], verification_status: 'draft' }),
+    )
   }
 
   // 4. Edit existing segments' waypoints. `null` (not omitted) clears the field —
   // matches RefDataModal's existing waypoint-editor save convention exactly.
   for (const c of waypointEditsById.values()) {
-    try {
-      const payload = { waypoints: c.to.length > 0 ? c.to : null, verification_status: 'draft' } as Partial<import('../types').CableSegment>
-      await api.updateSegment(c.segmentId, payload)
-      succeededChangeIds.push(c.changeId)
-    } catch (e) {
-      errors.push({ changeId: c.changeId, message: errMessage(e) })
-    }
+    const count = c.to.length
+    await step(
+      c,
+      `Saving ${count} waypoint${count === 1 ? '' : 's'} on ${c.segmentId} (PUT /api/segments/${c.segmentId})`,
+      () => api.updateSegment(c.segmentId, { waypoints: count > 0 ? c.to : null, verification_status: 'draft' } as Partial<CableSegment>),
+    )
   }
 
   // 5. Delete segments (+ capacity) before the nodes they might reference.
   for (const c of deleteSegments) {
-    try {
+    await step(c, `Deleting segment ${c.segmentId}${c.capacitySnapshot ? ' + its capacity' : ''} (DELETE /api/segments/${c.segmentId})`, async () => {
       if (c.capacitySnapshot) await api.deleteCapacity(c.segmentId).catch(() => {}) // capacity may not exist — best-effort
       await api.deleteSegment(c.segmentId)
-      succeededChangeIds.push(c.changeId)
-    } catch (e) {
-      errors.push({ changeId: c.changeId, message: errMessage(e) })
-    }
+    })
   }
 
   // 6. Delete nodes last.
   for (const c of deleteNodes) {
-    try {
-      await api.deleteNode(c.nodeId)
-      succeededChangeIds.push(c.changeId)
-    } catch (e) {
-      errors.push({ changeId: c.changeId, message: errMessage(e) })
-    }
+    await step(c, `Deleting node ${c.nodeId} (DELETE /api/nodes/${c.nodeId})`, () => api.deleteNode(c.nodeId))
   }
 
   return { succeededChangeIds, errors }

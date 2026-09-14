@@ -725,13 +725,30 @@ export default function App() {
     dispatchEditor({ type: 'ADD_CHANGE', change: { kind: 'edit-waypoints', segmentId, from, to: mutate(from ?? []) } })
   }
 
+  /** Create sub-mode: clicking a node fills the start slot, then the end slot.
+   *  Clicking the already-chosen start clears it (easy undo of a mis-click). */
+  function handleEditorPickEndpoint(nodeId: string) {
+    const d = editorState.segmentDraft
+    if (d.startNodeId === nodeId) { dispatchEditor({ type: 'SET_SEGMENT_DRAFT', draft: { ...d, startNodeId: null } }); return }
+    if (d.endNodeId === nodeId)   { dispatchEditor({ type: 'SET_SEGMENT_DRAFT', draft: { ...d, endNodeId: null } }); return }
+    if (!d.startNodeId) { dispatchEditor({ type: 'SET_SEGMENT_DRAFT', draft: { ...d, startNodeId: nodeId, newNodeAt: null } }); return }
+    dispatchEditor({ type: 'SET_SEGMENT_DRAFT', draft: { ...d, endNodeId: nodeId, newNodeAt: null } })
+  }
+
+  /** Create sub-mode: clicking empty map space opens the drop-a-new-node form
+   *  in the side panel, pre-filled with the clicked coordinates. */
+  function handleEditorPickEmptySpace(lat: number, lng: number) {
+    dispatchEditor({ type: 'SET_SEGMENT_DRAFT', draft: { ...editorState.segmentDraft, newNodeAt: { lat, lng } } })
+  }
+
   /** Network Editor's Save All: applies every staged change sequentially against
    *  the real endpoints (see state/networkEditorSave.ts for ordering/partial-
    *  failure handling), then refetches base data so persisted changes fold into
    *  it — only genuinely-failed changes are left in the pending list afterward. */
   async function handleEditorSaveAll() {
     dispatchEditor({ type: 'SAVE_START' })
-    const result = await saveAll(editorState.pending)
+    const result = await saveAll(editorState.pending, (changeId, status, message) =>
+      dispatchEditor({ type: 'SAVE_PROGRESS', changeId, status, message }))
     if (result.succeededChangeIds.length > 0) await handleDataChange()
     dispatchEditor({ type: 'SAVE_RESULT', succeededChangeIds: result.succeededChangeIds, errors: result.errors })
   }
@@ -1315,6 +1332,7 @@ export default function App() {
             {mode === 'networkeditor' && isAdmin && (
               <NetworkEditor
                 nodes={editorDisplay.nodes} segments={editorDisplay.segments} systems={systems}
+                capacity={editorDisplay.capacity}
                 countryHighlight={countryHighlight} onCountrySelect={setCountryHighlight}
                 selectedSystems={selectedSystems} onToggleSystem={handleToggleSystem}
                 editorState={editorState} dispatchEditor={dispatchEditor}
@@ -1538,6 +1556,9 @@ export default function App() {
               onEditorWaypointInsert={(segmentId, insertIndex, lat, lng) => stageWaypointEdit(segmentId, wps => { const next = [...wps]; next.splice(insertIndex, 0, [lat, lng]); return next })}
               onEditorWaypointDragEnd={(segmentId, index, lat, lng) => stageWaypointEdit(segmentId, wps => wps.map((w, i) => (i === index ? [lat, lng] as [number, number] : w)))}
               onEditorWaypointDelete={(segmentId, index) => stageWaypointEdit(segmentId, wps => wps.filter((_, i) => i !== index))}
+              editorSegmentDraft={editorState.segmentDraft}
+              onEditorPickEndpoint={handleEditorPickEndpoint}
+              onEditorPickEmptySpace={handleEditorPickEmptySpace}
             />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.textFaint }}>

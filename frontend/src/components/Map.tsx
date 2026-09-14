@@ -67,7 +67,8 @@ import type { ManualState, NextHopCandidate } from './RouteManual'
 import { useSegmentHover } from '../context/SegmentHoverContext'
 import { normalizeLng, geoLines, NODE_STYLE, NODE_TYPE_LABEL } from '../mapGeometry'
 import { EditorMapLayer } from './EditorMapLayer'
-import type { EditorSubMode, EditorSelection } from '../state/editorState'
+import type { EditorSubMode, EditorSelection, SegmentDraft } from '../state/editorState'
+import { emptySegmentDraft } from '../state/editorState'
 
 // Stable empty-Set fallback for optional Network Editor props, so a missing
 // pendingNodeIds prop doesn't create a new Set identity on every render.
@@ -114,6 +115,7 @@ interface Props {
   editorMode?: boolean
   editorSubMode?: EditorSubMode
   editorSelection?: EditorSelection
+  editorSegmentDraft?: SegmentDraft
   pendingNodeIds?: Set<string>
   pendingSegmentIds?: Set<string>
   onEditorNodeDragEnd?: (nodeId: string, lat: number, lng: number, fromLat: number, fromLng: number) => void
@@ -122,6 +124,8 @@ interface Props {
   onEditorWaypointInsert?: (segmentId: string, insertIndex: number, lat: number, lng: number) => void
   onEditorWaypointDragEnd?: (segmentId: string, index: number, lat: number, lng: number) => void
   onEditorWaypointDelete?: (segmentId: string, index: number) => void
+  onEditorPickEndpoint?: (nodeId: string) => void
+  onEditorPickEmptySpace?: (lat: number, lng: number) => void
 }
 
 function MapResizer({ panelWidth }: { panelWidth?: number }) {
@@ -291,7 +295,7 @@ function formatPlannedDate(iso: string): string {
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
   const t = useTheme()
   const { hoveredSegmentId } = useSegmentHover()
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
@@ -867,6 +871,7 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
           segments={segments}
           subMode={editorSubMode}
           selection={editorSelection}
+          segmentDraft={editorSegmentDraft ?? emptySegmentDraft}
           pendingNodeIds={pendingNodeIds ?? EMPTY_STRING_SET}
           pendingSegmentIds={pendingSegmentIds ?? EMPTY_STRING_SET}
           onNodeDragEnd={onEditorNodeDragEnd ?? (() => {})}
@@ -875,6 +880,8 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
           onWaypointInsert={onEditorWaypointInsert ?? (() => {})}
           onWaypointDragEnd={onEditorWaypointDragEnd ?? (() => {})}
           onWaypointDelete={onEditorWaypointDelete ?? (() => {})}
+          onPickEndpoint={onEditorPickEndpoint ?? (() => {})}
+          onPickEmptySpace={onEditorPickEmptySpace ?? (() => {})}
         />
       )}
     </MapContainer>

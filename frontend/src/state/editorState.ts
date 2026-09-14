@@ -55,12 +55,34 @@ function nextChangeId(): string {
 
 // ── EditorState + reducer ────────────────────────────────────────────────────
 
+/** In-progress "click a start node, then an end node" pick in Create sub-mode.
+ *  `newNodeAt` is set instead when the user clicked empty map space and is
+ *  filling in the drop-a-new-node form. */
+export interface SegmentDraft {
+  startNodeId: string | null
+  endNodeId: string | null
+  newNodeAt: { lat: number; lng: number } | null
+}
+
+export const emptySegmentDraft: SegmentDraft = { startNodeId: null, endNodeId: null, newNodeAt: null }
+
+/** Per-change state during a Save All run, driving the traffic-light dots in
+ *  EditorPendingPanel: queued (grey) → running (amber) → ok (green) / error
+ *  (red). `message` is the human-readable description of the actual HTTP call
+ *  being made, so a slow save shows exactly what it's doing rather than just
+ *  hanging on a spinner. */
+export type SaveStatus = 'queued' | 'running' | 'ok' | 'error'
+export interface SaveProgressEntry { status: SaveStatus; message: string }
+
 export interface EditorState {
   pending: PendingChange[]
   redoStack: PendingChange[]
   selection: EditorSelection
   subMode: EditorSubMode
+  segmentDraft: SegmentDraft
   saveInFlight: boolean
+  saveProgress: Record<string, SaveProgressEntry>
+  saveLog: string[]
 }
 
 export const initialEditorState: EditorState = {
@@ -68,7 +90,10 @@ export const initialEditorState: EditorState = {
   redoStack: [],
   selection: null,
   subMode: 'move',
+  segmentDraft: emptySegmentDraft,
   saveInFlight: false,
+  saveProgress: {},
+  saveLog: [],
 }
 
 /** Omit that distributes over a union — a plain Omit<PendingChange, ...> would
@@ -84,7 +109,9 @@ export type EditorAction =
   | { type: 'DISCARD_ALL' }
   | { type: 'SELECT'; selection: EditorSelection }
   | { type: 'SET_SUBMODE'; subMode: EditorSubMode }
+  | { type: 'SET_SEGMENT_DRAFT'; draft: SegmentDraft }
   | { type: 'SAVE_START' }
+  | { type: 'SAVE_PROGRESS'; changeId: string; status: SaveStatus; message: string }
   | { type: 'SAVE_RESULT'; succeededChangeIds: string[]; errors: { changeId: string; message: string }[] }
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
@@ -132,9 +159,22 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'SELECT':
       return { ...state, selection: action.selection }
     case 'SET_SUBMODE':
-      return { ...state, subMode: action.subMode, selection: null }
+      return { ...state, subMode: action.subMode, selection: null, segmentDraft: emptySegmentDraft }
+    case 'SET_SEGMENT_DRAFT':
+      return { ...state, segmentDraft: action.draft }
     case 'SAVE_START':
-      return { ...state, saveInFlight: true }
+      return {
+        ...state,
+        saveInFlight: true,
+        saveLog: [],
+        saveProgress: Object.fromEntries(state.pending.map(c => [c.changeId, { status: 'queued' as SaveStatus, message: 'Queued' }])),
+      }
+    case 'SAVE_PROGRESS':
+      return {
+        ...state,
+        saveProgress: { ...state.saveProgress, [action.changeId]: { status: action.status, message: action.message } },
+        saveLog: [...state.saveLog, `${action.status === 'error' ? '✗' : action.status === 'ok' ? '✓' : '→'} ${action.message}`],
+      }
     case 'SAVE_RESULT': {
       const errByChangeId = Object.fromEntries(action.errors.map(e => [e.changeId, e.message]))
       const pending = state.pending
