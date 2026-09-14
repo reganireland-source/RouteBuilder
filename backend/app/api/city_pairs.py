@@ -15,8 +15,10 @@
 #   GET  /api/city-pairs/cities  — list all cities and which node IDs each holds.
 #   POST /api/city-pairs/search  — find routes between two named cities.
 # ─────────────────────────────────────────────────────────────────────────────
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from ..data_loader import load_nodes, load_segments, load_systems
 from ..city_pair_finder import get_cities, find_city_pair_routes
 
@@ -28,6 +30,17 @@ class CityPairRequest(BaseModel):
     origin_city: str          # source city name (as returned by /city-pairs/cities)
     destination_city: str     # destination city name
     max_results: int = 15     # cap on the number of routes returned
+    # Ready-For-Service constraint, same contract as RouteRequest.service_date:
+    # an ISO "YYYY-MM-DD" meaning "only cable that is in service on this day".
+    # None = no filtering, so existing clients are unaffected.
+    service_date: Optional[str] = None
+
+    @field_validator("service_date")
+    @classmethod
+    def _service_date_is_iso(cls, v: Optional[str]) -> Optional[str]:
+        from ..rfs import parse_service_date
+        parse_service_date(v)
+        return v
 
 
 @router.get("/city-pairs/cities")
@@ -65,7 +78,8 @@ def search_city_pairs(req: CityPairRequest):
     searches for paths between them.
 
     Params: request body is a CityPairRequest (origin_city, destination_city,
-    optional max_results, default 15).
+    optional max_results, default 15, optional service_date — an ISO
+    "YYYY-MM-DD" that drops cable not yet Ready For Service on that date).
     Response: {"origin_city", "destination_city", "routes"} where "routes" is
     the list of matching routes. Returns HTTP 400 if either city name is unknown
     or otherwise invalid (raised as ValueError by the finder).
@@ -87,6 +101,7 @@ def search_city_pairs(req: CityPairRequest):
             segments=segments,
             systems_by_id=systems_by_id,
             max_results=req.max_results,
+            service_date=req.service_date,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -16,8 +16,10 @@
  *
  * Notable behaviour: it can also "print all" — when `printAll` is set it injects
  * a print stylesheet and renders every page into a hidden print portal so the
- * whole guide prints as one document. A separate util (generateUserGuide.ts)
- * produces the downloadable PDF version.
+ * whole guide prints as one document; "Export as PDF" is that print path, not a
+ * separate generator. Anything added to a page therefore has to render with no
+ * interaction (no hover-only or click-to-expand content), because the print
+ * portal renders every page at once, off-screen, with nothing hovered.
  * ============================================================================
  */
 import { useState, useEffect, useRef } from 'react'
@@ -114,7 +116,9 @@ export function UserGuide({ nodes, segments, systems }: Props) {
 
   const FEATURES = [
     { icon: '🗺', title: 'PoP Route Builder',
-      desc: `Find optimal paths between any two nodes on our ${nodeCount}-node subsea network. Configure wet, full or terrestrial diversity, enforce via/avoid constraints on specific nodes, segments or cable systems, and see all viable paths ranked instantly. The live map uses colour and size to distinguish node types — large orange dots for CLS (Landing Stations), grading down through Primary, Secondary, Extension PoPs to small amber Branching Units.` },
+      desc: `Find optimal paths between any two nodes on our ${nodeCount}-node subsea network. Configure wet, full or terrestrial diversity, enforce via/avoid constraints on specific nodes, segments or cable systems, and see all viable paths ranked instantly. The live map uses colour and size to distinguish node types — large orange dots for CLS (Landing Stations), grading down through Primary, Secondary, Extension PoPs to small amber Branching Units. Place names read in English worldwide, including across Japan, Korea, China and Taiwan, so the map is presentable to a customer as it stands.` },
+    { icon: '🔦', title: 'Route Glow & Segment Spotlight',
+      desc: 'Select a route and every segment of it lights up on the map with a soft halo that pulses once a second — visible across a shared screen or a projector, where a slightly thicker line is not. Hover any row in a route\'s Segment Breakdown and that single segment is spotlit in vivid orange-red, so "which one is the Guam–Sydney leg?" is answered by moving the cursor rather than by tracing the line. The spotlight is purely visual and never steals a click from the segment underneath.' },
     { icon: '🤖', title: 'TSABuddy — AI Route Assistant',
       desc: 'Type your request in plain English: "Singapore to Tokyo with full diversity, avoiding China, sort by latency." TSABuddy extracts origin, destination, diversity type, system/country/node constraints, and sort preference — then triggers the search automatically. Powered by Claude AI.' },
     { icon: '🏙', title: 'City Pairs',
@@ -137,10 +141,16 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       desc: 'Build a route hop-by-hop on the live map. Tap any node as the origin, then pick each next hop from a scored candidate list showing latency, length and ownership. Undo any hop, then finish to pin the complete route — useful for modelling non-standard paths or checking specific cable combinations the auto-solver might not return.' },
     { icon: '🌊', title: 'Cable System Viewer',
       desc: `Toggle any of the ${systemCount} cable systems on the live map to explore coverage, topology and branching unit structure — ideal for network briefings and customer conversations.` },
-    { icon: '🔍', title: 'Node Search',
-      desc: `Enter a customer address or lat/lng coordinates to find the nearest landing stations and PoPs. Results show owner, trading name, node type and straight-line distance — with one-click Set Origin / Set Dest to jump straight into a route search.` },
+    { icon: '🔍', title: 'Node Lookup & Nearest-Node Search',
+      desc: `Network Explorer → Nodes takes either kind of question. Type a node code you already know — SYD1, TUAS, PALI — and the map flies straight to it and opens it; half-remembered codes are offered as a tappable shortlist as you type. Type a customer address or a lat/lng pair instead and it finds the nearest landing stations and PoPs, showing owner, trading name, node type and straight-line distance. Either way, one click sets the node as Origin or Destination and you are in a route search.` },
+    { icon: '⛶', title: 'Node Full View',
+      desc: 'Click a node, then "Full View", for everything known about the site on one page: identity and owner, a site map, the product coverage matrix, every cable system present, live capacity on each segment leaving it, and any solution notes recorded against it — plus a fan-out diagram drawing every segment at its true compass bearing. Click a spoke to walk to the node at the other end and keep going, hop by hop, without returning to the map. Admins can correct the node in place. On a phone, tapping a node opens Full View directly as a full-screen sheet.' },
+    { icon: '📆', title: 'Ready for Service (RFS)',
+      desc: 'Cable systems and segments record whether they are in service today or a planned future build with a target quarter — so a cable that is funded but not yet laid is visibly distinct from one carrying traffic. A planned system carries an amber RFS badge with its quarter wherever it is listed. Today this is information you read; a service date on the search, filtering results to the network as it will be on a customer\'s in-service date, is the next step.' },
     { icon: '📌', title: 'Pinned Routes & SLD Export',
       desc: 'Pin up to 5 routes for comparison, then export a straight-line diagram. Choose a version label (Proposal / Draft / Final) and export as PDF (branded, customer-ready cover page plus per-route diagrams with proportional segment layout) or DrawIO / Visio XML for collaborative editing.' },
+    { icon: '✎', title: 'Visual Network Editor (admin)',
+      desc: 'Fix the network on the map instead of in a form. A top-level mode, visible only to admins, with four tools: drag a node to its correct position, reshape a cable\'s path point by point, create new nodes and segments by clicking the map, and delete an asset with its dependent segments cascading cleanly. Every change is staged in your browser — nothing reaches the database until you press Save All, and everything is undoable until then.' },
     { icon: '🗄', title: 'Ref Data Management',
       desc: 'Full CRUD for nodes, segments, systems, capacity, outages, planned events, interconnect rules and solution notes. Nodes carry city, address and description fields. Verification status (Draft / Under Verification / Verified) is tracked per node and segment — click the status badge in any row to change it without opening the full edit form. The Outages tab is split into two clearly separated sections, Active Outages and Planned Events. A Config tab lets admins switch the live map between the free tiles (Esri, no key required, English place labels) and Google Maps, with a live status light confirming the chosen provider is actually reachable. Bulk CSV import/export includes all fields.' },
     { icon: '⇄', title: 'Node Handoff Rules',
@@ -486,8 +496,64 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             }}>
               <span style={{ fontSize: 16 }}>🗺</span>
               <div style={{ fontSize: 10, color: 'rgba(180,200,255,0.5)', lineHeight: 1.5 }}>
-                <strong style={{ color: 'rgba(180,200,255,0.7)' }}>Map tiles</strong> are fetched directly by the browser from CARTO's global tile servers — the backend never handles map imagery, keeping it fast.
+                <strong style={{ color: 'rgba(180,200,255,0.7)' }}>Map tiles</strong> are fetched directly by the browser from Esri's global tile servers — the backend never handles map imagery, keeping it fast. Each theme draws two stacked layers: a plain base image with no text on it, and a transparent labels layer above it, which is how place names stay crisp at every zoom.
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Map tiles: why Esri ── */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={sectionLabel}>Map Imagery — Readable Everywhere</div>
+          <div style={{ ...card() as React.CSSProperties, borderLeft: `4px solid ${t.blue}`, paddingLeft: 16 }}>
+            <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.7, margin: '0 0 12px' }}>
+              The live map is drawn on Esri's public basemaps. Two things follow from that, and both matter when you are presenting the map to a customer.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {[
+                { icon: '🔤', title: 'Place names in English', color: t.blue,
+                  desc: 'Esri renders East Asian cities — Tokyo, Busan, Shanghai, Taipei — in English rather than local script. On a network that lands across Japan, Korea, China and Taiwan, that is the difference between a map an account team can read aloud and one they cannot.' },
+                { icon: '🔑', title: 'No key, no watermark', color: t.green,
+                  desc: 'The previous tile provider (CARTO) began requiring an API key. It did not fail cleanly — it answered every tile request successfully while returning a watermarked "API key required" image, so the map looked broken while every automated check reported healthy. Esri serves these basemaps keyless, and the Maps status light now checks a real tile.' },
+                { icon: '🗂', title: 'Two layers, not one', color: '#8b5cf6',
+                  desc: 'The dark and light themes stack a blank base image under a transparent labels overlay; the street theme has its labels baked in and needs only one layer. This is why labels stay sharp over the route lines instead of disappearing beneath them.' },
+                { icon: '🌐', title: 'Google Maps still available', color: t.orange,
+                  desc: 'Admins can switch the base layer to Google Maps in Ref Data → Config. The status light in the footer confirms which provider is actually reachable before you rely on it in front of a customer.' },
+              ].map(({ icon, title, color, desc }) => (
+                <div key={title} style={{ background: t.bgBase, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.border}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 5 }}>
+                    <span style={{ fontSize: 14 }}>{icon}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color }}>{title}</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.55 }}>{desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Build provenance ── */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={sectionLabel}>Knowing Which Version You Are Looking At</div>
+          <div style={{ ...card() as React.CSSProperties, borderLeft: `4px solid ${t.green}`, paddingLeft: 16 }}>
+            <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.7, margin: '0 0 12px' }}>
+              The status strip at the bottom of the left panel carries a full build stamp, so "is my browser on the version with the fix?" is answered by reading one line instead of by guessing. Hover it for the same detail spelled out in full.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 8 }}>
+              {[
+                ['Build number', 'Increments with every change ever made — the simplest "am I newer than you?" comparison.'],
+                ['Commit', 'The exact seven-character source revision this build came from. A trailing * means it was built with uncommitted local changes.'],
+                ['Branch', 'Which line of development it came from — production, or a feature branch under review.'],
+                ['Timestamp', 'Date and time to the minute, so two builds made on the same day are still distinguishable.'],
+              ].map(([label, desc]) => (
+                <div key={label} style={{ background: t.bgBase, borderRadius: 6, padding: '9px 11px', border: `1px solid ${t.border}` }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: t.green, marginBottom: 3, fontFamily: 'monospace' }}>{label}</div>
+                  <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>{desc}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 10, fontSize: 10, color: t.textFaint, lineHeight: 1.5 }}>
+              Alongside it sit six live status dots — Frontend, Backend, Data, Database, LLM API and Maps — each re-checked every 30 seconds. Quote the build stamp whenever you raise an issue; it identifies the exact code you were running.
             </div>
           </div>
         </div>
@@ -565,6 +631,14 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               'The change flows into route calculations on the next search, with no restart required',
             ])}
 
+            {flow('D', t.orange, 'Editing the Network Visually', [
+              'An admin opens Network Editor and drags a node, reshapes a cable path, creates or deletes something on the live map',
+              'Nothing is sent anywhere — each change is staged in the browser and listed in the pending panel, fully undoable',
+              'On Save All the browser issues one request per staged change, in dependency order — creations first, deletions last',
+              'Each request reports back as it runs, so the panel shows exactly which record is being written and whether it succeeded',
+              'Anything written this way is marked Draft, so it is visibly unreviewed until someone verifies it',
+            ])}
+
           </div>
         </div>
 
@@ -579,7 +653,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
                 { layer: 'Database', items: ['PostgreSQL', 'psycopg2', 'JSONB storage'] },
                 { layer: 'AI', items: ['Claude (Anthropic)', 'Azure OpenAI (alternative)', 'Structured NLP extraction'] },
                 { layer: 'Hosting', items: ['Vercel (frontend)', 'Railway (backend + DB)'] },
-                { layer: 'Map Tiles', items: ['CARTO (dark & light themes)'] },
+                { layer: 'Map Tiles', items: ['Esri base + labels layers', 'Google Maps (optional)'] },
               ].map(({ layer, items }) => (
                 <div key={layer}>
                   <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: t.blue, marginBottom: 6 }}>{layer}</div>
@@ -847,8 +921,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           <div style={sectionLabel}>Core Entities</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {entityCard('📍', 'Node', t.blue, [
-              { field: 'id',                  type: 'string',  desc: 'Unique identifier (e.g. SIN3, HKG1). Used in route paths and all node-level constraints.' },
-              { field: 'name',                type: 'string',  desc: 'Human-readable name of the landing station or PoP.' },
+              { field: 'id',                  type: 'string',  desc: 'The node code (e.g. SIN3, HKG1, PALI) — the unique identifier. Two sites can share a city or a near-identical name, but never a code. Used in route paths and all node-level constraints.' },
+              { field: 'name',                type: 'string',  desc: 'Human-readable name of the landing station or PoP. Data and reference views write the two together code-first — "PALI - Pali Cable Station" — so the identifier is always visible, never just the name.' },
               { field: 'country',             type: 'ISO-2',   desc: 'Country code — used for country-level hard constraints (must_avoid / must_include).' },
               { field: 'type',                type: 'enum',    desc: 'landing_station | primary_pop | secondary_pop | extension_pop | branching_unit. Drives map icon size and colour (CLS largest/orange → BU smallest/amber). BUs are traversed but never shown as endpoints.' },
               { field: 'lat / lng',           type: 'float',   desc: 'Coordinates for map rendering and nearest-node distance lookups. Accepts "lat, lng" paste directly into either field.' },
@@ -864,13 +938,53 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               { field: 'latency',             type: 'float ms',desc: 'One-way propagation delay. Summed across all route segments to compute end-to-end RTD.' },
               { field: 'reliability',         type: 'float',   desc: 'Segment availability (0–1). Multiplied across the path for end-to-end availability score.' },
               { field: 'ownership',           type: 'enum',    desc: 'owned | iru | consortium | integrated_lit_lease | offnet_resell. Drives commercial margin scoring.' },
+              { field: 'waypoints',           type: '[lat,lng][]', desc: 'Optional list of points the cable actually passes through. Without them a segment is drawn as a straight line between its two endpoints — fine for a subsea crossing, wrong for a cross-country backhaul, which is why Australia\'s long-haul terrestrial segments now follow their real highway corridors instead of cutting across the Great Australian Bight or the Gulf of Carpentaria.' },
+              { field: 'rfs_status',          type: 'enum',    desc: 'in_service | planned. Whether the segment is live today or a future build. Everything in the dataset today is in_service.' },
+              { field: 'rfs_quarter',         type: 'string',  desc: 'When a planned segment is expected to enter service, as a quarter ("2027-Q3"). Required when rfs_status is planned, and must be empty otherwise.' },
               { field: 'verification_status', type: 'enum',    desc: 'draft | under_verification | verified. Click the badge in any segment row to update status directly.' },
             ])}
             {entityCard('🌊', 'Cable System', t.green, [
-              { field: 'id',     type: 'string', desc: 'System identifier (e.g. EAC, AAG, C2C). Used in must_include / must_avoid systems constraints.' },
-              { field: 'name',   type: 'string', desc: 'Display name shown in route cards, system viewer and constraint pickers.' },
-              { field: 'margin', type: 'float',  desc: 'Commercial margin score (1–10). Combined with per-segment ownership weight to rank route attractiveness.' },
+              { field: 'id',          type: 'string', desc: 'System identifier (e.g. EAC, AAG, C2C). Used in must_include / must_avoid systems constraints.' },
+              { field: 'name',        type: 'string', desc: 'Display name shown in route cards, system viewer and constraint pickers.' },
+              { field: 'margin',      type: 'float',  desc: 'Commercial margin score (1–10). Combined with per-segment ownership weight to rank route attractiveness.' },
+              { field: 'rfs_status',  type: 'enum',   desc: 'in_service | planned — the same Ready for Service status a segment carries, at whole-system level for a cable still under construction.' },
+              { field: 'rfs_quarter', type: 'string', desc: 'Target service quarter for a planned system ("2027-Q3"). Shown as an "RFS" badge against the system wherever it appears, including a node\'s Full View.' },
             ])}
+          </div>
+        </div>
+
+        {/* Ready for Service */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={sectionLabel}>Ready for Service — Designing on a Future Network</div>
+          <div style={{ ...card() as React.CSSProperties, borderLeft: `4px solid ${t.orange}`, paddingLeft: 16 }}>
+            <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.7, margin: '0 0 14px' }}>
+              Customers buy against a service date, not against today's network. A deal signed this quarter for a circuit in service eighteen months' time can legitimately ride a cable that has not been laid yet — but only if everyone knows that is what they are looking at. Every cable system and every segment therefore records whether it is carrying traffic today or is still a future build, and when that build is due.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+              {[
+                { badge: 'IN SERVICE', color: t.green, title: 'Live today',
+                  desc: 'The default, and what everything in the dataset is today. The asset is commissioned and carrying traffic — a route across it can be sold for delivery now.' },
+                { badge: 'PLANNED', color: t.orange, title: 'Future build',
+                  desc: 'Recorded against a target quarter — 2027-Q3 and the like. The quarter is mandatory for a planned asset and must be blank for a live one, so "planned, date unknown" can never be entered by accident.' },
+              ].map(({ badge, color, title, desc }) => (
+                <div key={badge} style={{ background: t.bgBase, borderRadius: 8, padding: '12px 14px', border: `1px solid ${color}44` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 4, background: color + '22', color, border: `1px solid ${color}55`, letterSpacing: '0.06em' }}>{badge}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: t.text }}>{title}</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.55 }}>{desc}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.6, marginBottom: 12 }}>
+              Set it in Ref Data on the segment and cable system forms, or on a segment you create in the Network Editor. A planned system shows an amber <strong style={{ color: t.text }}>RFS</strong> badge with its quarter wherever the system is listed, including in a node's Full View.
+            </div>
+            <div style={{ padding: '12px 14px', borderRadius: 8, background: t.bgDeep, border: `1px solid ${t.blue}33` }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: t.blue, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Coming next — service date as a search constraint</div>
+              <div style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.65 }}>
+                Today RFS is recorded but does not change what a search returns: a planned asset is still offered like any other. The next step gives the search its own service date — defaulting to today, so nothing changes unless you move it — and filters out anything not yet in service by that date. Set it to the customer's in-service date and the results become the network as it will be then. Until that ships, read RFS as information, and check it before quoting a delivery date.
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2568,6 +2682,130 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           </div>
           <div style={{ fontSize: 10, color: 'rgba(100,175,230,0.7)', lineHeight: 1.5 }}>
             The diagram scales to fit all nodes and is fully contained within the panel — no scrolling needed. It is regenerated each time you select a different country.
+          </div>
+        </div>
+      </div>
+
+      {/* ── Node Full View ── */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel}>Node Full View — Everything About a Site</div>
+        <div style={{ ...card(), background: '#0a1626', border: `1px solid #2a4a7a` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 22 }}>⛶</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>One page per site — identity, coverage, capacity and local knowledge</div>
+              <div style={{ fontSize: 11, color: 'rgba(170,205,255,0.8)', marginTop: 2 }}>
+                Click any node on the map, then "⛶ Full View" on the card that appears.
+              </div>
+            </div>
+          </div>
+          <p style={{ fontSize: 11, color: 'rgba(175,205,245,0.85)', lineHeight: 1.7, margin: '0 0 14px' }}>
+            The small card on the map answers "what is this?". Full View answers "tell me everything" — the page you want open when a customer asks about a site on a call, rather than four tabs and a spreadsheet.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+            {[
+              { icon: '🪪', label: 'Identity & site map', desc: 'Owner, trading name, node type, city and full street address, alongside a live map of the building itself — so you can see what is actually at the address.' },
+              { icon: '🧭', label: 'Segment fan-out diagram', desc: 'Every cable touching the node drawn as a spoke at its true compass bearing. Submarine legs are wavy blue, terrestrial legs straight orange — two different shapes, not just two colours, so the distinction survives a black-and-white print. Spoke length is deliberately uniform; direction is the real data.' },
+              { icon: '🖱', label: 'Walk the network', desc: 'Click any spoke to jump to the node at the far end and redraw the whole page there, hop by hop, with a back stack behind you. No returning to the map to hunt for the next site.' },
+              { icon: '▦', label: 'Product coverage', desc: 'The coverage matrix for the site — which backbone, underlay and colocation products can actually be delivered there.' },
+              { icon: '🌊', label: 'Systems & capacity', desc: 'Every cable system present at the node, and available capacity on each segment leaving it as a utilisation bar — the bottleneck question answered before you promise a bandwidth.' },
+              { icon: '📋', label: 'Solution notes', desc: 'The site knowledge already recorded against the node — access requirements, handoff restrictions, lead times, known issues — in the same place as everything else.' },
+            ].map(({ icon, label, desc }) => (
+              <div key={label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 7, padding: '10px 12px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+                  <span style={{ fontSize: 14, color: '#60a5fa' }}>{icon}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#cce4ff' }}>{label}</span>
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(165,205,250,0.78)', lineHeight: 1.55 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' as const }}>
+            <div style={{ flex: 1, minWidth: 220, background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.3)', borderRadius: 7, padding: '10px 12px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#fdba74', marginBottom: 4 }}>✏️ Admins can correct it here</div>
+              <div style={{ fontSize: 10, color: 'rgba(253,200,150,0.8)', lineHeight: 1.55 }}>
+                The Edit button turns the identity block into the same form the Reference Data node tab uses, and saves straight through. Spot a wrong address mid-conversation and fix it without leaving the page — every other screen picks the change up immediately.
+              </div>
+            </div>
+            <div style={{ flex: 1, minWidth: 220, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 7, padding: '10px 12px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#86efac', marginBottom: 4 }}>📱 On a phone it is the default</div>
+              <div style={{ fontSize: 10, color: 'rgba(160,240,190,0.8)', lineHeight: 1.55 }}>
+                Tapping a node on a phone opens Full View directly as a full-screen sheet — there is no fiddly floating card to hit, and the layout restacks so labels sit above their values rather than being squeezed beside them.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Visual Network Editor ── */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel}>Visual Network Editor — Admin Only</div>
+        <div style={{ ...card(), background: '#1a1206', border: `1px solid ${t.orange}66` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 22 }}>✎</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Correct the network on the map, not in a spreadsheet</div>
+              <div style={{ fontSize: 11, color: 'rgba(253,200,150,0.85)', marginTop: 2 }}>
+                A top-level tab beside RouteBuilder and NetworkExplorer — shown only when you are signed in as an admin.
+              </div>
+            </div>
+          </div>
+          <p style={{ fontSize: 11, color: 'rgba(245,215,180,0.85)', lineHeight: 1.7, margin: '0 0 16px' }}>
+            A node in the wrong place or a cable drawn through the wrong ocean is obvious on a map and invisible in a table. The Network Editor lets whoever spots it fix it there and then — drag the node, redraw the path — while keeping every change reviewable and reversible before anything is committed.
+          </p>
+
+          {/* Four sub-modes */}
+          <div style={{ fontSize: 10, fontWeight: 800, color: t.orange, letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginBottom: 8 }}>Four Tools</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+            {[
+              { icon: '✥', name: 'Move', desc: 'Drag a node to where it really is. When you need survey precision rather than a steady hand, type the exact latitude and longitude into the panel instead.' },
+              { icon: '〰', name: 'Waypoints', desc: 'Click a segment to pick up its path, then add, drag or remove the points it bends through. This is how a cable stops cutting across a landmass or an ocean it never touches — the same technique that put Australia\'s cross-country backhauls onto their real highway corridors instead of straight across the Great Australian Bight.' },
+              { icon: '+', name: 'Create', desc: 'Click two nodes to run a new segment between them — or click empty water or ground to drop an entirely new node first. Sensible defaults are proposed for length, latency and ID from the geography you drew, and you fill in the rest, including initial capacity and Ready for Service.' },
+              { icon: '🗑', name: 'Delete', desc: 'Remove a node or a segment. Deleting a node offers to take its dependent segments with it, so the graph is never left with a cable running to nowhere. Every deletion asks first.' },
+            ].map(({ icon, name, desc }) => (
+              <div key={name} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 7, padding: '11px 13px', border: `1px solid ${t.orange}33` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                  <span style={{ fontSize: 15, color: t.orange, width: 18, textAlign: 'center' as const }}>{icon}</span>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: '#ffd9a8' }}>{name}</span>
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(240,210,175,0.8)', lineHeight: 1.55 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Staging model */}
+          <div style={{ fontSize: 10, fontWeight: 800, color: t.orange, letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginBottom: 8 }}>Nothing Is Written Until You Say So</div>
+          <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 8, marginBottom: 16 }}>
+            {[
+              ['1', 'Every edit is staged, not saved', 'Each change lands as a line in the pending panel beside the map — "Moved SYD1 → -33.8688, 151.2093", "Edited path — Guam–Sydney (6 waypoints)". The map redraws immediately so you can see the result, but the database has not been touched.'],
+              ['2', 'Undo and redo the whole session', 'Ctrl+Z steps back through the list, Ctrl+Shift+Z forward again; any single line can be discarded on its own without disturbing the others, and Discard All abandons the lot.'],
+              ['3', 'Save All writes, and narrates', 'Each staged change gets a traffic light as it is written — grey queued, amber in flight, green written, red failed — with the record being written named alongside it. A failure stops nothing else: the rest still go through, the failed item stays in the list with its error, and you fix it and retry.'],
+              ['4', 'An expandable log of every step', 'The full running commentary is one click away under the progress list, so a batch that took a while can be read back afterwards line by line.'],
+              ['5', 'Leaving with unsaved work asks first', 'Switching away from the editor with changes still staged pops a confirmation rather than silently binning them.'],
+            ].map(([num, title, desc]) => (
+              <div key={num} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <div style={{ width: 20, height: 20, borderRadius: '50%', background: t.orange, color: '#1a1206', fontSize: 10, fontWeight: 800, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{num}</div>
+                <div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#ffd9a8' }}>{title} — </span>
+                  <span style={{ fontSize: 11, color: 'rgba(240,210,175,0.8)', lineHeight: 1.6 }}>{desc}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' as const }}>
+            <div style={{ flex: 1, minWidth: 230, background: 'rgba(250,179,135,0.1)', border: '1px solid rgba(250,179,135,0.35)', borderRadius: 7, padding: '10px 12px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#fab387', marginBottom: 4 }}>Everything it writes is marked Draft</div>
+              <div style={{ fontSize: 10, color: 'rgba(250,210,180,0.85)', lineHeight: 1.55 }}>
+                Every record the editor saves comes back with verification status Draft, whatever it was before — so map-drawn data is visibly unreviewed in Ref Data until someone checks it and promotes it to Verified. Fast correction and data quality are not in tension.
+              </div>
+            </div>
+            <div style={{ flex: 1, minWidth: 230, background: 'rgba(137,180,250,0.1)', border: '1px solid rgba(137,180,250,0.35)', borderRadius: 7, padding: '10px 12px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#89b4fa', marginBottom: 4 }}>Clear the clutter while you work</div>
+              <div style={{ fontSize: 10, color: 'rgba(200,220,255,0.85)', lineHeight: 1.55 }}>
+                The editor reuses the Country Viewer and Cable System filters, so you can dim the network down to the one country or the one system you are fixing before you start dragging anything.
+              </div>
+            </div>
           </div>
         </div>
       </div>

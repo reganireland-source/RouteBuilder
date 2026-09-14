@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional
 from enum import Enum
 
@@ -45,9 +45,9 @@ class RfsStatus(str, Enum):
     """Ready for Service — whether a CableSystem/CableSegment is already live
     (in_service, the default — everything in the dataset today is) or a
     future build that hasn't been commissioned yet (planned, paired with an
-    rfs_quarter). Not yet used as a route-search constraint — that's a
-    follow-up; for now this only records the data so it's there when that
-    constraint is built."""
+    rfs_quarter). Used as a route-search constraint via RouteRequest's
+    service_date: see app/rfs.py for how the pair resolves to a date and
+    graph.build_graph for where not-yet-live segments are dropped."""
     in_service = "in_service"
     planned = "planned"
 
@@ -116,8 +116,8 @@ class CableSystem(BaseModel):
     name: str
     description: str
     margin: Optional[float] = None
-    # Ready for Service — see RfsStatus. Not yet a route-search constraint,
-    # just recorded on the data model for now.
+    # Ready for Service — see RfsStatus. Constrains route search whenever the
+    # request carries a service_date (app/rfs.py).
     rfs_status: RfsStatus = RfsStatus.in_service
     rfs_quarter: Optional[str] = Field(default=None, pattern=_RFS_QUARTER_PATTERN)
 
@@ -146,8 +146,8 @@ class CableSegment(BaseModel):
     waypoints: Optional[list[list[float]]] = None
     verification_status: VerificationStatus = VerificationStatus.draft
     last_verified_date: Optional[str] = None
-    # Ready for Service — see RfsStatus. Not yet a route-search constraint,
-    # just recorded on the data model for now.
+    # Ready for Service — see RfsStatus. Constrains route search whenever the
+    # request carries a service_date (app/rfs.py).
     rfs_status: RfsStatus = RfsStatus.in_service
     rfs_quarter: Optional[str] = Field(default=None, pattern=_RFS_QUARTER_PATTERN)
 
@@ -230,6 +230,25 @@ class RouteRequest(BaseModel):
     max_wet_hops: Optional[int]         = Field(default=None, ge=1)
     max_terrestrial_hops: Optional[int] = Field(default=None, ge=1)
     optimise_for: Optional[str] = None
+    # Ready-For-Service constraint: an ISO "YYYY-MM-DD" date meaning "only route
+    # over what is actually in service on this day". The frontend sends today's
+    # date by default, so the common case is "what can I sell right now".
+    # None (the default) means NO filtering at all, so API clients that never
+    # send the field — and every existing test — behave exactly as before.
+    # Resolution rules live in app/rfs.py; the filter is applied in
+    # graph.build_graph so unavailable segments never enter the search graph.
+    service_date: Optional[str] = None
+
+    @field_validator("service_date")
+    @classmethod
+    def _service_date_is_iso(cls, v: Optional[str]) -> Optional[str]:
+        # Reject a malformed date at the API boundary (422) instead of silently
+        # ignoring it and quoting planned cable as if it were live.
+        # Imported inside the function: app/rfs.py imports this module, so a
+        # module-level import here would be a cycle.
+        from .rfs import parse_service_date
+        parse_service_date(v)
+        return v
 
 
 class RouteSegmentDetail(BaseModel):

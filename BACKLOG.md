@@ -6,7 +6,9 @@ Everything known-but-not-done, as of 2026-09-14. Ordered by kind.
 service date defaulting to today (1.1, in progress); the guide pages get
 brought current (3.1, in progress); the lint debt gets cleared (4.3, in
 progress); `generateUserGuide.ts` is deleted (3.2, done); route-path chains
-stay names-only (1.2, closed).
+stay names-only (1.2, closed). Added since: the coverage import data-loss bug
+gets fixed (2.1, in progress), and a route that uses a not-yet-built segment
+gets an RFS badge showing the quarter it becomes available (1.1, in progress).
 
 This is the *engineering* backlog. Product ideas from users live in the app's
 own Feature Backlog page (Guide → 📋 Feature Backlog, `/api/feature-requests`),
@@ -37,6 +39,11 @@ malformed quarter is treated as never in service rather than waved through.
 Filtering happens at graph-build time so excluded segments simply do not exist
 for the pathfinder, leaving diversity and k-shortest-path logic untouched.
 
+When the date IS pushed forward and a returned route uses a planned segment,
+the route card carries an `RFS 2027-Q2` badge showing the LATEST quarter on
+that path — a route is only usable once its last planned piece is in service —
+with a tooltip naming which segments are holding it up.
+
 ### 1.2 Node codes in RouteList path chains
 Route cards render a path as `Sydney → Auckland → Guam`, names only. Everywhere
 else a node is written code-first (`SYD1 - Sydney`) via `utils/nodeLabel.ts`.
@@ -48,6 +55,7 @@ wrap, and the Segment Breakdown underneath already shows codes.
 ## 2. Bugs
 
 ### 2.1 Coverage CSV import silently wipes node fields — data loss
+**IN PROGRESS.**
 `backend/app/api/bulk.py:1072` rebuilds each `Node` from only `id, name, lat,
 lng, type, country, owner, trading_name, description, capabilities`. Every node
 touched by a coverage import therefore loses `city`, `street_address`,

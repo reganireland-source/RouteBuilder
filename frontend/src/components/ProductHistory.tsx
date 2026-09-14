@@ -42,7 +42,7 @@
  * Mounted from: UserGuide.tsx (page 9, "🕹 Product History").
  * ============================================================================
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type Dispatch, type SetStateAction } from 'react'
 import { useTheme } from '../theme'
 
 // ── Categories = the coloured lines of the metro map ────────────────────────
@@ -264,37 +264,41 @@ function MonthBand({ month, t }: { month: Month; t: ReturnType<typeof useTheme> 
     <div style={{
       display: 'flex', alignItems: 'center', gap: 12,
       padding: '9px 12px', margin: '34px 0 16px',
-      background: `${intensityColor}14`,
-      ...pixelBorder(intensityColor),
+      background: `${bandColor}14`,
+      ...pixelBorder(bandColor),
       animation: month.intensity >= 4 ? 'rb-ph-band 1.4s steps(2, end) infinite' : undefined,
       position: 'relative', zIndex: 1,
     }}>
       <div style={{
         fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 22, fontWeight: 800,
-        color: intensityColor, letterSpacing: '0.08em', lineHeight: 1,
+        color: bandColor, letterSpacing: '0.08em', lineHeight: 1,
       }}>{month.label}</div>
       <div style={{ fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 11, color: t.textFaint, letterSpacing: '0.1em' }}>{month.sub}</div>
 
-      <div style={{ width: 3, alignSelf: 'stretch', background: `${intensityColor}55` }} />
+      <div style={{ width: 3, alignSelf: 'stretch', background: `${bandColor}55` }} />
 
       <div style={{ flex: 1, fontSize: 12, fontWeight: 700, color: t.text, letterSpacing: '0.04em' }}>{month.era}</div>
 
       {/* 4-cell pixel intensity meter */}
-      <div style={{ display: 'flex', gap: 3 }} title={`${intensityWord} — ${month.milestones.length} capabilities shipped`}>
-        {[1, 2, 3, 4].map(n => (
-          <span key={n} style={{
-            width: 12, height: 14,
-            background: n <= month.intensity ? intensityColor : 'transparent',
-            border: `2px solid ${n <= month.intensity ? intensityColor : `${intensityColor}44`}`,
-            animation: n <= month.intensity && month.intensity >= 4 ? `rb-ph-meter 0.9s steps(2, end) infinite` : undefined,
-            animationDelay: `${n * 0.12}s`,
-          }} />
-        ))}
+      <div style={{ display: 'flex', gap: 3 }} title={`${bandWord} — ${month.milestones.length} capabilities shipped`}>
+        {[1, 2, 3, 4].map(n => {
+          const lit = n <= month.intensity
+          const cellBorderColor = lit ? bandColor : `${bandColor}44`
+          return (
+            <span key={n} style={{
+              width: 12, height: 14,
+              background: lit ? bandColor : 'transparent',
+              border: `2px solid ${cellBorderColor}`,
+              animation: lit && month.intensity >= 4 ? `rb-ph-meter 0.9s steps(2, end) infinite` : undefined,
+              animationDelay: `${n * 0.12}s`,
+            }} />
+          )
+        })}
       </div>
       <div style={{
         fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 9, fontWeight: 800,
-        color: intensityColor, letterSpacing: '0.12em', minWidth: 86, textAlign: 'right',
-      }}>{intensityWord}</div>
+        color: bandColor, letterSpacing: '0.12em', minWidth: 86, textAlign: 'right',
+      }}>{bandWord}</div>
     </div>
   )
 }
@@ -361,7 +365,7 @@ function Station({ ms, live, open, onToggle, narrow, t }: {
           display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer',
           background: open ? `${cat.color}12` : 'transparent',
           border: `3px solid ${open ? cat.color : 'transparent'}`,
-          borderRadius: 0, padding: open ? '9px 12px' : '9px 12px',
+          borderRadius: 0, padding: '9px 12px',
           fontFamily: 'inherit', color: 'inherit',
           transition: 'background 0.12s steps(2, end)',
         }}
@@ -409,6 +413,37 @@ function Station({ ms, live, open, onToggle, narrow, t }: {
       </button>
     </div>
   )
+}
+
+/**
+ * One month's run of stations, top to bottom, with each category's rail span
+ * worked out once for the month. Deliberately a plain function that is CALLED
+ * rather than a component that is mounted, so the rendered tree is identical to
+ * the inline map this replaced.
+ */
+function monthStations(month: Month, ctx: {
+  printMode: boolean
+  open: string | null
+  setOpen: Dispatch<SetStateAction<string | null>>
+  narrow: boolean
+  t: ReturnType<typeof useTheme>
+}) {
+  const { printMode, open, setOpen, narrow, t } = ctx
+  const spans = railSpans(month.milestones)
+  return month.milestones.map((ms, i) => {
+    const id = `${month.key}-${i}`
+    return (
+      <Station
+        key={id}
+        ms={ms}
+        live={spans[i]}
+        open={printMode || open === id}
+        onToggle={() => setOpen(o => o === id ? null : id)}
+        narrow={narrow && !printMode}
+        t={t}
+      />
+    )
+  })
 }
 
 // ── The legend: the metro map's line key ────────────────────────────────────
@@ -541,23 +576,7 @@ export function ProductHistory({ printMode = false }: Props) {
                   zIndex: 3, pointerEvents: 'none',
                 }} />
               )}
-              {(() => {
-                const spans = railSpans(month.milestones)
-                return month.milestones.map((ms, i) => {
-                  const id = `${month.key}-${i}`
-                  return (
-                    <Station
-                      key={id}
-                      ms={ms}
-                      live={spans[i]}
-                      open={printMode || open === id}
-                      onToggle={() => setOpen(o => o === id ? null : id)}
-                      narrow={narrow && !printMode}
-                      t={t}
-                    />
-                  )
-                })
-              })()}
+              {monthStations(month, { printMode, open, setOpen, narrow, t })}
             </div>
           </div>
         ))}

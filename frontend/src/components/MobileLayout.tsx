@@ -31,7 +31,7 @@
  * dialogs) are portalled by App.tsx itself in its mobile branch, not here.
  * No direct backend calls — everything goes through the callback props.
  */
-import { lazy, Suspense, useState, useEffect } from 'react'
+import { lazy, Suspense, useState, useEffect, type Dispatch, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
 import { NetworkMap } from './Map'
 import { SearchForm } from './SearchForm'
@@ -151,6 +151,300 @@ export interface MobileLayoutProps {
   onManualDiscard?:              () => void
   countryHighlight?:             CountryHighlight | null
   onCountrySelect?:              (h: CountryHighlight | null) => void
+}
+
+/** The icon on the theme-cycle row — it advertises what you get NEXT, not now. */
+function nextThemeIcon(themeMode: ThemeMode): string {
+  if (themeMode === 'dark') return '🌅'
+  if (themeMode === 'dusk') return '☀️'
+  return '🌙'
+}
+
+/** The label on the theme-cycle row, matching nextThemeIcon. */
+function nextThemeLabel(themeMode: ThemeMode): string {
+  if (themeMode === 'dark') return 'Switch to Dusk'
+  if (themeMode === 'dusk') return 'Switch to Light'
+  return 'Switch to Dark'
+}
+
+/**
+ * The top-right "Controls" button and the drawer it opens: the mobile stand-in
+ * for the desktop control menu (map toggles, theme cycle, and the openers for
+ * Projects / Capacity / Reference Data). Presentational only — every toggle is
+ * a callback owned by App.tsx; the only state it touches is the caller's
+ * open/close flag.
+ */
+function MobileControlsDrawer({
+  open, setOpen, t, themeMode,
+  showAllOutages, showPlannedEvents, showSegmentLabels, showNodeLabels,
+  hideNonActive, subseaOnly, backhaulOnly,
+  onToggleShowAllOutages, onToggleShowPlannedEvents, onToggleShowSegmentLabels,
+  onToggleShowNodeLabels, onToggleHideNonActive, onToggleSubseaOnly, onToggleBackhaulOnly,
+  onOpenProjects, onOpenCapacity, onOpenRefData, cycleTheme,
+}: {
+  open: boolean
+  setOpen: Dispatch<SetStateAction<boolean>>
+  t: import('../theme').Theme
+  themeMode: ThemeMode
+  showAllOutages: boolean; showPlannedEvents: boolean; showSegmentLabels: boolean
+  showNodeLabels: boolean; hideNonActive: boolean; subseaOnly: boolean; backhaulOnly: boolean
+  onToggleShowAllOutages: () => void
+  onToggleShowPlannedEvents: () => void
+  onToggleShowSegmentLabels: () => void
+  onToggleShowNodeLabels: () => void
+  onToggleHideNonActive: () => void
+  onToggleSubseaOnly: () => void
+  onToggleBackhaulOnly: () => void
+  onOpenProjects?: () => void
+  onOpenCapacity: () => void
+  onOpenRefData: () => void
+  cycleTheme: () => void
+}) {
+  return (
+    <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 200 }}>
+
+      {/* Toggle button */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+          padding: '6px 10px', borderRadius: 10,
+          border: `1px solid ${open ? t.blue : t.border}`,
+          background: open ? t.blue + '22' : t.bgPanel + 'f0',
+          color: open ? t.blue : t.textMuted,
+          cursor: 'pointer',
+          boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 2px 10px rgba(0,0,0,0.5)',
+        }}
+      >
+        <span style={{ fontSize: 18, lineHeight: 1 }}>{open ? '✕' : '≡'}</span>
+        <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1 }}>
+          {open ? 'Close' : 'Controls'}
+        </span>
+      </button>
+
+      {/* Drawer panel */}
+      {open && (
+        <>
+          {/* Backdrop to close on outside tap */}
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setOpen(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: -1, border: 'none', background: 'transparent', padding: 0, cursor: 'default' }}
+          />
+          <div style={{
+            position: 'absolute', top: 50, right: 0,
+            width: 220,
+            background: t.bgPanel,
+            border: `1px solid ${t.border}`,
+            borderRadius: 12,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            overflow: 'hidden',
+          }}>
+            {/* Toggles */}
+            {[
+              {
+                label: 'Show All Outages',
+                icon: '🚢',
+                active: showAllOutages,
+                color: t.red,
+                onClick: () => { onToggleShowAllOutages(); setOpen(false) },
+              },
+              {
+                label: 'Show Planned Events',
+                icon: '🗓️',
+                active: showPlannedEvents,
+                color: t.orange,
+                onClick: () => { onToggleShowPlannedEvents(); setOpen(false) },
+              },
+              {
+                label: 'Segment Labels',
+                icon: showSegmentLabels ? 'A⃝' : 'A',
+                active: showSegmentLabels,
+                color: t.blue,
+                onClick: () => { onToggleShowSegmentLabels(); setOpen(false) },
+              },
+              {
+                label: 'Node Labels',
+                icon: showNodeLabels ? '◉' : '◎',
+                active: showNodeLabels,
+                color: t.blue,
+                onClick: () => { onToggleShowNodeLabels(); setOpen(false) },
+              },
+              {
+                label: 'Hide Non-Active',
+                icon: hideNonActive ? '◉' : '◎',
+                active: hideNonActive,
+                color: t.blue,
+                onClick: () => { onToggleHideNonActive(); setOpen(false) },
+              },
+              {
+                label: 'Subsea Only',
+                icon: '🌊',
+                active: subseaOnly,
+                color: t.blue,
+                onClick: () => { onToggleSubseaOnly(); setOpen(false) },
+              },
+              {
+                label: 'Backhaul Only',
+                icon: '🗺',
+                active: backhaulOnly,
+                color: t.blue,
+                onClick: () => { onToggleBackhaulOnly(); setOpen(false) },
+              },
+            ].map(item => (
+              <button
+                key={item.label}
+                onClick={item.onClick}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  width: '100%', padding: '13px 16px',
+                  background: item.active ? item.color + '18' : 'transparent',
+                  border: 'none', borderBottom: `1px solid ${t.border}`,
+                  cursor: 'pointer', textAlign: 'left',
+                }}
+              >
+                <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>{item.icon}</span>
+                <span style={{ fontSize: 13, color: item.active ? item.color : t.text, fontWeight: item.active ? 600 : 400 }}>
+                  {item.label}
+                </span>
+                {item.active && (
+                  <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: item.color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>On</span>
+                )}
+              </button>
+            ))}
+
+            {/* Actions */}
+            {[
+              {
+                label: 'Projects',
+                icon: '📁',
+                onClick: () => { onOpenProjects?.(); setOpen(false) },
+              },
+              {
+                label: 'Network Capacity',
+                icon: '📊',
+                onClick: () => { onOpenCapacity(); setOpen(false) },
+              },
+              {
+                label: 'Reference Data',
+                icon: '⚙',
+                onClick: () => { onOpenRefData(); setOpen(false) },
+              },
+            ].map(item => (
+              <button
+                key={item.label}
+                onClick={item.onClick}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  width: '100%', padding: '13px 16px',
+                  background: 'transparent',
+                  border: 'none', borderBottom: `1px solid ${t.border}`,
+                  cursor: 'pointer', textAlign: 'left',
+                }}
+              >
+                <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>{item.icon}</span>
+                <span style={{ fontSize: 13, color: t.text }}>{item.label}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 14, color: t.textFaintest }}>›</span>
+              </button>
+            ))}
+
+            {/* Theme cycle */}
+            <button
+              onClick={() => { cycleTheme(); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                width: '100%', padding: '13px 16px',
+                background: 'transparent', border: 'none',
+                cursor: 'pointer', textAlign: 'left',
+              }}
+            >
+              <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>
+                {nextThemeIcon(themeMode)}
+              </span>
+              <span style={{ fontSize: 13, color: t.text }}>
+                {nextThemeLabel(themeMode)}
+              </span>
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The floating strip shown while RouteManual is mid-build and the sheet is at
+ * "peek": running hop/km/ms totals for the route so far, plus Undo, Done and a
+ * way back up to the candidate list.
+ */
+function ManualBuildStrip({ steps, segments, candidateCount, t, onUndo, onFinish, onExpand }: {
+  steps: ManualState['steps']
+  segments: CableSegment[]
+  candidateCount: number
+  t: import('../theme').Theme
+  onUndo?: () => void
+  onFinish?: () => void
+  onExpand: () => void
+}) {
+  const hopCount = steps.length
+  const km = steps.reduce((a, s) => {
+    const seg = segments.find(x => x.id === s.segmentId)
+    return a + (seg?.length_km ?? 0)
+  }, 0)
+  const ms = steps.reduce((a, s) => {
+    const seg = segments.find(x => x.id === s.segmentId)
+    return a + (seg?.latency ?? 0)
+  }, 0)
+  return (
+    <div style={{
+      position: 'fixed', bottom: PEEK_H, left: 0, right: 0, zIndex: 49,
+      background: t.bgPanel + 'f8',
+      borderTop: `1px solid ${t.border}`,
+      padding: '8px 14px',
+      display: 'flex', alignItems: 'center', gap: 10,
+    }}>
+      {/* Stats */}
+      <div style={{ display: 'flex', gap: 12, flex: 1 }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{hopCount}</div>
+          <div style={{ fontSize: 9, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hops</div>
+        </div>
+        {hopCount > 0 && <>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{km.toLocaleString()}</div>
+            <div style={{ fontSize: 9, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>km</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{ms.toFixed(0)}</div>
+            <div style={{ fontSize: 9, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>ms</div>
+          </div>
+        </>}
+      </div>
+      {/* Action buttons */}
+      <div style={{ display: 'flex', gap: 6 }}>
+        {hopCount > 0 && (
+          <button onClick={onUndo} style={{
+            padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+            border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted,
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}>↩</button>
+        )}
+        {hopCount > 0 && (
+          <button onClick={onFinish} style={{
+            padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+            border: 'none', background: t.green, color: '#fff',
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}>✓ Done</button>
+        )}
+        <button onClick={onExpand} style={{
+          padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+          border: `1px solid ${t.blue}66`, background: `${t.blue}18`, color: t.blue,
+          cursor: 'pointer', fontFamily: 'inherit',
+        }}>{candidateCount} options ›</button>
+      </div>
+    </div>
+  )
 }
 
 function MobileModeBanner({ activeProject, onSwitch, onExit, t }: {
@@ -387,238 +681,43 @@ export function MobileLayout({
       </div>
 
       {/* ── Top-right drawer toggle + panel ────────────────────────────── */}
-      <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 200 }}>
-
-        {/* Toggle button */}
-        <button
-          onClick={() => setDrawerOpen(o => !o)}
-          style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-            padding: '6px 10px', borderRadius: 10,
-            border: `1px solid ${drawerOpen ? t.blue : t.border}`,
-            background: drawerOpen ? t.blue + '22' : t.bgPanel + 'f0',
-            color: drawerOpen ? t.blue : t.textMuted,
-            cursor: 'pointer',
-            boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 2px 10px rgba(0,0,0,0.5)',
-          }}
-        >
-          <span style={{ fontSize: 18, lineHeight: 1 }}>{drawerOpen ? '✕' : '≡'}</span>
-          <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1 }}>
-            {drawerOpen ? 'Close' : 'Controls'}
-          </span>
-        </button>
-
-        {/* Drawer panel */}
-        {drawerOpen && (
-          <>
-            {/* Backdrop to close on outside tap */}
-            <button
-              type="button"
-              aria-label="Close menu"
-              onClick={() => setDrawerOpen(false)}
-              style={{ position: 'fixed', inset: 0, zIndex: -1, border: 'none', background: 'transparent', padding: 0, cursor: 'default' }}
-            />
-            <div style={{
-              position: 'absolute', top: 50, right: 0,
-              width: 220,
-              background: t.bgPanel,
-              border: `1px solid ${t.border}`,
-              borderRadius: 12,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-              overflow: 'hidden',
-            }}>
-              {/* Toggles */}
-              {[
-                {
-                  label: 'Show All Outages',
-                  icon: '🚢',
-                  active: showAllOutages,
-                  color: t.red,
-                  onClick: () => { onToggleShowAllOutages(); setDrawerOpen(false) },
-                },
-                {
-                  label: 'Show Planned Events',
-                  icon: '🗓️',
-                  active: showPlannedEvents,
-                  color: t.orange,
-                  onClick: () => { onToggleShowPlannedEvents(); setDrawerOpen(false) },
-                },
-                {
-                  label: 'Segment Labels',
-                  icon: showSegmentLabels ? 'A⃝' : 'A',
-                  active: showSegmentLabels,
-                  color: t.blue,
-                  onClick: () => { onToggleShowSegmentLabels(); setDrawerOpen(false) },
-                },
-                {
-                  label: 'Node Labels',
-                  icon: showNodeLabels ? '◉' : '◎',
-                  active: showNodeLabels,
-                  color: t.blue,
-                  onClick: () => { onToggleShowNodeLabels(); setDrawerOpen(false) },
-                },
-                {
-                  label: 'Hide Non-Active',
-                  icon: hideNonActive ? '◉' : '◎',
-                  active: hideNonActive,
-                  color: t.blue,
-                  onClick: () => { onToggleHideNonActive(); setDrawerOpen(false) },
-                },
-                {
-                  label: 'Subsea Only',
-                  icon: '🌊',
-                  active: subseaOnly,
-                  color: t.blue,
-                  onClick: () => { onToggleSubseaOnly(); setDrawerOpen(false) },
-                },
-                {
-                  label: 'Backhaul Only',
-                  icon: '🗺',
-                  active: backhaulOnly,
-                  color: t.blue,
-                  onClick: () => { onToggleBackhaulOnly(); setDrawerOpen(false) },
-                },
-              ].map(item => (
-                <button
-                  key={item.label}
-                  onClick={item.onClick}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    width: '100%', padding: '13px 16px',
-                    background: item.active ? item.color + '18' : 'transparent',
-                    border: 'none', borderBottom: `1px solid ${t.border}`,
-                    cursor: 'pointer', textAlign: 'left',
-                  }}
-                >
-                  <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>{item.icon}</span>
-                  <span style={{ fontSize: 13, color: item.active ? item.color : t.text, fontWeight: item.active ? 600 : 400 }}>
-                    {item.label}
-                  </span>
-                  {item.active && (
-                    <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: item.color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>On</span>
-                  )}
-                </button>
-              ))}
-
-              {/* Actions */}
-              {[
-                {
-                  label: 'Projects',
-                  icon: '📁',
-                  onClick: () => { onOpenProjects?.(); setDrawerOpen(false) },
-                },
-                {
-                  label: 'Network Capacity',
-                  icon: '📊',
-                  onClick: () => { setCapDashOpen(true); setDrawerOpen(false) },
-                },
-                {
-                  label: 'Reference Data',
-                  icon: '⚙',
-                  onClick: () => { onOpenRefData(); setDrawerOpen(false) },
-                },
-              ].map(item => (
-                <button
-                  key={item.label}
-                  onClick={item.onClick}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 12,
-                    width: '100%', padding: '13px 16px',
-                    background: 'transparent',
-                    border: 'none', borderBottom: `1px solid ${t.border}`,
-                    cursor: 'pointer', textAlign: 'left',
-                  }}
-                >
-                  <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>{item.icon}</span>
-                  <span style={{ fontSize: 13, color: t.text }}>{item.label}</span>
-                  <span style={{ marginLeft: 'auto', fontSize: 14, color: t.textFaintest }}>›</span>
-                </button>
-              ))}
-
-              {/* Theme cycle */}
-              <button
-                onClick={() => { cycleTheme(); }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  width: '100%', padding: '13px 16px',
-                  background: 'transparent', border: 'none',
-                  cursor: 'pointer', textAlign: 'left',
-                }}
-              >
-                <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>
-                  {themeMode === 'dark' ? '🌅' : themeMode === 'dusk' ? '☀️' : '🌙'}
-                </span>
-                <span style={{ fontSize: 13, color: t.text }}>
-                  {themeMode === 'dark' ? 'Switch to Dusk' : themeMode === 'dusk' ? 'Switch to Light' : 'Switch to Dark'}
-                </span>
-              </button>
-            </div>
-          </>
-        )}
-      </div>
+      <MobileControlsDrawer
+        open={drawerOpen}
+        setOpen={setDrawerOpen}
+        t={t}
+        themeMode={themeMode}
+        showAllOutages={showAllOutages}
+        showPlannedEvents={showPlannedEvents}
+        showSegmentLabels={showSegmentLabels}
+        showNodeLabels={showNodeLabels}
+        hideNonActive={hideNonActive}
+        subseaOnly={subseaOnly}
+        backhaulOnly={backhaulOnly}
+        onToggleShowAllOutages={onToggleShowAllOutages}
+        onToggleShowPlannedEvents={onToggleShowPlannedEvents}
+        onToggleShowSegmentLabels={onToggleShowSegmentLabels}
+        onToggleShowNodeLabels={onToggleShowNodeLabels}
+        onToggleHideNonActive={onToggleHideNonActive}
+        onToggleSubseaOnly={onToggleSubseaOnly}
+        onToggleBackhaulOnly={onToggleBackhaulOnly}
+        onOpenProjects={onOpenProjects}
+        onOpenCapacity={() => setCapDashOpen(true)}
+        onOpenRefData={onOpenRefData}
+        cycleTheme={cycleTheme}
+      />
 
       {/* ── RouteManual floating build strip (shown only when building at peek) ── */}
-      {manualBuilding && snap === 'peek' && (() => {
-        const steps  = manualState!.steps
-        const hopCount = steps.length
-        const km     = steps.reduce((a, s) => {
-          const seg = segments.find(x => x.id === s.segmentId)
-          return a + (seg?.length_km ?? 0)
-        }, 0)
-        const ms     = steps.reduce((a, s) => {
-          const seg = segments.find(x => x.id === s.segmentId)
-          return a + (seg?.latency ?? 0)
-        }, 0)
-        return (
-          <div style={{
-            position: 'fixed', bottom: PEEK_H, left: 0, right: 0, zIndex: 49,
-            background: t.bgPanel + 'f8',
-            borderTop: `1px solid ${t.border}`,
-            padding: '8px 14px',
-            display: 'flex', alignItems: 'center', gap: 10,
-          }}>
-            {/* Stats */}
-            <div style={{ display: 'flex', gap: 12, flex: 1 }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{hopCount}</div>
-                <div style={{ fontSize: 9, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hops</div>
-              </div>
-              {hopCount > 0 && <>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{km.toLocaleString()}</div>
-                  <div style={{ fontSize: 9, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>km</div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{ms.toFixed(0)}</div>
-                  <div style={{ fontSize: 9, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>ms</div>
-                </div>
-              </>}
-            </div>
-            {/* Action buttons */}
-            <div style={{ display: 'flex', gap: 6 }}>
-              {hopCount > 0 && (
-                <button onClick={onManualUndo} style={{
-                  padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-                  border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted,
-                  cursor: 'pointer', fontFamily: 'inherit',
-                }}>↩</button>
-              )}
-              {hopCount > 0 && (
-                <button onClick={onManualFinish} style={{
-                  padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                  border: 'none', background: t.green, color: '#fff',
-                  cursor: 'pointer', fontFamily: 'inherit',
-                }}>✓ Done</button>
-              )}
-              <button onClick={() => doSnap('full')} style={{
-                padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                border: `1px solid ${t.blue}66`, background: `${t.blue}18`, color: t.blue,
-                cursor: 'pointer', fontFamily: 'inherit',
-              }}>{manualCandidates.length} options ›</button>
-            </div>
-          </div>
-        )
-      })()}
+      {manualBuilding && snap === 'peek' && (
+        <ManualBuildStrip
+          steps={manualState!.steps}
+          segments={segments}
+          candidateCount={manualCandidates.length}
+          t={t}
+          onUndo={onManualUndo}
+          onFinish={onManualFinish}
+          onExpand={() => doSnap('full')}
+        />
+      )}
 
       {/* ── Bottom sheet ────────────────────────────────────────────────── */}
       <div

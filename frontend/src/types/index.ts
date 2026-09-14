@@ -257,6 +257,20 @@ export interface RouteRequest {
   max_wet_hops?: number
   max_terrestrial_hops?: number
   optimise_for?: string
+  /**
+   * "Only route over what is in service on this date" — an ISO YYYY-MM-DD.
+   *
+   * The UI sends today's date by default, so a normal search can never quote a
+   * route over a cable that has not been commissioned yet; pushing the date
+   * forward is how you plan against a future network. Omitting it entirely
+   * means no RFS filtering at all, which is what every existing API client
+   * gets.
+   *
+   * Backend resolution (backend/app/rfs.py): a segment is excluded when the
+   * LATER of its own and its owning system's RFS date falls after this date,
+   * with "YYYY-Qn" resolving to the last day of that quarter.
+   */
+  service_date?: string
 }
 
 /**

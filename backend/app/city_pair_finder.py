@@ -47,8 +47,10 @@ Who calls it: api/city_pairs.py —
 """
 from __future__ import annotations
 import itertools
+from typing import Optional
 import networkx as nx
 from .models import Node, CableSegment, CableSystem, NodeType, SegmentType
+from .rfs import filter_segments_in_service, parse_service_date
 
 # Prefix for the synthetic per-city "super nodes" added during a search.
 # Real node ids never start with this, so super nodes can be filtered back
@@ -165,12 +167,23 @@ def find_city_pair_routes(
     segments: list[CableSegment],
     systems_by_id: dict[str, CableSystem],
     max_results: int = 15,
+    service_date: Optional[str] = None,
 ) -> list[dict]:
     """
     Find wet multi-hop routes between two cities, ordered by total cost.
     Deduplicates by unique system sequence so each cable itinerary
     appears at most once.
+
+    service_date: optional ISO "YYYY-MM-DD". When given, segments that are not
+    Ready For Service on that date are dropped before the wet graph is built,
+    exactly as in graph.build_graph — a city pair that is only reachable over a
+    cable still under construction must not be presented as available today.
+    None (the default) means no RFS filtering. systems_by_id is already on hand
+    here, so honouring the constraint costs one call.
     """
+    segments = filter_segments_in_service(
+        segments, systems_by_id, parse_service_date(service_date),
+    )
     G = _build_wet_graph(nodes, segments)
     cities = get_cities(nodes)
 

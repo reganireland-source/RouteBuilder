@@ -22,7 +22,9 @@
 # ─────────────────────────────────────────────────────────────────────────────
 from fastapi import APIRouter
 from ..models import RouteRequest, RouteResponse
-from ..data_loader import load_nodes, load_segments, load_rules, load_capacity, load_outages
+from ..data_loader import (
+    load_nodes, load_segments, load_systems, load_rules, load_capacity, load_outages,
+)
 from ..graph import build_graph
 from ..pathfinder import find_routes
 
@@ -46,6 +48,9 @@ def search_routes(request: RouteRequest):
       - max_wet_hops / max_terrestrial_hops: limits on submarine/land hops.
       - diversity: request physically diverse alternative routes.
       - optimise_for: the objective to rank by (e.g. latency/cost).
+      - service_date: optional ISO "YYYY-MM-DD"; when present, segments whose
+        Ready-For-Service date (or whose system's) is later than this date are
+        excluded from the graph entirely. Omitted/None = no RFS filtering.
     Response: a RouteResponse containing the matching routes.
 
     Auth: this is a read-style QUERY that happens to use POST (it never mutates
@@ -59,7 +64,17 @@ def search_routes(request: RouteRequest):
     capacities = load_capacity()
     outages = load_outages()
 
-    G = build_graph(nodes, segments)
+    # Ready-For-Service: when the request names a service_date, segments that
+    # are not yet live on that date are never added to the graph, so the
+    # pathfinder cannot route over cable that has not been built yet. A None
+    # service_date (no field sent) means no filtering — unchanged behaviour.
+    systems_by_id = {s.id: s for s in load_systems()} if request.service_date else None
+
+    G = build_graph(
+        nodes, segments,
+        service_date=request.service_date,
+        systems_by_id=systems_by_id,
+    )
     segments_by_id = {s.id: s for s in segments}
     capacities_by_id = {c.segment_id: c for c in capacities}
     # Planned Events share this table with real outages but are purely
