@@ -1577,8 +1577,10 @@ export default function App() {
       {selectedNode && (
         <NodeInfoPanel
           node={selectedNode.node} segments={segments} systems={systems}
+          nodes={nodes} capacity={capacity}
           initialX={selectedNode.x} initialY={selectedNode.y}
           onClose={() => setSelectedNode(null)}
+          onDataChange={handleDataChange}
         />
       )}
 

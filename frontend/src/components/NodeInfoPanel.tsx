@@ -11,12 +11,21 @@
  * Node types include CLS (Cable Landing Station), PoP tiers, branching units and
  * off-net nodes.
  *
+ * The "⛶ Full View" button opens NodeFullView — the same information laid out on a
+ * page of its own, plus the segment fan-out diagram, per-segment capacity, solution
+ * notes, and (for admins) in-place editing. The coverage matrix and the owner-logo
+ * table are shared modules so this card and Full View cannot disagree.
+ *
  * Props:
  *   - node, segments, systems: the node to describe plus full datasets for cross-refs.
+ *   - nodes, capacity:         passed straight through to Full View, which needs them to
+ *                              name/navigate segment far ends and show per-segment capacity.
+ *   - notes, noteCategories:   optional pre-fetched solution notes for Full View.
  *   - initialX / initialY:     the map click position; a useLayoutEffect measures the
  *                              panel and clamps it inside the viewport before making it
  *                              visible (flips left of the cursor if it would overflow).
  *   - onClose:                 close (×) handler.
+ *   - onDataChange:            refetch hook, called after an admin edit in Full View.
  * The title bar is a drag handle — global mousemove/mouseup listeners let the user
  * reposition the panel anywhere on screen.
  *
@@ -25,175 +34,39 @@
  * Note: CountryNodeDiagram.tsx has its own unrelated local component of the same name.
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { CableNode, CableSegment, CableSystem, PortSpeed } from '../types'
+import type { CableNode, CableSegment, CableSystem, SegmentCapacity, SolutionNote, NoteCategory } from '../types'
 import { useTheme } from '../theme'
+import { OWNER_LOGOS } from '../utils/ownerLogos'
+import { ProductCoverageMatrix } from './ProductCoverageMatrix'
+import { NodeFullView } from './NodeFullView'
 
-const ALL_SPEEDS: PortSpeed[] = ['1G', '10G', '100G', '400G']
-
-// Column layout constants — keep header and product rows in sync
-const DOT_SIZE  = 13   // px — dot diameter
-const COL_W     = 32   // px — column width for header + dot cells
-const LABEL_W   = 50   // px — product label column width
-
-// Maximum speeds each product type is capable of (defines N/A vs red)
-const PRODUCT_MAX: Record<string, Set<PortSpeed>> = {
-  ipt:   new Set(['1G', '10G', '100G', '400G']),
-  epl:   new Set(['1G', '10G', '100G', '400G']),
-  evpl:  new Set(['1G', '10G']),
-  gid:   new Set(['1G', '10G', '100G', '400G']),
-  ipvpn: new Set(['1G', '10G']),
-}
-
-const COLO_LABELS: Record<number, string> = {
-  1: 'Productized Partners Resell',
-  2: 'Productized Telstra Facilities',
-  3: 'Leased Partner Facilities',
-  4: 'Non-Productized Telstra Facilities / CLS',
-  5: 'Non-Productized Partner Resell',
-}
-
-// Per-category visual style
-const CAT_STYLE = {
-  backbone:   { bg: 'rgba(59,130,246,0.15)',  border: 'rgba(59,130,246,0.4)',  text: '#60a5fa',  dot: '#3b82f6' },
-  underlay:   { bg: 'rgba(139,92,246,0.15)',  border: 'rgba(139,92,246,0.4)',  text: '#a78bfa',  dot: '#8b5cf6' },
-  colocation: { bg: 'rgba(251,191,36,0.15)',  border: 'rgba(251,191,36,0.4)',  text: '#fbbf24',  dot: '#f59e0b' },
-}
-
-type DotState = 'green' | 'red' | 'na'
-
-function Dot({ state }: { state: DotState }) {
-  if (state === 'na') {
-    return (
-      <div style={{ width: DOT_SIZE, height: DOT_SIZE, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <div style={{ width: 6, height: 2, borderRadius: 1, background: 'rgba(255,255,255,0.1)' }} />
-      </div>
-    )
-  }
-  const green = state === 'green'
-  return (
-    <div style={{
-      width: DOT_SIZE, height: DOT_SIZE, borderRadius: '50%', flexShrink: 0,
-      background: green ? '#16a34a' : '#3f0f0f',
-      border: `1px solid ${green ? '#22c55e' : '#7f1d1d'}`,
-      boxShadow: green ? '0 0 7px rgba(34,197,94,0.65)' : '0 0 4px rgba(239,68,68,0.25)',
-    }} />
-  )
-}
-
-function CategoryBadge({ label, active, category }: { label: string; active: boolean; category: 'backbone' | 'underlay' | 'colocation' }) {
-  const s = CAT_STYLE[category]
-  return (
-    <div style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5,
-      padding: '3px 9px 3px 6px', borderRadius: 5, marginBottom: 7,
-      background: s.bg, border: `1px solid ${s.border}`,
-    }}>
-      <div style={{
-        width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
-        background: active ? s.dot : '#3f0f0f',
-        border: `1px solid ${active ? s.dot : '#7f1d1d'}`,
-        boxShadow: active ? `0 0 5px ${s.dot}99` : '0 0 3px rgba(239,68,68,0.2)',
-      }} />
-      <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', color: active ? s.text : '#6b7280' }}>{label}</span>
-    </div>
-  )
-}
-
-// Speed column header row — must use same LABEL_W + DOT_SIZE + DOT_GAP as rows below
-function SpeedHeader() {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
-      <div style={{ width: LABEL_W, flexShrink: 0 }} />
-      <div style={{ display: 'flex' }}>
-        {ALL_SPEEDS.map(s => (
-          <span key={s} style={{
-            width: COL_W, textAlign: 'center', flexShrink: 0,
-            fontSize: 10, fontWeight: 700, color: '#6b7280', letterSpacing: '0.02em',
-          }}>{s}</span>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function ProductMatrixRow({ label, productKey, available }: { label: string; productKey: string; available?: PortSpeed[] }) {
-  const maxSpeeds = PRODUCT_MAX[productKey]
-  const availSet = new Set(available ?? [])
-  return (
-    <div style={{ display: 'flex', alignItems: 'center' }}>
-      <span style={{ width: LABEL_W, flexShrink: 0, fontSize: 11, fontWeight: 600, color: '#9ca3af' }}>{label}</span>
-      <div style={{ display: 'flex' }}>
-        {ALL_SPEEDS.map(speed => {
-          const applicable = maxSpeeds.has(speed)
-          const state: DotState = !applicable ? 'na' : availSet.has(speed) ? 'green' : 'red'
-          return (
-            <div key={speed} style={{ width: COL_W, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-              <Dot state={state} />
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-
-const OWNER_LOGOS: Record<string, string> = {
-  // Original full-art logos
-  'Telstra':                      '/logos/telstra.svg',
-  'Telstra International':        '/logos/telstra.svg',
-  'Equinix':                      '/logos/equinix.svg',
-  'PCCW':                         '/logos/pccw.svg',
-  'DRT':                          '/logos/digitalrealty.svg',
-  'Digital Realty':               '/logos/digitalrealty.svg',
-  'NTT':                          '/logos/ntt.svg',
-  'NEXTDC':                       '/logos/nextdc.svg',
-  // Wordmark logos
-  'Singtel':                      '/logos/singtel.svg',
-  'Lumen':                        '/logos/lumen.svg',
-  'Tata Communications':          '/logos/tatacoms.svg',
-  'PLDT':                         '/logos/pldt.svg',
-  'Globe Telecom':                '/logos/globetelecom.svg',
-  'StarHub':                      '/logos/starhub.svg',
-  'Spark NZ':                     '/logos/sparknz.svg',
-  'Telkom Indonesia':             '/logos/telkomindonesia.svg',
-  'Telekom Malaysia':             '/logos/telekommalaysia.svg',
-  'BT':                           '/logos/bt.svg',
-  'Microsoft':                    '/logos/microsoft.svg',
-  'KINX':                         '/logos/kinx.svg',
-  'Converge ICT':                 '/logos/converge.svg',
-  'Epsilon':                      '/logos/epsilon.svg',
-  'eASPNet':                      '/logos/easpnet.svg',
-  'e&':                           '/logos/eand.svg',
-  'Reach':                        '/logos/reach.svg',
-  'Southern Cross Cable Network': '/logos/southerncross.svg',
-  'Hawaiian Telcom':              '/logos/hawaiiantelcom.svg',
-  'Singapore Stock Exchange':     '/logos/sgx.svg',
-  'Hong Kong Exchange':           '/logos/hkex.svg',
-  'GTA':                          '/logos/gta.svg',
-  'IT&E Overseas':                '/logos/ite.svg',
-  'Djibouti Telecom':             '/logos/djiboutitelecom.svg',
-  'Dynamic Computing Technology': '/logos/dct.svg',
-  'BDX':                          '/logos/bdx.svg',
-  'Seren Juno':                   '/logos/serenjuno.svg',
-  'TIS':                          '/logos/tis.svg',
-  'TBC':                          '/logos/tbc.svg',
-  'Apricot Consortium':           '/logos/apricot.svg',
-  'JGA Consortium':               '/logos/jga.svg',
-  'Jupiter Consortium':           '/logos/jupiter.svg',
-}
 
 interface Props {
   node: CableNode
   segments: CableSegment[]
   systems: CableSystem[]
+  /** Every node — needed so Full View can name and navigate to the far end of
+   *  each segment. */
+  nodes: CableNode[]
+  capacity: SegmentCapacity[]
+  /** Pre-fetched notes, if the parent already has them; Full View fetches its
+   *  own when these are omitted. */
+  notes?: SolutionNote[]
+  noteCategories?: NoteCategory[]
   initialX: number
   initialY: number
   onClose: () => void
+  /** Called after an admin edit in Full View writes to the backend, so the app
+   *  refetches and this card re-renders with the new values. */
+  onDataChange?: () => void
 }
 
-export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onClose }: Props) {
+export function NodeInfoPanel({
+  node, segments, systems, nodes, capacity, notes, noteCategories,
+  initialX, initialY, onClose, onDataChange,
+}: Props) {
   const t = useTheme()
+  const [fullView, setFullView] = useState(false)
   const panelRef = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
   const [pos, setPos] = useState({ x: initialX + 15, y: initialY - 80 })
@@ -309,12 +182,26 @@ export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onC
           )}
           <button
             onClick={onClose}
+            title="Close"
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textFaint, fontSize: 18, lineHeight: 1, padding: '0 0 0 4px' }}
           >×</button>
         </div>
       </div>
 
       <div style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 160px)' }}>
+        {/* Full View — everything this card shows plus the segment fan-out,
+            solution notes, per-segment capacity, and (for admins) editing. */}
+        <div style={{ padding: '10px 12px 0' }}>
+          <button
+            onClick={() => setFullView(true)}
+            style={{
+              width: '100%', padding: '8px 12px', borderRadius: 6, cursor: 'pointer',
+              border: `1px solid ${t.blue}`, background: t.blue + '18', color: t.blue,
+              fontSize: 12, fontWeight: 700, fontFamily: 'inherit', letterSpacing: '0.02em',
+            }}
+          >⛶ Full View</button>
+        </div>
+
         {/* Fields */}
         <div style={{ padding: '10px 12px', borderBottom: `1px solid ${t.border}` }}>
           {fields.filter(([, v]) => v).map(([label, value]) => (
@@ -342,63 +229,27 @@ export function NodeInfoPanel({ node, segments, systems, initialX, initialY, onC
           )}
         </div>
 
-        {/* Product Coverage — traffic light matrix */}
-        {node.capabilities && (() => {
-          const cap = node.capabilities
-          const bb = cap.backbone
-          const ul = cap.underlay
-          const co = cap.colocation
-          const backboneActive = !!(bb?.ipt?.length || bb?.epl?.length || bb?.evpl?.length)
-          const underlayActive = !!(ul?.gid?.length || ul?.ipvpn?.length)
-          const coloActive     = !!co
-          return (
-            <div style={{ padding: '10px 12px 14px', borderBottom: `1px solid ${t.border}` }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
-                Product Coverage
-              </div>
+        {/* Product Coverage — the same matrix the Full View shows, so the two
+            can never disagree (ProductCoverageMatrix.tsx). */}
+        {node.capabilities && (
+          <div style={{ padding: '10px 12px 14px', borderBottom: `1px solid ${t.border}` }}>
+            <ProductCoverageMatrix capabilities={node.capabilities} />
+          </div>
+        )}
 
-              {/* BACKBONE */}
-              <div style={{ marginBottom: 10 }}>
-                <CategoryBadge label="Backbone" active={backboneActive} category="backbone" />
-                <SpeedHeader />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  <ProductMatrixRow label="IPT"  productKey="ipt"  available={bb?.ipt  as PortSpeed[]} />
-                  <ProductMatrixRow label="EPL"  productKey="epl"  available={bb?.epl  as PortSpeed[]} />
-                  <ProductMatrixRow label="EVPL" productKey="evpl" available={bb?.evpl as PortSpeed[]} />
-                </div>
-              </div>
-
-              {/* UNDERLAY */}
-              <div style={{ marginBottom: 10 }}>
-                <CategoryBadge label="Underlay" active={underlayActive} category="underlay" />
-                <SpeedHeader />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  <ProductMatrixRow label="GID"    productKey="gid"   available={ul?.gid   as PortSpeed[]} />
-                  <ProductMatrixRow label="IP VPN" productKey="ipvpn" available={ul?.ipvpn as PortSpeed[]} />
-                </div>
-              </div>
-
-              {/* COLOCATION */}
-              <div>
-                <CategoryBadge label="Colocation" active={coloActive} category="colocation" />
-                {coloActive ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 2 }}>
-                    <span style={{
-                      fontSize: 10, fontWeight: 800, padding: '3px 8px', borderRadius: 4, flexShrink: 0,
-                      background: CAT_STYLE.colocation.bg, color: CAT_STYLE.colocation.text,
-                      border: `1px solid ${CAT_STYLE.colocation.border}`, letterSpacing: '0.04em',
-                    }}>Cat {co!.category}</span>
-                    <span style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.3 }}>
-                      {COLO_LABELS[co!.category]}
-                    </span>
-                  </div>
-                ) : (
-                  <span style={{ fontSize: 10, color: '#4b5563', fontStyle: 'italic' }}>Not configured</span>
-                )}
-              </div>
-            </div>
-          )
-        })()}
+        {fullView && (
+          <NodeFullView
+            nodeId={node.id}
+            nodes={nodes}
+            segments={segments}
+            systems={systems}
+            capacity={capacity}
+            notes={notes}
+            noteCategories={noteCategories}
+            onClose={() => setFullView(false)}
+            onDataChange={onDataChange}
+          />
+        )}
 
         {/* Map tile */}
         <iframe

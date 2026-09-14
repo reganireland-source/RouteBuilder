@@ -882,9 +882,12 @@ export function MobileLayout({
           node={selectedNode.node}
           segments={segments}
           systems={systems}
+          nodes={nodes}
+          capacity={capacity}
           initialX={selectedNode.x}
           initialY={selectedNode.y}
           onClose={onCloseNode}
+          onDataChange={onDataChange}
         />
       )}
 
