@@ -73,8 +73,11 @@ export type DiversityType = 'none' | 'terrestrial_origin' | 'terrestrial_destina
  *  - 'citypair':     city-to-city path summary view (CityPairPanel).
  *  - 'countryviewer': show all systems/nodes touching a country (CountryViewer).
  *  - 'outageviewer': show active cable faults/outages (OutagePanel).
+ *  - 'networkeditor': admin-only visual editor — move nodes, edit segment
+ *    waypoints and create nodes/segments+capacity directly on the map
+ *    (NetworkEditor). Desktop only; hidden from non-admins entirely.
  */
-export type AppMode = 'routebuilder' | 'routemanual' | 'systemviewer' | 'nodefinder' | 'citypair' | 'countryviewer' | 'outageviewer'
+export type AppMode = 'routebuilder' | 'routemanual' | 'systemviewer' | 'nodefinder' | 'citypair' | 'countryviewer' | 'outageviewer' | 'networkeditor'
 
 /**
  * Global app configuration served by GET /api/config and editable by admins.

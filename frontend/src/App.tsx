@@ -7,6 +7,7 @@ import { RouteList } from './components/RouteList'
 import type { SortKey } from './components/RouteList'
 import { SystemViewer } from './components/SystemViewer'
 import { CountryViewer } from './components/CountryViewer'
+import { NetworkEditor } from './components/NetworkEditor'
 import { RefDataModal } from './components/RefDataModal'
 import { NodeInfoPanel } from './components/NodeInfoPanel'
 import { NodeFinder } from './components/NodeFinder'
@@ -268,6 +269,7 @@ export default function App() {
 
   // ── Active mode — selects the left panel + map behaviour (see header). ─────
   const [mode, setMode]               = useState<AppMode>('routebuilder')
+  const { isAdmin }                   = useAuth()   // gates the admin-only Network Editor tab
 
   // ── Reference dataset (loaded from the API on mount, refreshed on edits). ──
   // This is the whole network model the UI renders and searches over.
@@ -363,8 +365,11 @@ export default function App() {
   /** Change the active mode and run the side effects each mode needs (clearing
    *  results, resetting highlights, auto-enabling certain toggles, etc.). */
   function switchMode(next: AppMode) {
+    if (next === 'networkeditor' && !isAdmin) return   // defense in depth — the tab is already hidden for non-admins
     if (next === 'systemviewer') { setResponse(null); setSelectedRouteIds([]); setError(null) }
-    if (next !== 'countryviewer') { setCountryHighlight(null); setShowNodeDiagram(false) }
+    // Network Editor reuses the same Country/System filter state as Country/System Viewer
+    // (see NetworkEditor.tsx), so entering/leaving it must not wipe that highlight either.
+    if (next !== 'countryviewer' && next !== 'networkeditor') { setCountryHighlight(null); setShowNodeDiagram(false) }
     if (next === 'countryviewer') setShowSegmentLabels(true)
     if (next !== 'routemanual') { setManualState(null); setManualFinishConfirm(null) }
     if (next === 'outageviewer') setShowAllOutages(true)
@@ -1163,33 +1168,44 @@ export default function App() {
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
                     NetworkExplorer
                   </button>
+                  {isAdmin && (
+                    <button style={topTabStyle(mode === 'networkeditor')} onClick={() => safeSwitchMode('networkeditor')} title="Admin-only: move nodes, edit segment paths, create segments directly on the map">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                      Network Editor
+                    </button>
+                  )}
                   <button style={{ ...topTabStyle(false), flex: 'none', padding: '9px 10px' }} onClick={() => setGuideOpen(true)} title="Open guide">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                   </button>
                 </div>
-                {/* Sub-tabs */}
-                <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, background: theme.bgDeep }}>
-                  {isBuilder ? (
-                    <>
-                      <button style={tabStyle(mode === 'routebuilder')} onClick={() => safeSwitchMode('routebuilder')}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                        RouteFinder
-                      </button>
-                      <button style={tabStyle(mode === 'routemanual')} onClick={() => switchMode('routemanual')}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                        RouteManual
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button style={tabStyle(mode === 'countryviewer')}  onClick={() => switchMode('countryviewer')}>🌍 Country</button>
-                      <button style={tabStyle(mode === 'citypair')}       onClick={() => switchMode('citypair')}>🏙 City Pairs</button>
-                      <button style={tabStyle(mode === 'systemviewer')}   onClick={() => switchMode('systemviewer')}>🌊 Systems</button>
-                      <button style={tabStyle(mode === 'nodefinder')}     onClick={() => switchMode('nodefinder')}>🔍 Nodes</button>
-                      <button style={tabStyle(mode === 'outageviewer')}   onClick={() => switchMode('outageviewer')}>⚠️ Outages</button>
-                    </>
-                  )}
-                </div>
+                {/* Sub-tabs — Network Editor has no sub-tabs here; it owns its own
+                    interaction-mode strip (Move/Waypoints/Create/Delete) inside its
+                    own panel body instead, since it isn't part of the Builder/Explorer
+                    grouping. */}
+                {mode !== 'networkeditor' && (
+                  <div style={{ display: 'flex', borderBottom: `1px solid ${theme.border}`, background: theme.bgDeep }}>
+                    {isBuilder ? (
+                      <>
+                        <button style={tabStyle(mode === 'routebuilder')} onClick={() => safeSwitchMode('routebuilder')}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                          RouteFinder
+                        </button>
+                        <button style={tabStyle(mode === 'routemanual')} onClick={() => switchMode('routemanual')}>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                          RouteManual
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button style={tabStyle(mode === 'countryviewer')}  onClick={() => switchMode('countryviewer')}>🌍 Country</button>
+                        <button style={tabStyle(mode === 'citypair')}       onClick={() => switchMode('citypair')}>🏙 City Pairs</button>
+                        <button style={tabStyle(mode === 'systemviewer')}   onClick={() => switchMode('systemviewer')}>🌊 Systems</button>
+                        <button style={tabStyle(mode === 'nodefinder')}     onClick={() => switchMode('nodefinder')}>🔍 Nodes</button>
+                        <button style={tabStyle(mode === 'outageviewer')}   onClick={() => switchMode('outageviewer')}>⚠️ Outages</button>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             )
           })()}
@@ -1242,6 +1258,13 @@ export default function App() {
                 onSelect={setCountryHighlight}
               />
             )}
+            {mode === 'networkeditor' && isAdmin && (
+              <NetworkEditor
+                nodes={nodes} segments={segments} systems={systems}
+                countryHighlight={countryHighlight} onCountrySelect={setCountryHighlight}
+                selectedSystems={selectedSystems} onToggleSystem={handleToggleSystem}
+              />
+            )}
             {mode === 'outageviewer' && (
               <OutagePanel outages={outages} segments={segments} systems={systems} />
             )}
@@ -1290,8 +1313,10 @@ export default function App() {
             padding: '7px 16px', borderBottom: `1px solid ${theme.border}`,
             display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
           }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Routes</span>
-            {hasResults && response && (
+            <span style={{ fontSize: 11, fontWeight: 700, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              {mode === 'networkeditor' ? 'Network Editor' : 'Routes'}
+            </span>
+            {mode !== 'networkeditor' && hasResults && response && (
               <span style={{ fontSize: 11, color: theme.textFaint }}>
                 <span style={{ color: theme.text, fontWeight: 600 }}>
                   {response.total_found || (response.primary_routes.length + response.diverse_routes.length)}
@@ -1299,16 +1324,24 @@ export default function App() {
                 {searchDuration !== null && <span> · {searchDuration < 1 ? `${(searchDuration * 1000).toFixed(0)}ms` : `${searchDuration.toFixed(2)}s`}</span>}
               </span>
             )}
-            {hasPins    && <span style={{ fontSize: 11, color: theme.textFaintest }}>· {pinnedCircuitCount} pinned</span>}
-            {loading    && <span style={{ fontSize: 11, color: theme.blue }}>Searching…</span>}
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-              {hasPins    && <button onClick={() => { setSldVersion(''); setSldVersionPrompt(true) }} title="Export SLD" style={clearBtnStyle(theme)}>⬡ SLD</button>}
-              {hasResults && <button onClick={clearSearch} style={clearBtnStyle(theme)}>Clear Search</button>}
-              {(hasResults || hasPins) && <button onClick={clearAll} style={clearBtnStyle(theme, true)}>Clear All</button>}
-            </div>
+            {mode !== 'networkeditor' && hasPins    && <span style={{ fontSize: 11, color: theme.textFaintest }}>· {pinnedCircuitCount} pinned</span>}
+            {mode !== 'networkeditor' && loading    && <span style={{ fontSize: 11, color: theme.blue }}>Searching…</span>}
+            {mode !== 'networkeditor' && (
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                {hasPins    && <button onClick={() => { setSldVersion(''); setSldVersionPrompt(true) }} title="Export SLD" style={clearBtnStyle(theme)}>⬡ SLD</button>}
+                {hasResults && <button onClick={clearSearch} style={clearBtnStyle(theme)}>Clear Search</button>}
+                {(hasResults || hasPins) && <button onClick={clearAll} style={clearBtnStyle(theme, true)}>Clear All</button>}
+              </div>
+            )}
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+            {mode === 'networkeditor' ? (
+              <p style={{ color: theme.textFaintest, fontSize: 13, marginTop: 8 }}>
+                Pending changes will appear here once you start moving nodes, editing waypoints, or creating segments on the map.
+              </p>
+            ) : (
+              <>
             {mode === 'systemviewer' && !hasPins && (
               <p style={{ color: theme.textFaintest, fontSize: 13, marginTop: 8 }}>Select a cable system on the left to highlight it on the map.</p>
             )}
@@ -1361,6 +1394,8 @@ export default function App() {
               onSwitchProject={() => { setAddToProjectRoute(null); setEnrichTarget(null); setProjectsOpen(true) }}
               onOpenRefDataForNote={(kind, id) => { setRefDataNoteFocus({ kind, id }); setRefDataOpen(true) }}
             />
+              </>
+            )}
           </div>
         </div>
 
