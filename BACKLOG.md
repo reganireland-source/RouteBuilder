@@ -2,13 +2,14 @@
 
 Everything known-but-not-done, as of 2026-09-14. Ordered by kind.
 
-**Decided 2026-09-14** (product owner): RFS becomes a routing constraint with a
-service date defaulting to today (1.1, in progress); the guide pages get
-brought current (3.1, in progress); the lint debt gets cleared (4.3, in
-progress); `generateUserGuide.ts` is deleted (3.2, done); route-path chains
-stay names-only (1.2, closed). Added since: the coverage import data-loss bug
-gets fixed (2.1, in progress), and a route that uses a not-yet-built segment
-gets an RFS badge showing the quarter it becomes available (1.1, in progress).
+**Status 2026-09-14.** A session rate limit stopped five parallel workstreams
+partway, so several items below are genuinely half-done rather than merely
+planned. What actually landed: the RFS routing constraint backend (1.1, DONE
+and live-verified), `generateUserGuide.ts` deleted (3.2, DONE), route-path
+chains confirmed names-only (1.2, CLOSED), and lint cleared in two of four
+files (4.3, PARTIAL). What was cut off mid-flight: the guide update (3.1,
+PARTIAL), the RFS badge on route cards (1.1, NOT STARTED) and the coverage
+import fix (2.1, NOT STARTED — no code was written for either).
 
 This is the *engineering* backlog. Product ideas from users live in the app's
 own Feature Backlog page (Guide → 📋 Feature Backlog, `/api/feature-requests`),
@@ -19,11 +20,21 @@ and the forward-looking product roadmap lives on the Product Overview page.
 ## 1. Deferred on purpose
 
 ### 1.1 RFS as a routing constraint
-**IN PROGRESS.** Systems and segments carry `rfs_status`
-(`in_service` / `planned`) and `rfs_quarter` (`YYYY-Qn`), backfilled to
-in-service by migration m060. Nothing reads them: `pathfinder.py`, `graph.py`
-and `routes.py` ignore both fields entirely, so a planned cable routes today as
-if it were live.
+**BACKEND DONE. UI REMAINING.** `backend/app/rfs.py` resolves the dates and
+`build_graph` drops out-of-service segments before they become edges; backend
+tests went 29 to 80. Live-verified at the quarter boundary.
+
+Still to do:
+  * The search form does not yet send `service_date`, so nothing filters in the
+    app. The frontend `RouteRequest` type carries the field; SearchForm needs a
+    date input defaulting to today, and App.tsx/MobileLayout need to thread it.
+  * **The RFS badge on route cards is NOT STARTED.** When a future date is set
+    and a returned route uses a planned segment, the card should badge the
+    LATEST RFS quarter on that path (a route is only usable once its last
+    planned piece is in service), in `t.orange`, with a tooltip naming the
+    segments holding it up. A planned segment with a missing quarter should
+    still badge, reading `RFS unknown`. Only render it when a planned segment
+    is actually present, so a normal search is visually unchanged.
 
 Agreed design: a **service date on the search, defaulting to today**, so the
 common case is "only what is in service right now" and you can never quote a
@@ -55,7 +66,8 @@ wrap, and the Segment Breakdown underneath already shows codes.
 ## 2. Bugs
 
 ### 2.1 Coverage CSV import silently wipes node fields — data loss
-**IN PROGRESS.**
+**NOT STARTED** — dispatched but cut off by the rate limit before any code was
+written. Still fully open.
 `backend/app/api/bulk.py:1072` rebuilds each `Node` from only `id, name, lat,
 lng, type, country, owner, trading_name, description, capabilities`. Every node
 touched by a coverage import therefore loses `city`, `street_address`,
@@ -92,7 +104,9 @@ each side rather than radially.
 ## 3. Documentation debt
 
 ### 3.1 Guide pages are behind
-**IN PROGRESS.**
+**PARTIAL.** Some coverage of the recent features landed; the Node Full View
+and Network Editor deep-dive sections were still being written when the run
+stopped. Re-check what is and is not covered before resuming.
 The in-app guide and its print/PDF export were last brought up to date on
 2026-08-04. Since then these shipped and are undocumented: Esri basemaps with
 English labels, segment spotlighting and the 1 Hz route glow, verbose build
@@ -130,11 +144,10 @@ instance using the app's own `mapTileUrl` would make it consistent and remove
 the external dependency.
 
 ### 4.3 Pre-existing lint debt
-**IN PROGRESS.**
-`App.tsx`, `Map.tsx` and `MobileLayout.tsx` carry 32 eslint errors between them
-(mostly `sonarjs/no-nested-conditional`, plus `App.tsx`'s render at cognitive
-complexity 62); `ProductHistory.tsx` has 7 of the same kind. None are new and
-none are bugs, but they mean lint can't be a clean gate in CI until they're
+**PARTIAL — half cleared.** `MobileLayout.tsx` (was 14) and `ProductHistory.tsx`
+(was 7) are now 0. Remaining: `App.tsx` 14 and `Map.tsx` 14, both mostly
+`sonarjs/no-nested-conditional` plus `App.tsx`'s render at cognitive complexity
+62. `UserGuide.tsx` has 2. None are bugs, but lint can't gate CI until they're
 cleared.
 
 ### 4.4 `ALLOW_OPEN_WRITES` is a local-only escape hatch
