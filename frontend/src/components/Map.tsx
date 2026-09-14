@@ -410,7 +410,7 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         50%      { opacity: 0.95; stroke-width: 28; }
       }
       .rb-route-glow {
-        animation: rb-route-glow-pulse 3.6s ease-in-out infinite;
+        animation: rb-route-glow-pulse 1s ease-in-out infinite;
         filter: blur(2px);
       }
       @keyframes rb-segment-glow-pulse {
