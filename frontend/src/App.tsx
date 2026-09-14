@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useAuth } from './context/AuthContext'
 import { NetworkMap } from './components/Map'
@@ -8,6 +8,9 @@ import type { SortKey } from './components/RouteList'
 import { SystemViewer } from './components/SystemViewer'
 import { CountryViewer } from './components/CountryViewer'
 import { NetworkEditor } from './components/NetworkEditor'
+import { EditorPendingPanel } from './components/EditorPendingPanel'
+import { editorReducer, initialEditorState, applyPendingChanges, pendingAffectedIds } from './state/editorState'
+import { saveAll } from './state/networkEditorSave'
 import { RefDataModal } from './components/RefDataModal'
 import { NodeInfoPanel } from './components/NodeInfoPanel'
 import { NodeFinder } from './components/NodeFinder'
@@ -270,6 +273,7 @@ export default function App() {
   // ── Active mode — selects the left panel + map behaviour (see header). ─────
   const [mode, setMode]               = useState<AppMode>('routebuilder')
   const { isAdmin }                   = useAuth()   // gates the admin-only Network Editor tab
+  const [editorState, dispatchEditor] = useReducer(editorReducer, initialEditorState)   // staged Network Editor changes
 
   // ── Reference dataset (loaded from the API on mount, refreshed on edits). ──
   // This is the whole network model the UI renders and searches over.
@@ -362,6 +366,15 @@ export default function App() {
   // True while the user is actively assembling a route by hand in RouteManual.
   const manualBuilding = mode === 'routemanual' && !!manualState
 
+  // Network Editor: the map/panel always render "base data + staged edits" from
+  // one source of truth (see applyPendingChanges) rather than two parallel
+  // mutable arrays — outside this mode it's just a pass-through of the real data.
+  const editorDisplay = useMemo(
+    () => (mode === 'networkeditor' ? applyPendingChanges(nodes, segments, capacity, editorState.pending) : { nodes, segments, capacity }),
+    [mode, nodes, segments, capacity, editorState.pending],
+  )
+  const editorPendingIds = useMemo(() => pendingAffectedIds(editorState.pending), [editorState.pending])
+
   /** Change the active mode and run the side effects each mode needs (clearing
    *  results, resetting highlights, auto-enabling certain toggles, etc.). */
   function switchMode(next: AppMode) {
@@ -376,10 +389,12 @@ export default function App() {
     setMode(next)
   }
 
-  /** Like switchMode, but if the user is mid-build in RouteManual it first pops
-   *  a "discard route?" confirmation instead of silently losing their work. */
+  /** Like switchMode, but if the user is mid-build in RouteManual, or leaving
+   *  Network Editor with unsaved staged changes, it first pops a confirmation
+   *  instead of silently losing their work. */
   function safeSwitchMode(next: AppMode) {
     if (manualBuilding && next !== 'routemanual') { setWarnSwitchMode(next); return }
+    if (mode === 'networkeditor' && editorState.pending.length > 0 && next !== 'networkeditor') { setWarnSwitchMode(next); return }
     switchMode(next)
   }
 
@@ -697,6 +712,33 @@ export default function App() {
     const [n, s, c, sys, r, cfg, o] = await Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules(), api.getConfig(), api.getOutages()])
     setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r); setConfig(cfg); setOutages(o)
   }
+
+  /** Network Editor's Save All: applies every staged change sequentially against
+   *  the real endpoints (see state/networkEditorSave.ts for ordering/partial-
+   *  failure handling), then refetches base data so persisted changes fold into
+   *  it — only genuinely-failed changes are left in the pending list afterward. */
+  async function handleEditorSaveAll() {
+    dispatchEditor({ type: 'SAVE_START' })
+    const result = await saveAll(editorState.pending)
+    if (result.succeededChangeIds.length > 0) await handleDataChange()
+    dispatchEditor({ type: 'SAVE_RESULT', succeededChangeIds: result.succeededChangeIds, errors: result.errors })
+  }
+
+  // Ctrl+Z / Ctrl+Shift+Z (Cmd on Mac) undo/redo for Network Editor — ignored
+  // while typing in a form field so it doesn't fight the browser's own
+  // text-input undo.
+  useEffect(() => {
+    if (mode !== 'networkeditor') return
+    function onKeyDown(e: KeyboardEvent) {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z') return
+      const tag = (e.target as HTMLElement | null)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      e.preventDefault()
+      dispatchEditor({ type: e.shiftKey ? 'REDO' : 'UNDO' })
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [mode])
 
   // Build effective route lookup — swaps path data for flipped pairs while keeping original IDs
   const effectiveRouteById = useMemo<Record<string, Route>>(() => {
@@ -1260,9 +1302,10 @@ export default function App() {
             )}
             {mode === 'networkeditor' && isAdmin && (
               <NetworkEditor
-                nodes={nodes} segments={segments} systems={systems}
+                nodes={editorDisplay.nodes} segments={editorDisplay.segments} systems={systems}
                 countryHighlight={countryHighlight} onCountrySelect={setCountryHighlight}
                 selectedSystems={selectedSystems} onToggleSystem={handleToggleSystem}
+                editorState={editorState} dispatchEditor={dispatchEditor}
               />
             )}
             {mode === 'outageviewer' && (
@@ -1337,9 +1380,11 @@ export default function App() {
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
             {mode === 'networkeditor' ? (
-              <p style={{ color: theme.textFaintest, fontSize: 13, marginTop: 8 }}>
-                Pending changes will appear here once you start moving nodes, editing waypoints, or creating segments on the map.
-              </p>
+              <EditorPendingPanel
+                state={editorState} dispatch={dispatchEditor}
+                nodes={editorDisplay.nodes} segments={editorDisplay.segments}
+                onSaveAll={handleEditorSaveAll}
+              />
             ) : (
               <>
             {mode === 'systemviewer' && !hasPins && (
@@ -1451,8 +1496,8 @@ export default function App() {
 
           {nodes.length > 0 ? (
             <NetworkMap
-              nodes={nodes} segments={segments} selectedRoutes={selectedRoutes}
-              capacity={capacity} pinnedRoutes={pinnedRoutes} selectedSystems={selectedSystems}
+              nodes={editorDisplay.nodes} segments={editorDisplay.segments} selectedRoutes={selectedRoutes}
+              capacity={editorDisplay.capacity} pinnedRoutes={pinnedRoutes} selectedSystems={selectedSystems}
               outages={outages}
               onNodeClick={mode === 'routemanual' ? undefined : (node, x, y) => setSelectedNode({ node, x, y })}
               searchPin={searchPin ?? undefined}
@@ -1470,6 +1515,12 @@ export default function App() {
               manualCandidates={mode === 'routemanual' ? manualCandidates : []}
               onManualNodeClick={mode === 'routemanual' ? handleManualNodeClick : undefined}
               mapsProvider={config.maps_provider}
+              editorMode={mode === 'networkeditor'}
+              editorSubMode={editorState.subMode}
+              editorSelection={editorState.selection}
+              pendingNodeIds={editorPendingIds.nodeIds}
+              onEditorNodeDragEnd={(nodeId, lat, lng, fromLat, fromLng) => dispatchEditor({ type: 'MOVE_NODE', nodeId, lat, lng, fromLat, fromLng })}
+              onEditorNodeSelect={(nodeId) => dispatchEditor({ type: 'SELECT', selection: { kind: 'node', id: nodeId } })}
             />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.textFaint }}>
@@ -1600,19 +1651,27 @@ export default function App() {
             background: theme.bgCard, border: `1px solid ${theme.border}`, borderRadius: 12,
             padding: '28px 24px', width: '100%', maxWidth: 400, boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
           }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: theme.text, marginBottom: 10 }}>Discard route?</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: theme.text, marginBottom: 10 }}>
+              {mode === 'networkeditor' ? 'Discard pending changes?' : 'Discard route?'}
+            </div>
             <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 24, lineHeight: 1.6 }}>
-              You're mid-build in RouteManual. Switching tabs will discard the route in progress.
+              {mode === 'networkeditor'
+                ? `You have ${editorState.pending.length} unsaved change${editorState.pending.length === 1 ? '' : 's'} in Network Editor. Switching tabs will discard ${editorState.pending.length === 1 ? 'it' : 'them'} — nothing has been saved yet.`
+                : "You're mid-build in RouteManual. Switching tabs will discard the route in progress."}
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button
-                onClick={() => { const m = warnSwitchMode; setWarnSwitchMode(null); switchMode(m) }}
+                onClick={() => {
+                  const m = warnSwitchMode; setWarnSwitchMode(null)
+                  if (mode === 'networkeditor') dispatchEditor({ type: 'DISCARD_ALL' })
+                  switchMode(m)
+                }}
                 style={{ flex: 1, padding: '10px', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: 'none', background: theme.red, color: '#fff', fontFamily: 'inherit' }}
-              >Yes, discard route</button>
+              >{mode === 'networkeditor' ? 'Yes, discard changes' : 'Yes, discard route'}</button>
               <button
                 onClick={() => setWarnSwitchMode(null)}
                 style={{ flex: 1, padding: '10px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.border}`, background: 'transparent', color: theme.textMuted, fontFamily: 'inherit' }}
-              >Keep building</button>
+              >{mode === 'networkeditor' ? 'Keep editing' : 'Keep building'}</button>
             </div>
           </div>
         </div>,
