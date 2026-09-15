@@ -143,6 +143,9 @@ export interface MobileLayoutProps {
   onToggleShowPlannedEvents:     () => void
   onToggleSubseaOnly:            () => void
   onToggleBackhaulOnly:          () => void
+  /** "Living World" — the 16-bit ocean easter eggs. On by default. */
+  livingWorld:                   boolean
+  onToggleLivingWorld:           () => void
   onApplySort?:                  (mode: NlpSortMode) => void
   nlpSortKey?:                   SortKey
   nlpPushOutages?:               boolean
@@ -193,9 +196,10 @@ function nextThemeLabel(themeMode: ThemeMode): string {
 function MobileControlsDrawer({
   open, setOpen, t, themeMode,
   showAllOutages, showPlannedEvents, showSegmentLabels, showNodeLabels,
-  hideNonActive, subseaOnly, backhaulOnly,
+  hideNonActive, subseaOnly, backhaulOnly, livingWorld,
   onToggleShowAllOutages, onToggleShowPlannedEvents, onToggleShowSegmentLabels,
   onToggleShowNodeLabels, onToggleHideNonActive, onToggleSubseaOnly, onToggleBackhaulOnly,
+  onToggleLivingWorld,
   onOpenProjects, onOpenCapacity, onOpenRefData, cycleTheme,
 }: {
   open: boolean
@@ -204,6 +208,7 @@ function MobileControlsDrawer({
   themeMode: ThemeMode
   showAllOutages: boolean; showPlannedEvents: boolean; showSegmentLabels: boolean
   showNodeLabels: boolean; hideNonActive: boolean; subseaOnly: boolean; backhaulOnly: boolean
+  livingWorld: boolean
   onToggleShowAllOutages: () => void
   onToggleShowPlannedEvents: () => void
   onToggleShowSegmentLabels: () => void
@@ -211,6 +216,7 @@ function MobileControlsDrawer({
   onToggleHideNonActive: () => void
   onToggleSubseaOnly: () => void
   onToggleBackhaulOnly: () => void
+  onToggleLivingWorld: () => void
   onOpenProjects?: () => void
   onOpenCapacity: () => void
   onOpenRefData: () => void
@@ -307,6 +313,13 @@ function MobileControlsDrawer({
                 active: backhaulOnly,
                 color: t.blue,
                 onClick: () => { onToggleBackhaulOnly(); setOpen(false) },
+              },
+              {
+                label: 'Living World',
+                icon: '🐋',
+                active: livingWorld,
+                color: t.green,
+                onClick: () => { onToggleLivingWorld(); setOpen(false) },
               },
             ].map(item => (
               <button
@@ -559,7 +572,7 @@ export function MobileLayout({
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
   switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowNodeLabels, onToggleShowAllOutages,
   onToggleShowPlannedEvents,
-  onToggleSubseaOnly, onToggleBackhaulOnly,
+  onToggleSubseaOnly, onToggleBackhaulOnly, livingWorld, onToggleLivingWorld,
   onApplySort, nlpSortKey, nlpPushOutages, optimiseFor, flippedPairIds, onFlipPair,
   onAddToProject, onEnrichCircuit, onOpenProjects, activeProject, onExitProjectMode, onSwitchProject, onOpenGuide,
   manualState, manualCandidates = [], manualResults = [], onManualNodeClick,
@@ -643,6 +656,7 @@ export function MobileLayout({
       <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
         {nodes.length > 0 ? (
           <NetworkMap
+            livingWorld={livingWorld}
             nodes={nodes}
             segments={visibleSegments ?? segments}
             selectedRoutes={selectedRoutes}
@@ -747,6 +761,8 @@ export function MobileLayout({
         onToggleHideNonActive={onToggleHideNonActive}
         onToggleSubseaOnly={onToggleSubseaOnly}
         onToggleBackhaulOnly={onToggleBackhaulOnly}
+        livingWorld={livingWorld}
+        onToggleLivingWorld={onToggleLivingWorld}
         onOpenProjects={onOpenProjects}
         onOpenCapacity={() => setCapDashOpen(true)}
         onOpenRefData={onOpenRefData}

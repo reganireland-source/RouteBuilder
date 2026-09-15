@@ -67,6 +67,7 @@ import type { ManualState, NextHopCandidate } from './RouteManual'
 import { useSegmentHover } from '../context/SegmentHoverContext'
 import { normalizeLng, geoLines, NODE_STYLE, NODE_TYPE_LABEL } from '../mapGeometry'
 import { EditorMapLayer } from './EditorMapLayer'
+import { LivingWorldLayer } from './LivingWorldLayer'
 import type { EditorSubMode, EditorSelection, SegmentDraft } from '../state/editorState'
 import { emptySegmentDraft } from '../state/editorState'
 
@@ -105,6 +106,10 @@ interface Props {
    *  open. Used on mobile, where opening the full node panel would cover the
    *  map and hide the fly-to the user just asked for. */
   spotlightNodeId?: string | null
+  /** "Living World" — the 16-bit ocean easter eggs. On by default; see
+   *  LivingWorldLayer.tsx. Purely decorative and in its own non-interactive
+   *  pane, so it changes nothing about how the map behaves. */
+  livingWorld?: boolean
   searchPin?: { lat: number; lng: number; label: string }
   nearestNodeIds?: string[]
   hideNonActive?: boolean
@@ -410,7 +415,7 @@ function NodeTypeLegend({ narrow }: { narrow: boolean }) {
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, flyToNode, fitBounds, spotlightNodeId, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
   const t = useTheme()
   const narrowViewport = useNarrowViewport()
   const { hoveredSegmentId } = useSegmentHover()
@@ -975,6 +980,11 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
           />
         ))
       })()}
+
+      {/* ── Living World — decorative sprites in their own pane under the
+             cables. Off in Network Editor: that mode is for precise work and
+             a passing whale is a distraction there. ── */}
+      {livingWorld && !editorMode && <LivingWorldLayer nodes={nodes} />}
 
       {/* ── Network Editor overlay — see EditorMapLayer.tsx ── */}
       {editorMode && (

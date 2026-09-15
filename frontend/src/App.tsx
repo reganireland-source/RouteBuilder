@@ -137,6 +137,17 @@ const SYSTEM_COLORS = ['#89b4fa', '#a6e3a1', '#f9e2af', '#94e2d5', '#cba6f7']
  *  Used to detect "is this exact path already pinned?" regardless of object id. */
 function routeKey(r: Route) { return r.nodes.join('|') }
 
+/** localStorage key for the Living World toggle. */
+const LIVING_WORLD_KEY = 'rb.livingWorld'
+
+/** Living World is ON unless this browser has explicitly turned it off. Reads
+ *  defensively: storage throws in a private window, and the failure mode there
+ *  should be "you get whales", not "the app does not start". */
+function loadLivingWorld(): boolean {
+  try { return localStorage.getItem(LIVING_WORLD_KEY) !== '0' }
+  catch { return true }
+}
+
 /** The palette object for a theme mode. */
 function themeFor(mode: ThemeMode): Theme {
   if (mode === 'dark') return darkTheme
@@ -365,6 +376,16 @@ export default function App() {
   const theme = themeFor(themeMode)
   function cycleTheme() { setThemeMode(m => nextThemeMode(m)) }
 
+  // Persist the Living World choice. Wrapped because storage throws in a
+  // private window and a decorative toggle must never take the app down.
+  function toggleLivingWorld() {
+    setLivingWorld(on => {
+      const next = !on
+      try { localStorage.setItem(LIVING_WORLD_KEY, next ? '1' : '0') } catch { /* private mode */ }
+      return next
+    })
+  }
+
   // ── Modal / overlay open-state flags ──────────────────────────────────────
   // Each boolean toggles a full-screen modal (ref-data editor, guide, projects,
   // capacity dashboard, algo-eval, SLD export prompt, etc.).
@@ -536,6 +557,11 @@ export default function App() {
   const [showPlannedEvents, setShowPlannedEvents]   = useState(false)  // show future planned network events (maintenance windows); separate, manually-controlled toggle — NOT auto-enabled by outageviewer mode
   const [subseaOnly, setSubseaOnly]                 = useState(false)  // draw only wet (submarine) segments
   const [backhaulOnly, setBackhaulOnly]             = useState(false)  // draw only terrestrial (backhaul) segments
+  // "Living World" — the 16-bit ocean easter eggs (see LivingWorldLayer.tsx).
+  // ON by default: it is meant to be found rather than opted into. The choice
+  // is remembered per browser, because someone who turns whales off wants them
+  // to stay off, and someone who never touches it never sees a prompt.
+  const [livingWorld, setLivingWorld]               = useState(loadLivingWorld)
   const [nlpSortKey, setNlpSortKey]                 = useState<SortKey | undefined>(undefined)   // sort key requested by the NLP assistant
   const [nlpPushOutages, setNlpPushOutages]         = useState<boolean | undefined>(undefined)   // push outage-affected routes down, requested by NLP
   const [countryHighlight, setCountryHighlight]     = useState<CountryHighlight | null>(null)     // country selected in countryviewer mode
@@ -1118,6 +1144,8 @@ export default function App() {
           onToggleSubseaOnly={() => { setSubseaOnly(v => !v); if (!subseaOnly) setBackhaulOnly(false) }}
           backhaulOnly={backhaulOnly}
           onToggleBackhaulOnly={() => { setBackhaulOnly(v => !v); if (!backhaulOnly) setSubseaOnly(false) }}
+          livingWorld={livingWorld}
+          onToggleLivingWorld={toggleLivingWorld}
           onApplySort={handleApplySort}
           nlpSortKey={nlpSortKey}
           nlpPushOutages={nlpPushOutages}
@@ -1291,6 +1319,9 @@ export default function App() {
 
         {/* Top-right control menu */}
         {(() => {
+          // Living World is deliberately absent: it is ON by default, so counting it
+          // would pin a permanent "1" on the Controls button and make the badge
+          // stop meaning "you have changed something".
           const activeToggles = [showAllOutages, showPlannedEvents, hideNonActive, showSegmentLabels, showNodeLabels, subseaOnly, backhaulOnly].filter(Boolean).length
           return (
             <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 1000 }}>
@@ -1343,6 +1374,7 @@ export default function App() {
                       { label: 'Node Labels',      icon: showNodeLabels     ? '◉' : '◎', active: showNodeLabels,     color: theme.blue, onClick: () => setShowNodeLabels(v => !v) },
                       { label: 'Subsea Only',      icon: '🌊', active: subseaOnly,   color: theme.blue, onClick: () => { setSubseaOnly(v => !v);   if (!subseaOnly)   setBackhaulOnly(false) } },
                       { label: 'Backhaul Only',    icon: '🗺',  active: backhaulOnly, color: theme.blue, onClick: () => { setBackhaulOnly(v => !v); if (!backhaulOnly) setSubseaOnly(false)  } },
+                      { label: 'Living World',     icon: '🐋', active: livingWorld,  color: theme.green, onClick: toggleLivingWorld },
                     ].map(item => (
                       <button
                         key={item.label}
@@ -1804,6 +1836,7 @@ export default function App() {
               flyToNode={flyToNode}
               fitBounds={fitBounds}
               spotlightNodeId={spotlightNodeId}
+              livingWorld={livingWorld}
               bannerOffset={isFutureView(serviceChoice)}
               onNodeClick={mode === 'routemanual' ? undefined : (node, x, y) => setSelectedNode({ node, x, y })}
               searchPin={searchPin ?? undefined}

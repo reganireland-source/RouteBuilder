@@ -143,6 +143,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       desc: `Toggle any of the ${systemCount} cable systems on the live map to explore coverage, topology and branching unit structure — ideal for network briefings and customer conversations.` },
     { icon: '🔍', title: 'Node Lookup & Nearest-Node Search',
       desc: `Network Explorer → Nodes takes either kind of question. Type a node code you already know — SYD1, TUAS, PALI — and the map flies straight to it and opens it; half-remembered codes are offered as a tappable shortlist as you type. Type a customer address or a lat/lng pair instead and it finds the nearest landing stations and PoPs, showing owner, trading name, node type and straight-line distance. Either way, one click sets the node as Origin or Destination and you are in a route search.` },
+    { icon: '🐋', title: 'Living World',
+      desc: 'The ocean is not empty. With Living World on — it is, by default — 16-bit container ships, whales, dolphins, sailing yachts and cable-lay vessels drift across open water, with rarer sightings for the patient: a pirate ship, a submarine, a sea serpent, a kraken, and one thing that is not a boat at all. They draw beneath every cable and node, ignore clicks entirely, never appear on land and never sit on top of a site, so they cost you nothing if you ignore them. Turn it off under Controls → Living World.' },
     { icon: '⛶', title: 'Segment Full View',
       desc: 'The ⛶ on any Segment Breakdown row — or on any segment in a node\'s capacity list — opens a page for that one cable section: a stylised drawing of the segment with every waypoint in its true proportional place, both endpoints in full, the routing metrics, capacity, the RFS/EOL lifecycle resolved against the parent cable system, parallel segments, outages and solution notes. It also cross-checks the stored length against the path the waypoints actually describe and flags a disagreement over 10%. Endpoints open the node Full View and vice versa, so you can walk the network either way. Admins can edit the segment, waypoints included, in place.' },
     { icon: '⛶', title: 'Node Full View',
@@ -2936,6 +2938,49 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         </div>
       </div>
 
+      {/* ── Living World ── */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel}>Living World — The Ocean Is Not Empty</div>
+        <div style={{ ...card(), background: '#07202a', border: '1px solid #1d5f6e' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 22 }}>🐋</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Pixel-art sightings on open water</div>
+              <div style={{ fontSize: 11, color: 'rgba(160,225,235,0.8)', marginTop: 2 }}>
+                On by default · Controls → 🐋 Living World to switch it off
+              </div>
+            </div>
+          </div>
+          <p style={{ fontSize: 11, color: 'rgba(175,225,235,0.85)', lineHeight: 1.7, margin: '0 0 14px' }}>
+            Watch the map for a while and things start happening on it. A container ship crosses the Coral Sea. A whale surfaces off Guam with a spout. A cable-lay vessel pays cable off its stern. Stay long enough and something with tentacles comes up in the middle of the Pacific.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+            {[
+              { icon: '🚢', label: 'Common sightings', desc: 'Container ships, sailing yachts, humpback whales and leaping dolphins — the everyday traffic. Icebergs, but only in the Southern Ocean and the Labrador Sea.' },
+              { icon: '🦈', label: 'Rarer ones', desc: 'A cable-lay vessel, a submarine, a pirate ship under full sail, and a shark taking an interest in the armouring — which is a real thing that happens to real cables.' },
+              { icon: '🐙', label: 'If you are patient', desc: 'A sea serpent. A kraken. And one sighting logged only as "Unidentified", which is not a boat and has no business being over the Pacific.' },
+              { icon: '🚫', label: 'It stays out of your way', desc: 'Sprites draw in their own map layer BENEATH every cable and node, ignore mouse clicks entirely, never appear over land, and are refused a spot within 44px of a site. Nothing you can do to the map is affected by them.' },
+            ].map(({ icon, label, desc }) => (
+              <div key={label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 7, padding: '10px 12px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+                  <span style={{ fontSize: 14 }}>{icon}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#bfeaf2' }}>{label}</span>
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(165,215,230,0.78)', lineHeight: 1.55 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' as const }}>
+            <div style={{ flex: 1, minWidth: 220, background: 'rgba(148,163,184,0.1)', border: '1px solid rgba(148,163,184,0.3)', borderRadius: 7, padding: '10px 12px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#cbd5e1', marginBottom: 4 }}>🔕 Turning it off</div>
+              <div style={{ fontSize: 10, color: 'rgba(203,213,225,0.8)', lineHeight: 1.55 }}>
+                Controls → 🐋 Living World. Everything on screen disappears at once and the layer is removed entirely. The choice is remembered on this browser, so it stays off until you turn it back on. It is also off automatically inside the Network Editor, where precise work should not have a whale drifting through it, and it respects your system's "reduce motion" setting: sprites still appear and fade, they just stop drifting.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ── Visual Network Editor ── */}
       <div style={{ marginBottom: 32 }}>
         <div style={sectionLabel}>Visual Network Editor — Admin Only</div>
@@ -3023,6 +3068,11 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               icon: '🌊 / 🏗',
               title: 'Subsea Only & Backhaul Only',
               desc: 'Two filter toggles in the top-right control bar. Active only when Country Viewer is running. Subsea Only hides terrestrial routes; Backhaul Only hides subsea. Activating one clears the other.',
+            },
+            {
+              icon: '🐋',
+              title: 'Living World',
+              desc: 'On by default. Every so often a pixel-art ship, whale or something stranger drifts across the open ocean. Purely decorative: the sprites sit in their own map layer UNDER every cable and node, they cannot be clicked, and they never appear on land or on top of a site. Switch it off in the Controls menu — the choice is remembered on this browser.',
             },
             {
               icon: '🏷',
