@@ -260,14 +260,33 @@ function Field({ label, val, k, src, setSrc, readOnly = false, type = 'text', op
 }
 
 /**
- * Ready for Service status + quarter, for CableSystem/CableSegment forms.
- * Not a plain <Field> because the two fields are cross-validated server-side
- * (rfs_quarter required iff rfs_status='planned', must be empty otherwise —
- * see backend/app/models.py's _check_rfs_quarter): switching back to
- * "In Service" here also clears any stale quarter value in the same edit,
- * so the form can't silently drift into that invalid combination.
+ * One status+quarter lifecycle pair — Ready for Service, or End of Life.
+ *
+ * Not a plain <Field> because the two halves are cross-validated server-side
+ * (the quarter is required iff the status is the non-default one, and must be
+ * empty otherwise — see backend/app/models.py). Switching back to the default
+ * here also clears any stale quarter in the same edit, so the form cannot
+ * silently drift into a combination the API will reject.
+ *
+ * RFS and EOL are exact mirrors of each other, so they share this component
+ * rather than carrying two near-identical copies that could drift apart.
  */
-function RfsFields({ src, setSrc }: { src: Record<string, unknown>; setSrc: (v: Record<string, unknown>) => void }) {
+function StatusQuarterPair({
+  src, setSrc, statusKey, quarterKey, label, quarterLabel, defaultValue, activeValue, options, placeholder,
+}: {
+  src: Record<string, unknown>
+  setSrc: (v: Record<string, unknown>) => void
+  statusKey: string
+  quarterKey: string
+  label: string
+  quarterLabel: string
+  /** The status meaning "no constraint" — selecting it clears the quarter. */
+  defaultValue: string
+  /** The status that REQUIRES a quarter. */
+  activeValue: string
+  options: [string, string][]
+  placeholder: string
+}) {
   const t = useTheme()
   const inputStyle: React.CSSProperties = {
     background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 3,
@@ -275,33 +294,65 @@ function RfsFields({ src, setSrc }: { src: Record<string, unknown>; setSrc: (v: 
     fontFamily: 'inherit',
   }
   const labelStyle: React.CSSProperties = { fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }
-  const isPlanned = src.rfs_status === 'planned'
-  const quarterValid = !isPlanned || /^\d{4}-Q[1-4]$/.test(String(src.rfs_quarter ?? ''))
+  const isActive = src[statusKey] === activeValue
+  const quarterValid = !isActive || /^\d{4}-Q[1-4]$/.test(String(src[quarterKey] ?? ''))
 
   return (
     <>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <label style={labelStyle}>Ready for Service</label>
+        <label style={labelStyle}>{label}</label>
         <select
           style={inputStyle}
-          value={String(src.rfs_status ?? 'in_service')}
-          onChange={e => setSrc({ ...src, rfs_status: e.target.value, ...(e.target.value === 'in_service' ? { rfs_quarter: null } : {}) })}
+          value={String(src[statusKey] ?? defaultValue)}
+          onChange={e => setSrc({
+            ...src,
+            [statusKey]: e.target.value,
+            ...(e.target.value === defaultValue ? { [quarterKey]: null } : {}),
+          })}
         >
-          <option value="in_service">In Service</option>
-          <option value="planned">Planned</option>
+          {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
       </div>
-      {isPlanned && (
+      {isActive && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <label style={labelStyle}>RFS Quarter</label>
+          <label style={labelStyle}>{quarterLabel}</label>
           <input
             style={{ ...inputStyle, border: `1px solid ${quarterValid ? t.border : t.red}` }}
-            type="text" autoComplete="off" placeholder="2027-Q3"
-            value={String(src.rfs_quarter ?? '')}
-            onChange={e => setSrc({ ...src, rfs_quarter: e.target.value })}
+            type="text" autoComplete="off" placeholder={placeholder}
+            value={String(src[quarterKey] ?? '')}
+            onChange={e => setSrc({ ...src, [quarterKey]: e.target.value })}
           />
         </div>
       )}
+    </>
+  )
+}
+
+/**
+ * Both lifecycle dates for a CableSystem or CableSegment: when it enters
+ * service and when it leaves. Together they define the window in which the
+ * asset can carry traffic, which is what the Current/Planned selector filters
+ * on (see utils/serviceDate.ts).
+ */
+function RfsFields({ src, setSrc }: { src: Record<string, unknown>; setSrc: (v: Record<string, unknown>) => void }) {
+  return (
+    <>
+      <StatusQuarterPair
+        src={src} setSrc={setSrc}
+        statusKey="rfs_status" quarterKey="rfs_quarter"
+        label="Ready for Service" quarterLabel="RFS Quarter"
+        defaultValue="in_service" activeValue="planned"
+        options={[['in_service', 'In Service'], ['planned', 'Planned']]}
+        placeholder="2027-Q3"
+      />
+      <StatusQuarterPair
+        src={src} setSrc={setSrc}
+        statusKey="eol_status" quarterKey="eol_quarter"
+        label="End of Life" quarterLabel="EOL Quarter"
+        defaultValue="active" activeValue="eol"
+        options={[['active', 'Active'], ['eol', 'Scheduled EOL']]}
+        placeholder="2030-Q4"
+      />
     </>
   )
 }
