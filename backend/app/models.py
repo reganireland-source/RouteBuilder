@@ -76,7 +76,12 @@ class UnderlayCapabilities(BaseModel):
 
 
 class ColocationCapabilities(BaseModel):
-    category: int  # 1–5
+    # Constrained, not a bare int: the five categories are a closed set with
+    # named meanings (see COLO_LABELS in the frontend's ProductCoverageMatrix),
+    # and an unbounded int let the API accept "Cat 99", which then rendered
+    # against an undefined label. The frontend type has always said 1-5; this
+    # makes the backend agree rather than trusting the client to.
+    category: int = Field(ge=1, le=5)
 
 
 class NodeCapabilities(BaseModel):
