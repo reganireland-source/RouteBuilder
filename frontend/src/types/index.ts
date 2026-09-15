@@ -49,6 +49,9 @@ export type VerificationStatus = 'draft' | 'under_verification' | 'verified'
  * "2027-Q3"). Not yet a route-search constraint — just recorded for now.
  */
 export type RfsStatus = 'in_service' | 'planned'
+/** End of Life — the mirror of RfsStatus. 'active' never retires; 'eol' retires
+ *  at the end of its `eol_quarter`. See utils/serviceDate.ts. */
+export type EolStatus = 'active' | 'eol'
 /** Segment medium: 'wet' = submarine cable section, 'terrestrial' = land fibre. */
 export type SegmentType = 'wet' | 'terrestrial'
 /**
@@ -164,6 +167,8 @@ export interface CableSystem {
   description: string
   margin?: number
   rfs_status?: RfsStatus
+  eol_status?: EolStatus
+  eol_quarter?: string | null
   rfs_quarter?: string | null
 }
 
@@ -193,6 +198,8 @@ export interface CableSegment {
   verification_status?: VerificationStatus
   last_verified_date?: string
   rfs_status?: RfsStatus
+  eol_status?: EolStatus
+  eol_quarter?: string | null
   rfs_quarter?: string | null
 }
 

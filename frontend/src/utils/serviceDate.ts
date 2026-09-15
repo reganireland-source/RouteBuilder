@@ -9,6 +9,10 @@
  * the failure mode to avoid is the map showing a cable the router refuses to
  * use, or the reverse.
  *
+ * There are TWO constraints, and a segment must pass both to be usable:
+ * RFS (is it built yet?) and EOL (has it been retired?). They are deliberate
+ * mirrors of each other — see the EOL block below.
+ *
  * THE RULES (identical to backend/app/rfs.py — change both together)
  *   • A segment is unavailable when its effective RFS date is AFTER the
  *     requested service date.
@@ -85,7 +89,71 @@ export function filterSegmentsInService(
   serviceDate: string | null,
 ): CableSegment[] {
   if (!serviceDate) return segments
-  return segments.filter(s => isSegmentInServiceOn(s, systemsById[s.system_id], serviceDate))
+  // Both halves: not-yet-built and already-retired are equally unusable.
+  return segments.filter(s => isSegmentUsableOn(s, systemsById[s.system_id], serviceDate))
+}
+
+// ── End of Life — the mirror of RFS ─────────────────────────────────────────
+//
+// RFS excludes cables that do not exist YET. EOL excludes cables that will be
+// GONE by the date you are asking about. Every rule is the reverse:
+//
+//   • unusable when the effective EOL date is BEFORE the service date
+//     (RFS: unusable when the effective RFS date is AFTER it)
+//   • effective EOL is the EARLIER of the segment's own and its system's — a
+//     segment cannot outlive the cable it belongs to, so the system is a
+//     CEILING here where for RFS it is a floor
+//   • a quarter still resolves to its LAST day: a cable retiring in 2027-Q2 is
+//     usable through 30 June and gone from 1 July
+//   • 'active' contributes no constraint — it never retires
+//   • an 'eol' row with a missing or malformed quarter is treated as ALREADY
+//     RETIRED, mirroring RFS's "planned with an unparseable quarter is never in
+//     service". In both directions the rule is the same: if we cannot tell when
+//     a cable is usable, we do not offer it.
+
+/** Sorts after every real date — "never retires". */
+const NEVER_RETIRES = '9999-12-31'
+/** Sorts before every real date — "already gone". */
+const ALREADY_RETIRED = '0000-01-01'
+
+/** One row's EOL date as a comparable ISO string. */
+function eolDate(status: string | null | undefined, quarter: string | null | undefined): string {
+  if (status !== 'eol') return NEVER_RETIRES
+  return quarterEndDate(quarter) ?? ALREADY_RETIRED
+}
+
+/**
+ * The EARLIER of a segment's own EOL and its owning system's — a segment dies
+ * with its cable, whichever goes first.
+ */
+export function effectiveEolDate(segment: CableSegment, system?: CableSystem): string {
+  const segDate = eolDate(segment.eol_status, segment.eol_quarter)
+  if (!system) return segDate
+  const sysDate = eolDate(system.eol_status, system.eol_quarter)
+  return segDate < sysDate ? segDate : sysDate
+}
+
+/** Has this segment been retired by `serviceDate`? Null date means "no filter". */
+export function isSegmentRetiredOn(
+  segment: CableSegment,
+  system: CableSystem | undefined,
+  serviceDate: string | null,
+): boolean {
+  if (!serviceDate) return false
+  return effectiveEolDate(segment, system) < serviceDate
+}
+
+/**
+ * The single usability test: built by this date AND not yet retired. Every
+ * surface should ask this rather than either half on its own.
+ */
+export function isSegmentUsableOn(
+  segment: CableSegment,
+  system: CableSystem | undefined,
+  serviceDate: string | null,
+): boolean {
+  return isSegmentInServiceOn(segment, system, serviceDate)
+    && !isSegmentRetiredOn(segment, system, serviceDate)
 }
 
 // ── Quarter helpers for the selector ────────────────────────────────────────
