@@ -50,10 +50,7 @@ import type { AssetHit } from '../utils/assetSearch'
 import { ServiceDateSelector } from './ServiceDateSelector'
 import { FutureNetworkBanner } from './FutureNetworkBanner'
 import { CURRENT_CHOICE, type ServiceDateChoice } from '../utils/serviceDate'
-import { RefDataModal } from './RefDataModal'
 import { HealthBar } from './HealthBar'
-import { CapacityDashboard } from './CapacityDashboard'
-import { generateStraightLineDiagram } from '../utils/generateDiagram'
 import { useTheme } from '../theme'
 import type { ThemeMode } from '../theme'
 import type {
@@ -61,6 +58,11 @@ import type {
   NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage,
   SelectedSystem, DiversityType, HazardFeed,
 } from '../types'
+
+// Lazily, for the same reason App.tsx does: an eager import on EITHER side
+// puts the module back in the initial bundle and cancels the other's split.
+const RefDataModal = lazy(() => import('./RefDataModal').then(m => ({ default: m.RefDataModal })))
+const CapacityDashboard = lazy(() => import('./CapacityDashboard').then(m => ({ default: m.CapacityDashboard })))
 
 const NLP_ENABLED = import.meta.env.VITE_ENABLE_NLP !== 'false'
 const NlpChat = NLP_ENABLED
@@ -1102,20 +1104,24 @@ export function MobileLayout({
 
       {/* ── Capacity dashboard ──────────────────────────────────────────── */}
       {capDashOpen && (
-        <CapacityDashboard
-          segments={segments} capacity={capacity}
-          onClose={() => setCapDashOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <CapacityDashboard
+            segments={segments} capacity={capacity}
+            onClose={() => setCapDashOpen(false)}
+          />
+        </Suspense>
       )}
 
       {/* ── Ref data modal ──────────────────────────────────────────────── */}
       {refDataOpen && (
-        <RefDataModal
-          nodes={nodes} segments={segments} systems={systems}
-          capacity={capacity} outages={outages} rules={rules} config={config}
-          onDataChange={onDataChange}
-          onClose={onCloseRefData}
-        />
+        <Suspense fallback={null}>
+          <RefDataModal
+            nodes={nodes} segments={segments} systems={systems}
+            capacity={capacity} outages={outages} rules={rules} config={config}
+            onDataChange={onDataChange}
+            onClose={onCloseRefData}
+          />
+        </Suspense>
       )}
 
       {/* ── Route-switch warning ────────────────────────────────────────────── */}
@@ -1186,7 +1192,7 @@ export function MobileLayout({
             />
             <div style={{ display: 'flex', gap: 10 }}>
               <button
-                onClick={() => { generateStraightLineDiagram(pinnedRoutes, nodes, sldVersion || undefined); setSldVersionPrompt(false) }}
+                onClick={async () => { const { generateStraightLineDiagram } = await import('../utils/generateDiagram'); generateStraightLineDiagram(pinnedRoutes, nodes, sldVersion || undefined); setSldVersionPrompt(false) }}
                 style={{ flex: 1, padding: '10px', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: 'none', background: t.blue, color: t.bgCard, fontFamily: 'inherit' }}
               >Generate PDF</button>
               <button

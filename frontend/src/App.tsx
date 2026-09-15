@@ -11,14 +11,11 @@ import { NetworkEditor } from './components/NetworkEditor'
 import { EditorPendingPanel } from './components/EditorPendingPanel'
 import { editorReducer, initialEditorState, applyPendingChanges, pendingAffectedIds } from './state/editorState'
 import { saveAll } from './state/networkEditorSave'
-import { RefDataModal } from './components/RefDataModal'
 import { NodeInfoPanel } from './components/NodeInfoPanel'
 import { NodeFinder } from './components/NodeFinder'
 import { CityPairPanel } from './components/CityPairPanel'
 import { HealthBar } from './components/HealthBar'
 import { MobileLayout } from './components/MobileLayout'
-import { CapacityDashboard } from './components/CapacityDashboard'
-import { UserGuide } from './components/UserGuide'
 import { AssetSearch } from './components/AssetSearch'
 import { parseCityId, type AssetHit } from './utils/assetSearch'
 import { ServiceDateSelector } from './components/ServiceDateSelector'
@@ -29,8 +26,6 @@ import {
 } from './utils/serviceDate'
 import { normalizeLng } from './mapGeometry'
 import { useSegmentHover } from './context/SegmentHoverContext'
-import { AlgoEval } from './components/AlgoEval'
-import { generateStraightLineDiagram, generateSldFromProject, generateDrawioXml, generateVisioVsdx } from './utils/generateDiagram'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, useTheme, type Theme, type ThemeMode } from './theme'
 import { useHazards } from './hooks/useHazards'
@@ -128,6 +123,25 @@ const NlpChat = NLP_ENABLED
   ? lazy(() => import('./components/NlpChat'))
   : null
 
+/**
+ * The four heaviest screens, loaded on demand.
+ *
+ * All of them live behind a click and most sessions never open any: the guide
+ * is 272 KB of source, Reference Data 153 KB, the algorithm evaluator 110 KB.
+ * Shipping them in the initial bundle made every visitor download an admin
+ * editor and a documentation site to look at a map. Each becomes its own chunk,
+ * fetched the first time it is opened — by which point the user has clicked a
+ * button and a few hundred milliseconds is invisible.
+ *
+ * `Suspense fallback={null}` is deliberate: these are modals over an app that
+ * is already drawn, so a spinner would be a flash of chrome announcing
+ * something the click already implied.
+ */
+const UserGuide = lazy(() => import('./components/UserGuide').then(m => ({ default: m.UserGuide })))
+const RefDataModal = lazy(() => import('./components/RefDataModal').then(m => ({ default: m.RefDataModal })))
+const AlgoEval = lazy(() => import('./components/AlgoEval').then(m => ({ default: m.AlgoEval })))
+const CapacityDashboard = lazy(() => import('./components/CapacityDashboard').then(m => ({ default: m.CapacityDashboard })))
+
 // Palette cycled through when assigning a distinct colour to each pinned route.
 const PIN_COLORS    = ['#f9e2af', '#94e2d5', '#cba6f7', '#f2cdcd', '#eba0ac', '#89dceb', '#a6e3a1', '#fab387', '#cdd6f4', '#b4befe']
 // Hard cap on how many routes can be pinned/compared on the map at once.
@@ -141,6 +155,17 @@ function routeKey(r: Route) { return r.nodes.join('|') }
 
 /** localStorage key for the Living World toggle. */
 const LIVING_WORLD_KEY = 'rb.livingWorld'
+/**
+ * Load the SLD exporters on demand.
+ *
+ * `utils/generateDiagram.ts` pulls in jsPDF and JSZip, which together are a
+ * large fraction of the bundle — and exporting a diagram is a rare, deliberate
+ * action, not something every visitor does. Importing it lazily keeps that
+ * weight out of the initial download for everyone who never presses Export.
+ * Vite splits it into its own chunk automatically.
+ */
+const loadExporters = () => import('./utils/generateDiagram')
+
 /** Shared empty list, so "no hazards" is one stable reference. */
 const EMPTY_HAZARDS: Hazard[] = []
 
@@ -443,6 +468,8 @@ export default function App() {
   const [response, setResponse]       = useState<RouteResponse | null>(null)   // last search result (primary + diverse routes)
   const [selectedRouteIds, setSelectedRouteIds] = useState<string[]>([])        // which result cards are ticked (drawn live on map)
   const [pinnedRoutes, setPinnedRoutes]         = useState<PinnedRoute[]>([])    // routes kept on the map across searches (see header)
+
+
   const [cachedProjects, setCachedProjects]     = useState<import('./types').Project[] | null>(null) // projects list cache for the ProjectsModal
   const [selectedSystems, setSelectedSystems]   = useState<SelectedSystem[]>([]) // cable systems highlighted in systemviewer mode
   const [loading, setLoading]   = useState(false)   // a search is in flight
@@ -1253,7 +1280,7 @@ export default function App() {
               }}
               title="Close guide"
             >×</button>
-            <UserGuide nodes={nodes} segments={segments} systems={systems} />
+            <Suspense fallback={null}><UserGuide nodes={nodes} segments={segments} systems={systems} /></Suspense>
           </div>,
           document.body
         )}
@@ -1946,27 +1973,33 @@ export default function App() {
       )}
 
       {capDashOpen && (
-        <CapacityDashboard
-          segments={segments} capacity={capacity}
-          onClose={() => setCapDashOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <CapacityDashboard
+            segments={segments} capacity={capacity}
+            onClose={() => setCapDashOpen(false)}
+          />
+        </Suspense>
       )}
 
       {algoEvalOpen && (
-        <AlgoEval
-          nodes={nodes} segments={segments} systems={systems}
-          onClose={() => setAlgoEvalOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <AlgoEval
+            nodes={nodes} segments={segments} systems={systems}
+            onClose={() => setAlgoEvalOpen(false)}
+          />
+        </Suspense>
       )}
 
       {refDataOpen && (
-        <RefDataModal
-          nodes={nodes} segments={segments} systems={systems}
-          capacity={capacity} outages={outages} rules={rules} config={config}
-          onDataChange={handleDataChange}
-          initialNoteFocus={refDataNoteFocus ?? undefined}
-          onClose={() => { setRefDataOpen(false); setRefDataNoteFocus(null) }}
-        />
+        <Suspense fallback={null}>
+          <RefDataModal
+            nodes={nodes} segments={segments} systems={systems}
+            capacity={capacity} outages={outages} rules={rules} config={config}
+            onDataChange={handleDataChange}
+            initialNoteFocus={refDataNoteFocus ?? undefined}
+            onClose={() => { setRefDataOpen(false); setRefDataNoteFocus(null) }}
+          />
+        </Suspense>
       )}
 
       {projectsOpen && (
@@ -2108,16 +2141,20 @@ export default function App() {
               onChange={e => setSldVersion(e.target.value)}
               onKeyDown={e => {
                 if (e.key === 'Enter') {
-                  if (activeProject) generateSldFromProject(activeProject, pinnedRoutes, nodes, sldVersion || undefined)
-                  else generateStraightLineDiagram(pinnedRoutes, nodes, sldVersion || undefined)
-                  setSldVersionPrompt(false)
+                  void (async () => {
+                    const { generateSldFromProject, generateStraightLineDiagram } = await loadExporters()
+                    if (activeProject) generateSldFromProject(activeProject, pinnedRoutes, nodes, sldVersion || undefined)
+                    else generateStraightLineDiagram(pinnedRoutes, nodes, sldVersion || undefined)
+                    setSldVersionPrompt(false)
+                  })()
                 }
                 if (e.key === 'Escape') setSldVersionPrompt(false)
               }}
             />
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <button
-                onClick={() => {
+                onClick={async () => {
+                  const { generateSldFromProject, generateStraightLineDiagram } = await loadExporters()
                   if (activeProject) generateSldFromProject(activeProject, pinnedRoutes, nodes, sldVersion || undefined)
                   else generateStraightLineDiagram(pinnedRoutes, nodes, sldVersion || undefined)
                   setSldVersionPrompt(false)
@@ -2125,7 +2162,8 @@ export default function App() {
                 style={{ padding: '8px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none', background: theme.blue, color: theme.bgCard, fontFamily: 'inherit' }}
               >Export PDF</button>
               <button
-                onClick={() => {
+                onClick={async () => {
+                  const { generateDrawioXml } = await loadExporters()
                   const xml  = generateDrawioXml(pinnedRoutes, nodes, activeProject ?? undefined)
                   const blob = new Blob([xml], { type: 'application/xml' })
                   const url  = URL.createObjectURL(blob)
@@ -2139,7 +2177,8 @@ export default function App() {
                 style={{ padding: '8px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.blue}`, background: 'transparent', color: theme.blue, fontFamily: 'inherit' }}
               >Export DrawIO</button>
               <button
-                onClick={() => {
+                onClick={async () => {
+                  const { generateVisioVsdx } = await loadExporters()
                   generateVisioVsdx(pinnedRoutes, nodes, activeProject ?? undefined)
                   setSldVersionPrompt(false)
                 }}
@@ -2234,7 +2273,7 @@ export default function App() {
             }}
             title="Close guide"
           >×</button>
-          <UserGuide nodes={nodes} segments={segments} systems={systems} />
+          <Suspense fallback={null}><UserGuide nodes={nodes} segments={segments} systems={systems} /></Suspense>
         </div>,
         document.body
       )}
