@@ -239,6 +239,29 @@ def _read_csv(file: UploadFile) -> list[dict]:
 _FIRST_DATA_ROW = 2
 
 
+def _merged(model_cls, existing, values: dict):
+    """
+    Build a model from the values a CSV row carries, PRESERVING every field of
+    an existing record that the CSV does not carry a column for.
+
+    Why this exists: each importer used to hand-list the fields worth keeping
+    and reconstruct the model from that list, so every field nobody remembered
+    to add to the list was silently wiped on import. Different importers leaked
+    different fields — nodes dropped `on_net`, segments dropped the RFS/EOL
+    lifecycle dates, systems dropped both, and the coverage importer dropped
+    five node fields at once. Merging onto the existing record inverts that: the
+    CSV names only what it changes, so a field added to a model in future is
+    carried through automatically instead of becoming the next silent data loss.
+
+    The merge goes through the model CONSTRUCTOR rather than `model_copy`, so
+    every validator still runs — including the cross-field rules on the RFS and
+    EOL quarters. `model_copy(update=...)` would skip them and let an import
+    write a combination the API itself would reject.
+    """
+    base = existing.model_dump() if existing is not None else {}
+    return model_cls(**{**base, **values})
+
+
 def _fail_row(row_errors: list[dict], applied: dict, table: str,
               row_num: int, reason: str) -> None:
     """Record (and log) a row that was skipped instead of dropping it silently."""
@@ -838,20 +861,20 @@ def import_nodes(file: UploadFile = File(...), mode: BulkMode = Query("upsert"))
             last_verified = row.get("last_verified_date", "").strip() or (
                 ex_node.last_verified_date if ex_node else None
             )
-            node = Node(
-                id=rid, name=row.get("name", "").strip(),
-                lat=float(row.get("lat", 0) or 0), lng=float(row.get("lng", 0) or 0),
-                type=row.get("type", "landing_station").strip(),
-                country=row.get("country", "").strip().upper(),
-                owner=(row.get("owner") or "Telstra").strip(),
-                trading_name=row.get("trading_name", "").strip() or None,
-                city=row.get("city", "").strip() or None,
-                street_address=row.get("street_address", "").strip() or None,
-                description=row.get("description", "").strip() or None,
-                capabilities=ex_node.capabilities if ex_node else None,
-                verification_status=verif,
-                last_verified_date=last_verified or None,
-            )
+            node = _merged(Node, ex_node, {
+                "id": rid, "name": row.get("name", "").strip(),
+                "lat": float(row.get("lat", 0) or 0), "lng": float(row.get("lng", 0) or 0),
+                "type": row.get("type", "landing_station").strip(),
+                "country": row.get("country", "").strip().upper(),
+                "owner": (row.get("owner") or "Telstra").strip(),
+                "trading_name": row.get("trading_name", "").strip() or None,
+                "city": row.get("city", "").strip() or None,
+                "street_address": row.get("street_address", "").strip() or None,
+                "description": row.get("description", "").strip() or None,
+                "capabilities": ex_node.capabilities if ex_node else None,
+                "verification_status": verif,
+                "last_verified_date": last_verified or None,
+            })
         except Exception as exc:
             # Finding #9: report the discarded row instead of swallowing it.
             _fail_row(row_errors, applied, "nodes", row_num, f"id '{rid}': {exc}")
@@ -901,21 +924,21 @@ def import_segments(file: UploadFile = File(...), mode: BulkMode = Query("upsert
             seg_last_verified = row.get("last_verified_date", "").strip() or (
                 ex_seg.last_verified_date if ex_seg else None
             )
-            seg = CableSegment(
-                id=rid, name=row.get("name", "").strip(),
-                system_id=row.get("system_id", "").strip(),
-                start_node_id=row.get("start_node_id", "").strip(),
-                end_node_id=row.get("end_node_id", "").strip(),
-                type=row.get("type", "wet").strip(),
-                length_km=float(row.get("length_km", 0) or 0),
-                latency=float(lat_raw) if lat_raw else None,
-                reliability=float(row.get("reliability", 1) or 1),
-                cost_weight=float(row.get("cost_weight", 1) or 1),
-                ownership=row.get("ownership", "offnet_resell").strip(),
-                waypoints=ex_seg.waypoints if ex_seg else None,
-                verification_status=seg_verif,
-                last_verified_date=seg_last_verified or None,
-            )
+            seg = _merged(CableSegment, ex_seg, {
+                "id": rid, "name": row.get("name", "").strip(),
+                "system_id": row.get("system_id", "").strip(),
+                "start_node_id": row.get("start_node_id", "").strip(),
+                "end_node_id": row.get("end_node_id", "").strip(),
+                "type": row.get("type", "wet").strip(),
+                "length_km": float(row.get("length_km", 0) or 0),
+                "latency": float(lat_raw) if lat_raw else None,
+                "reliability": float(row.get("reliability", 1) or 1),
+                "cost_weight": float(row.get("cost_weight", 1) or 1),
+                "ownership": row.get("ownership", "offnet_resell").strip(),
+                "waypoints": ex_seg.waypoints if ex_seg else None,
+                "verification_status": seg_verif,
+                "last_verified_date": seg_last_verified or None,
+            })
         except Exception as exc:
             # Finding #9: report the discarded row instead of swallowing it.
             _fail_row(row_errors, applied, "segments", row_num, f"id '{rid}': {exc}")
@@ -957,11 +980,11 @@ def import_systems(file: UploadFile = File(...), mode: BulkMode = Query("upsert"
 
         try:
             margin_raw = (row.get("margin") or "").strip()
-            sys = CableSystem(
-                id=rid, name=row.get("name", "").strip(),
-                description=row.get("description", "").strip(),
-                margin=float(margin_raw) if margin_raw else None,
-            )
+            sys = _merged(CableSystem, existing.get(rid), {
+                "id": rid, "name": row.get("name", "").strip(),
+                "description": row.get("description", "").strip(),
+                "margin": float(margin_raw) if margin_raw else None,
+            })
         except Exception as exc:
             # Finding #9: report the discarded row instead of swallowing it.
             _fail_row(row_errors, applied, "systems", row_num, f"id '{rid}': {exc}")
@@ -1068,13 +1091,11 @@ def import_coverage(file: UploadFile = File(...), mode: BulkMode = Query("upsert
             colocation = ColocationCapabilities(category=cat_val)                                  if cat_val              else None
             new_cap    = NodeCapabilities(backbone=backbone, underlay=underlay, colocation=colocation) if any([backbone, underlay, colocation]) else None
 
-            old_n = by_id[rid]
-            new_n = Node(
-                id=old_n.id, name=old_n.name, lat=old_n.lat, lng=old_n.lng,
-                type=old_n.type, country=old_n.country, owner=old_n.owner,
-                trading_name=old_n.trading_name, description=old_n.description,
-                capabilities=new_cap,
-            )
+            # A coverage CSV changes ONE field. Everything else about the node
+            # must survive untouched — the old reconstruction listed nine fields
+            # and silently wiped city, street_address, verification_status,
+            # last_verified_date, on_net and the RFS/EOL lifecycle dates.
+            new_n = _merged(Node, by_id[rid], {"capabilities": new_cap})
         except Exception as exc:
             # Finding #9: report the discarded row instead of swallowing it.
             _fail_row(row_errors, applied, "coverage", row_num,
