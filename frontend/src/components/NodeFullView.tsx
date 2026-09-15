@@ -84,6 +84,12 @@ const PHONE_PX = 600
 /** At or below this the fixed 108px label gutter costs more than it buys, and
  *  labels move above their value/input instead of beside it. */
 const STACK_PX = 480
+/**
+ * At or above this the dialog lays out as two side-by-side columns — a
+ * landscape reading rather than one tall scroll. Below it the cards stack in
+ * rows, which is what a narrow window and a phone both want.
+ */
+const LANDSCAPE_PX = 1100
 
 /** Shape copied from ProductHistory.tsx's `useNarrow`, parameterised by width. */
 function useMaxWidth(px: number): boolean {
@@ -103,11 +109,13 @@ function useMaxWidth(px: number): boolean {
 interface Layout {
   /** Near-fullscreen sheet, two-line header, tighter padding. */
   phone: boolean
+  /** Two side-by-side columns instead of stacked rows. */
+  landscape: boolean
   /** Field labels sit above their value rather than in a 108px gutter. */
   stackLabels: boolean
 }
 
-const LayoutContext = createContext<Layout>({ phone: false, stackLabels: false })
+const LayoutContext = createContext<Layout>({ phone: false, landscape: false, stackLabels: false })
 
 function useLayout(): Layout {
   return useContext(LayoutContext)
@@ -188,6 +196,7 @@ export function NodeFullView({
   const { isAdmin } = useAuth()
   const phone = useMaxWidth(PHONE_PX)
   const stackLabels = useMaxWidth(STACK_PX)
+  const landscape = !useMaxWidth(LANDSCAPE_PX - 1)
 
   // Navigation state: `current` is what's on screen, `stack` is where we came
   // from. Both are ids, so a refetch after an edit flows straight through.
@@ -222,7 +231,7 @@ export function NodeFullView({
   }
 
   const body = (
-    <LayoutContext.Provider value={{ phone, stackLabels }}>
+    <LayoutContext.Provider value={{ phone, landscape, stackLabels }}>
       <div
         role="presentation"
         onClick={backdropClose(onClose)}
@@ -410,7 +419,7 @@ function FullViewBody({
   onSaved: () => void
   onCancelEdit: () => void
 }) {
-  const { phone } = useLayout()
+  const { phone, landscape } = useLayout()
 
   const nodeSegments = segments.filter(s => s.start_node_id === node.id || s.end_node_id === node.id)
   const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
@@ -423,79 +432,103 @@ function FullViewBody({
 
   const row = rowStyle(phone)
 
+  // The cards, named once so the two layouts below compose the SAME content
+  // rather than each carrying its own copy that could drift.
+  const identityCard = (
+    <Card t={t} title={editing ? 'Edit Node' : 'Key Information'} grow>
+      {editing
+        ? <EditNodeForm t={t} node={node} onSaved={onSaved} onCancel={onCancelEdit} />
+        : <IdentityList t={t} node={node} />}
+    </Card>
+  )
+  const siteCard = (
+    <Card t={t} title="Site Location" pad={0} grow>
+      <iframe
+        key={node.id}
+        src={mapUrl}
+        style={{ width: '100%', height: phone ? 220 : 300, border: 'none', display: 'block' }}
+        title={`Map of ${node.name}`}
+      />
+    </Card>
+  )
+  // The fan diagram is square, so in a half-width column it wants a smaller
+  // canvas than it did spanning the whole dialog. The SVG scales to its
+  // container and its fonts are fixed in viewBox units, so a smaller nominal
+  // size actually MAGNIFIES the labels relative to the picture.
+  const fanCard = (
+    <Card t={t} title={`Segments Leaving This Node (${nodeSegments.length})`} grow>
+      <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <SegmentFanDiagram
+          node={node}
+          segments={segments}
+          nodesById={nodesById}
+          onSelectNode={onNavigate}
+          size={fanSize(phone, landscape)}
+        />
+      </div>
+    </Card>
+  )
+  const coverageCard = (
+    <Card t={t} title="Product Coverage" grow>
+      {node.capabilities
+        ? <ProductCoverageMatrix capabilities={node.capabilities} heading={null} />
+        : <Empty t={t}>No product coverage configured for this node.</Empty>}
+    </Card>
+  )
+  const systemsCard = (
+    <Card t={t} title={`Cable Systems (${systemCounts.size})`} grow>
+      <CableSystemsList t={t} counts={systemCounts} systemsById={systemsById} />
+    </Card>
+  )
+  const capacityCard = (
+    <Card t={t} title="Segment Capacity" grow>
+      <SegmentCapacityList
+        t={t} node={node} nodeSegments={nodeSegments} capacity={capacity} nodesById={nodesById}
+      />
+    </Card>
+  )
+  const notesCard = (
+    <Card t={t} title={null} grow>
+      <NodeNotesPanel nodeId={node.id} notes={notes} categories={noteCategories} />
+    </Card>
+  )
+
+  const scroller: React.CSSProperties = {
+    overflowY: 'auto', WebkitOverflowScrolling: 'touch', flex: 1, minHeight: 0,
+    padding: phone ? 10 : 16,
+  }
+
+  // ── Landscape: two columns side by side ──────────────────────────────────
+  // A wide screen is wide, and the stacked version made you scroll past a
+  // full-width fan diagram to reach the capacity and notes. Split so the two
+  // halves read together: identity and the visuals on the left, the tabular
+  // detail on the right. The columns are balanced by content height, not by
+  // card count — the fan diagram is worth roughly three of the small cards.
+  if (landscape) {
+    return (
+      <div style={{ ...scroller, display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+        <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {identityCard}
+          {siteCard}
+          {coverageCard}
+        </div>
+        <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {fanCard}
+          {systemsCard}
+          {capacityCard}
+          {notesCard}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Stacked: phones and narrow windows ───────────────────────────────────
   return (
-    <div style={{
-      overflowY: 'auto', WebkitOverflowScrolling: 'touch', flex: 1, minHeight: 0,
-      padding: phone ? 10 : 16, display: 'flex', flexDirection: 'column', gap: phone ? 12 : 16,
-    }}>
-
-      {/* ── Row 1: identity and where the site is ────────────────────────── */}
-      <div style={row}>
-        <Card t={t} title={editing ? 'Edit Node' : 'Key Information'} grow>
-          {editing
-            ? <EditNodeForm t={t} node={node} onSaved={onSaved} onCancel={onCancelEdit} />
-            : <IdentityList t={t} node={node} />}
-        </Card>
-
-        <Card t={t} title="Site Location" pad={0} grow>
-          <iframe
-            key={node.id}
-            src={mapUrl}
-            style={{ width: '100%', height: phone ? 220 : 300, border: 'none', display: 'block' }}
-            title={`Map of ${node.name}`}
-          />
-        </Card>
-      </div>
-
-      {/* ── Row 2: the fan-out, on a row of its own ──────────────────────
-          A busy CLS has a dozen-plus segments, and the spoke labels are what
-          runs out of room first — so this gets the full width and the largest
-          canvas that still fits the dialog. The SVG scales to its container, so
-          on a phone a SMALLER nominal size is what makes the labels legible:
-          the fonts are fixed in viewBox units, so shrinking the box magnifies
-          them relative to the picture. */}
-      {/* Wrapped in a row even though it is alone: `grow` means
-          `flex: 1 1 320px`, which sizes the HEIGHT when the parent is a flex
-          column — the card collapsed and clipped the diagram. */}
-      <div style={row}>
-        <Card t={t} title={`Segments Leaving This Node (${nodeSegments.length})`} grow>
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <SegmentFanDiagram
-              node={node}
-              segments={segments}
-              nodesById={nodesById}
-              onSelectNode={onNavigate}
-              size={phone ? 380 : 620}
-            />
-          </div>
-        </Card>
-      </div>
-
-      {/* ── Row 3: products, systems ─────────────────────────────────────── */}
-      <div style={row}>
-        <Card t={t} title="Product Coverage" grow>
-          {node.capabilities
-            ? <ProductCoverageMatrix capabilities={node.capabilities} heading={null} />
-            : <Empty t={t}>No product coverage configured for this node.</Empty>}
-        </Card>
-
-        <Card t={t} title={`Cable Systems (${systemCounts.size})`} grow>
-          <CableSystemsList t={t} counts={systemCounts} systemsById={systemsById} />
-        </Card>
-      </div>
-
-      {/* ── Row 4: capacity and notes ────────────────────────────────────── */}
-      <div style={row}>
-        <Card t={t} title="Segment Capacity" grow>
-          <SegmentCapacityList
-            t={t} node={node} nodeSegments={nodeSegments} capacity={capacity} nodesById={nodesById}
-          />
-        </Card>
-
-        <Card t={t} title={null} grow>
-          <NodeNotesPanel nodeId={node.id} notes={notes} categories={noteCategories} />
-        </Card>
-      </div>
+    <div style={{ ...scroller, display: 'flex', flexDirection: 'column', gap: phone ? 12 : 16 }}>
+      <div style={row}>{identityCard}{siteCard}</div>
+      <div style={row}>{fanCard}</div>
+      <div style={row}>{coverageCard}{systemsCard}</div>
+      <div style={row}>{capacityCard}{notesCard}</div>
     </div>
   )
 }
@@ -714,6 +747,17 @@ function dialogStyle(t: T, phone: boolean) {
     boxShadow: '0 24px 64px rgba(0,0,0,0.5)', overflow: 'hidden',
     fontFamily: 'system-ui, sans-serif',
   } as const
+}
+
+/**
+ * Canvas size for the fan diagram. The SVG scales to its container and its
+ * fonts are fixed in viewBox units, so a SMALLER nominal size magnifies the
+ * labels relative to the picture — which is why the phone gets the smallest
+ * box, not the largest.
+ */
+function fanSize(phone: boolean, landscape: boolean): number {
+  if (phone) return 380
+  return landscape ? 520 : 620
 }
 
 /** Cards sit in `rowStyle` rows. `grow` lets a card take the slack in its row;
