@@ -543,6 +543,14 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         animation: rb-segment-glow-pulse 1.4s ease-in-out infinite;
         filter: blur(2px);
       }
+      /* On a phone the app's logo card floats over the map's top-left corner,
+         which is exactly where Leaflet puts its zoom control — they overlapped,
+         and a tap on "+" landed on the logo (opening the guide) rather than
+         zooming. Push the control below the logo card, which ends at 53px. The
+         legend strip alongside it starts at left:52, so the two do not meet. */
+      @media (max-width: 640px) {
+        .leaflet-top.leaflet-left .leaflet-control-zoom { margin-top: 60px; }
+      }
     `}</style>
     <NodeTypeLegend narrow={narrowViewport} />
     <MapContainer
