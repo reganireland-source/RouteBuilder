@@ -67,6 +67,8 @@ import {
 } from '../utils/serviceDate'
 import { SegmentPathDiagram } from './SegmentPathDiagram'
 import { EntityNotesPanel } from './EntityNotesPanel'
+import { HazardsNearbyCard } from './HazardsNearbyCard'
+import { useHazardsFor } from '../context/HazardContext'
 import { NodeFullView } from './NodeFullView'
 import {
   type T, LayoutContext, useLayout, useFullViewLayout, useEscapeKey,
@@ -354,6 +356,8 @@ function SegmentBody({
 }) {
   const { phone, landscape } = useLayout()
 
+  const segmentHazards = useHazardsFor('segment', segment.id)
+
   const start = nodesById[segment.start_node_id]
   const end = nodesById[segment.end_node_id]
   const system = systems.find(s => s.id === segment.system_id)
@@ -433,6 +437,8 @@ function SegmentBody({
       <EntityNotesPanel kind="segment" entityId={segment.id} notes={notes} categories={noteCategories} />
     </Card>
   )
+  // Renders nothing when there is nothing to report — see HazardsNearbyCard.
+  const hazardsCard = <HazardsNearbyCard hazards={segmentHazards} kind="segment" assetId={segment.id} />
 
   const scroller = scrollerStyle(phone)
 
@@ -450,7 +456,7 @@ function SegmentBody({
         <div style={row}>{diagramCard}</div>
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
           <FullViewColumn>{[identityCard, endpointsCard, geometryCard]}</FullViewColumn>
-          <FullViewColumn>{[metricsCard, capacityCard, lifecycleCard, parallelCard, outagesCard, notesCard]}</FullViewColumn>
+          <FullViewColumn>{[metricsCard, capacityCard, lifecycleCard, hazardsCard, parallelCard, outagesCard, notesCard]}</FullViewColumn>
         </div>
       </div>
     )
@@ -463,6 +469,7 @@ function SegmentBody({
       <div style={row}>{identityCard}{endpointsCard}</div>
       <div style={row}>{metricsCard}{capacityCard}</div>
       <div style={row}>{geometryCard}{lifecycleCard}</div>
+      <div style={row}>{hazardsCard}</div>
       <div style={row}>{parallelCard}{outagesCard}</div>
       <div style={row}>{notesCard}</div>
     </div>

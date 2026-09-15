@@ -143,6 +143,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       desc: `Toggle any of the ${systemCount} cable systems on the live map to explore coverage, topology and branching unit structure — ideal for network briefings and customer conversations.` },
     { icon: '🔍', title: 'Node Lookup & Nearest-Node Search',
       desc: `Network Explorer → Nodes takes either kind of question. Type a node code you already know — SYD1, TUAS, PALI — and the map flies straight to it and opens it; half-remembered codes are offered as a tappable shortlist as you type. Type a customer address or a lat/lng pair instead and it finds the nearest landing stations and PoPs, showing owner, trading name, node type and straight-line distance. Either way, one click sets the node as Origin or Destination and you are in a route search.` },
+    { icon: '⚠️', title: 'Network Hazards',
+      desc: 'An optional overlay — off by default — showing live disasters that could take infrastructure down, merged from bushfire.io and USGS. Every event is matched against your own network server-side: the popup lists the nodes and segments within range, and Node and Segment Full View grow a "Hazards Nearby" card. Coverage is honest about its limits: bushfire.io serves Australia, North America and Europe only, USGS is worldwide but earthquakes only, and the map panel states this rather than letting a quiet map imply calm. Turn it on under Controls → Network Hazards.' },
     { icon: '🐋', title: 'Living World',
       desc: 'The ocean is not empty. With Living World on — it is, by default — 16-bit container ships, whales, dolphins, sailing yachts and cable-lay vessels drift across open water, with rarer sightings for the patient: a pirate ship, a submarine, a sea serpent, a kraken, and one thing that is not a boat at all. They draw beneath every cable and node, ignore clicks entirely, never appear on land and never sit on top of a site, so they cost you nothing if you ignore them. Turn it off under Controls → Living World.' },
     { icon: '⛶', title: 'Segment Full View',
@@ -2938,6 +2940,55 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         </div>
       </div>
 
+      {/* ── Network Hazards ── */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel}>Network Hazards — Live Disasters Against Your Network</div>
+        <div style={{ ...card(), background: '#1a1206', border: `1px solid ${t.orange}66` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 22 }}>⚠️</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Which of my sites and cables is something happening near?</div>
+              <div style={{ fontSize: 11, color: 'rgba(253,200,150,0.85)', marginTop: 2 }}>
+                Off by default · Controls → ⚠️ Network Hazards
+              </div>
+            </div>
+          </div>
+          <p style={{ fontSize: 11, color: 'rgba(245,215,180,0.85)', lineHeight: 1.7, margin: '0 0 14px' }}>
+            A fire in Oregon is news. A fire four kilometres from a terrestrial segment is a problem. This overlay draws current fires, floods, storms, cyclones, earthquakes and tsunamis, and — the part that matters — works out server-side which of your own nodes and cables each one is within range of.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+            {[
+              { icon: '🛰', label: 'Two feeds, one shape', desc: 'Bushfire.io for emergency-services detail (fires, floods, storms with real perimeters) and USGS for worldwide earthquakes. Both are normalised to one severity ladder and one set of eleven hazard kinds, so a single legend describes both.' },
+              { icon: '📏', label: 'Matched to your assets', desc: 'Every event is tested against every node and every cable path — segments are walked end to end, not just at their endpoints, so a quake mid-Pacific still finds the cable it sits on. Nodes and terrestrial segments use a 25 km radius, wet segments 100 km, because seabed disturbance travels further than a grass fire.' },
+              { icon: '🎯', label: 'Signal over noise', desc: 'Only classifications that can credibly take infrastructure down are carried — the feed\'s shark sightings, school closures and ambulance callouts are dropped. Only Watch and above is shown. Events near your network get a solid ring; everything else is dashed and muted.' },
+              { icon: '🔒', label: 'The key stays on the server', desc: 'The browser never talks to either feed. The backend holds the bushfire.io credential, caches the assembled result, and serves every open tab from one upstream fetch per ten minutes.' },
+            ].map(({ icon, label, desc }) => (
+              <div key={label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 7, padding: '10px 12px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+                  <span style={{ fontSize: 14 }}>{icon}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#fdba74' }}>{label}</span>
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(245,215,180,0.78)', lineHeight: 1.55 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' as const }}>
+            <div style={{ flex: 1, minWidth: 240, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 7, padding: '10px 12px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#fca5a5', marginBottom: 4 }}>⚠ An empty map is NOT an all-clear</div>
+              <div style={{ fontSize: 10, color: 'rgba(254,190,190,0.85)', lineHeight: 1.55 }}>
+                This is the one thing to understand before trusting the layer. Bushfire.io covers <strong>Australia, North America and Europe only</strong> — its Asian region returns nothing at all, and Africa and South America are unavailable. USGS covers the whole planet but <strong>earthquakes only</strong>. So a clear map over Tokyo means "no earthquake this week", not "nothing is wrong in Japan". The status panel on the map states what each source is reporting and whether either is down, every time — never a green light.
+              </div>
+            </div>
+            <div style={{ flex: 1, minWidth: 240, background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.35)', borderRadius: 7, padding: '10px 12px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#93c5fd', marginBottom: 4 }}>🔎 Where it shows up</div>
+              <div style={{ fontSize: 10, color: 'rgba(190,215,250,0.85)', lineHeight: 1.55 }}>
+                On the map, drawn above the cables so you can see an event overlapping a route, and below the node markers so a site is never hidden. Click any event for its detail, its issuing agency and the list of assets in range. Node and Segment Full View each grow a <strong>Hazards Nearby</strong> card listing what is close and how far — and show nothing at all when nothing is reported.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ── Living World ── */}
       <div style={{ marginBottom: 32 }}>
         <div style={sectionLabel}>Living World — The Ocean Is Not Empty</div>
@@ -3068,6 +3119,11 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               icon: '🌊 / 🏗',
               title: 'Subsea Only & Backhaul Only',
               desc: 'Two filter toggles in the top-right control bar. Active only when Country Viewer is running. Subsea Only hides terrestrial routes; Backhaul Only hides subsea. Activating one clears the other.',
+            },
+            {
+              icon: '⚠️',
+              title: 'Network Hazards',
+              desc: 'OFF by default. Draws live fires, floods, storms, earthquakes and tsunamis from two third-party feeds, and flags which of your nodes and segments each one is near. Nothing is fetched until you switch it on. Coverage is NOT worldwide — the status panel on the map says what each source can speak for, because an empty map is not an all-clear.',
             },
             {
               icon: '🐋',

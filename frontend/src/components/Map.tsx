@@ -61,13 +61,15 @@ import { useEffect, useState } from 'react'
 import * as L from 'leaflet'
 import 'leaflet.gridlayer.googlemutant'
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet'
-import type { CableNode, CableSegment, CountryHighlight, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
+import type { CableNode, CableSegment, CountryHighlight, HazardFeed, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
 import { useTheme } from '../theme'
 import type { ManualState, NextHopCandidate } from './RouteManual'
 import { useSegmentHover } from '../context/SegmentHoverContext'
 import { normalizeLng, geoLines, NODE_STYLE, NODE_TYPE_LABEL } from '../mapGeometry'
 import { EditorMapLayer } from './EditorMapLayer'
 import { LivingWorldLayer } from './LivingWorldLayer'
+import { HazardLayer } from './HazardLayer'
+import { HazardStatusPanel } from './HazardStatusPanel'
 import type { EditorSubMode, EditorSelection, SegmentDraft } from '../state/editorState'
 import { emptySegmentDraft } from '../state/editorState'
 
@@ -110,6 +112,13 @@ interface Props {
    *  LivingWorldLayer.tsx. Purely decorative and in its own non-interactive
    *  pane, so it changes nothing about how the map behaves. */
   livingWorld?: boolean
+  /** "Network Hazards" — the live disaster overlay. OFF by default; see
+   *  HazardLayer.tsx. Absent/undefined means the layer is not mounted at all. */
+  hazardFeed?: HazardFeed | null
+  hazardsOn?: boolean
+  hazardsLoading?: boolean
+  hazardsError?: string | null
+  onRefreshHazards?: () => void
   searchPin?: { lat: number; lng: number; label: string }
   nearestNodeIds?: string[]
   hideNonActive?: boolean
@@ -415,7 +424,7 @@ function NodeTypeLegend({ narrow }: { narrow: boolean }) {
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
   const t = useTheme()
   const narrowViewport = useNarrowViewport()
   const { hoveredSegmentId } = useSegmentHover()
@@ -567,6 +576,15 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
       }
     `}</style>
     <NodeTypeLegend narrow={narrowViewport} />
+    {hazardsOn && !editorMode && (
+      <HazardStatusPanel
+        feed={hazardFeed ?? null}
+        loading={hazardsLoading}
+        error={hazardsError}
+        onRefresh={onRefreshHazards ?? (() => {})}
+        narrow={narrowViewport}
+      />
+    )}
     <MapContainer
       center={[10, 130]}
       zoom={3}
@@ -985,6 +1003,11 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
              cables. Off in Network Editor: that mode is for precise work and
              a passing whale is a distraction there. ── */}
       {livingWorld && !editorMode && <LivingWorldLayer nodes={nodes} />}
+
+      {/* ── Network Hazards — live disasters, in a pane ABOVE the cables so an
+             event can be seen to overlap a route. Off in Network Editor, where
+             the map is for precise topology work. ── */}
+      {hazardsOn && !editorMode && hazardFeed && <HazardLayer hazards={hazardFeed.hazards} />}
 
       {/* ── Network Editor overlay — see EditorMapLayer.tsx ── */}
       {editorMode && (

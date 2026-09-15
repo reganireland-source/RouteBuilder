@@ -59,7 +59,7 @@ import type { ThemeMode } from '../theme'
 import type {
   AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule,
   NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage,
-  SelectedSystem, DiversityType,
+  SelectedSystem, DiversityType, HazardFeed,
 } from '../types'
 
 const NLP_ENABLED = import.meta.env.VITE_ENABLE_NLP !== 'false'
@@ -146,6 +146,13 @@ export interface MobileLayoutProps {
   /** "Living World" — the 16-bit ocean easter eggs. On by default. */
   livingWorld:                   boolean
   onToggleLivingWorld:           () => void
+  /** "Network Hazards" — the live disaster overlay. Off by default. */
+  hazardsOn:                     boolean
+  onToggleHazards:               () => void
+  hazardFeed:                    HazardFeed | null
+  hazardsLoading:                boolean
+  hazardsError:                  string | null
+  onRefreshHazards:              () => void
   onApplySort?:                  (mode: NlpSortMode) => void
   nlpSortKey?:                   SortKey
   nlpPushOutages?:               boolean
@@ -196,10 +203,10 @@ function nextThemeLabel(themeMode: ThemeMode): string {
 function MobileControlsDrawer({
   open, setOpen, t, themeMode,
   showAllOutages, showPlannedEvents, showSegmentLabels, showNodeLabels,
-  hideNonActive, subseaOnly, backhaulOnly, livingWorld,
+  hideNonActive, subseaOnly, backhaulOnly, livingWorld, hazardsOn,
   onToggleShowAllOutages, onToggleShowPlannedEvents, onToggleShowSegmentLabels,
   onToggleShowNodeLabels, onToggleHideNonActive, onToggleSubseaOnly, onToggleBackhaulOnly,
-  onToggleLivingWorld,
+  onToggleLivingWorld, onToggleHazards,
   onOpenProjects, onOpenCapacity, onOpenRefData, cycleTheme,
 }: {
   open: boolean
@@ -209,6 +216,7 @@ function MobileControlsDrawer({
   showAllOutages: boolean; showPlannedEvents: boolean; showSegmentLabels: boolean
   showNodeLabels: boolean; hideNonActive: boolean; subseaOnly: boolean; backhaulOnly: boolean
   livingWorld: boolean
+  hazardsOn: boolean
   onToggleShowAllOutages: () => void
   onToggleShowPlannedEvents: () => void
   onToggleShowSegmentLabels: () => void
@@ -217,6 +225,7 @@ function MobileControlsDrawer({
   onToggleSubseaOnly: () => void
   onToggleBackhaulOnly: () => void
   onToggleLivingWorld: () => void
+  onToggleHazards: () => void
   onOpenProjects?: () => void
   onOpenCapacity: () => void
   onOpenRefData: () => void
@@ -320,6 +329,13 @@ function MobileControlsDrawer({
                 active: livingWorld,
                 color: t.green,
                 onClick: () => { onToggleLivingWorld(); setOpen(false) },
+              },
+              {
+                label: 'Network Hazards',
+                icon: '⚠️',
+                active: hazardsOn,
+                color: t.orange,
+                onClick: () => { onToggleHazards(); setOpen(false) },
               },
             ].map(item => (
               <button
@@ -573,6 +589,7 @@ export function MobileLayout({
   switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowNodeLabels, onToggleShowAllOutages,
   onToggleShowPlannedEvents,
   onToggleSubseaOnly, onToggleBackhaulOnly, livingWorld, onToggleLivingWorld,
+  hazardsOn, onToggleHazards, hazardFeed, hazardsLoading, hazardsError, onRefreshHazards,
   onApplySort, nlpSortKey, nlpPushOutages, optimiseFor, flippedPairIds, onFlipPair,
   onAddToProject, onEnrichCircuit, onOpenProjects, activeProject, onExitProjectMode, onSwitchProject, onOpenGuide,
   manualState, manualCandidates = [], manualResults = [], onManualNodeClick,
@@ -657,6 +674,11 @@ export function MobileLayout({
         {nodes.length > 0 ? (
           <NetworkMap
             livingWorld={livingWorld}
+            hazardsOn={hazardsOn}
+            hazardFeed={hazardFeed}
+            hazardsLoading={hazardsLoading}
+            hazardsError={hazardsError}
+            onRefreshHazards={onRefreshHazards}
             nodes={nodes}
             segments={visibleSegments ?? segments}
             selectedRoutes={selectedRoutes}
@@ -763,6 +785,8 @@ export function MobileLayout({
         onToggleBackhaulOnly={onToggleBackhaulOnly}
         livingWorld={livingWorld}
         onToggleLivingWorld={onToggleLivingWorld}
+        hazardsOn={hazardsOn}
+        onToggleHazards={onToggleHazards}
         onOpenProjects={onOpenProjects}
         onOpenCapacity={() => setCapDashOpen(true)}
         onOpenRefData={onOpenRefData}

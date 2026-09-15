@@ -54,6 +54,8 @@ import { OWNER_LOGOS } from '../utils/ownerLogos'
 import { ProductCoverageMatrix } from './ProductCoverageMatrix'
 import { SegmentFanDiagram } from './SegmentFanDiagram'
 import { EntityNotesPanel } from './EntityNotesPanel'
+import { HazardsNearbyCard } from './HazardsNearbyCard'
+import { useHazardsFor } from '../context/HazardContext'
 import { SegmentFullView } from './SegmentFullView'
 import {
   type T, LayoutContext, useLayout, useFullViewLayout, useEscapeKey,
@@ -380,6 +382,7 @@ function FullViewBody({
   onCancelEdit: () => void
 }) {
   const { phone, landscape } = useLayout()
+  const nodeHazards = useHazardsFor('node', node.id)
 
   const nodeSegments = segments.filter(s => s.start_node_id === node.id || s.end_node_id === node.id)
   const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
@@ -453,6 +456,8 @@ function FullViewBody({
       <EntityNotesPanel kind="node" entityId={node.id} notes={notes} categories={noteCategories} />
     </Card>
   )
+  // Renders nothing when there is nothing to report — see HazardsNearbyCard.
+  const hazardsCard = <HazardsNearbyCard hazards={nodeHazards} kind="node" assetId={node.id} />
 
   const scroller = scrollerStyle(phone)
 
@@ -466,7 +471,7 @@ function FullViewBody({
     return (
       <div style={{ ...scroller, display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         <FullViewColumn>{[identityCard, siteCard, coverageCard]}</FullViewColumn>
-        <FullViewColumn>{[fanCard, systemsCard, capacityCard, notesCard]}</FullViewColumn>
+        <FullViewColumn>{[fanCard, systemsCard, capacityCard, hazardsCard, notesCard]}</FullViewColumn>
       </div>
     )
   }
@@ -478,6 +483,7 @@ function FullViewBody({
       <div style={row}>{fanCard}</div>
       <div style={row}>{coverageCard}{systemsCard}</div>
       <div style={row}>{capacityCard}{notesCard}</div>
+      <div style={row}>{hazardsCard}</div>
     </div>
   )
 }

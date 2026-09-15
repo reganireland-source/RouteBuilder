@@ -733,3 +733,76 @@ export interface FeatureRequest {
   status: 'backlog' | 'in_development' | 'completed'
   created_at: string
 }
+
+
+// ── Hazards (the optional "Network Hazards" overlay) ────────────────────────
+//
+// Live disaster events from two third-party feeds — bushfire.io and USGS —
+// normalised by the backend into one shape (see backend/app/hazards/). The
+// browser never talks to either upstream: the bushfire.io API key lives on the
+// server, and one cached backend fetch serves every open tab.
+//
+// COVERAGE IS NOT GLOBAL and the UI has to say so. bushfire.io serves Australia,
+// North America and Europe only; USGS covers the whole planet but only
+// earthquakes. Hence `HazardSourceStatus.coverage`: an empty map over Tokyo
+// means "no earthquake this week", not "nothing is wrong".
+
+/** What physically happened. Deliberately coarse — 11 kinds, not the feed's 46. */
+export type HazardKind =
+  | 'fire' | 'flood' | 'storm' | 'cyclone' | 'earthquake' | 'tsunami'
+  | 'landslide' | 'marine' | 'power' | 'hazmat' | 'other'
+
+/** Ascending. Both feeds are mapped onto this one ladder. */
+export type HazardSeverity = 'advisory' | 'watch' | 'warning' | 'emergency'
+
+/** One of OUR assets that falls within range of a hazard. */
+export interface HazardAsset {
+  id: string
+  kind: 'node' | 'segment'
+  label: string
+  /** Great-circle km from the hazard centroid. */
+  distance_km: number
+}
+
+export interface Hazard {
+  /** Source-prefixed, e.g. "usgs:7000thl5" — ids from two feeds cannot collide. */
+  id: string
+  source: string
+  source_label: string
+  kind: HazardKind
+  severity: HazardSeverity
+  title: string
+  /** Plain text. Never HTML — render as a text node. */
+  detail: string
+  url?: string | null
+  /** The issuing agency, e.g. "Geoscience Australia". */
+  attribution: string
+  lat: number
+  lng: number
+  /** GeoJSON, already simplified server-side. Null when the source gave a point. */
+  geometry?: Record<string, unknown> | null
+  reported_at?: string | null
+  updated_at?: string | null
+  /** Our nodes and segments within range, nearest first. */
+  affected: HazardAsset[]
+}
+
+export interface HazardSourceStatus {
+  source: string
+  label: string
+  ok: boolean
+  count: number
+  /** Why it failed. Safe to display — never contains the API key. */
+  error?: string | null
+  /** What this source can actually speak for. Shown so an empty map is not
+   *  misread as "all clear". */
+  coverage: string
+}
+
+export interface HazardFeed {
+  hazards: Hazard[]
+  sources: HazardSourceStatus[]
+  fetched_at: string
+  /** True when at least one source failed — drives the degraded banner. */
+  degraded: boolean
+}

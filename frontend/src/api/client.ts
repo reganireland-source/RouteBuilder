@@ -37,7 +37,7 @@
  * requests). Request/response shapes are the interfaces in ../types.
  */
 
-import type { AppConfig, CableNode, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, NlpParseResponse, NoteCategory, OutageEventType, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
+import type { AppConfig, CableNode, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, HazardFeed, NlpParseResponse, NoteCategory, OutageEventType, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
 
 // Backend origin baked in at build time. Empty string = same-origin (dev proxy).
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
@@ -302,6 +302,11 @@ export const api = {
 
   // Solution Notes
   getSolutionNotes:     ()                                                   => get<SolutionNote[]>('/api/solution-notes'),
+
+  // ── Hazards ── Server-side proxy over bushfire.io + USGS; the API key never
+  // reaches the browser and the response is cached backend-side, so calling
+  // this from every tab costs one upstream fetch per TTL window.
+  getHazards:     (force = false) => get<HazardFeed>(`/api/hazards${force ? '?force=true' : ''}`),
   createSolutionNote:   (data: SolutionNote)                                 => post<SolutionNote>('/api/solution-notes', data),
   updateSolutionNote:   (id: string, data: Partial<SolutionNote>)            => put<SolutionNote>(`/api/solution-notes/${id}`, data),
   deleteSolutionNote:   (id: string)                                         => del(`/api/solution-notes/${id}`),

@@ -33,7 +33,9 @@ import { AlgoEval } from './components/AlgoEval'
 import { generateStraightLineDiagram, generateSldFromProject, generateDrawioXml, generateVisioVsdx } from './utils/generateDiagram'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, useTheme, type Theme, type ThemeMode } from './theme'
-import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem } from './types'
+import { useHazards } from './hooks/useHazards'
+import { HazardProvider } from './context/HazardContext'
+import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem, Hazard} from './types'
 import { ProjectsModal } from './components/ProjectsModal'
 import { RouteManualLeft, RouteManualMiddle, computeCandidates, assembleRoute } from './components/RouteManual'
 import type { NextHopCandidate } from './components/RouteManual'
@@ -139,6 +141,19 @@ function routeKey(r: Route) { return r.nodes.join('|') }
 
 /** localStorage key for the Living World toggle. */
 const LIVING_WORLD_KEY = 'rb.livingWorld'
+/** Shared empty list, so "no hazards" is one stable reference. */
+const EMPTY_HAZARDS: Hazard[] = []
+
+/** localStorage key for the Network Hazards overlay. */
+const HAZARDS_KEY = 'rb.hazards'
+
+/** Network Hazards is OFF unless this browser has explicitly turned it on —
+ *  the opposite default to Living World, because this one calls two third-party
+ *  feeds and nobody should pay for that without asking. */
+function loadHazardsOn(): boolean {
+  try { return localStorage.getItem(HAZARDS_KEY) === '1' }
+  catch { return false }
+}
 
 /** Living World is ON unless this browser has explicitly turned it off. Reads
  *  defensively: storage throws in a private window, and the failure mode there
@@ -378,6 +393,14 @@ export default function App() {
 
   // Persist the Living World choice. Wrapped because storage throws in a
   // private window and a decorative toggle must never take the app down.
+  function toggleHazards() {
+    setHazardsOn(on => {
+      const next = !on
+      try { localStorage.setItem(HAZARDS_KEY, next ? '1' : '0') } catch { /* private mode */ }
+      return next
+    })
+  }
+
   function toggleLivingWorld() {
     setLivingWorld(on => {
       const next = !on
@@ -562,6 +585,12 @@ export default function App() {
   // is remembered per browser, because someone who turns whales off wants them
   // to stay off, and someone who never touches it never sees a prompt.
   const [livingWorld, setLivingWorld]               = useState(loadLivingWorld)
+  // "Network Hazards" — live disasters from bushfire.io + USGS. Off by default;
+  // useHazards does nothing at all until this flips on.
+  const [hazardsOn, setHazardsOn]                   = useState(loadHazardsOn)
+  const hazards = useHazards(hazardsOn)
+  // Stable identity while the layer is off, so HazardProvider's memo never churns.
+  const hazardList = hazards.feed?.hazards ?? EMPTY_HAZARDS
   const [nlpSortKey, setNlpSortKey]                 = useState<SortKey | undefined>(undefined)   // sort key requested by the NLP assistant
   const [nlpPushOutages, setNlpPushOutages]         = useState<boolean | undefined>(undefined)   // push outage-affected routes down, requested by NLP
   const [countryHighlight, setCountryHighlight]     = useState<CountryHighlight | null>(null)     // country selected in countryviewer mode
@@ -1089,6 +1118,7 @@ export default function App() {
   if (isMobile) {
     return (
       <ThemeContext.Provider value={theme}>
+       <HazardProvider hazards={hazardList}>
         <MobileLayout
           nodes={nodes} segments={segments} systems={systems}
           capacity={capacity} outages={outages} rules={rules}
@@ -1146,6 +1176,12 @@ export default function App() {
           onToggleBackhaulOnly={() => { setBackhaulOnly(v => !v); if (!backhaulOnly) setSubseaOnly(false) }}
           livingWorld={livingWorld}
           onToggleLivingWorld={toggleLivingWorld}
+          hazardsOn={hazardsOn}
+          onToggleHazards={toggleHazards}
+          hazardFeed={hazards.feed}
+          hazardsLoading={hazards.loading}
+          hazardsError={hazards.error}
+          onRefreshHazards={hazards.refresh}
           onApplySort={handleApplySort}
           nlpSortKey={nlpSortKey}
           nlpPushOutages={nlpPushOutages}
@@ -1303,6 +1339,7 @@ export default function App() {
           </div>,
           document.body
         )}
+       </HazardProvider>
       </ThemeContext.Provider>
     )
   }
@@ -1315,6 +1352,7 @@ export default function App() {
 
   return (
     <ThemeContext.Provider value={theme}>
+     <HazardProvider hazards={hazardList}>
       <div style={{ display: 'flex', height: '100vh', background: theme.bgBase, color: theme.text, fontFamily: "'Inter', system-ui, sans-serif", overflow: 'hidden' }}>
 
         {/* Top-right control menu */}
@@ -1322,7 +1360,7 @@ export default function App() {
           // Living World is deliberately absent: it is ON by default, so counting it
           // would pin a permanent "1" on the Controls button and make the badge
           // stop meaning "you have changed something".
-          const activeToggles = [showAllOutages, showPlannedEvents, hideNonActive, showSegmentLabels, showNodeLabels, subseaOnly, backhaulOnly].filter(Boolean).length
+          const activeToggles = [showAllOutages, showPlannedEvents, hideNonActive, showSegmentLabels, showNodeLabels, subseaOnly, backhaulOnly, hazardsOn].filter(Boolean).length
           return (
             <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 1000 }}>
               <button
@@ -1375,6 +1413,7 @@ export default function App() {
                       { label: 'Subsea Only',      icon: '🌊', active: subseaOnly,   color: theme.blue, onClick: () => { setSubseaOnly(v => !v);   if (!subseaOnly)   setBackhaulOnly(false) } },
                       { label: 'Backhaul Only',    icon: '🗺',  active: backhaulOnly, color: theme.blue, onClick: () => { setBackhaulOnly(v => !v); if (!backhaulOnly) setSubseaOnly(false)  } },
                       { label: 'Living World',     icon: '🐋', active: livingWorld,  color: theme.green, onClick: toggleLivingWorld },
+                      { label: 'Network Hazards',  icon: '⚠️', active: hazardsOn,    color: theme.orange, onClick: toggleHazards },
                     ].map(item => (
                       <button
                         key={item.label}
@@ -1837,6 +1876,11 @@ export default function App() {
               fitBounds={fitBounds}
               spotlightNodeId={spotlightNodeId}
               livingWorld={livingWorld}
+              hazardsOn={hazardsOn}
+              hazardFeed={hazards.feed}
+              hazardsLoading={hazards.loading}
+              hazardsError={hazards.error}
+              onRefreshHazards={hazards.refresh}
               bannerOffset={isFutureView(serviceChoice)}
               onNodeClick={mode === 'routemanual' ? undefined : (node, x, y) => setSelectedNode({ node, x, y })}
               searchPin={searchPin ?? undefined}
@@ -2194,6 +2238,7 @@ export default function App() {
         </div>,
         document.body
       )}
+     </HazardProvider>
     </ThemeContext.Provider>
   )
 }
