@@ -21,6 +21,9 @@
  *   4. prefix match on name
  *   5. word-start match inside a name — "cross" finds "Southern Cross NEXT"
  *   6. plain substring match
+ *   7. substring of the secondary line
+ *   8-9. every WORD of a multi-word query present, though not contiguously —
+ *        this is what lets "C2C S5" find "C2C Segment S5 Ajigaura–Nasugbu"
  * Ties break by kind (nodes before cities before systems before segments
  * before countries — roughly how specific each is), then alphabetically, so
  * the order is stable and never jitters between keystrokes.
@@ -153,11 +156,15 @@ export function buildAssetIndex(
   ]
 }
 
+/** Split a label into words on the separators these names actually use. */
+const WORD_SPLIT = /[\s\-–—/(),.]+/
+
 /**
- * Score one entry against a lower-cased query. Returns null when it does not
- * match at all, so the caller can filter and rank in one pass.
+ * Score one entry against a lower-cased query, treating the query as ONE
+ * contiguous string. Returns null when it does not match, so the caller can
+ * filter and rank in one pass.
  */
-function scoreEntry(e: Entry, q: string): number | null {
+function scoreContiguous(e: Entry, q: string): number | null {
   const code = e.code?.toLowerCase()
   const label = e.label.toLowerCase()
 
@@ -168,12 +175,34 @@ function scoreEntry(e: Entry, q: string): number | null {
 
   // Word-start: "cross" should find "Southern Cross NEXT", but "ross" should
   // not rank as highly as a real word boundary would.
-  const atWordStart = label.split(/[\s\-–—/(),.]+/).some(w => w.startsWith(q))
-  if (atWordStart) return 5
+  if (label.split(WORD_SPLIT).some(w => w.startsWith(q))) return 5
 
   if (label.includes(q)) return 6
   if (e.sublabel?.toLowerCase().includes(q)) return 7
   return null
+}
+
+/**
+ * Score an entry against a MULTI-WORD query, where every word must appear
+ * somewhere but not necessarily together.
+ *
+ * This is what makes "C2C S5" find "C2C Segment S5 Ajigaura–Nasugbu". As one
+ * contiguous string that query matches nothing — the real name has "Segment"
+ * sitting between the two halves — so typing the 5 made the result the user was
+ * clearly aiming at vanish. People type the distinctive bits of a name and
+ * leave out the filler, and the search has to expect that.
+ *
+ * Tier 8 is every word landing on a word boundary ("s5" matching the word
+ * "S5"), tier 9 is every word merely present somewhere. Both rank below every
+ * contiguous tier, so a true prefix or exact hit is never displaced by a
+ * scattered one.
+ */
+function scoreTokens(e: Entry, tokens: string[]): number | null {
+  const haystack = `${e.label} ${e.sublabel ?? ''} ${e.code ?? ''}`.toLowerCase()
+  const words = haystack.split(WORD_SPLIT)
+
+  if (!tokens.every(tok => haystack.includes(tok))) return null
+  return tokens.every(tok => words.some(w => w.startsWith(tok))) ? 8 : 9
 }
 
 /**
@@ -186,9 +215,14 @@ export function searchAssets(index: Entry[], query: string, limit = 12): AssetHi
   const q = query.trim().toLowerCase()
   if (q.length < 2) return []
 
+  // Multi-word queries fall back to all-words-present matching when the query
+  // does not appear as one contiguous run — see scoreTokens.
+  const tokens = q.split(/\s+/).filter(Boolean)
+  const multiWord = tokens.length > 1
+
   const hits: AssetHit[] = []
   for (const e of index) {
-    const score = scoreEntry(e, q)
+    const score = scoreContiguous(e, q) ?? (multiWord ? scoreTokens(e, tokens) : null)
     if (score === null) continue
     hits.push({ kind: e.kind, id: e.id, label: e.label, sublabel: e.sublabel, score })
   }
