@@ -190,7 +190,11 @@ export function HealthBar({ dataLoaded, mapsProvider }: Props) {
       gap: 4,
       flexShrink: 0,
     }}>
-      <div style={{ display: 'flex', gap: 14 }}>
+      {/* Wraps: six indicators do not fit one line in either layout — the
+          desktop sidebar is 440px and a phone is narrower still, so the last
+          one or two were being clipped off the right edge. Two short rows is
+          better than a truncated one. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 12, rowGap: 4 }}>
         {indicators.map(ind => (
           <div
             key={ind.label}
@@ -210,7 +214,13 @@ export function HealthBar({ dataLoaded, mapsProvider }: Props) {
         ))}
       </div>
       <span
-        style={{ fontSize: 10, color: t.textFaint, letterSpacing: '0.04em', opacity: 0.7, fontFamily: 'monospace', cursor: 'default' }}
+        style={{
+          fontSize: 10, color: t.textFaint, letterSpacing: '0.04em', opacity: 0.7,
+          fontFamily: 'monospace', cursor: 'default',
+          // Branch names are unbounded ("claude/cool-edison-NRUtx"), so this
+          // line has to be allowed to wrap or it runs off the edge too.
+          overflowWrap: 'anywhere',
+        }}
         title={`Build ${__BUILD_NUMBER__}\nCommit ${__BUILD_COMMIT__}${__BUILD_DIRTY__ ? ' (uncommitted changes at build time)' : ''}\nBranch ${__BUILD_BRANCH__}\nBuilt ${__BUILD_DATE__} (local time)`}
       >
         Build <strong style={{ color: t.textMuted }}>{__BUILD_NUMBER__}</strong>
