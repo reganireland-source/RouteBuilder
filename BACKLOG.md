@@ -2,6 +2,12 @@
 
 Everything known-but-not-done, as of 2026-09-14. Ordered by kind.
 
+**Status 2026-09-15.** RFS is now DONE end to end — backend constraint, client
+mirror, Current/Planned selector, future-network banner — and EOL has shipped
+as its exact reverse (see 1.3). Outstanding from the list below: the coverage
+import data loss (2.1), the new bulk-import gap (2.6), and the remaining lint
+debt (4.3).
+
 **Status 2026-09-14.** A session rate limit stopped five parallel workstreams
 partway, so several items below are genuinely half-done rather than merely
 planned. What actually landed: the RFS routing constraint backend (1.1, DONE
@@ -55,6 +61,21 @@ the route card carries an `RFS 2027-Q2` badge showing the LATEST quarter on
 that path — a route is only usable once its last planned piece is in service —
 with a tooltip naming which segments are holding it up.
 
+### 1.3 EOL — DONE
+End of Life shipped as the exact mirror of RFS: `eol_status`/`eol_quarter` on
+systems and segments, migration m061, and a segment must now be both built and
+not-yet-retired to be routable. Effective EOL is the EARLIER of segment and
+system (a ceiling, where RFS has a floor); a quarter resolves to its last day in
+both directions; an `eol` row with an unparseable quarter counts as already
+retired, mirroring RFS.
+
+One consequence worth revisiting: because the mirror is exact, a typo in an EOL
+quarter silently removes a cable that is carrying traffic today. That is
+defensibly conservative — "if we cannot tell when a cable is usable, do not
+offer it" — but the cost is higher in the EOL direction than the RFS one. If
+that proves wrong in practice, the fix is to treat a malformed EOL quarter as
+"never retires" instead.
+
 ### 1.2 Node codes in RouteList path chains
 Route cards render a path as `Sydney → Auckland → Guam`, names only. Everywhere
 else a node is written code-first (`SYD1 - Sydney`) via `utils/nodeLabel.ts`.
@@ -74,6 +95,14 @@ touched by a coverage import therefore loses `city`, `street_address`,
 `verification_status`, `last_verified_date` and `on_net`. Fix by merging onto
 the existing node (`model_copy(update=...)`) instead of reconstructing it, the
 way `PUT /api/nodes/{id}` already does.
+
+### 2.6 Bulk CSV import silently resets lifecycle dates
+`backend/app/api/bulk.py` does not carry `rfs_status`/`rfs_quarter` in
+`SEGMENT_COLS`/`SYSTEM_COLS`, and its importers reconstruct `CableSegment` /
+`CableSystem` from the CSV columns alone. A segment or system import in upsert
+mode therefore resets those fields to their defaults — and now `eol_status` /
+`eol_quarter` with them. Pre-existing for RFS, doubled by EOL. Same shape as
+2.1 and the same fix: merge onto the existing row rather than rebuilding it.
 
 ### 2.2 SolutionNotesOverlay is dark-theme only
 `frontend/src/components/SolutionNotesOverlay.tsx:31-35` hard-codes severity
