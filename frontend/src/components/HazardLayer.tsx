@@ -16,10 +16,18 @@
  * below the node markers (600), so a landing station is never hidden by a
  * polygon covering the city it is in.
  *
+ * HAZARDS ARE TRIANGLES, NODES ARE CIRCLES. That is the first thing this layer
+ * has to get right. The first version drew hazards as ringed circles with a
+ * glyph inside, and on a real map they read as node markers — a solid
+ * orange-ringed circle next to Davao was indistinguishable from a CLS at a
+ * glance. The warning triangle is the near-universal hazard sign and, more
+ * usefully here, it is a shape nothing else on this map uses, so the two
+ * categories separate before you have read either one.
+ *
  * SEVERITY IS SHAPE AND COLOUR, NOT COLOUR ALONE. Every marker carries its
- * kind's glyph and the ring thickens with severity, because a red-vs-amber-only
- * scheme fails for the colour-blind and in print — the same reasoning as the
- * wet/terrestrial distinction elsewhere in this app.
+ * kind's glyph and the outline thickens with severity, because a red-vs-amber-
+ * only scheme fails for the colour-blind and in print — the same reasoning as
+ * the wet/terrestrial distinction elsewhere in this app.
  *
  * AN EMPTY LAYER IS NOT "ALL CLEAR". The most dangerous failure mode here is a
  * feed that is down, or a region neither source covers, rendering as a calm map.
@@ -81,9 +89,22 @@ export const SEVERITY_LABEL: Record<HazardSeverity, string> = {
 const SEVERITY_WEIGHT: Record<HazardSeverity, number> = {
   advisory: 1, watch: 1.5, warning: 2.5, emergency: 3.5,
 }
+/** Triangle WIDTH. Slightly larger than the circles these replaced: a triangle
+ *  encloses about half the area of a circle on the same bounding box, so equal
+ *  numbers would have read as a downgrade in prominence. */
 const SEVERITY_SIZE: Record<HazardSeverity, number> = {
-  advisory: 20, watch: 22, warning: 26, emergency: 30,
+  advisory: 22, watch: 25, warning: 29, emergency: 34,
 }
+
+// Triangle geometry, in viewBox units. Stroke-linejoin rounds the corners, so
+// the apex is pulled in slightly from the edge to leave room for the join.
+const TRI_VB_W = 100
+const TRI_VB_H = 90
+const TRI_POINTS = '50,7 95,83 5,83'
+/** Where the triangle's visual mass sits, as a fraction of its height. A
+ *  triangle's centroid is two thirds of the way down, not halfway — anchoring
+ *  at the box centre would float every marker above the thing it marks. */
+const TRI_CENTROID_Y = (7 + 83 + 83) / 3 / TRI_VB_H
 
 type T = ReturnType<typeof useTheme>
 
@@ -107,25 +128,38 @@ function isRelevant(h: Hazard): boolean {
 }
 
 function buildIcon(h: Hazard, color: string, relevant: boolean): L.DivIcon {
-  const size = SEVERITY_SIZE[h.severity]
+  const w = SEVERITY_SIZE[h.severity]
+  const hgt = Math.round(w * (TRI_VB_H / TRI_VB_W))
   const weight = SEVERITY_WEIGHT[h.severity]
-  // A hazard near our network gets a solid ring and full opacity; everything
+  // A hazard near our network gets a solid outline and full opacity; everything
   // else is dashed and muted, so the map reads as "these few matter" rather
   // than as an undifferentiated wall of alarm.
-  const border = relevant
-    ? `${weight + 0.5}px solid ${color}`
-    : `${weight}px dashed ${color}99`
+  const stroke = relevant ? weight + 1 : weight
+  const dash = relevant ? '' : ` stroke-dasharray="7 5"`
+  // Scaled into viewBox units so the outline looks the same weight at every size.
+  const strokeVb = (stroke * TRI_VB_W) / w
+
+  // The glyph is an HTML element layered over the SVG rather than an SVG
+  // <text>: emoji render inconsistently inside SVG across browsers, and this
+  // keeps them identical to every other glyph in the app. It sits low in the
+  // triangle, where there is actually width for it.
+  const glyphSize = Math.round(w * 0.36)
   return L.divIcon({
     className: 'rb-hazard-icon',
     html:
-      `<div style="width:${size}px;height:${size}px;border-radius:50%;`
-      + `border:${border};background:${color}${relevant ? '33' : '18'};`
-      + `display:flex;align-items:center;justify-content:center;`
-      + `font-size:${Math.round(size * 0.5)}px;line-height:1;`
-      + `opacity:${relevant ? 1 : 0.65};box-shadow:0 0 0 1px rgba(0,0,0,0.35);">`
-      + `${KIND_GLYPH[h.kind] ?? '⚠'}</div>`,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
+      `<div style="position:relative;width:${w}px;height:${hgt}px;opacity:${relevant ? 1 : 0.7};">`
+      + `<svg viewBox="0 0 ${TRI_VB_W} ${TRI_VB_H}" width="${w}" height="${hgt}" `
+      + `style="position:absolute;inset:0;overflow:visible;`
+      + `filter:drop-shadow(0 1px 2px rgba(0,0,0,0.55));">`
+      + `<polygon points="${TRI_POINTS}" fill="${color}${relevant ? '3d' : '1f'}" `
+      + `stroke="${color}${relevant ? '' : 'aa'}" stroke-width="${strokeVb.toFixed(1)}" `
+      + `stroke-linejoin="round"${dash}/></svg>`
+      + `<span style="position:absolute;left:0;right:0;bottom:${Math.round(hgt * 0.1)}px;`
+      + `text-align:center;font-size:${glyphSize}px;line-height:1;pointer-events:none;">`
+      + `${KIND_GLYPH[h.kind] ?? '⚠'}</span>`
+      + '</div>',
+    iconSize: [w, hgt],
+    iconAnchor: [w / 2, hgt * TRI_CENTROID_Y],
   })
 }
 
@@ -138,21 +172,32 @@ function esc(value: string | null | undefined): string {
   ))
 }
 
+/** The "network assets in range" block. Lifted out of popupHtml so its two
+ *  conditionals are statements rather than ternaries nested in a template. */
+function affectedHtml(h: Hazard, t: T): string {
+  if (h.affected.length === 0) {
+    return `<div style="color:${t.textFaintest};font-style:italic;margin-top:6px">No network assets within range.</div>`
+  }
+  const SHOWN = 8
+  const rows = h.affected.slice(0, SHOWN).map(a => {
+    const marker = a.kind === 'node' ? '◉' : '━'
+    return `<div style="font-size:11px;color:${t.text};margin-top:2px">`
+      + `<span style="color:${t.textFaint}">${marker}</span> `
+      + `${esc(a.label)} <span style="color:${t.textFaint}">· ${a.distance_km} km</span></div>`
+  }).join('')
+  const overflow = h.affected.length > SHOWN
+    ? `<div style="font-size:10px;color:${t.textFaint};margin-top:2px">…and ${h.affected.length - SHOWN} more</div>`
+    : ''
+  return `<div style="margin-top:6px">
+      <div style="font-size:9px;font-weight:700;letter-spacing:.06em;color:${t.textFaint};text-transform:uppercase">
+        Network assets in range (${h.affected.length})
+      </div>${rows}${overflow}
+    </div>`
+}
+
 function popupHtml(h: Hazard, t: T): string {
   const color = severityColor(h.severity, t)
-  const affected = h.affected.length === 0
-    ? `<div style="color:${t.textFaintest};font-style:italic;margin-top:6px">No network assets within range.</div>`
-    : `<div style="margin-top:6px">
-         <div style="font-size:9px;font-weight:700;letter-spacing:.06em;color:${t.textFaint};text-transform:uppercase">
-           Network assets in range (${h.affected.length})
-         </div>
-         ${h.affected.slice(0, 8).map(a => (
-           `<div style="font-size:11px;color:${t.text};margin-top:2px">`
-           + `<span style="color:${t.textFaint}">${a.kind === 'node' ? '◉' : '━'}</span> `
-           + `${esc(a.label)} <span style="color:${t.textFaint}">· ${a.distance_km} km</span></div>`
-         )).join('')}
-         ${h.affected.length > 8 ? `<div style="font-size:10px;color:${t.textFaint};margin-top:2px">…and ${h.affected.length - 8} more</div>` : ''}
-       </div>`
+  const affected = affectedHtml(h, t)
   const when = h.updated_at || h.reported_at
   return `
     <div style="font-family:system-ui,sans-serif;min-width:230px;max-width:320px">
