@@ -913,6 +913,7 @@ export function MobileLayout({
                   <RouteList
                     serviceDate={serviceDate ?? null}
                     allSegments={segments}
+                    onDataChange={onDataChange}
                     primaryRoutes={response?.primary_routes ?? []}
                     diverseRoutes={response?.diverse_routes ?? []}
                     totalFound={response?.total_found}
@@ -970,6 +971,7 @@ export function MobileLayout({
               <RouteList
                 serviceDate={serviceDate ?? null}
                 allSegments={segments}
+                onDataChange={onDataChange}
                 primaryRoutes={manualResults}
                 diverseRoutes={[]}
                 selectedRouteIds={selectedRouteIds}

@@ -26,25 +26,21 @@
  *    (`EditNodeForm`) owns its own draft/saving/error state, so navigating away
  *    unmounts it and there is no half-typed draft left lying around.
  *
- * 3. IT IS RESPONSIVE. Two matchMedia breakpoints drive the whole layout:
- *    PHONE_PX turns the dialog into a near-fullscreen sheet with a two-line
- *    header (so the × never wraps away from the title), and STACK_PX puts the
- *    108px field labels ABOVE their values instead of beside them, because a
- *    108px gutter on a 430px screen leaves one word per line. Both are read
- *    once at the top and published on LayoutContext, so the leaf helpers (Row,
- *    EditField, SelectField) can adapt without every caller threading a flag.
- *    Above PHONE_PX nothing about the desktop layout changes.
+ * 3. THE SHELL IS SHARED. The dialog, the cards, the form controls and the
+ *    three responsive breakpoints all live in `fullViewChrome.tsx`, so this
+ *    view and SegmentFullView are the same screen with different contents
+ *    rather than two that drift apart. See that file for the breakpoint model.
  *
  * Notes and note categories can be passed in when the parent already has them;
- * otherwise NodeNotesPanel fetches its own, because the notes API has no
+ * otherwise EntityNotesPanel fetches its own, because the notes API has no
  * per-node filter and refetching on every navigation would be wasteful.
  *
  * Mounted from: NodeInfoPanel.tsx (its "⛶ Full View" button).
- * Backend: GET /api/solution-notes + /api/note-categories (via NodeNotesPanel),
+ * Backend: GET /api/solution-notes + /api/note-categories (via EntityNotesPanel),
  * PUT /api/nodes/{id} on save, and the openstreetmap.org embed iframe.
  * ============================================================================
  */
-import { createContext, useContext, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import type {
   CableNode, CableSegment, CableSystem, SegmentCapacity,
@@ -57,7 +53,14 @@ import { nodeLabel } from '../utils/nodeLabel'
 import { OWNER_LOGOS } from '../utils/ownerLogos'
 import { ProductCoverageMatrix } from './ProductCoverageMatrix'
 import { SegmentFanDiagram } from './SegmentFanDiagram'
-import { NodeNotesPanel } from './NodeNotesPanel'
+import { EntityNotesPanel } from './EntityNotesPanel'
+import { SegmentFullView } from './SegmentFullView'
+import {
+  type T, LayoutContext, useLayout, useFullViewLayout, useEscapeKey,
+  backdropClose, backdropStyle, dialogStyle, headerShell, scrollerStyle, rowStyle,
+  Card, Row, Empty, NotFound, EditField, SelectField, ReadOnlyIdField, EditFormFooter, FullViewColumn,
+  iconBtn, closeBtnStyle, utilisationColor, Z_FULL_VIEW_BASE, nextFullViewLayer,
+} from './fullViewChrome'
 
 // Same option sets the Reference Data node form uses — kept identical on
 // purpose so an admin sees the same choices wherever they edit a node.
@@ -76,61 +79,6 @@ const ON_NET_OPTS: [string, string][] = [
 ]
 
 const TYPE_LABEL: Record<string, string> = Object.fromEntries(TYPE_OPTS)
-
-// ── Responsive breakpoints ────────────────────────────────────────────────
-/** At or below this the dialog becomes a near-fullscreen sheet and the header
- *  splits into two lines so the close button can never wrap out of reach. */
-const PHONE_PX = 600
-/** At or below this the fixed 108px label gutter costs more than it buys, and
- *  labels move above their value/input instead of beside it. */
-const STACK_PX = 480
-/**
- * At or above this the dialog lays out as two side-by-side columns — a
- * landscape reading rather than one tall scroll. Below it the cards stack in
- * rows, which is what a narrow window and a phone both want.
- */
-const LANDSCAPE_PX = 1100
-
-/** Shape copied from ProductHistory.tsx's `useNarrow`, parameterised by width. */
-function useMaxWidth(px: number): boolean {
-  const [matches, setMatches] = useState(
-    () => typeof window !== 'undefined' && window.innerWidth <= px,
-  )
-  useEffect(() => {
-    const mq = window.matchMedia(`(max-width: ${px}px)`)
-    const onChange = () => setMatches(mq.matches)
-    onChange()
-    mq.addEventListener('change', onChange)
-    return () => mq.removeEventListener('change', onChange)
-  }, [px])
-  return matches
-}
-
-interface Layout {
-  /** Near-fullscreen sheet, two-line header, tighter padding. */
-  phone: boolean
-  /** Two side-by-side columns instead of stacked rows. */
-  landscape: boolean
-  /** Field labels sit above their value rather than in a 108px gutter. */
-  stackLabels: boolean
-}
-
-const LayoutContext = createContext<Layout>({ phone: false, landscape: false, stackLabels: false })
-
-function useLayout(): Layout {
-  return useContext(LayoutContext)
-}
-
-/** Escape handling, lifted out of the component so the modal body reads as
- *  layout. Deliberately re-subscribed on every render (no dep array) so the
- *  handler always closes over the latest navigation/editing state. */
-function useEscapeKey(onEscape: () => void) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onEscape() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  })
-}
 
 /** The node fields this form edits — the same eleven the Reference Data tab
  *  exposes. `id` is deliberately absent: it is the identifier, and renaming it
@@ -187,22 +135,37 @@ interface Props {
   noteCategories?: NoteCategory[]
   onClose: () => void
   onDataChange?: () => void
+  /**
+   * Where a segment's ⛶ should go. Omit it and this view stacks its own
+   * SegmentFullView on top; supply it and the parent handles it instead. That
+   * is how SegmentFullView — which opens node views of its own — keeps the
+   * stack from growing without bound: it hands down its own `navigateTo`, so
+   * picking a segment inside a node view returns to the segment screen rather
+   * than opening a third modal on top of the second.
+   */
+  onOpenSegment?: (segmentId: string) => void
+  /** The stacking layer to render at. Defaults to the base; a view that opens
+   *  this one on top of itself passes the next rung of the ladder. */
+  zIndex?: number
 }
 
 export function NodeFullView({
   nodeId, nodes, segments, systems, capacity, notes, noteCategories, onClose, onDataChange,
+  onOpenSegment, zIndex = Z_FULL_VIEW_BASE,
 }: Props) {
   const t = useTheme()
   const { isAdmin } = useAuth()
-  const phone = useMaxWidth(PHONE_PX)
-  const stackLabels = useMaxWidth(STACK_PX)
-  const landscape = !useMaxWidth(LANDSCAPE_PX - 1)
+  const layout = useFullViewLayout()
+  const { phone } = layout
 
   // Navigation state: `current` is what's on screen, `stack` is where we came
   // from. Both are ids, so a refetch after an edit flows straight through.
   const [current, setCurrent] = useState(nodeId)
   const [stack, setStack] = useState<string[]>([])
   const [editing, setEditing] = useState(false)
+  /** A segment Full View stacked on top — only used when the parent did not
+   *  claim segment opening for itself via `onOpenSegment`. */
+  const [openSegmentId, setOpenSegmentId] = useState<string | null>(null)
 
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n])) as Record<string, CableNode>
   const node = nodesById[current]
@@ -210,6 +173,7 @@ export function NodeFullView({
   useEscapeKey(() => {
     // Escape backs out one hop before it closes — losing a five-node walk to
     // a stray keypress would be worse than needing two presses.
+    if (openSegmentId) { setOpenSegmentId(null); return }
     if (editing) { setEditing(false); return }
     if (stack.length) { goBack(); return }
     onClose()
@@ -230,16 +194,17 @@ export function NodeFullView({
     setEditing(false)
   }
 
+  // Null once the stack is as deep as it may go, which hides the ⛶ rather than
+  // opening a view that would land behind the tooltip layer.
+  const stackedLayer = nextFullViewLayer(zIndex)
+  const openSegment = onOpenSegment ?? (stackedLayer === null ? undefined : setOpenSegmentId)
+
   const body = (
-    <LayoutContext.Provider value={{ phone, landscape, stackLabels }}>
+    <LayoutContext.Provider value={layout}>
       <div
         role="presentation"
         onClick={backdropClose(onClose)}
-        style={{
-          position: 'fixed', inset: 0, zIndex: 9000,
-          background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: phone ? 6 : 16,
-        }}
+        style={backdropStyle(phone, zIndex)}
       >
         <div
           role="dialog"
@@ -271,23 +236,37 @@ export function NodeFullView({
               noteCategories={noteCategories}
               editing={editing}
               onNavigate={navigateTo}
+              onOpenSegment={openSegment}
               onSaved={() => { setEditing(false); onDataChange?.() }}
               onCancelEdit={() => setEditing(false)}
             />
           ) : (
-            <NotFound t={t} id={current} />
+            <NotFound t={t} what="node" id={current} />
           )}
         </div>
       </div>
     </LayoutContext.Provider>
   )
 
-  return createPortal(body, document.body)
-}
-
-/** Click-outside-to-close, as a handler factory so the modal body stays flat. */
-function backdropClose(onClose: () => void) {
-  return (e: React.MouseEvent) => { if (e.target === e.currentTarget) onClose() }
+  return (
+    <>
+      {createPortal(body, document.body)}
+      {openSegmentId && stackedLayer !== null && (
+        <SegmentFullView
+          zIndex={stackedLayer}
+          segmentId={openSegmentId}
+          nodes={nodes}
+          segments={segments}
+          systems={systems}
+          capacity={capacity}
+          notes={notes}
+          noteCategories={noteCategories}
+          onClose={() => setOpenSegmentId(null)}
+          onDataChange={onDataChange}
+        />
+      )}
+    </>
+  )
 }
 
 /** Label for the "← Back" button's tooltip, or null when the stack is empty. */
@@ -374,27 +353,7 @@ function FullViewHeader({ t, phone, node, current, backTo, canEdit, onBack, onEd
   )
 }
 
-function headerShell(t: T, phone: boolean) {
-  return {
-    display: phone ? 'block' : 'flex',
-    alignItems: 'center',
-    gap: 12,
-    flexWrap: 'wrap',
-    padding: phone ? '10px 12px' : '13px 16px',
-    background: t.bgDeep,
-    borderBottom: `1px solid ${t.border}`,
-  } as const
-}
-
 // ── Body ──────────────────────────────────────────────────────────────────
-
-function NotFound({ t, id }: { t: T; id: string }) {
-  return (
-    <div style={{ padding: 28, color: t.textMuted, fontSize: 13 }}>
-      No node with id <strong style={{ color: t.text }}>{id}</strong> is loaded.
-    </div>
-  )
-}
 
 /**
  * Stacked sections rather than one auto-placed grid: a full-width "span" item
@@ -404,7 +363,7 @@ function NotFound({ t, id }: { t: T; id: string }) {
  */
 function FullViewBody({
   t, node, nodesById, segments, systems, capacity, notes, noteCategories,
-  editing, onNavigate, onSaved, onCancelEdit,
+  editing, onNavigate, onOpenSegment, onSaved, onCancelEdit,
 }: {
   t: T
   node: CableNode
@@ -416,6 +375,7 @@ function FullViewBody({
   noteCategories?: NoteCategory[]
   editing: boolean
   onNavigate: (id: string) => void
+  onOpenSegment?: (id: string) => void
   onSaved: () => void
   onCancelEdit: () => void
 }) {
@@ -484,19 +444,17 @@ function FullViewBody({
     <Card t={t} title="Segment Capacity" grow>
       <SegmentCapacityList
         t={t} node={node} nodeSegments={nodeSegments} capacity={capacity} nodesById={nodesById}
+        onOpenSegment={onOpenSegment}
       />
     </Card>
   )
   const notesCard = (
     <Card t={t} title={null} grow>
-      <NodeNotesPanel nodeId={node.id} notes={notes} categories={noteCategories} />
+      <EntityNotesPanel kind="node" entityId={node.id} notes={notes} categories={noteCategories} />
     </Card>
   )
 
-  const scroller: React.CSSProperties = {
-    overflowY: 'auto', WebkitOverflowScrolling: 'touch', flex: 1, minHeight: 0,
-    padding: phone ? 10 : 16,
-  }
+  const scroller = scrollerStyle(phone)
 
   // ── Landscape: two columns side by side ──────────────────────────────────
   // A wide screen is wide, and the stacked version made you scroll past a
@@ -507,17 +465,8 @@ function FullViewBody({
   if (landscape) {
     return (
       <div style={{ ...scroller, display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-        <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {identityCard}
-          {siteCard}
-          {coverageCard}
-        </div>
-        <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {fanCard}
-          {systemsCard}
-          {capacityCard}
-          {notesCard}
-        </div>
+        <FullViewColumn>{[identityCard, siteCard, coverageCard]}</FullViewColumn>
+        <FullViewColumn>{[fanCard, systemsCard, capacityCard, notesCard]}</FullViewColumn>
       </div>
     )
   }
@@ -598,11 +547,7 @@ function EditNodeForm({ t, node, onSaved, onCancel }: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <Row t={t} label="ID">
-        <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12, color: t.textMuted }}>
-          {node.id} <span style={{ color: t.textFaintest }}>(not editable)</span>
-        </span>
-      </Row>
+      <ReadOnlyIdField t={t} label="ID" id={node.id} />
       <EditField t={t} label="Name *"       value={draft.name}           onChange={v => set({ name: v })} />
       <EditField t={t} label="Country"      value={draft.country}        onChange={v => set({ country: v })} />
       <SelectField t={t} label="Type"       value={draft.type}           options={TYPE_OPTS} onChange={v => set({ type: v as NodeType })} />
@@ -615,16 +560,7 @@ function EditNodeForm({ t, node, onSaved, onCancel }: {
       <EditField t={t} label="Address"      value={draft.street_address} onChange={v => set({ street_address: v })} />
       <EditField t={t} label="Description"  value={draft.description}    onChange={v => set({ description: v })} />
 
-      {error && <div style={{ fontSize: 11, color: t.red, lineHeight: 1.5 }}>⚠ {error}</div>}
-      <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
-        <button onClick={save} disabled={saving} style={saveBtnStyle(t, saving)}>
-          {saving ? 'Saving…' : 'Save changes'}
-        </button>
-        <button onClick={onCancel} disabled={saving} style={iconBtn(t)}>Cancel</button>
-      </div>
-      <div style={{ fontSize: 10, color: t.textFaintest, lineHeight: 1.5 }}>
-        Saves immediately to the database — this is not staged like the Network Editor.
-      </div>
+      <EditFormFooter t={t} error={error} saving={saving} onSave={save} onCancel={onCancel} />
     </div>
   )
 }
@@ -662,12 +598,13 @@ function CableSystemsList({ t, counts, systemsById }: {
 }
 
 /** Capacity on every segment leaving the node, one utilisation bar each. */
-function SegmentCapacityList({ t, node, nodeSegments, capacity, nodesById }: {
+function SegmentCapacityList({ t, node, nodeSegments, capacity, nodesById, onOpenSegment }: {
   t: T
   node: CableNode
   nodeSegments: CableSegment[]
   capacity: SegmentCapacity[]
   nodesById: Record<string, CableNode>
+  onOpenSegment?: (id: string) => void
 }) {
   if (nodeSegments.length === 0) return <Empty t={t}>No segments at this node.</Empty>
 
@@ -683,6 +620,7 @@ function SegmentCapacityList({ t, node, nodeSegments, capacity, nodesById }: {
             t={t}
             farLabel={nodeLabel(nodesById[far], far)}
             cap={capacityBySegment[seg.id]}
+            onOpenSegment={onOpenSegment && (() => onOpenSegment(seg.id))}
           />
         )
       })}
@@ -690,7 +628,9 @@ function SegmentCapacityList({ t, node, nodeSegments, capacity, nodesById }: {
   )
 }
 
-function CapacityRow({ t, farLabel, cap }: { t: T; farLabel: string; cap: SegmentCapacity | undefined }) {
+function CapacityRow({ t, farLabel, cap, onOpenSegment }: {
+  t: T; farLabel: string; cap: SegmentCapacity | undefined; onOpenSegment?: () => void
+}) {
   const total = cap?.total_capacity_t ?? 0
   const used = total - (cap?.available_capacity_t ?? 0)
   const pct = total > 0 ? used / total : 0
@@ -704,6 +644,19 @@ function CapacityRow({ t, farLabel, cap }: { t: T; farLabel: string; cap: Segmen
         <span style={{ color: t.textFaint, fontFamily: 'ui-monospace, monospace', whiteSpace: 'nowrap' }}>
           {cap ? `${cap.available_capacity_t} / ${cap.total_capacity_t} T free` : 'no capacity record'}
         </span>
+        {/* The far-end NODE is one click away through the fan diagram above;
+            this is the other half of the pair — the SEGMENT in between. */}
+        {onOpenSegment && (
+          <button
+            onClick={onOpenSegment}
+            title="Full view of this segment"
+            aria-label={`Full view of the segment to ${farLabel}`}
+            style={{
+              background: 'none', border: 'none', padding: '0 2px', cursor: 'pointer',
+              color: t.blue, fontSize: 12, lineHeight: 1, flexShrink: 0,
+            }}
+          >⛶</button>
+        )}
       </div>
       {total > 0 && (
         <div style={{ height: 3, borderRadius: 2, background: t.bgDeep, marginTop: 3, overflow: 'hidden' }}>
@@ -714,39 +667,10 @@ function CapacityRow({ t, farLabel, cap }: { t: T; farLabel: string; cap: Segmen
   )
 }
 
-/** Amber past 75% used, red past 90% — a node whose every exit is nearly full
- *  is the thing worth spotting in the capacity list. */
-function utilisationColor(pct: number, t: T): string {
-  if (pct >= 0.9) return t.red
-  if (pct >= 0.75) return t.orange
-  return t.green
-}
-
 function onNetLabel(v: string | undefined): string | undefined {
   if (v === 'on_net') return 'On-Net'
   if (v === 'off_net') return 'Off-Net'
   return undefined
-}
-
-// ── Small presentational helpers ──────────────────────────────────────────
-type T = ReturnType<typeof useTheme>
-
-/** One row of cards: side by side when there's room, stacked on a phone. */
-function rowStyle(phone: boolean) {
-  return { display: 'flex', gap: phone ? 12 : 16, flexWrap: 'wrap', alignItems: 'flex-start' } as const
-}
-
-/** Near-fullscreen sheet on a phone (a 6px inset from the backdrop's padding),
- *  the original centred 1180px dialog everywhere else. */
-function dialogStyle(t: T, phone: boolean) {
-  return {
-    background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: phone ? 8 : 12,
-    width: phone ? '100%' : 'min(1180px, 96vw)', maxWidth: '100%',
-    height: phone ? '100%' : 'auto', maxHeight: phone ? '100%' : '92vh',
-    display: 'flex', flexDirection: 'column',
-    boxShadow: '0 24px 64px rgba(0,0,0,0.5)', overflow: 'hidden',
-    fontFamily: 'system-ui, sans-serif',
-  } as const
 }
 
 /**
@@ -758,135 +682,4 @@ function dialogStyle(t: T, phone: boolean) {
 function fanSize(phone: boolean, landscape: boolean): number {
   if (phone) return 380
   return landscape ? 520 : 620
-}
-
-/** Cards sit in `rowStyle` rows. `grow` lets a card take the slack in its row;
- *  a card without it is sized by its content (the fan diagram, which has a
- *  fixed square aspect and looks wrong stretched). */
-function Card({ t, title, children, pad = 12, grow = false }: {
-  t: T; title: string | null; children: React.ReactNode; pad?: number; grow?: boolean
-}) {
-  return (
-    <div style={{
-      background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 8, overflow: 'hidden',
-      flex: grow ? '1 1 320px' : '0 0 auto', minWidth: 0,
-    }}>
-      {title && (
-        <div style={{
-          padding: '8px 12px', background: t.bgDeep, borderBottom: `1px solid ${t.border}`,
-          fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.06em',
-        }}>{title}</div>
-      )}
-      <div style={{ padding: pad }}>{children}</div>
-    </div>
-  )
-}
-
-function Row({ t, label, children }: { t: T; label: string; children: React.ReactNode }) {
-  const { stackLabels } = useLayout()
-  return (
-    <div style={{
-      display: 'flex', flexDirection: stackLabels ? 'column' : 'row',
-      gap: stackLabels ? 1 : 8, padding: '3px 0', fontSize: 12,
-    }}>
-      <span style={fieldLabelStyle(t, stackLabels)}>{label}</span>
-      {children}
-    </div>
-  )
-}
-
-function Empty({ t, children }: { t: T; children: React.ReactNode }) {
-  return <div style={{ fontSize: 12, color: t.textFaintest, fontStyle: 'italic' }}>{children}</div>
-}
-
-function EditField({ t, label, value, onChange, mono = false }: {
-  t: T; label: string; value: string; onChange: (v: string) => void; mono?: boolean
-}) {
-  const { stackLabels } = useLayout()
-  return (
-    <label style={fieldStyle(stackLabels)}>
-      <span style={fieldLabelStyle(t, stackLabels)}>{label}</span>
-      <input
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        style={{ ...inputStyle(t, stackLabels), fontFamily: mono ? 'ui-monospace, monospace' : 'inherit' }}
-      />
-    </label>
-  )
-}
-
-function SelectField({ t, label, value, options, onChange }: {
-  t: T; label: string; value: string; options: [string, string][]; onChange: (v: string) => void
-}) {
-  const { stackLabels } = useLayout()
-  return (
-    <label style={fieldStyle(stackLabels)}>
-      <span style={fieldLabelStyle(t, stackLabels)}>{label}</span>
-      <select value={value} onChange={e => onChange(e.target.value)} style={inputStyle(t, stackLabels)}>
-        {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-      </select>
-    </label>
-  )
-}
-
-/** Label beside the value on a laptop; above it once the 108px gutter would
- *  squeeze the value down to a word a line. */
-function fieldLabelStyle(t: T, stacked: boolean) {
-  return {
-    width: stacked ? 'auto' : 108, flexShrink: 0,
-    color: t.textFaint, fontWeight: 600,
-  } as const
-}
-
-function fieldStyle(stacked: boolean) {
-  return {
-    display: 'flex', flexDirection: stacked ? 'column' : 'row',
-    alignItems: stacked ? 'stretch' : 'center',
-    gap: stacked ? 2 : 8, fontSize: 12,
-  } as const
-}
-
-function inputStyle(t: T, stacked = false) {
-  return {
-    // Stacked, the label is a block above and `align-items: stretch` already
-    // gives the control the full width — growing it would grow its HEIGHT.
-    flex: stacked ? '0 0 auto' : 1, minWidth: 0,
-    padding: stacked ? '8px 9px' : '5px 7px', borderRadius: 4,
-    border: `1px solid ${t.border}`, background: t.bgInput, color: t.text,
-    fontSize: stacked ? 14 : 12, fontFamily: 'inherit',
-  } as const
-}
-
-function saveBtnStyle(t: T, saving: boolean) {
-  return {
-    flex: 1, padding: '8px 12px', borderRadius: 6, border: 'none',
-    cursor: saving ? 'default' : 'pointer',
-    background: saving ? t.textFaintest : t.green, color: '#0b1f14',
-    fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
-  } as const
-}
-
-function iconBtn(t: T, color?: string) {
-  return {
-    padding: '6px 11px', borderRadius: 6, cursor: 'pointer',
-    border: `1px solid ${color ?? t.border}`,
-    background: color ? color + '18' : 'transparent',
-    color: color ?? t.textMuted,
-    fontSize: 12, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap',
-  } as const
-}
-
-/** The × never wraps out of reach, and on a phone it carries a 40px target. */
-function closeBtnStyle(t: T, phone: boolean) {
-  return {
-    background: 'none', border: 'none', cursor: 'pointer', color: t.textMuted,
-    lineHeight: 1, flexShrink: 0,
-    fontSize: phone ? 26 : 22,
-    padding: phone ? 0 : '0 2px',
-    width: phone ? 40 : undefined,
-    height: phone ? 40 : undefined,
-    display: phone ? 'flex' : undefined,
-    alignItems: 'center',
-    justifyContent: 'center',
-  } as const
 }

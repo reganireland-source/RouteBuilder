@@ -2,11 +2,17 @@
 
 Everything known-but-not-done, as of 2026-09-14. Ordered by kind.
 
+**Status 2026-09-15 (later).** Segment Full View shipped, and with it the
+shared `fullViewChrome.tsx` both Full Views now draw their shell from. The
+coverage/bulk import data loss (2.1, 2.6) and the colocation category (2.3) are
+fixed and live-verified; the solution-notes theming (2.2) and the
+verification-write error handling (2.4) are done. `App.tsx` lint is down from 14
+to 2 and `SolutionNotesOverlay` from 9 to 3. Outstanding: `Map.tsx` lint (4.3),
+the fan-diagram label crowding (2.5) and the platform gaps in section 4.
+
 **Status 2026-09-15.** RFS is now DONE end to end — backend constraint, client
 mirror, Current/Planned selector, future-network banner — and EOL has shipped
-as its exact reverse (see 1.3). Outstanding from the list below: the coverage
-import data loss (2.1), the new bulk-import gap (2.6), and the remaining lint
-debt (4.3).
+as its exact reverse (see 1.3).
 
 **Status 2026-09-14.** A session rate limit stopped five parallel workstreams
 partway, so several items below are genuinely half-done rather than merely
@@ -86,9 +92,7 @@ wrap, and the Segment Breakdown underneath already shows codes.
 
 ## 2. Bugs
 
-### 2.1 Coverage CSV import silently wipes node fields — data loss
-**NOT STARTED** — dispatched but cut off by the rate limit before any code was
-written. Still fully open.
+### 2.1 Coverage CSV import silently wipes node fields — DONE
 `backend/app/api/bulk.py:1072` rebuilds each `Node` from only `id, name, lat,
 lng, type, country, owner, trading_name, description, capabilities`. Every node
 touched by a coverage import therefore loses `city`, `street_address`,
@@ -96,27 +100,31 @@ touched by a coverage import therefore loses `city`, `street_address`,
 the existing node (`model_copy(update=...)`) instead of reconstructing it, the
 way `PUT /api/nodes/{id}` already does.
 
-### 2.6 Bulk CSV import silently resets lifecycle dates
-`backend/app/api/bulk.py` does not carry `rfs_status`/`rfs_quarter` in
+### 2.6 Bulk CSV import silently resets lifecycle dates — DONE
+Fixed with 2.1 by the same `_merged()` helper. `backend/app/api/bulk.py` did not carry `rfs_status`/`rfs_quarter` in
 `SEGMENT_COLS`/`SYSTEM_COLS`, and its importers reconstruct `CableSegment` /
 `CableSystem` from the CSV columns alone. A segment or system import in upsert
 mode therefore resets those fields to their defaults — and now `eol_status` /
 `eol_quarter` with them. Pre-existing for RFS, doubled by EOL. Same shape as
 2.1 and the same fix: merge onto the existing row rather than rebuilding it.
 
-### 2.2 SolutionNotesOverlay is dark-theme only
-`frontend/src/components/SolutionNotesOverlay.tsx:31-35` hard-codes severity
+### 2.2 SolutionNotesOverlay is dark-theme only — DONE
+Severity colours now come from `useTheme()`.
+`frontend/src/components/SolutionNotesOverlay.tsx:31-35` used to hard-code severity
 colours as literal hexes (`#89b4fa`, `#fab387`, `#f38ba8`) — those are the dark
 palette's blue/orange/red. In the light and dusk themes the overlay reads
 wrong. Everywhere else uses `t.blue` / `t.orange` / `t.red`.
 
-### 2.3 Colocation category is unvalidated
-`ColocationCapabilities.category` (`backend/app/models.py:67`) is a bare `int`.
+### 2.3 Colocation category is unvalidated — DONE
+Now `Field(ge=1, le=5)`; `category: 99` returns 422.
+`ColocationCapabilities.category` (`backend/app/models.py:67`) used to be a bare `int`.
 The API accepts `category: 99`, which renders as "Cat 99" against an undefined
 label. The frontend type says 1-5; the backend should too.
 
-### 2.4 Verification-status write has no error handling
-`applyNodeVerif` (`frontend/src/components/RefDataModal.tsx:858`) calls
+### 2.4 Verification-status write has no error handling — DONE
+Both `applyNodeVerif` and `applySegVerif` now go through `saveEdit` and rethrow,
+so a failed PUT shows its reason and leaves the prompt open.
+`applyNodeVerif` (`frontend/src/components/RefDataModal.tsx:858`) used to call
 `api.updateNode` outside the `saveEdit` wrapper, so a failure is an unhandled
 rejection with no UI feedback — the badge appears to change and silently
 doesn't persist.
@@ -132,17 +140,18 @@ each side rather than radially.
 
 ## 3. Documentation debt
 
-### 3.1 Guide pages are behind
-**PARTIAL.** Some coverage of the recent features landed; the Node Full View
-and Network Editor deep-dive sections were still being written when the run
-stopped. Re-check what is and is not covered before resuming.
-The in-app guide and its print/PDF export were last brought up to date on
-2026-08-04. Since then these shipped and are undocumented: Esri basemaps with
-English labels, segment spotlighting and the 1 Hz route glow, verbose build
-info, Australian highway backhaul routing, the whole Visual Network Editor,
-RFS dates, in-app confirm dialogs, node codes in data views, and node Full
-View. (The Product History page covers *that* these happened; the guide should
-cover *how to use* them.)
+### 3.1 Guide pages are behind — CAUGHT UP
+The in-app guide and its print/PDF export now cover everything that has shipped
+since the 2026-08-04 refresh: Esri basemaps, segment spotlighting and the 1 Hz
+route glow, verbose build info, Australian highway backhaul routing, the Visual
+Network Editor, RFS and EOL, in-app confirm dialogs, node codes in data views,
+Asset Search, the Current/Planned selector, and both Full Views. The Product
+History page covers *that* these happened; the guide covers *how to use* them.
+
+What to keep in mind rather than what is outstanding: a new feature needs THREE
+edits, not one — the feature index near the top of `UserGuide.tsx`, its own
+deep-dive section further down, and a Product History milestone. Miss the index
+and the feature is documented but unfindable.
 
 ### 3.2 `generateUserGuide.ts` — DONE, deleted
 `generateUserGuidePDF()` was 1,032 lines of hand-drawn jsPDF that nothing
@@ -173,11 +182,28 @@ instance using the app's own `mapTileUrl` would make it consistent and remove
 the external dependency.
 
 ### 4.3 Pre-existing lint debt
-**PARTIAL — half cleared.** `MobileLayout.tsx` (was 14) and `ProductHistory.tsx`
-(was 7) are now 0. Remaining: `App.tsx` 14 and `Map.tsx` 14, both mostly
-`sonarjs/no-nested-conditional` plus `App.tsx`'s render at cognitive complexity
-62. `UserGuide.tsx` has 2. None are bugs, but lint can't gate CI until they're
-cleared.
+**PARTIAL — mostly cleared.** `MobileLayout.tsx` (was 14) and `ProductHistory.tsx`
+(was 7) are 0; `App.tsx` is 14 → 2 and `SolutionNotesOverlay.tsx` 9 → 3.
+Remaining: `Map.tsx` 14 (mostly `sonarjs/no-nested-conditional`), `RouteList.tsx`
+21, `RefDataModal.tsx` 76 (almost all `react-hooks/static-components` — its tab
+panels are declared inside the component), `UserGuide.tsx` 2 and the last few in
+`App.tsx`/`SolutionNotesOverlay.tsx`. None are bugs, but lint can't gate CI until
+they're cleared.
+
+### 4.5 The two Full Views are mutually imported
+`NodeFullView` imports `SegmentFullView` and vice versa, because each opens the
+other. ES module hoisting makes this work (both are function declarations, and
+neither is called until render), and the alternative — a registry or a render
+prop — would cost more clarity than the cycle does. Worth knowing about before
+anything in either file moves to a top-level `const` arrow function, which
+would break it.
+
+### 4.6 Segment Full View has no map of the segment
+The node view embeds a site map; the segment view draws a schematic instead
+(see `SegmentPathDiagram`'s header for why). A real map of the path — the same
+Leaflet instance 4.2 wants for the node — would answer "does this cable go
+where I think it goes?" in a way the schematic deliberately does not, since
+spoke geometry there is proportional but not geographic.
 
 ### 4.4 `ALLOW_OPEN_WRITES` is a local-only escape hatch
 Worth a CI assertion that it is never set in a deployed environment. Today

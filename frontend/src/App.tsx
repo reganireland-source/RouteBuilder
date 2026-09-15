@@ -1697,6 +1697,7 @@ export default function App() {
               // not yet built today, which is the question being asked.
               serviceDate={todayIso()}
               allSegments={segments}
+              onDataChange={handleDataChange}
               primaryRoutes={mode === 'routemanual' ? manualResults : (response?.primary_routes ?? [])}
               diverseRoutes={mode === 'routemanual' ? [] : (response?.diverse_routes ?? [])}
               totalFound={response?.total_found}

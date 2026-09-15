@@ -45,7 +45,7 @@
  * it is decommissioned).
  * ============================================================================
  */
-import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { createContext, useContext, useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import type { Route, CableNode, CableSegment, CableSystem, RouteSegmentDetail, SegmentCapacity, SegmentOutage, PinnedRoute, Project, ProjectCircuit, EndpointConfig, SolutionNote } from '../types'
 import {
@@ -55,7 +55,20 @@ import {
 import { useTheme } from '../theme'
 import { api } from '../api/client'
 import { SolutionNotesOverlay } from './SolutionNotesOverlay'
+import { SegmentFullView } from './SegmentFullView'
 import { useSegmentHover } from '../context/SegmentHoverContext'
+
+/**
+ * "Open this segment's Full View" — supplied by RouteList, consumed by the
+ * Segment Breakdown rows several components below it.
+ *
+ * A context rather than a prop threaded through PairCard and RouteCard, for the
+ * same reason SegmentHoverContext already is: the breakdown rows are three
+ * levels down from the list and the two cards that hold them have nothing to do
+ * with the callback beyond passing it on. Null when the host did not supply the
+ * reference data a Full View needs, in which case no ⛶ renders at all.
+ */
+const SegmentExpandContext = createContext<((segmentId: string) => void) | null>(null)
 
 /** How complete a project circuit's technical enrichment (A/Z-End specs) is. */
 type EnrichLevel = 'none' | 'partial' | 'full'
@@ -322,8 +335,11 @@ interface Props {
   /** The FULL, unfiltered reference segment list (App's `segments`, not
    *  `visibleSegments`). Needed because a Route's hops are RouteSegmentDetail
    *  snapshots with no rfs_/eol_ fields; the lifecycle status is looked up here
-   *  by segment id. Passing the filtered list would simply badge nothing. */
+   *  by segment id. Passing the filtered list would simply badge nothing. It is
+   *  also what the segment Full View reads, so without it no ⛶ is offered. */
   allSegments?: CableSegment[]
+  /** Refetch hook, called after an admin edit in the segment Full View. */
+  onDataChange?: () => void
 }
 
 export type SortKey = 'hops' | 'distance' | 'latency' | 'availability' | 'margin' | 'capacity' | 'ownership'
@@ -416,7 +432,7 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
  * Sorting and the "show N" count are local state here; selection, pins and
  * project actions are lifted to App via the callback props.
  */
-export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown, optimiseFor, flippedPairIds, onFlipPair, onPinPair, onAddToProject, onEnrichCircuit, activeProject, onOpenRefDataForNote, serviceDate, allSegments }: Props) {
+export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown, optimiseFor, flippedPairIds, onFlipPair, onPinPair, onAddToProject, onEnrichCircuit, activeProject, onOpenRefDataForNote, serviceDate, allSegments, onDataChange }: Props) {
   const t = useTheme()
   const onNetSet = new Set(onNetOwnership)
   const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
@@ -449,6 +465,11 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
   // affects sort order or route filtering — informational only.
   const plannedById = Object.fromEntries(outages.filter(o => o.event_type === 'planned_event').map(o => [o.segment_id, o]))
   const [notesRoute, setNotesRoute] = useState<Route | null>(null)
+  /** Which segment's Full View is open, if any. Only offered when the host
+   *  passed `allSegments` — the route's own hops are denormalised snapshots and
+   *  carry neither the waypoints nor the lifecycle fields the view shows. */
+  const [fullViewSegmentId, setFullViewSegmentId] = useState<string | null>(null)
+  const expandSegment = allSegments ? setFullViewSegmentId : null
   const [allNotes, setAllNotes] = useState<SolutionNote[]>([])
   useEffect(() => { api.getSolutionNotes().then(setAllNotes).catch(() => {}) }, [])
 
@@ -534,7 +555,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
     : 'Default'
 
   return (
-    <>
+    <SegmentExpandContext.Provider value={expandSegment}>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
 
       {/* Pinned routes section */}
@@ -854,7 +875,20 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
       />,
       document.body
     )}
-    </>
+    {fullViewSegmentId && allSegments && (
+      <SegmentFullView
+        segmentId={fullViewSegmentId}
+        nodes={nodes}
+        segments={allSegments}
+        systems={systems}
+        capacity={capacity}
+        outages={outages}
+        notes={allNotes}
+        onClose={() => setFullViewSegmentId(null)}
+        onDataChange={onDataChange}
+      />
+    )}
+    </SegmentExpandContext.Provider>
   )
 }
 
@@ -1750,6 +1784,7 @@ function SegmentBreakdownRows({ route, capacityById, outagesById, plannedById, o
 }) {
   const t = useTheme()
   const { hoveredSegmentId, setHoveredSegmentId } = useSegmentHover()
+  const expandSegment = useContext(SegmentExpandContext)
   const nodeIndex = new Map(route.nodes.map((n, i) => [n, i]))
   const sortedSegs = [...route.segments].sort((a, b) => {
     const aIdx = Math.min(nodeIndex.get(a.start_node_id) ?? 0, nodeIndex.get(a.end_node_id) ?? 0)
@@ -1841,7 +1876,23 @@ function SegmentBreakdownRows({ route, capacityById, outagesById, plannedById, o
                   </span>
                 )}
               </div>
-              <span style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase' }}>{seg.type}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                <span style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase' }}>{seg.type}</span>
+                {/* Expand to the segment's Full View. Hidden entirely rather than
+                    disabled when the host passed no reference segments: there is
+                    nothing behind it to show. */}
+                {expandSegment && (
+                  <button
+                    onClick={e => { e.stopPropagation(); expandSegment(seg.segment_id) }}
+                    title="Full view of this segment"
+                    aria-label={`Full view of segment ${seg.segment_id}`}
+                    style={{
+                      background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                      color: t.blue, fontSize: 12, lineHeight: 1,
+                    }}
+                  >⛶</button>
+                )}
+              </div>
             </div>
             <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2, fontFamily: 'monospace' }}>
               {displayStart} → {displayEnd}

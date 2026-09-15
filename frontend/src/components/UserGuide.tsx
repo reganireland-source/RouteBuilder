@@ -143,6 +143,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       desc: `Toggle any of the ${systemCount} cable systems on the live map to explore coverage, topology and branching unit structure — ideal for network briefings and customer conversations.` },
     { icon: '🔍', title: 'Node Lookup & Nearest-Node Search',
       desc: `Network Explorer → Nodes takes either kind of question. Type a node code you already know — SYD1, TUAS, PALI — and the map flies straight to it and opens it; half-remembered codes are offered as a tappable shortlist as you type. Type a customer address or a lat/lng pair instead and it finds the nearest landing stations and PoPs, showing owner, trading name, node type and straight-line distance. Either way, one click sets the node as Origin or Destination and you are in a route search.` },
+    { icon: '⛶', title: 'Segment Full View',
+      desc: 'The ⛶ on any Segment Breakdown row — or on any segment in a node\'s capacity list — opens a page for that one cable section: a stylised drawing of the segment with every waypoint in its true proportional place, both endpoints in full, the routing metrics, capacity, the RFS/EOL lifecycle resolved against the parent cable system, parallel segments, outages and solution notes. It also cross-checks the stored length against the path the waypoints actually describe and flags a disagreement over 10%. Endpoints open the node Full View and vice versa, so you can walk the network either way. Admins can edit the segment, waypoints included, in place.' },
     { icon: '⛶', title: 'Node Full View',
       desc: 'Click a node, then "Full View", for everything known about the site on one page: identity and owner, a site map, the product coverage matrix, every cable system present, live capacity on each segment leaving it, and any solution notes recorded against it — plus a fan-out diagram drawing every segment at its true compass bearing. Click a spoke to walk to the node at the other end and keep going, hop by hop, without returning to the map. Admins can correct the node in place. On a phone, tapping a node opens Full View directly as a full-screen sheet.' },
     { icon: '🔎', title: 'Asset Search — One Box for the Whole Network',
@@ -2877,6 +2879,57 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               <div style={{ fontSize: 11, fontWeight: 700, color: '#86efac', marginBottom: 4 }}>📱 On a phone it is the default</div>
               <div style={{ fontSize: 10, color: 'rgba(160,240,190,0.8)', lineHeight: 1.55 }}>
                 Tapping a node on a phone opens Full View directly as a full-screen sheet — there is no fiddly floating card to hit, and the layout restacks so labels sit above their values rather than being squeezed beside them.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Segment Full View ── */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel}>Segment Full View — Everything About One Cable Section</div>
+        <div style={{ ...card(), background: '#0a1626', border: `1px solid #2a4a7a` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <span style={{ fontSize: 22 }}>⛶</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>The twin of Node Full View, for the cable between two sites</div>
+              <div style={{ fontSize: 11, color: 'rgba(170,205,255,0.8)', marginTop: 2 }}>
+                The ⛶ on any row of a route's Segment Breakdown — or on any segment in a node's capacity list.
+              </div>
+            </div>
+          </div>
+          <p style={{ fontSize: 11, color: 'rgba(175,205,245,0.85)', lineHeight: 1.7, margin: '0 0 14px' }}>
+            The Segment Breakdown answers "what is this hop?" in four lines. Full View answers "tell me everything about this cable section" — the endpoints in full, the path it actually takes, what it carries, and when it is usable.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+            {[
+              { icon: '〰', label: 'Stylised segment diagram', desc: 'Both end nodes drawn as the map\'s own icons with the cable between them — wavy blue for submarine, straight orange for terrestrial, the same two shapes the node fan-out uses. Every waypoint is marked in its true proportional position along the run, and the true compass bearing is written above the line.' },
+              { icon: '📍', label: 'Endpoints in full', desc: 'A-end and Z-end code-first, with node type, city, country, coordinates and owner. One click opens either node\'s own Full View on top — and picking a segment from there brings you back here on that segment.' },
+              { icon: '📐', label: 'Path geometry cross-check', desc: 'Every waypoint listed, plus the stored length against the great-circle length of the path those waypoints actually describe. Disagree by more than 10% and it says so — the cheapest way to catch a cable whose path was redrawn without its length being updated.' },
+              { icon: '⚡', label: 'Routing metrics & capacity', desc: 'The four figures the pathfinder actually routes on — length, latency, availability and cost weight — and the total, available and used capacity as a utilisation bar.' },
+              { icon: '📅', label: 'Lifecycle, resolved', desc: 'RFS and EOL for the segment AND for the cable system it belongs to, plus the effective dates the router uses: the later of the two RFS, the earlier of the two EOL. When a segment is not usable today, this is the card that says why.' },
+              { icon: '🔀', label: 'Parallel segments, outages & notes', desc: 'Any other segment joining the same two nodes (the diversity question), every live fault and planned work window on this one, and the solution notes recorded against it.' },
+            ].map(({ icon, label, desc }) => (
+              <div key={label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 7, padding: '10px 12px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+                  <span style={{ fontSize: 14, color: '#60a5fa' }}>{icon}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#cce4ff' }}>{label}</span>
+                </div>
+                <div style={{ fontSize: 10, color: 'rgba(165,205,250,0.78)', lineHeight: 1.55 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' as const }}>
+            <div style={{ flex: 1, minWidth: 220, background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.3)', borderRadius: 7, padding: '10px 12px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#fdba74', marginBottom: 4 }}>✏️ Admins can correct it here too</div>
+              <div style={{ fontSize: 10, color: 'rgba(253,200,150,0.8)', lineHeight: 1.55 }}>
+                Edit turns the key information into the same form the Reference Data segment tab uses — including the waypoint list, where you can add, reorder, retype and delete points, and paste "lat, lng" to fill both boxes at once. Saving a planned segment with no RFS quarter is refused, because the router treats that as never usable and the cable would quietly vanish from every search.
+              </div>
+            </div>
+            <div style={{ flex: 1, minWidth: 220, background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 7, padding: '10px 12px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#86efac', marginBottom: 4 }}>📱 Works on a phone</div>
+              <div style={{ fontSize: 10, color: 'rgba(160,240,190,0.8)', lineHeight: 1.55 }}>
+                Tap the segment toggle on a route card to open the breakdown, then ⛶ on the hop you want. It opens as a full-screen sheet with labels above their values, and the diagram switches to a narrower drawing so its text stays readable rather than shrinking with the page.
               </div>
             </div>
           </div>

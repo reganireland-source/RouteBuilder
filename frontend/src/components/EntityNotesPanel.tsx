@@ -1,22 +1,28 @@
 /**
- * NodeNotesPanel — read-only list of the solution notes attached to a single node.
+ * EntityNotesPanel — read-only list of the solution notes attached to ONE node or ONE
+ * segment.
  *
  * A solution note is an engineering/commercial annotation pinned to a node or a segment
- * ("permit required at this CLS", "power constrained until Q3"). This panel shows only
- * the NODE notes for one node id, grouped under their NoteCategory label, with the
- * categories in their configured `order` and the notes inside each group ordered by
- * severity (critical → warning → info) then newest first. Nothing here edits anything:
- * creating/editing/deleting notes lives in RefDataModal.tsx's Solution Notes section.
+ * ("permit required at this CLS", "power constrained until Q3"). This panel shows the
+ * notes for a single entity, grouped under their NoteCategory label, with the categories
+ * in their configured `order` and the notes inside each group ordered by severity
+ * (critical → warning → info) then newest first. Nothing here edits anything: creating,
+ * editing and deleting notes lives in RefDataModal.tsx's Solution Notes section.
  *
- * The one non-obvious fact: the backend has NO per-node filter for notes. Both
+ * Nodes and segments are handled by the same component rather than two near-identical
+ * ones because the only differences are which field on the note carries the id
+ * (`node_id` vs `segment_id`) and which categories apply (`applies_to`). Those are
+ * one-line differences; everything else — the grouping, the ordering, the fetching, the
+ * severity styling — is shared, and was already written once.
+ *
+ * The one non-obvious fact: the backend has NO per-entity filter for notes. Both
  * api.getSolutionNotes() and api.getNoteCategories() take no arguments and return the
- * entire table, so the "notes for this node" narrowing is done client-side here with
- * `n.node_id === nodeId`. That is also why the caller is allowed to pass `notes` and
- * `categories` in as props: when the user is jumping between nodes in the Full View, a
- * parent that already holds the full lists should hand them down rather than make this
- * panel refetch every table on every node change. When those props are omitted the
- * panel falls back to fetching for itself (on mount and whenever nodeId changes) and
- * owns its own loading and error states.
+ * entire table, so the narrowing is done client-side here. That is also why the caller
+ * is allowed to pass `notes` and `categories` in as props: when the user is jumping
+ * between nodes in the Full View, a parent that already holds the full lists should hand
+ * them down rather than make this panel refetch every table on every change. When those
+ * props are omitted the panel falls back to fetching for itself (on mount and whenever
+ * the entity changes) and owns its own loading and error states.
  *
  * Colour convention: categories deliberately carry no colour and no icon — only a label
  * — so every colour in the notes UI comes from SEVERITY. The severity → theme-colour map
@@ -25,11 +31,12 @@
  * panel is legible in the dark, dusk and light palettes alike.
  *
  * Props:
- *   - nodeId:     the node whose notes to show.
+ *   - kind:       'node' or 'segment' — which id field and category scope to use.
+ *   - entityId:   the node or segment whose notes to show.
  *   - notes:      optional pre-fetched notes (ALL of them — filtering happens here).
  *   - categories: optional pre-fetched categories.
  *
- * Mounted from: NodeFullView.tsx (the node "Full View" modal).
+ * Mounted from: NodeFullView.tsx and SegmentFullView.tsx (the two "Full View" modals).
  * Backend endpoints: GET /api/solution-notes and GET /api/note-categories, but only
  * when the caller did not supply the data.
  */
@@ -38,11 +45,19 @@ import type { SolutionNote, NoteCategory, NoteSeverity } from '../types'
 import { useTheme } from '../theme'
 import { api } from '../api/client'
 
+export type NotesEntityKind = 'node' | 'segment'
+
 interface Props {
-  nodeId: string
+  kind: NotesEntityKind
+  entityId: string
   /** Optional pre-fetched data; when omitted the panel fetches its own. */
   notes?: SolutionNote[]
   categories?: NoteCategory[]
+}
+
+/** Which field on a note carries the id for this entity kind. */
+function noteEntityId(note: SolutionNote, kind: NotesEntityKind): string | undefined {
+  return kind === 'node' ? note.node_id : note.segment_id
 }
 
 /** Lower number = more urgent, so a plain ascending sort puts critical at the top. */
@@ -73,22 +88,22 @@ function createdAtMillis(note: SolutionNote): number {
  * One settled self-fetch, stamped with the node it was started for.
  *
  * Holding the result as a single stamped value is what lets "loading" be DERIVED
- * (`result.for !== nodeId` — we have nothing for the node on screen yet) instead of
+ * (`result.for !== entityId` — nothing for the entity on screen yet) instead of
  * mirrored in its own state. Mirroring it meant flipping setLoading(true) synchronously
  * in the effect body on every node change, which is exactly the cascading-render pattern
  * React's set-state-in-effect rule warns about; now the effect's only job is to start the
  * request and hand the answer back from the promise callbacks.
  */
 interface FetchResult {
-  /** The nodeId this fetch was started for. */
+  /** The entityId this fetch was started for. */
   for: string
   notes: SolutionNote[]
   cats: NoteCategory[]
   error: string | null
 }
 
-export function NodeNotesPanel(props: Props) {
-  const { nodeId } = props
+export function EntityNotesPanel(props: Props) {
+  const { kind, entityId } = props
   const t = useTheme()
 
   // Only used on the self-fetching path; when the caller supplies data this stays null
@@ -106,16 +121,16 @@ export function NodeNotesPanel(props: Props) {
     // can change node faster than the two requests resolve.
     let cancelled = false
     Promise.all([api.getSolutionNotes(), api.getNoteCategories()])
-      .then(([n, c]) => { if (!cancelled) setResult({ for: nodeId, notes: n, cats: c, error: null }) })
-      .catch(e => { if (!cancelled) setResult({ for: nodeId, notes: [], cats: [], error: String(e) }) })
+      .then(([n, c]) => { if (!cancelled) setResult({ for: entityId, notes: n, cats: c, error: null }) })
+      .catch(e => { if (!cancelled) setResult({ for: entityId, notes: [], cats: [], error: String(e) }) })
     return () => { cancelled = true }
-    // nodeId is a dependency because the parent may keep this panel mounted and only
-    // swap the node; re-fetching then keeps a long-lived Full View from going stale.
-  }, [selfFetch, nodeId])
+    // entityId is a dependency because the parent may keep this panel mounted and only
+    // swap the entity; re-fetching then keeps a long-lived Full View from going stale.
+  }, [selfFetch, entityId])
 
-  // Anything stamped with a different node is last node's answer, so it counts as "not
-  // arrived yet" — the same instant the old code showed its spinner for.
-  const settled = result?.for === nodeId ? result : null
+  // Anything stamped with a different entity is the last one's answer, so it counts as
+  // "not arrived yet" — the same instant the old code showed its spinner for.
+  const settled = result?.for === entityId ? result : null
   const loading = selfFetch && settled === null
   const error = settled?.error ?? null
 
@@ -123,29 +138,29 @@ export function NodeNotesPanel(props: Props) {
   const allCats  = props.categories ?? settled?.cats ?? []
 
   // The whole point of the client-side filter noted in the file header.
-  const nodeNotes = allNotes.filter(n => n.node_id === nodeId)
+  const ownNotes = allNotes.filter(n => noteEntityId(n, kind) === entityId)
 
-  // Category order is authoritative for group order; only categories that apply to
-  // nodes can legitimately own a node note, so segment categories are ignored here.
-  const nodeCats = allCats
-    .filter(c => c.applies_to === 'node')
+  // Category order is authoritative for group order; only categories that apply to this
+  // kind can legitimately own one of its notes, so the other kind's are ignored here.
+  const ownCats = allCats
+    .filter(c => c.applies_to === kind)
     .sort((a, b) => a.order - b.order)
 
-  const knownCatIds = new Set(nodeCats.map(c => c.id))
+  const knownCatIds = new Set(ownCats.map(c => c.id))
 
   // Build the groups in display order, then drop the empty ones. Notes pointing at a
   // category we don't know about (deleted category, or one flagged 'segment') must not
   // silently vanish, so they collect in a trailing Uncategorised bucket.
   const groups: { id: string; label: string; notes: SolutionNote[] }[] = [
-    ...nodeCats.map(c => ({
+    ...ownCats.map(c => ({
       id: c.id,
       label: c.label,
-      notes: nodeNotes.filter(n => n.category_id === c.id),
+      notes: ownNotes.filter(n => n.category_id === c.id),
     })),
     {
       id: UNCATEGORISED_ID,
       label: 'Uncategorised',
-      notes: nodeNotes.filter(n => !knownCatIds.has(n.category_id)),
+      notes: ownNotes.filter(n => !knownCatIds.has(n.category_id)),
     },
   ]
     .filter(g => g.notes.length > 0)
@@ -166,7 +181,7 @@ export function NodeNotesPanel(props: Props) {
       fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
       color: t.textMuted, marginBottom: 8,
     }}>
-      Solution Notes ({nodeNotes.length})
+      Solution Notes ({ownNotes.length})
     </div>
   )
 
@@ -190,13 +205,13 @@ export function NodeNotesPanel(props: Props) {
     )
   }
 
-  // A node with no notes is the normal case, not a failure — keep it muted and quiet.
-  if (nodeNotes.length === 0) {
+  // An entity with no notes is the normal case, not a failure — muted and quiet.
+  if (ownNotes.length === 0) {
     return (
       <div>
         {header}
         <div style={{ fontSize: 12, color: t.textFaint, fontStyle: 'italic', padding: '6px 0' }}>
-          No notes recorded for this node.
+          No notes recorded for this {kind}.
         </div>
       </div>
     )
