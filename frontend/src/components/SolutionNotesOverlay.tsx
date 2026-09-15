@@ -24,43 +24,65 @@
  */
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import type { Route, SolutionNote, NoteCategory } from '../types'
-import { useTheme } from '../theme'
+import type { Route, SolutionNote, NoteCategory, NoteSeverity } from '../types'
+import { useTheme, type Theme } from '../theme'
 import { api } from '../api/client'
 
 const TEXT_COLLAPSE_THRESHOLD = 160
 
-const SEVERITY_CFG = {
-  info:     { label: 'Info',     color: '#89b4fa' },
-  warning:  { label: 'Warning',  color: '#fab387' },
-  critical: { label: 'Critical', color: '#f38ba8' },
-} as const
+const SEVERITY_LABELS: Record<NoteSeverity, string> = {
+  info: 'Info', warning: 'Warning', critical: 'Critical',
+}
+
+/** Severity → accent colour, built from the ACTIVE theme rather than literal hexes:
+ *  the dark palette's blue/orange/red were previously baked in, so the overlay read
+ *  wrong in the light and dusk themes. Takes the theme as a parameter because the
+ *  lookup is needed by several components and cannot call useTheme() itself. */
+function severityColors(t: Theme): Record<NoteSeverity, string> {
+  return { info: t.blue, warning: t.orange, critical: t.red }
+}
+
+/** The colour a note's severity should paint in, falling back to `info` for any
+ *  severity string the backend might send that we do not know about. */
+function severityColor(t: Theme, severity: string): string {
+  return severityColors(t)[severity as NoteSeverity] ?? t.blue
+}
+
+/** Highest severity present in a group of notes — drives the metro-map dot/bar
+ *  colour for a node or segment. Assumes the group is non-empty. */
+function worstSeverity(notes: SolutionNote[]): NoteSeverity {
+  if (notes.some(n => n.severity === 'critical')) return 'critical'
+  if (notes.some(n => n.severity === 'warning')) return 'warning'
+  return 'info'
+}
 
 function SeverityBadge({ severity }: { severity: string }) {
-  const cfg = SEVERITY_CFG[severity as keyof typeof SEVERITY_CFG] ?? SEVERITY_CFG.info
+  const t = useTheme()
+  const color = severityColor(t, severity)
+  const label = SEVERITY_LABELS[severity as NoteSeverity] ?? SEVERITY_LABELS.info
   return (
     <span style={{
       fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
       letterSpacing: '0.05em', textTransform: 'uppercase',
-      background: cfg.color + '22', color: cfg.color,
-      border: `1px solid ${cfg.color}55`, whiteSpace: 'nowrap', flexShrink: 0,
+      background: color + '22', color,
+      border: `1px solid ${color}55`, whiteSpace: 'nowrap', flexShrink: 0,
     }}>
-      {cfg.label}
+      {label}
     </span>
   )
 }
 
 function NoteCard({ note, categoryLabel }: { note: SolutionNote; categoryLabel: string }) {
   const t = useTheme()
-  const cfg = SEVERITY_CFG[note.severity as keyof typeof SEVERITY_CFG] ?? SEVERITY_CFG.info
+  const color = severityColor(t, note.severity)
   const isLong = note.text.length > TEXT_COLLAPSE_THRESHOLD
   const [expanded, setExpanded] = useState(false)
   const displayText = isLong && !expanded ? note.text.slice(0, TEXT_COLLAPSE_THRESHOLD) + '…' : note.text
   return (
     <div style={{
       marginBottom: 8, padding: '8px 10px', borderRadius: 5,
-      border: `1px solid ${cfg.color}44`,
-      background: cfg.color + '0a',
+      border: `1px solid ${color}44`,
+      background: color + '0a',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
         <SeverityBadge severity={note.severity} />
@@ -96,12 +118,11 @@ function RouteMetroMap({ route, nodesById, notesByNode, notesBySegment }: {
   notesBySegment: Record<string, SolutionNote[]>
 }) {
   const t = useTheme()
+  const sevColors = severityColors(t)
 
   function noteIndicator(notes: SolutionNote[]) {
     if (!notes.length) return null
-    const worst = notes.some(n => n.severity === 'critical') ? 'critical'
-      : notes.some(n => n.severity === 'warning') ? 'warning' : 'info'
-    const color = SEVERITY_CFG[worst].color
+    const color = sevColors[worstSeverity(notes)]
     return (
       <span style={{
         fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 3,
@@ -123,19 +144,11 @@ function RouteMetroMap({ route, nodesById, notesByNode, notesBySegment }: {
         const hasNodeNotes = nodeNotes.length > 0
         const dotSize = isBU ? 8 : 12
         const dotMarginLeft = isBU ? 2 : 0
-        const nodeColor = hasNodeNotes
-          ? (nodeNotes.some(n => n.severity === 'critical') ? SEVERITY_CFG.critical.color
-            : nodeNotes.some(n => n.severity === 'warning') ? SEVERITY_CFG.warning.color
-            : SEVERITY_CFG.info.color)
-          : t.blue
+        const nodeColor = hasNodeNotes ? sevColors[worstSeverity(nodeNotes)] : t.blue
 
         const segNotes = seg ? (notesBySegment[seg.segment_id] ?? []) : []
         const hasSegNotes = segNotes.length > 0
-        const segColor = hasSegNotes
-          ? (segNotes.some(n => n.severity === 'critical') ? SEVERITY_CFG.critical.color
-            : segNotes.some(n => n.severity === 'warning') ? SEVERITY_CFG.warning.color
-            : SEVERITY_CFG.info.color)
-          : t.border
+        const segColor = hasSegNotes ? sevColors[worstSeverity(segNotes)] : t.border
 
         return (
           <div key={`${nodeId}-${i}`}>

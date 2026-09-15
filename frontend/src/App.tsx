@@ -137,6 +137,107 @@ const SYSTEM_COLORS = ['#89b4fa', '#a6e3a1', '#f9e2af', '#94e2d5', '#cba6f7']
  *  Used to detect "is this exact path already pinned?" regardless of object id. */
 function routeKey(r: Route) { return r.nodes.join('|') }
 
+/** The palette object for a theme mode. */
+function themeFor(mode: ThemeMode): Theme {
+  if (mode === 'dark') return darkTheme
+  if (mode === 'dusk') return duskTheme
+  return lightTheme
+}
+
+/** The next mode in the dark → dusk → light → dark cycle. */
+function nextThemeMode(mode: ThemeMode): ThemeMode {
+  if (mode === 'dark') return 'dusk'
+  if (mode === 'dusk') return 'light'
+  return 'dark'
+}
+
+/** Icon on the theme button — it previews the mode being switched TO. */
+function themeToggleIcon(mode: ThemeMode): string {
+  if (mode === 'dark') return '🌅'
+  if (mode === 'dusk') return '☀️'
+  return '🌙'
+}
+
+/** Caption on the theme button — names the mode being switched TO. */
+function themeToggleLabel(mode: ThemeMode): string {
+  if (mode === 'dark') return 'Switch to Dusk'
+  if (mode === 'dusk') return 'Switch to Light'
+  return 'Switch to Dark'
+}
+
+/** The circuit label stamped on a WORKER pin. Unprotected circuits keep the
+ *  circuit's own label as-is; a protected pair suffixes "(Worker)" so the two
+ *  halves are told apart — and an unlabelled circuit gets no worker label at
+ *  all, so the pin falls back to its search label instead of showing "(Worker)"
+ *  on its own. */
+function workerCircuitLabel(label: string | undefined, hasProtect: boolean): string | undefined {
+  if (!hasProtect) return label
+  return label ? `${label} (Worker)` : undefined
+}
+
+/** The display label for a worker pin: the circuit label when there is one,
+ *  otherwise the search label, suffixed "(Worker)" for a protected pair. */
+function workerPinLabel(circuitLabel: string | undefined, searchLabel: string, hasProtect: boolean): string {
+  const base = circuitLabel || searchLabel
+  return hasProtect ? `${base} (Worker)` : base
+}
+
+/** Body of the "discard pending changes?" warning shown when leaving Network
+ *  Editor with staged edits. Singular/plural agreement on the count. */
+function unsavedEditorChangesWarning(pendingCount: number): string {
+  const plural  = pendingCount === 1 ? '' : 's'
+  const pronoun = pendingCount === 1 ? 'it' : 'them'
+  return `You have ${pendingCount} unsaved change${plural} in Network Editor. Switching tabs will discard ${pronoun} — nothing has been saved yet.`
+}
+
+/** Every node position in one city (Asset Search's "city" hit). */
+function cityPoints(nodes: CableNode[], cityId: string): [number, number][] {
+  const { city, country } = parseCityId(cityId)
+  return nodes.filter(n => n.city === city && n.country === country)
+    .map((n): [number, number] => [n.lat, n.lng])
+}
+
+/** One segment's full path: its start node, its waypoints, then its end node.
+ *  Endpoints that can't be resolved are simply skipped. */
+function segmentPoints(seg: CableSegment, nodes: CableNode[]): [number, number][] {
+  const start = nodes.find(n => n.id === seg.start_node_id)
+  const end = nodes.find(n => n.id === seg.end_node_id)
+  return [
+    ...(start ? [[start.lat, start.lng] as [number, number]] : []),
+    ...(seg.waypoints ?? []),
+    ...(end ? [[end.lat, end.lng] as [number, number]] : []),
+  ]
+}
+
+/** Every endpoint of every segment belonging to one cable system — the extent
+ *  the map fits to when Asset Search picks a system. */
+function systemPoints(segments: CableSegment[], nodes: CableNode[], systemId: string): [number, number][] {
+  const pts: [number, number][] = []
+  for (const seg of segments.filter(s => s.system_id === systemId)) {
+    const a = nodes.find(n => n.id === seg.start_node_id)
+    const z = nodes.find(n => n.id === seg.end_node_id)
+    if (a) pts.push([a.lat, a.lng])
+    if (z) pts.push([z.lat, z.lng])
+    for (const w of seg.waypoints ?? []) pts.push(w)
+  }
+  return pts
+}
+
+/** Style for one of the left panel's mode sub-tabs (RouteFinder, Country, …). */
+function subTabStyle(theme: Theme, active: boolean): React.CSSProperties {
+  return {
+    flex: 1, padding: '7px 3px 6px', border: 'none', cursor: 'pointer',
+    background: active ? theme.bgBase : theme.bgPanel,
+    color: active ? theme.text : theme.textFaint,
+    fontSize: 9, fontWeight: active ? 700 : 400,
+    textTransform: 'uppercase', letterSpacing: '0.04em',
+    lineHeight: 1.2,
+    borderBottom: active ? `2px solid ${theme.blue}` : `2px solid transparent`,
+    transition: 'all 0.15s',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+  }
+}
+
 /** Hook: true when the viewport is narrower than 768px. Drives the switch to
  *  the separate mobile layout. Re-evaluates on window resize. */
 function useIsMobile() {
@@ -261,8 +362,8 @@ export default function App() {
 
   // ── Theme ── Three-way theme cycle: dark → dusk → light → dark.
   const [themeMode, setThemeMode] = useState<ThemeMode>('dusk')
-  const theme = themeMode === 'dark' ? darkTheme : themeMode === 'dusk' ? duskTheme : lightTheme
-  function cycleTheme() { setThemeMode(m => m === 'dark' ? 'dusk' : m === 'dusk' ? 'light' : 'dark') }
+  const theme = themeFor(themeMode)
+  function cycleTheme() { setThemeMode(m => nextThemeMode(m)) }
 
   // ── Modal / overlay open-state flags ──────────────────────────────────────
   // Each boolean toggles a full-screen modal (ref-data editor, guide, projects,
@@ -377,24 +478,14 @@ export default function App() {
         break
       }
       case 'city': {
-        const { city, country } = parseCityId(hit.id)
-        const pts = nodes.filter(n => n.city === city && n.country === country)
-          .map((n): [number, number] => [n.lat, n.lng])
-        const b = boundsOf(pts)
+        const b = boundsOf(cityPoints(nodes, hit.id))
         if (b) fitTo(b)
         break
       }
       case 'segment': {
         const seg = segments.find(s => s.id === hit.id)
         if (!seg) break
-        const start = nodes.find(n => n.id === seg.start_node_id)
-        const end = nodes.find(n => n.id === seg.end_node_id)
-        const pts: [number, number][] = [
-          ...(start ? [[start.lat, start.lng] as [number, number]] : []),
-          ...(seg.waypoints ?? []),
-          ...(end ? [[end.lat, end.lng] as [number, number]] : []),
-        ]
-        const b = boundsOf(pts)
+        const b = boundsOf(segmentPoints(seg, nodes))
         if (b) fitTo(b)
         // Reuse the Segment Breakdown's spotlight so the found cable is
         // unmistakable on a map full of other cables.
@@ -402,16 +493,7 @@ export default function App() {
         break
       }
       case 'system': {
-        const segs = segments.filter(s => s.system_id === hit.id)
-        const pts: [number, number][] = []
-        for (const seg of segs) {
-          const a = nodes.find(n => n.id === seg.start_node_id)
-          const z = nodes.find(n => n.id === seg.end_node_id)
-          if (a) pts.push([a.lat, a.lng])
-          if (z) pts.push([z.lat, z.lng])
-          for (const w of seg.waypoints ?? []) pts.push(w)
-        }
-        const b = boundsOf(pts)
+        const b = boundsOf(systemPoints(segments, nodes, hit.id))
         if (b) fitTo(b)
         // Add to the highlight set rather than replacing it, so searching two
         // cables in a row lets you compare them. handleToggleSystem caps at 5.
@@ -704,7 +786,7 @@ export default function App() {
       const startName = nodesById[route.nodes?.[0]]?.name ?? route.nodes?.[0] ?? '?'
       const endName   = nodesById[route.nodes?.[route.nodes.length - 1]]?.name ?? route.nodes?.[route.nodes.length - 1] ?? '?'
       const baseLabel = c.label || c.search_label || `${startName} → ${endName}`
-      const wCircuitLabel = protect ? (c.label ? `${c.label} (Worker)` : undefined) : c.label
+      const wCircuitLabel = workerCircuitLabel(c.label, !!protect)
       const pCircuitLabel = c.label ? `${c.label} (Protect)` : undefined
       pinCounter.current += 1
       newPins.push({ pinId: `pin-${pinCounter.current}`, route, color, searchLabel: protect ? `${baseLabel} (Worker)` : baseLabel, projectId: project.id, circuitId: c.circuit_id, circuitLabel: wCircuitLabel })
@@ -771,7 +853,7 @@ export default function App() {
       const updated = await api.addCircuit(activeProject.id, circuit)
       setActiveProject(updated)
       const baseLabel = label || searchLabel
-      const wCircuitLabel = protect ? (label ? `${label} (Worker)` : label) : label
+      const wCircuitLabel = workerCircuitLabel(label, !!protect)
       const pCircuitLabel = label ? `${label} (Protect)` : undefined
       pinCounter.current += 1
       const wId = pinCounter.current
@@ -812,10 +894,10 @@ export default function App() {
       const usedColors = prev.map(p => p.color)
       const color = PIN_COLORS.find(c => !usedColors.includes(c)) ?? PIN_COLORS[prev.length % PIN_COLORS.length]
       const { route, protectRoute, searchLabel } = pending
-      const wLabel = protectRoute ? (circuitLabel ? `${circuitLabel} (Worker)` : `${searchLabel} (Worker)`) : (circuitLabel || searchLabel)
+      const wLabel = workerPinLabel(circuitLabel, searchLabel, !!protectRoute)
       pinCounter.current += 1
       const newPins: PinnedRoute[] = [
-        { pinId: `pin-${pinCounter.current}`, route, color, searchLabel: wLabel, projectId, circuitId, circuitLabel: protectRoute ? (circuitLabel ? `${circuitLabel} (Worker)` : undefined) : circuitLabel }
+        { pinId: `pin-${pinCounter.current}`, route, color, searchLabel: wLabel, projectId, circuitId, circuitLabel: workerCircuitLabel(circuitLabel, !!protectRoute) }
       ]
       if (protectRoute && prev.length + 1 < MAX_PINS) {
         pinCounter.current += 1
@@ -1201,17 +1283,7 @@ export default function App() {
   // Three vertical columns: LEFT = mode-specific controls (search/manual/etc.),
   // MIDDLE = the RouteList of results/pins, RIGHT = the interactive Map. Above
   // them sit the top-right Controls menu and, below, a stack of portalled modals.
-  const tabStyle = (active: boolean): React.CSSProperties => ({
-    flex: 1, padding: '7px 3px 6px', border: 'none', cursor: 'pointer',
-    background: active ? theme.bgBase : theme.bgPanel,
-    color: active ? theme.text : theme.textFaint,
-    fontSize: 9, fontWeight: active ? 700 : 400,
-    textTransform: 'uppercase', letterSpacing: '0.04em',
-    lineHeight: 1.2,
-    borderBottom: active ? `2px solid ${theme.blue}` : `2px solid transparent`,
-    transition: 'all 0.15s',
-    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-  })
+  const tabStyle = (active: boolean) => subTabStyle(theme, active)
 
   return (
     <ThemeContext.Provider value={theme}>
@@ -1328,10 +1400,10 @@ export default function App() {
                       }}
                     >
                       <span style={{ fontSize: 16, width: 22, textAlign: 'center' }}>
-                        {themeMode === 'dark' ? '🌅' : themeMode === 'dusk' ? '☀️' : '🌙'}
+                        {themeToggleIcon(themeMode)}
                       </span>
                       <span style={{ fontSize: 13, color: theme.text, flex: 1 }}>
-                        {themeMode === 'dark' ? 'Switch to Dusk' : themeMode === 'dusk' ? 'Switch to Light' : 'Switch to Dark'}
+                        {themeToggleLabel(themeMode)}
                       </span>
                     </button>
                   </div>
@@ -1899,7 +1971,7 @@ export default function App() {
             </div>
             <div style={{ fontSize: 13, color: theme.textMuted, marginBottom: 24, lineHeight: 1.6 }}>
               {mode === 'networkeditor'
-                ? `You have ${editorState.pending.length} unsaved change${editorState.pending.length === 1 ? '' : 's'} in Network Editor. Switching tabs will discard ${editorState.pending.length === 1 ? 'it' : 'them'} — nothing has been saved yet.`
+                ? unsavedEditorChangesWarning(editorState.pending.length)
                 : "You're mid-build in RouteManual. Switching tabs will discard the route in progress."}
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
@@ -2036,7 +2108,10 @@ export default function App() {
                 placeholder="e.g. TOK-HKG-EPL-01 or RFP-2025-003"
                 value={pendingPinLabel}
                 onChange={e => setPendingPinLabel(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') confirmPinToProject(); if (e.key === 'Escape') { setPendingPin(null); setPendingPinLabel('') } }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { confirmPinToProject() }
+                  if (e.key === 'Escape') { setPendingPin(null); setPendingPinLabel('') }
+                }}
               />
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
@@ -2119,7 +2194,10 @@ function AdminBar() {
           <input
             type="password" autoFocus value={key}
             onChange={e => { setKey(e.target.value); setErr(false) }}
-            onKeyDown={e => { if (e.key === 'Enter') attempt(); if (e.key === 'Escape') { setShowUnlock(false); setKey('') } }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { attempt() }
+              if (e.key === 'Escape') { setShowUnlock(false); setKey('') }
+            }}
             placeholder="Admin passphrase"
             style={{ flex: 1, padding: '5px 8px', borderRadius: 5, border: `1px solid ${err ? t.red : t.border}`, background: t.bgDeep, color: t.text, fontSize: 11, outline: 'none', fontFamily: 'inherit' }}
           />

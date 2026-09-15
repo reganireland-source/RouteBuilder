@@ -703,11 +703,15 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   }
 
   /** Run a tab-supplied "save edit" API call, then refresh the dataset and close
-   *  the edit form. `skipRefresh` is used when the caller refreshes itself. */
-  async function saveEdit(saveCall: () => Promise<unknown>, skipRefresh = false) {
+   *  the edit form. `skipRefresh` is used when the caller refreshes itself.
+   *  Returns null on success or the caught error on failure: callers whose own
+   *  promise is awaited by a dialog (the verification prompt) have to know the
+   *  write failed, while the usual fire-and-forget callers ignore the result and
+   *  let SaveCancel render the `error` state. */
+  async function saveEdit(saveCall: () => Promise<unknown>, skipRefresh = false): Promise<unknown> {
     setSaving(true); setError(null)
-    try { await saveCall(); if (!skipRefresh) onDataChange(); setEditId(null) }
-    catch (e) { setError(String(e)) }
+    try { await saveCall(); if (!skipRefresh) onDataChange(); setEditId(null); return null }
+    catch (e) { setError(String(e)); return e }
     finally { setSaving(false) }
   }
 
@@ -905,10 +909,15 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   const [nodeVerifPending, setNodeVerifPending] = useState<string | null>(null)
 
   /** Persist a node's new verification status (stamping today's date when marking
-   *  verified) and refresh. */
+   *  verified) and refresh. Goes through saveEdit like every other write here, so a
+   *  failed PUT lands in the shared `error` state instead of rejecting unhandled;
+   *  rethrowing keeps the open VerifPrompt on screen showing the reason rather than
+   *  letting the badge appear to change and silently not persist. */
   async function applyNodeVerif(id: string, status: VerificationStatus) {
     const date = status === 'verified' ? new Date().toISOString().slice(0, 10) : undefined
-    await api.updateNode(id, { verification_status: status, last_verified_date: date })
+    // skipRefresh: the dialog must close before onDataChange() triggers the re-render.
+    const failure = await saveEdit(() => api.updateNode(id, { verification_status: status, last_verified_date: date }), true)
+    if (failure) throw failure
     setNodeVerifPending(null)  // close dialog before triggering re-render
     onDataChange()
   }
@@ -1029,9 +1038,11 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   const [segVerifPending, setSegVerifPending] = useState<string | null>(null)
 
+  /** Segment counterpart of applyNodeVerif — same saveEdit/rethrow error handling. */
   async function applySegVerif(id: string, status: VerificationStatus) {
     const date = status === 'verified' ? new Date().toISOString().slice(0, 10) : undefined
-    await api.updateSegment(id, { verification_status: status, last_verified_date: date })
+    const failure = await saveEdit(() => api.updateSegment(id, { verification_status: status, last_verified_date: date }), true)
+    if (failure) throw failure
     setSegVerifPending(null)
     onDataChange()
   }
