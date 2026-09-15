@@ -47,6 +47,9 @@ import { OutagePanel } from './OutagePanel'
 import { NodeFullView } from './NodeFullView'
 import { AssetSearch } from './AssetSearch'
 import type { AssetHit } from '../utils/assetSearch'
+import { ServiceDateSelector } from './ServiceDateSelector'
+import { FutureNetworkBanner } from './FutureNetworkBanner'
+import { CURRENT_CHOICE, type ServiceDateChoice } from '../utils/serviceDate'
 import { RefDataModal } from './RefDataModal'
 import { HealthBar } from './HealthBar'
 import { CapacityDashboard } from './CapacityDashboard'
@@ -116,6 +119,11 @@ export interface MobileLayoutProps {
   onAssetSelect?:    (hit: AssetHit) => void
   fitBounds?:        { bounds: [[number, number], [number, number]]; key: number }
   spotlightNodeId?:  string | null
+  /** Current vs Planned network — see utils/serviceDate.ts. */
+  serviceChoice?:    ServiceDateChoice
+  onServiceChoiceChange?: (next: ServiceDateChoice) => void
+  /** Segments filtered to the chosen service date, for every read-only view. */
+  visibleSegments?:  CableSegment[]
   onNodeClick:       (node: CableNode, x: number, y: number) => void
   onPinChange:       (pin: { lat: number; lng: number; label: string } | null, ids: string[]) => void
   onCloseNode:       () => void
@@ -543,7 +551,9 @@ export function MobileLayout({
   prefilledOrigin, prefilledDest, lastSearchDiversity,
   refDataOpen, themeMode, config,
   onSearch, onToggleRoute, onPin, onUnpin, onPinPair, onToggleSystem,
-  onSetOrigin, onSetDest, onSetPair, onGoToNode, flyToNode, onAssetSelect, fitBounds, spotlightNodeId, onNodeClick, onPinChange,
+  onSetOrigin, onSetDest, onSetPair, onGoToNode, flyToNode, onAssetSelect, fitBounds, spotlightNodeId,
+  serviceChoice, onServiceChoiceChange, visibleSegments,
+  onNodeClick, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
   switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowNodeLabels, onToggleShowAllOutages,
   onToggleShowPlannedEvents,
@@ -632,7 +642,7 @@ export function MobileLayout({
         {nodes.length > 0 ? (
           <NetworkMap
             nodes={nodes}
-            segments={segments}
+            segments={visibleSegments ?? segments}
             selectedRoutes={selectedRoutes}
             capacity={capacity}
             pinnedRoutes={pinnedRoutes}
@@ -690,11 +700,24 @@ export function MobileLayout({
 
       {/* ── Asset Search, collapsed to a magnifier so it costs almost no
              room in a header that already carries the logo and Controls. ── */}
+      {serviceChoice && onServiceChoiceChange && (
+        <div style={{ position: 'absolute', top: 14, right: 140, zIndex: 100 }}>
+          <ServiceDateSelector value={serviceChoice} onChange={onServiceChoiceChange} compact />
+        </div>
+      )}
+
+      {/* Future-network banner, full width under the header row. */}
+      {serviceChoice && onServiceChoiceChange && (
+        <div style={{ position: 'absolute', top: 62, left: 8, right: 8, zIndex: 1100 }}>
+          <FutureNetworkBanner value={serviceChoice} onReset={() => onServiceChoiceChange(CURRENT_CHOICE)} />
+        </div>
+      )}
+
       {onAssetSelect && (
         <div style={{ position: 'absolute', top: 14, right: 92, zIndex: 100 }}>
           <AssetSearch
             nodes={nodes}
-            segments={segments}
+            segments={visibleSegments ?? segments}
             systems={systems}
             onSelect={hit => { doSnap('peek'); onAssetSelect(hit) }}
             compact
@@ -963,7 +986,7 @@ export function MobileLayout({
           {/* ── City Pair mode ────────────────────────────────────────── */}
           {mode === 'citypair' && (
             <div style={{ padding: '14px 16px 32px' }}>
-              <CityPairPanel nodes={nodes} segments={segments} systems={systems} onNetOwnership={config.on_net_ownership} onPlanRoute={onSetPair} />
+              <CityPairPanel nodes={nodes} segments={visibleSegments ?? segments} systems={systems} onNetOwnership={config.on_net_ownership} onPlanRoute={onSetPair} />
             </div>
           )}
 
@@ -995,7 +1018,7 @@ export function MobileLayout({
 
           {mode === 'countryviewer' && (
             <div style={{ padding: '14px 16px 32px' }}>
-              <CountryViewer nodes={nodes} segments={segments} systems={systems} onSelect={h => onCountrySelect?.(h)} />
+              <CountryViewer nodes={nodes} segments={visibleSegments ?? segments} systems={systems} onSelect={h => onCountrySelect?.(h)} />
             </div>
           )}
 

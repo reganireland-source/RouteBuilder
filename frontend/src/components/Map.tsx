@@ -98,6 +98,9 @@ interface Props {
   /** Fit the map to an arbitrary box — a city's nodes, a segment's path, a
    *  cable system's full extent. Same bumped `key` trick as flyToNode. */
   fitBounds?: { bounds: [[number, number], [number, number]]; key: number }
+  /** True while the future-network banner is shown, so the zoom control can
+   *  drop below it instead of hiding under it. */
+  bannerOffset?: boolean
   /** Node to call out after a search: drawn emphasised with its tooltip pinned
    *  open. Used on mobile, where opening the full node panel would cover the
    *  map and hide the fly-to the user just asked for. */
@@ -407,7 +410,7 @@ function NodeTypeLegend({ narrow }: { narrow: boolean }) {
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, flyToNode, fitBounds, spotlightNodeId, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, flyToNode, fitBounds, spotlightNodeId, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
   const t = useTheme()
   const narrowViewport = useNarrowViewport()
   const { hoveredSegmentId } = useSegmentHover()
@@ -521,7 +524,10 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
   }
 
   return (
-    <div style={{ position: 'relative', height: '100%', width: '100%' }}>
+    <div
+      className={bannerOffset ? 'rb-banner-offset' : undefined}
+      style={{ position: 'relative', height: '100%', width: '100%' }}
+    >
     {/* Pulsing glow keyframes for the hovered-segment highlight below. A plain
         <style> tag (not an external stylesheet) so the animation stays inline
         with the rest of the bundle — see main.tsx's note on not fetching CSS
@@ -543,6 +549,9 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         animation: rb-segment-glow-pulse 1.4s ease-in-out infinite;
         filter: blur(2px);
       }
+      /* The future-network banner occupies the top of the map when a planned
+         date is active, so the zoom control drops below it. */
+      .rb-banner-offset .leaflet-top.leaflet-left .leaflet-control-zoom { margin-top: 44px; }
       /* On a phone the app's logo card floats over the map's top-left corner,
          which is exactly where Leaflet puts its zoom control — they overlapped,
          and a tap on "+" landed on the logo (opening the guide) rather than

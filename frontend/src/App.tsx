@@ -21,6 +21,12 @@ import { CapacityDashboard } from './components/CapacityDashboard'
 import { UserGuide } from './components/UserGuide'
 import { AssetSearch } from './components/AssetSearch'
 import { parseCityId, type AssetHit } from './utils/assetSearch'
+import { ServiceDateSelector } from './components/ServiceDateSelector'
+import { FutureNetworkBanner } from './components/FutureNetworkBanner'
+import {
+  CURRENT_CHOICE, resolveServiceDate, filterSegmentsInService, isFutureView,
+  type ServiceDateChoice,
+} from './utils/serviceDate'
 import { normalizeLng } from './mapGeometry'
 import { useSegmentHover } from './context/SegmentHoverContext'
 import { AlgoEval } from './components/AlgoEval'
@@ -311,6 +317,21 @@ export default function App() {
   // WITHOUT opening the full node panel (which would cover the map and hide the
   // fly-to the user just asked for).
   const [spotlightNodeId, setSpotlightNodeId] = useState<string | null>(null)
+
+  // Current vs Planned network. Deliberately NOT persisted: every reload starts
+  // on today's network, so nobody inherits a future view and quotes from it.
+  const [serviceChoice, setServiceChoice] = useState<ServiceDateChoice>(CURRENT_CHOICE)
+  const serviceDate = resolveServiceDate(serviceChoice)
+
+  // The segment list every read-only surface draws from — map, City Pairs,
+  // Network Explorer. Route search does NOT use this: the backend filters its
+  // own graph from the same rules (backend/app/rfs.py), so sending it the date
+  // is enough and sending a pre-filtered list would be redundant.
+  const systemsById = useMemo(() => Object.fromEntries(systems.map(sy => [sy.id, sy])), [systems])
+  const visibleSegments = useMemo(
+    () => filterSegmentsInService(segments, systemsById, serviceDate),
+    [segments, systemsById, serviceDate],
+  )
   const { setHoveredSegmentId } = useSegmentHover()
 
   /** Fit the map to a box, bumping the key so the same box twice still moves. */
@@ -489,8 +510,14 @@ export default function App() {
   // one source of truth (see applyPendingChanges) rather than two parallel
   // mutable arrays — outside this mode it's just a pass-through of the real data.
   const editorDisplay = useMemo(
-    () => (mode === 'networkeditor' ? applyPendingChanges(nodes, segments, capacity, editorState.pending) : { nodes, segments, capacity }),
-    [mode, nodes, segments, capacity, editorState.pending],
+    // Network Editor deliberately IGNORES the Current/Planned filter: an admin
+    // editing topology has to be able to see and edit a planned cable, and
+    // hiding it would make it uneditable. Every other mode draws the network as
+    // at the chosen service date.
+    () => (mode === 'networkeditor'
+      ? applyPendingChanges(nodes, segments, capacity, editorState.pending)
+      : { nodes, segments: visibleSegments, capacity }),
+    [mode, nodes, segments, visibleSegments, capacity, editorState.pending],
   )
   const editorPendingIds = useMemo(() => pendingAffectedIds(editorState.pending), [editorState.pending])
 
@@ -601,7 +628,12 @@ export default function App() {
 
   /** Run a route search: clear old state, call the API, store the response, and
    *  auto-select the top primary + top diverse route so the map shows something. */
-  async function handleSearch(req: RouteRequest) {
+  async function handleSearch(reqIn: RouteRequest) {
+    // Stamp the current Current/Planned choice onto every search. The backend
+    // applies the same RFS rules to its graph (backend/app/rfs.py), so this one
+    // field keeps the routes it returns consistent with the map on screen.
+    // `null` means "all planned" — omit the field entirely so nothing filters.
+    const req: RouteRequest = serviceDate ? { ...reqIn, service_date: serviceDate } : reqIn
     setLoading(true)
     setError(null)
     setResponse(null)
@@ -973,6 +1005,9 @@ export default function App() {
           onGoToNode={handleGoToNode}
           flyToNode={flyToNode}
           onAssetSelect={hit => handleAssetSelect(hit, { openNodePanel: false })}
+          serviceChoice={serviceChoice}
+          onServiceChoiceChange={setServiceChoice}
+          visibleSegments={visibleSegments}
           fitBounds={fitBounds}
           spotlightNodeId={spotlightNodeId}
           onPinChange={handlePinChange}
@@ -1344,12 +1379,17 @@ export default function App() {
                  every mode: picking a result navigates without changing what
                  you were doing (see handleAssetSelect). ── */}
           <div style={{ padding: '0 14px 10px' }}>
-            <AssetSearch
-              nodes={nodes}
-              segments={segments}
-              systems={systems}
-              onSelect={handleAssetSelect}
-            />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <AssetSearch
+                  nodes={nodes}
+                  segments={visibleSegments}
+                  systems={systems}
+                  onSelect={handleAssetSelect}
+                />
+              </div>
+              <ServiceDateSelector value={serviceChoice} onChange={setServiceChoice} />
+            </div>
           </div>
 
           {/* ── Two top-level tabs ── */}
@@ -1455,14 +1495,14 @@ export default function App() {
               />
             )}
             {mode === 'citypair' && (
-              <CityPairPanel nodes={nodes} segments={segments} systems={systems} onNetOwnership={config.on_net_ownership} onPlanRoute={handleSetPair} />
+              <CityPairPanel nodes={nodes} segments={visibleSegments} systems={systems} onNetOwnership={config.on_net_ownership} onPlanRoute={handleSetPair} />
             )}
             {mode === 'systemviewer' && (
               <SystemViewer systems={systems} selected={selectedSystems} onToggle={handleToggleSystem} />
             )}
             {mode === 'countryviewer' && (
               <CountryViewer
-                nodes={nodes} segments={segments} systems={systems}
+                nodes={nodes} segments={visibleSegments} systems={systems}
                 onSelect={setCountryHighlight}
                 prefilledCountryCode={prefilledCountry}
                 onPrefillConsumed={() => setPrefilledCountry(null)}
@@ -1664,6 +1704,16 @@ export default function App() {
             </div>
           )}
 
+          {/* Full width, ABOVE the map rather than floating over it: an overlay
+              at top:0 covered Leaflet's zoom "+" button. In normal flow the map
+              simply starts lower while a future view is active. Renders nothing
+              on Current, so the map is full height in the usual case. */}
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 1100, pointerEvents: 'none' }}>
+            <div style={{ pointerEvents: 'auto' }}>
+              <FutureNetworkBanner value={serviceChoice} onReset={() => setServiceChoice(CURRENT_CHOICE)} />
+            </div>
+          </div>
+
           {nodes.length > 0 ? (
             <NetworkMap
               nodes={editorDisplay.nodes} segments={editorDisplay.segments} selectedRoutes={selectedRoutes}
@@ -1672,6 +1722,7 @@ export default function App() {
               flyToNode={flyToNode}
               fitBounds={fitBounds}
               spotlightNodeId={spotlightNodeId}
+              bannerOffset={isFutureView(serviceChoice)}
               onNodeClick={mode === 'routemanual' ? undefined : (node, x, y) => setSelectedNode({ node, x, y })}
               searchPin={searchPin ?? undefined}
               nearestNodeIds={nearestNodeIds}
