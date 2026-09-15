@@ -119,6 +119,8 @@ export interface MobileLayoutProps {
   onAssetSelect?:    (hit: AssetHit) => void
   fitBounds?:        { bounds: [[number, number], [number, number]]; key: number }
   spotlightNodeId?:  string | null
+  /** Effective ISO service date, for the route cards' lifecycle badges. */
+  serviceDate?:      string | null
   /** Current vs Planned network — see utils/serviceDate.ts. */
   serviceChoice?:    ServiceDateChoice
   onServiceChoiceChange?: (next: ServiceDateChoice) => void
@@ -551,7 +553,7 @@ export function MobileLayout({
   prefilledOrigin, prefilledDest, lastSearchDiversity,
   refDataOpen, themeMode, config,
   onSearch, onToggleRoute, onPin, onUnpin, onPinPair, onToggleSystem,
-  onSetOrigin, onSetDest, onSetPair, onGoToNode, flyToNode, onAssetSelect, fitBounds, spotlightNodeId,
+  onSetOrigin, onSetDest, onSetPair, onGoToNode, flyToNode, onAssetSelect, fitBounds, spotlightNodeId, serviceDate,
   serviceChoice, onServiceChoiceChange, visibleSegments,
   onNodeClick, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
@@ -909,6 +911,8 @@ export function MobileLayout({
               {(hasResults || hasPins) && (
                 <div style={{ marginTop: 18 }}>
                   <RouteList
+                    serviceDate={serviceDate ?? null}
+                    allSegments={segments}
                     primaryRoutes={response?.primary_routes ?? []}
                     diverseRoutes={response?.diverse_routes ?? []}
                     totalFound={response?.total_found}
@@ -964,6 +968,8 @@ export function MobileLayout({
           {mode === 'routemanual' && manualResults.length > 0 && (
             <div style={{ padding: '0 16px 32px' }}>
               <RouteList
+                serviceDate={serviceDate ?? null}
+                allSegments={segments}
                 primaryRoutes={manualResults}
                 diverseRoutes={[]}
                 selectedRouteIds={selectedRouteIds}

@@ -22,18 +22,36 @@
  *     the NLP assistant; otherwise the user controls sort via the header.
  *   • flippedPairIds + onFlipPair — which worker/protect pairs are swapped.
  *   • activeProject + onAddToProject / onEnrichCircuit — project integration.
+ *   • serviceDate + allSegments (both OPTIONAL) — the cable-lifecycle badges.
+ *     Absent/null ⇒ nothing lifecycle-related renders at all, so a search on
+ *     today's network looks exactly as it always did.
  *
  * SORTING lives here: the user picks a SortKey (hops/distance/latency/…); the
  * sortRoutes() helper compares routes by that key, and outage-affected routes
  * can optionally be pushed to the bottom. See SortKey and SORT_OPTIONS below.
  *
+ * CABLE LIFECYCLE (RFS / EOL) BADGES: when a service date is supplied, every
+ * hop that is not usable on that date is badged in the Segment Breakdown with
+ * the quarter that governs it — "RFS Q2 2027" for cable that is not built yet,
+ * "EOL Q4 2026" for cable that has already retired — and the route card itself
+ * carries the single date that governs the whole path. Every date question is
+ * answered by utils/serviceDate.ts (the same rules the backend mirrors); this
+ * file only turns those answers into labels. See the block above
+ * segmentLifecycle() for the details.
+ *
  * Glossary: diverse route = the physically separate backup path · on-net = on
- * our own network · margin = the commercial score derived from a system's margin.
+ * our own network · margin = the commercial score derived from a system's margin
+ * · RFS = Ready For Service (when a cable goes live) · EOL = End Of Life (when
+ * it is decommissioned).
  * ============================================================================
  */
 import { useState, useRef, useEffect, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
-import type { Route, CableNode, CableSystem, SegmentCapacity, SegmentOutage, PinnedRoute, Project, ProjectCircuit, EndpointConfig, SolutionNote } from '../types'
+import type { Route, CableNode, CableSegment, CableSystem, RouteSegmentDetail, SegmentCapacity, SegmentOutage, PinnedRoute, Project, ProjectCircuit, EndpointConfig, SolutionNote } from '../types'
+import {
+  effectiveEolDate, effectiveRfsDate, formatQuarter,
+  isSegmentInServiceOn, isSegmentRetiredOn, quarterEndDate,
+} from '../utils/serviceDate'
 import { useTheme } from '../theme'
 import { api } from '../api/client'
 import { SolutionNotesOverlay } from './SolutionNotesOverlay'
@@ -80,6 +98,182 @@ function classifyRoute(route: Route, onNetOwnership: Set<string>): { type: NetCl
   return { type: 'mixed', onNetPct: pct }
 }
 
+// ── Cable lifecycle (RFS / EOL) ─────────────────────────────────────────────
+//
+// A hop can fail to be usable on the selected service date in two ways: it is
+// not BUILT yet (RFS) or it is already RETIRED (EOL). Both questions are
+// answered by utils/serviceDate.ts, which is the browser mirror of
+// backend/app/rfs.py and is unit-tested there. NOTHING about quarters, date
+// comparison, or "the later of the segment and its system for RFS but the
+// EARLIER for EOL" is decided in this file — that asymmetry is exactly the
+// thing a second implementation would get backwards. All this layer does is
+// turn those answers into a label.
+
+type LifecycleKind = 'rfs' | 'eol'
+
+interface SegmentLifecycle {
+  kind: LifecycleKind
+  /** "RFS Q2 2027" / "EOL Q4 2026" / "RFS unknown" — what the badge shows. */
+  label: string
+  /** The governing quarter as stored ("2027-Q2"), or null when the row is
+   *  flagged planned/eol but its quarter is missing or malformed. */
+  quarter: string | null
+  /** The effective ISO date from serviceDate.ts, kept only so route-level code
+   *  can order hops without re-parsing quarters. Carries that module's
+   *  sentinels (9999-12-31 "never built" / 0000-01-01 "already gone"), which is
+   *  why an undated blocker correctly sorts to the worst end. */
+  sortDate: string
+}
+
+/** Shared empty map for the overwhelmingly common "no service date" case, so
+ *  the default costs no allocation and every lookup simply misses. */
+const NO_LIFECYCLE: Record<string, SegmentLifecycle> = {}
+
+/** One hop of a route paired with the reason it is unusable. */
+interface LifecycleHit { seg: RouteSegmentDetail; life: SegmentLifecycle }
+
+function lifecycleLabel(kind: LifecycleKind, quarter: string | null): string {
+  const prefix = kind === 'eol' ? 'EOL' : 'RFS'
+  // A row flagged planned/eol with a missing or malformed quarter still has to
+  // say so out loud — an empty badge would read as "fine".
+  return quarter ? `${prefix} ${formatQuarter(quarter)}` : `${prefix} unknown`
+}
+
+/**
+ * Which of the two candidate quarters produced `effective`.
+ *
+ * effectiveRfsDate()/effectiveEolDate() have already picked the governing row;
+ * the date they return IS that row's quarter-end, so we only have to ask which
+ * quarter resolves to it rather than re-deciding later-vs-earlier ourselves.
+ * Returns null when neither does — i.e. the quarter was missing or malformed
+ * and the helper fell back to a sentinel.
+ */
+function governingQuarter(effective: string, candidates: (string | null | undefined)[]): string | null {
+  for (const q of candidates) {
+    if (q && quarterEndDate(q) === effective) return q
+  }
+  return null
+}
+
+/** The lifecycle badge for one segment, or null when it is usable on the date. */
+function segmentLifecycle(
+  seg: CableSegment,
+  system: CableSystem | undefined,
+  serviceDate: string,
+): SegmentLifecycle | null {
+  // Retired is checked first and wins: a decommissioned hop is a dead end,
+  // whereas an unbuilt one still has a delivery date attached to it.
+  if (isSegmentRetiredOn(seg, system, serviceDate)) {
+    const effective = effectiveEolDate(seg, system)
+    const quarter = governingQuarter(effective, [
+      seg.eol_status === 'eol' ? seg.eol_quarter : null,
+      system?.eol_status === 'eol' ? system.eol_quarter : null,
+    ])
+    return { kind: 'eol', label: lifecycleLabel('eol', quarter), quarter, sortDate: effective }
+  }
+  if (!isSegmentInServiceOn(seg, system, serviceDate)) {
+    const effective = effectiveRfsDate(seg, system)
+    const quarter = governingQuarter(effective, [
+      seg.rfs_status === 'planned' ? seg.rfs_quarter : null,
+      system?.rfs_status === 'planned' ? system.rfs_quarter : null,
+    ])
+    return { kind: 'rfs', label: lifecycleLabel('rfs', quarter), quarter, sortDate: effective }
+  }
+  return null
+}
+
+/**
+ * segment_id → badge, for every reference segment that is NOT usable on
+ * `serviceDate`. Built once per render of the list and handed down, so a card
+ * only ever does a map lookup.
+ *
+ * The lookup has to go through the REFERENCE segments rather than the hops on
+ * the route: a Route carries RouteSegmentDetail, a denormalised snapshot that
+ * deliberately has no rfs_/eol_ fields on it. Returns the shared empty map when
+ * there is no service date (or no reference data), which is what keeps the
+ * "today's network" case byte-for-byte unchanged.
+ */
+function buildLifecycleMap(
+  refSegments: CableSegment[] | undefined,
+  systemsById: Record<string, CableSystem>,
+  serviceDate: string | null | undefined,
+): Record<string, SegmentLifecycle> {
+  if (!serviceDate || !refSegments?.length) return NO_LIFECYCLE
+  const out: Record<string, SegmentLifecycle> = {}
+  for (const seg of refSegments) {
+    const life = segmentLifecycle(seg, systemsById[seg.system_id], serviceDate)
+    if (life) out[seg.id] = life
+  }
+  return out
+}
+
+/** What the route CARD shows: one label plus the tooltip naming the culprits. */
+interface RouteLifecycle {
+  kind: LifecycleKind
+  label: string
+  tooltip: string
+}
+
+/** RFS → the hop that arrives LAST; EOL → the hop that goes FIRST. Ordered on
+ *  the effective ISO dates serviceDate.ts produced, never on the quarter
+ *  strings, so quarter parsing stays in exactly one module. */
+function pickGoverning(hits: LifecycleHit[], kind: LifecycleKind): LifecycleHit {
+  return hits.reduce((best, h) => {
+    const wins = kind === 'eol'
+      ? h.life.sortDate < best.life.sortDate
+      : h.life.sortDate > best.life.sortDate
+    return wins ? h : best
+  })
+}
+
+function lifecycleLines(hits: LifecycleHit[]): string[] {
+  return hits.map(h => `  • ${h.seg.segment_id} (${h.seg.system_id}) — ${h.life.label}`)
+}
+
+/**
+ * The single lifecycle fact for a whole route.
+ *
+ * RFS — a path can only be sold once its LAST piece is built, so the route's
+ * date is the LATEST quarter across its hops. Not the first one encountered
+ * and not the earliest: quoting anything sooner would promise a circuit that
+ * still has an unbuilt cable in the middle of it.
+ *
+ * EOL — the exact mirror. A path dies with the FIRST piece to retire, so the
+ * route's date is the EARLIEST EOL quarter across its hops.
+ *
+ * A retired hop wins outright and SUPPRESSES the RFS badge, because the two
+ * facts are not equals: a route with a retired hop cannot be delivered at all,
+ * so showing an RFS date beside it would advertise a service date for a path
+ * that will never exist. The unbuilt hops are still listed in the tooltip, so
+ * the information is de-emphasised rather than hidden.
+ */
+function routeLifecycle(route: Route, lifecycleById: Record<string, SegmentLifecycle>): RouteLifecycle | null {
+  if (lifecycleById === NO_LIFECYCLE) return null
+  const hits: LifecycleHit[] = []
+  for (const seg of route.segments) {
+    const life = lifecycleById[seg.segment_id]
+    if (life) hits.push({ seg, life })
+  }
+  if (hits.length === 0) return null
+
+  const retired = hits.filter(h => h.life.kind === 'eol')
+  const unbuilt = hits.filter(h => h.life.kind === 'rfs')
+  const kind: LifecycleKind = retired.length > 0 ? 'eol' : 'rfs'
+  const governing = pickGoverning(kind === 'eol' ? retired : unbuilt, kind)
+
+  const lines: string[] = []
+  if (retired.length > 0) {
+    lines.push('Retired — this path cannot be delivered:', ...lifecycleLines(retired))
+  }
+  if (unbuilt.length > 0) {
+    lines.push(
+      retired.length > 0 ? 'Also not built yet:' : 'Not in service until the last of these is built:',
+      ...lifecycleLines(unbuilt),
+    )
+  }
+  return { kind, label: governing.life.label, tooltip: lines.join('\n') }
+}
+
 const DEFAULT_SHOWN = 5
 const MIN_SHOWN = 1
 const MAX_SHOWN = 10
@@ -120,6 +314,16 @@ interface Props {
   onSwitchProject?: () => void
   // Open RefData pre-filled to add a note for a node/segment
   onOpenRefDataForNote?: (kind: 'node' | 'segment', id: string) => void
+  // ── Cable lifecycle badges (both optional; both required for any badge) ──
+  /** The ISO date the network is currently being viewed at —
+   *  resolveServiceDate(serviceChoice) from utils/serviceDate. null (the "All
+   *  planned" option) or absent means NO lifecycle badges anywhere. */
+  serviceDate?: string | null
+  /** The FULL, unfiltered reference segment list (App's `segments`, not
+   *  `visibleSegments`). Needed because a Route's hops are RouteSegmentDetail
+   *  snapshots with no rfs_/eol_ fields; the lifecycle status is looked up here
+   *  by segment id. Passing the filtered list would simply badge nothing. */
+  allSegments?: CableSegment[]
 }
 
 export type SortKey = 'hops' | 'distance' | 'latency' | 'availability' | 'margin' | 'capacity' | 'ownership'
@@ -212,10 +416,13 @@ function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, 
  * Sorting and the "show N" count are local state here; selection, pins and
  * project actions are lifted to App via the callback props.
  */
-export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown, optimiseFor, flippedPairIds, onFlipPair, onPinPair, onAddToProject, onEnrichCircuit, activeProject, onOpenRefDataForNote }: Props) {
+export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown, optimiseFor, flippedPairIds, onFlipPair, onPinPair, onAddToProject, onEnrichCircuit, activeProject, onOpenRefDataForNote, serviceDate, allSegments }: Props) {
   const t = useTheme()
   const onNetSet = new Set(onNetOwnership)
   const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
+  // Built once for the whole list; NO_LIFECYCLE (and therefore no badge, no
+  // extra element, no layout shift) whenever serviceDate/allSegments are absent.
+  const lifecycleById = buildLifecycleMap(allSegments, systemsById, serviceDate)
   const [internalSortKey, setInternalSortKey] = useState<SortKey | null>(null)
   const [sortDirFlipped, setSortDirFlipped] = useState(false)
   const [internalPushOutagesDown, setInternalPushOutagesDown] = useState(false)
@@ -405,6 +612,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                     outagesById={outagesById} plannedById={plannedById}
                     onNetSet={onNetSet}
                     systemsById={systemsById}
+                    lifecycleById={lifecycleById}
                     onEnrichCircuit={onEnrichCircuit ? () => onEnrichCircuit(p) : undefined}
                     onAddToProject={onAddToProject ? () => onAddToProject(p.route) : undefined}
                     activeProject={activeProject}
@@ -531,6 +739,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                   outagesById={outagesById} plannedById={plannedById}
                   onNetSet={onNetSet}
                   systemsById={systemsById}
+                  lifecycleById={lifecycleById}
                   pinnedKeys={pinnedKeys}
                   canPin={canPin}
                   onPin={onPin}
@@ -580,6 +789,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                       onPin={onPin}
                       onNetSet={onNetSet}
                       systemsById={systemsById}
+                      lifecycleById={lifecycleById}
                       onAddToProject={onAddToProject ? (route) => onAddToProject(route) : undefined}
                       onShowNotes={setNotesRoute}
                       hasNotes={routeHasNotes(r)}
@@ -604,6 +814,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
                       onPin={onPin}
                       onNetSet={onNetSet}
                       systemsById={systemsById}
+                      lifecycleById={lifecycleById}
                       onAddToProject={onAddToProject ? (route) => onAddToProject(route) : undefined}
                       onShowNotes={setNotesRoute}
                       hasNotes={routeHasNotes(r)}
@@ -653,6 +864,7 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
 function PairCard({
   pair, idx, selected, onSelectPair,
   nodesById, capacityById, outagesById, plannedById, onNetSet, systemsById,
+  lifecycleById = NO_LIFECYCLE,
   pinnedKeys, canPin, onPin, onPinPair,
   flipped, onFlip, onAddToProject,
   onShowNotes, routeHasNotes,
@@ -667,6 +879,7 @@ function PairCard({
   plannedById: Record<string, SegmentOutage>
   onNetSet: Set<string>
   systemsById: Record<string, CableSystem>
+  lifecycleById?: Record<string, SegmentLifecycle>
   pinnedKeys: Set<string>
   canPin: boolean
   onPin: (route: Route) => void
@@ -754,6 +967,7 @@ function PairCard({
         onPin={onPinPair ? () => onPinPair(worker, protect) : onPin}
         onNetSet={onNetSet}
         systemsById={systemsById}
+        lifecycleById={lifecycleById}
         onShowNotes={onShowNotes}
         hasNotes={routeHasNotes?.(worker)}
       />
@@ -780,6 +994,7 @@ function PairCard({
         onPin={onPinPair ? () => onPinPair(worker, protect) : onPin}
         onNetSet={onNetSet}
         systemsById={systemsById}
+        lifecycleById={lifecycleById}
         onShowNotes={onShowNotes}
         hasNotes={routeHasNotes?.(protect)}
       />
@@ -793,11 +1008,11 @@ function PairCard({
         >
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: t.blue, marginBottom: 6, letterSpacing: '0.04em' }}>🔵 Worker</div>
-            <PairBreakdown route={worker} outagesById={outagesById} plannedById={plannedById} sharedIds={sharedIds} accentColor={t.blue} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+            <PairBreakdown route={worker} outagesById={outagesById} lifecycleById={lifecycleById} plannedById={plannedById} sharedIds={sharedIds} accentColor={t.blue} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
           </div>
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: t.green, marginBottom: 6, letterSpacing: '0.04em' }}>🟢 Protect</div>
-            <PairBreakdown route={protect} outagesById={outagesById} plannedById={plannedById} sharedIds={sharedIds} accentColor={t.green} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+            <PairBreakdown route={protect} outagesById={outagesById} lifecycleById={lifecycleById} plannedById={plannedById} sharedIds={sharedIds} accentColor={t.green} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
           </div>
         </div>
       )}
@@ -867,7 +1082,7 @@ function useHoverWithGrace() {
 
 /** A route in the pinned bar, drawn in its pin colour with an unpin control and
  *  (in project mode) circuit label / enrichment actions. */
-function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, plannedById, onNetSet, systemsById, onEnrichCircuit, onAddToProject, activeProject, protectPin, onShowNotes, hasNotes }: {
+function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, plannedById, onNetSet, systemsById, lifecycleById = NO_LIFECYCLE, onEnrichCircuit, onAddToProject, activeProject, protectPin, onShowNotes, hasNotes }: {
   pinned: PinnedRoute
   onUnpin: () => void
   nodesById: Record<string, { name: string; type?: string }>
@@ -876,6 +1091,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   plannedById: Record<string, SegmentOutage>
   onNetSet: Set<string>
   systemsById: Record<string, CableSystem>
+  lifecycleById?: Record<string, SegmentLifecycle>
   onEnrichCircuit?: () => void
   onAddToProject?: () => void
   activeProject?: Project | null
@@ -911,6 +1127,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   const hasPlanned = routeHasPlannedEvent(route, plannedById)
   const plannedStartLabel = hasPlanned ? earliestPlannedStart(route, plannedById) : ''
   const routeMargin = computeRouteMargin(route, systemsById)
+  const lifecycle = routeLifecycle(route, lifecycleById)
 
   return (
     <div
@@ -1020,6 +1237,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
             <MarginBadge margin={routeMargin} />
             {hasOutage && <OutageBadge repairDate={repairDateLabel} />}
             {hasPlanned && <PlannedEventBadge startDate={plannedStartLabel} />}
+          {lifecycle && <RouteLifecycleBadge lifecycle={lifecycle} />}
           </div>
           <span style={{ fontSize: 11, color: t.textFaint, flexShrink: 0 }}>{route.nodes.length - 1} hops</span>
         </div>
@@ -1069,7 +1287,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
 
         {isMobile && segmentsOpen && (
           <div style={{ marginTop: 8 }}>
-            <SegmentBreakdownRows route={route} capacityById={capacityById} outagesById={outagesById} plannedById={plannedById} onNetSet={onNetSet} />
+            <SegmentBreakdownRows route={route} capacityById={capacityById} lifecycleById={lifecycleById} outagesById={outagesById} plannedById={plannedById} onNetSet={onNetSet} />
           </div>
         )}
 
@@ -1102,11 +1320,11 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6, padding: '10px 10px 6px', borderRadius: 6, background: t.bgDeep, border: `1px solid ${t.border}` }}>
                   <div>
                     <div style={{ fontSize: 10, fontWeight: 700, color: t.blue, marginBottom: 6, letterSpacing: '0.04em' }}>🔵 Worker</div>
-                    <PairBreakdown route={worker} outagesById={outagesById} plannedById={plannedById} sharedIds={sharedIds} accentColor={t.blue} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+                    <PairBreakdown route={worker} outagesById={outagesById} lifecycleById={lifecycleById} plannedById={plannedById} sharedIds={sharedIds} accentColor={t.blue} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
                   </div>
                   <div>
                     <div style={{ fontSize: 10, fontWeight: 700, color: t.green, marginBottom: 6, letterSpacing: '0.04em' }}>🟢 Protect</div>
-                    <PairBreakdown route={protect} outagesById={outagesById} plannedById={plannedById} sharedIds={sharedIds} accentColor={t.green} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+                    <PairBreakdown route={protect} outagesById={outagesById} lifecycleById={lifecycleById} plannedById={plannedById} sharedIds={sharedIds} accentColor={t.green} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
                   </div>
                 </div>
               )}
@@ -1117,7 +1335,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
       </div>
 
       {!isMobile && hovered && createPortal(
-        <SegmentTooltip route={route} capacityById={capacityById} outagesById={outagesById} plannedById={plannedById} pos={tooltipPos} onNetSet={onNetSet} onMouseEnter={enterHover} onMouseLeave={leaveWithGrace} />,
+        <SegmentTooltip route={route} capacityById={capacityById} lifecycleById={lifecycleById} outagesById={outagesById} plannedById={plannedById} pos={tooltipPos} onNetSet={onNetSet} onMouseEnter={enterHover} onMouseLeave={leaveWithGrace} />,
         document.body
       )}
     </div>
@@ -1126,7 +1344,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
 
 /** Card for a single (non-paired) route: path summary, key stats, margin/on-net
  *  badges, capacity, and select / pin / add-to-project controls. */
-function RouteCard({ route, selected, onSelect, nodesById, capacityById, outagesById, plannedById, color, isPinned, canPin, onPin, onNetSet, systemsById, onAddToProject, onShowNotes, hasNotes }: {
+function RouteCard({ route, selected, onSelect, nodesById, capacityById, outagesById, plannedById, color, isPinned, canPin, onPin, onNetSet, systemsById, lifecycleById = NO_LIFECYCLE, onAddToProject, onShowNotes, hasNotes }: {
   route: Route
   selected: boolean
   onSelect: (id: string) => void
@@ -1140,6 +1358,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
   onPin: (route: Route) => void
   onNetSet: Set<string>
   systemsById: Record<string, CableSystem>
+  lifecycleById?: Record<string, SegmentLifecycle>
   onAddToProject?: (route: Route) => void
   onShowNotes?: (route: Route) => void
   hasNotes?: boolean
@@ -1168,6 +1387,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
   const hasPlanned = routeHasPlannedEvent(route, plannedById)
   const plannedStartLabel = hasPlanned ? earliestPlannedStart(route, plannedById) : ''
   const routeMargin = computeRouteMargin(route, systemsById)
+  const lifecycle = routeLifecycle(route, lifecycleById)
 
   return (
     <div
@@ -1193,6 +1413,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
           <MarginBadge margin={routeMargin} />
           {hasOutage && <OutageBadge repairDate={repairDateLabel} />}
           {hasPlanned && <PlannedEventBadge startDate={plannedStartLabel} />}
+          {lifecycle && <RouteLifecycleBadge lifecycle={lifecycle} />}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
           <span style={{ fontSize: 11, color: t.textFaint }}>{route.nodes.length - 1} hops</span>
@@ -1279,12 +1500,12 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
 
       {isMobile && segmentsOpen && (
         <div role="presentation" style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
-          <SegmentBreakdownRows route={route} capacityById={capacityById} outagesById={outagesById} plannedById={plannedById} onNetSet={onNetSet} />
+          <SegmentBreakdownRows route={route} capacityById={capacityById} lifecycleById={lifecycleById} outagesById={outagesById} plannedById={plannedById} onNetSet={onNetSet} />
         </div>
       )}
 
       {!isMobile && hovered && createPortal(
-        <SegmentTooltip route={route} capacityById={capacityById} outagesById={outagesById} plannedById={plannedById} pos={tooltipPos} onNetSet={onNetSet} onMouseEnter={enterHover} onMouseLeave={leaveWithGrace} />,
+        <SegmentTooltip route={route} capacityById={capacityById} lifecycleById={lifecycleById} outagesById={outagesById} plannedById={plannedById} pos={tooltipPos} onNetSet={onNetSet} onMouseEnter={enterHover} onMouseLeave={leaveWithGrace} />,
         document.body
       )}
     </div>
@@ -1308,6 +1529,73 @@ function MarginBadge({ margin }: { margin: number | null }) {
   )
 }
 
+/** Hover text for one hop's pill. The undated cases say why there is no date
+ *  rather than printing the word "unknown" into a sentence, because a missing
+ *  quarter is a data gap the user may be able to get fixed. */
+function segmentLifecycleTitle(lifecycle: SegmentLifecycle): string {
+  const { kind, quarter } = lifecycle
+  if (kind === 'eol') {
+    if (!quarter) return 'Retired — no EOL quarter is recorded, so this segment is treated as already gone'
+    return `Retired — out of service after the end of ${formatQuarter(quarter)}`
+  }
+  if (!quarter) return 'Not built yet — no RFS quarter is recorded, so there is no date to promise'
+  return `Not built yet — in service by the end of ${formatQuarter(quarter)}`
+}
+
+/**
+ * Per-hop lifecycle pill in the Segment Breakdown — "RFS Q2 2027" for cable
+ * that is not built yet, "EOL Q4 2026" for cable that has already retired.
+ *
+ * Orange in BOTH directions, deliberately: red is reserved here for faults and
+ * off-net, and a cable that is simply early or late in its life is a planning
+ * fact, not an error. Sized to match the ON-NET/OFF-NET pill it sits beside.
+ */
+function SegmentLifecycleBadge({ lifecycle }: { lifecycle: SegmentLifecycle }) {
+  const t = useTheme()
+  const title = segmentLifecycleTitle(lifecycle)
+  return (
+    <span
+      title={title}
+      style={{
+        fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
+        letterSpacing: '0.04em', whiteSpace: 'nowrap', cursor: 'help',
+        background: t.orange + '22', color: t.orange, border: `1px solid ${t.orange + '55'}`,
+      }}
+    >
+      {lifecycle.label}
+    </span>
+  )
+}
+
+/**
+ * The route-card counterpart: ONE date for the whole path (see routeLifecycle
+ * for which hop that comes from), with a tooltip naming the hops responsible so
+ * the user can see what is holding the route up.
+ *
+ * The retired case is drawn louder than the not-yet-built one — full-strength
+ * border, heavier fill, a ⛔ glyph — because the two are not equivalent: a
+ * future RFS is a route you can sell for later, a retired hop is a route you
+ * cannot sell at all. Still orange, not red: red is for live faults.
+ */
+function RouteLifecycleBadge({ lifecycle }: { lifecycle: RouteLifecycle }) {
+  const t = useTheme()
+  const isEol = lifecycle.kind === 'eol'
+  return (
+    <span
+      title={lifecycle.tooltip}
+      style={{
+        fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
+        letterSpacing: '0.04em', whiteSpace: 'nowrap', cursor: 'help',
+        background: t.orange + (isEol ? '33' : '22'),
+        color: t.orange,
+        border: `1px solid ${isEol ? t.orange : t.orange + '55'}`,
+      }}
+    >
+      {isEol ? `⛔ ${lifecycle.label}` : lifecycle.label}
+    </span>
+  )
+}
+
 function NetBadge({ route, onNetSet }: { route: Route; onNetSet: Set<string> }) {
   const t = useTheme()
   const { type, onNetPct } = classifyRoute(route, onNetSet)
@@ -1326,10 +1614,11 @@ function NetBadge({ route, onNetSet }: { route: Route; onNetSet: Set<string> }) 
   )
 }
 
-function PairBreakdown({ route, outagesById, plannedById, sharedIds, accentColor, nodesById, sharedNodeIds }: {
+function PairBreakdown({ route, outagesById, plannedById, sharedIds, accentColor, nodesById, sharedNodeIds, lifecycleById = NO_LIFECYCLE }: {
   route: Route
   outagesById: Record<string, SegmentOutage>
   plannedById: Record<string, SegmentOutage>
+  lifecycleById?: Record<string, SegmentLifecycle>
   sharedIds: Set<string>
   accentColor: string
   nodesById: Record<string, { name: string; type?: string }>
@@ -1355,6 +1644,7 @@ function PairBreakdown({ route, outagesById, plannedById, sharedIds, accentColor
         const isSharedSeg = seg ? sharedIds.has(seg.segment_id) : false
         const segOutage = seg ? outagesById[seg.segment_id] : undefined
         const segPlanned = seg ? plannedById[seg.segment_id] : undefined
+        const segLife = seg ? lifecycleById[seg.segment_id] : undefined
         const isWet = seg?.type === 'wet'
         const trackColor = isSharedSeg ? t.orange + '99' : t.border
 
@@ -1428,6 +1718,7 @@ function PairBreakdown({ route, outagesById, plannedById, sharedIds, accentColor
                           SHARED
                         </span>
                       )}
+                      {segLife && <SegmentLifecycleBadge lifecycle={segLife} />}
                       {segOutage && <span style={{ fontSize: 11 }} title="Active outage">⚠️</span>}
                       {segPlanned && <span style={{ fontSize: 11 }} title={`Planned work: ${segPlanned.planned_start ?? 'TBC'} – ${segPlanned.planned_end ?? 'TBC'}`}>🗓️</span>}
                       <span style={{ fontSize: 9, color: t.textFaint, textTransform: 'uppercase' as const }}>{seg.type}</span>
@@ -1449,12 +1740,13 @@ function PairBreakdown({ route, outagesById, plannedById, sharedIds, accentColor
   )
 }
 
-function SegmentBreakdownRows({ route, capacityById, outagesById, plannedById, onNetSet }: {
+function SegmentBreakdownRows({ route, capacityById, outagesById, plannedById, onNetSet, lifecycleById = NO_LIFECYCLE }: {
   route: Route
   capacityById: Record<string, SegmentCapacity>
   outagesById: Record<string, SegmentOutage>
   plannedById: Record<string, SegmentOutage>
   onNetSet: Set<string>
+  lifecycleById?: Record<string, SegmentLifecycle>
 }) {
   const t = useTheme()
   const { hoveredSegmentId, setHoveredSegmentId } = useSegmentHover()
@@ -1482,6 +1774,7 @@ function SegmentBreakdownRows({ route, capacityById, outagesById, plannedById, o
         const netLabel = onNet === true ? 'ON-NET' : onNet === false ? 'OFF-NET' : null
         const outage = outagesById[seg.segment_id]
         const planned = plannedById[seg.segment_id]
+        const lifecycle = lifecycleById[seg.segment_id]
         const isGlowing = hoveredSegmentId === seg.segment_id
         return (
           <div
@@ -1509,6 +1802,7 @@ function SegmentBreakdownRows({ route, capacityById, outagesById, plannedById, o
                     {netLabel}
                   </span>
                 )}
+                {lifecycle && <SegmentLifecycleBadge lifecycle={lifecycle} />}
                 {outage && (
                   <span
                     title={[
@@ -1573,11 +1867,12 @@ function SegmentBreakdownRows({ route, capacityById, outagesById, plannedById, o
   )
 }
 
-function SegmentTooltip({ route, capacityById, outagesById, plannedById, pos, onNetSet, onMouseEnter, onMouseLeave }: {
+function SegmentTooltip({ route, capacityById, outagesById, plannedById, pos, onNetSet, onMouseEnter, onMouseLeave, lifecycleById = NO_LIFECYCLE }: {
   route: Route
   capacityById: Record<string, SegmentCapacity>
   outagesById: Record<string, SegmentOutage>
   plannedById: Record<string, SegmentOutage>
+  lifecycleById?: Record<string, SegmentLifecycle>
   pos: { top: number; left: number }
   onNetSet: Set<string>
   onMouseEnter?: () => void
@@ -1625,7 +1920,7 @@ function SegmentTooltip({ route, capacityById, outagesById, plannedById, pos, on
         fontFamily: 'system-ui, sans-serif', pointerEvents: 'auto',
       }}
     >
-      <SegmentBreakdownRows route={route} capacityById={capacityById} outagesById={outagesById} plannedById={plannedById} onNetSet={onNetSet} />
+      <SegmentBreakdownRows route={route} capacityById={capacityById} lifecycleById={lifecycleById} outagesById={outagesById} plannedById={plannedById} onNetSet={onNetSet} />
     </div>
   )
 }

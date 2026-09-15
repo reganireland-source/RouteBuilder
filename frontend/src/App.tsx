@@ -24,7 +24,7 @@ import { parseCityId, type AssetHit } from './utils/assetSearch'
 import { ServiceDateSelector } from './components/ServiceDateSelector'
 import { FutureNetworkBanner } from './components/FutureNetworkBanner'
 import {
-  CURRENT_CHOICE, resolveServiceDate, filterSegmentsInService, isFutureView,
+  CURRENT_CHOICE, resolveServiceDate, filterSegmentsInService, isFutureView, todayIso,
   type ServiceDateChoice,
 } from './utils/serviceDate'
 import { normalizeLng } from './mapGeometry'
@@ -1010,6 +1010,7 @@ export default function App() {
           visibleSegments={visibleSegments}
           fitBounds={fitBounds}
           spotlightNodeId={spotlightNodeId}
+          serviceDate={todayIso()}
           onPinChange={handlePinChange}
           onCloseNode={() => setSelectedNode(null)}
           onOpenRefData={() => setRefDataOpen(true)}
@@ -1616,6 +1617,14 @@ export default function App() {
               />
             )}
             <RouteList
+              // TODAY's date, not the selected one. The backend already filters
+              // the graph by the chosen service date, so a fresh search returns
+              // only hops usable AT it — passing that date back would leave the
+              // badges permanently silent. What the badge answers is "is this
+              // segment live NOW?", so viewing Q2 2027 marks every hop that is
+              // not yet built today, which is the question being asked.
+              serviceDate={todayIso()}
+              allSegments={segments}
               primaryRoutes={mode === 'routemanual' ? manualResults : (response?.primary_routes ?? [])}
               diverseRoutes={mode === 'routemanual' ? [] : (response?.diverse_routes ?? [])}
               totalFound={response?.total_found}
