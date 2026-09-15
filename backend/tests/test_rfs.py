@@ -298,8 +298,8 @@ def test_city_pair_search_honours_service_date():
     """City Pairs shares the same helper, so a planned cable drops out of the
     itinerary list too."""
     nodes, segments, systems = _network(RfsStatus.planned, "2027-Q2")
-    kwargs = dict(origin_city="City A", destination_city="City B",
-                  nodes=nodes, segments=segments, systems_by_id=systems)
+    kwargs = {"origin_city": "City A", "destination_city": "City B",
+              "nodes": nodes, "segments": segments, "systems_by_id": systems}
 
     unfiltered = find_city_pair_routes(**kwargs)
     filtered = find_city_pair_routes(**kwargs, service_date="2026-01-01")

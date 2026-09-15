@@ -88,20 +88,23 @@ def build_graph(
     networkx (it auto-creates missing endpoints), so data integrity is
     enforced separately by data_checks.py rather than here.
 
-    Ready-For-Service filtering (service_date / systems_by_id):
+    Lifecycle filtering — RFS and EOL (service_date / systems_by_id):
       When `service_date` is given, segments that are not yet in service on
-      that date simply DO NOT BECOME EDGES — the planned cable does not exist
-      as far as the search is concerned. Doing it here, at the single seam
-      every search passes through, rather than post-filtering finished routes,
-      means the pathfinder, its hop limits, its k-shortest-path enumeration and
-      all the diversity carve-outs need no knowledge of RFS at all: they can
-      never propose a route over a cable that is not built yet, and the
-      "diverse alternative" they compute is genuinely diverse among buildable
-      cables instead of being thrown away afterwards.
+      that date, and segments already retired by it, simply DO NOT BECOME
+      EDGES — the unbuilt or decommissioned cable does not exist as far as the
+      search is concerned. Doing it here, at the single seam every search
+      passes through, rather than post-filtering finished routes, means the
+      pathfinder, its hop limits, its k-shortest-path enumeration and all the
+      diversity carve-outs need no knowledge of RFS or EOL at all: they can
+      never propose a route over a cable that is not built yet or is being
+      retired before the date, and the "diverse alternative" they compute is
+      genuinely diverse among usable cables instead of being thrown away
+      afterwards.
       `systems_by_id` supplies the owning CableSystem for each segment, because
       a segment's effective RFS date is the later of its own and its system's
-      (see rfs.effective_rfs_date). It may be omitted, in which case only the
-      segments' own RFS dates constrain the graph.
+      and its effective EOL date is the earlier of the two (see
+      rfs.effective_rfs_date / rfs.effective_eol_date). It may be omitted, in
+      which case only the segments' own dates constrain the graph.
       `service_date` accepts either a date or an ISO "YYYY-MM-DD" string (the
       same shape RouteRequest carries). None — the default — means no filtering
       whatsoever, so every existing caller and client is unaffected.

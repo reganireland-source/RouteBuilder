@@ -52,6 +52,18 @@ class RfsStatus(str, Enum):
     planned = "planned"
 
 
+class EolStatus(str, Enum):
+    """End of Life — whether a CableSystem/CableSegment is staying in the
+    network (active, the default — everything in the dataset today is) or is
+    scheduled for decommissioning (eol, paired with an eol_quarter). The exact
+    mirror of RfsStatus: RFS excludes cable that is not built YET, EOL excludes
+    cable that will be RETIRED by the requested service date. See app/rfs.py for
+    how the pair resolves to a date and graph.build_graph for where both
+    not-yet-live and already-retired segments are dropped."""
+    active = "active"
+    eol = "eol"
+
+
 class BackboneCapabilities(BaseModel):
     ipt:  Optional[list[str]] = None
     epl:  Optional[list[str]] = None
@@ -95,9 +107,11 @@ class Node(BaseModel):
 
 
 # "YYYY-QN" — e.g. "2027-Q3". Quarter-precision, not a specific day, since RFS
-# dates are planning-level estimates that shift; matches the shape used
+# and EOL dates are planning-level estimates that shift; matches the shape used
 # whenever the frontend renders/edits it (see frontend/src/types/index.ts).
-_RFS_QUARTER_PATTERN = r"^\d{4}-Q[1-4]$"
+# One constant for both lifecycle dates on purpose — they are the same shape and
+# must stay the same shape, so there is nothing for them to drift apart on.
+_QUARTER_PATTERN = r"^\d{4}-Q[1-4]$"
 
 
 def _check_rfs_quarter(status: "RfsStatus", quarter: Optional[str]) -> None:
@@ -111,6 +125,17 @@ def _check_rfs_quarter(status: "RfsStatus", quarter: Optional[str]) -> None:
         raise ValueError("rfs_quarter must be empty when rfs_status is 'in_service'")
 
 
+def _check_eol_quarter(status: "EolStatus", quarter: Optional[str]) -> None:
+    """The exact mirror of _check_rfs_quarter, for eol_status/eol_quarter: a
+    quarter is required once something is 'eol' (that's the whole point of
+    recording it), and cleared once it is back to 'active' so a system/segment
+    can't carry a stale retirement date after a decommission is called off."""
+    if status == EolStatus.eol and not quarter:
+        raise ValueError("eol_quarter is required when eol_status is 'eol'")
+    if status == EolStatus.active and quarter:
+        raise ValueError("eol_quarter must be empty when eol_status is 'active'")
+
+
 class CableSystem(BaseModel):
     id: str
     name: str
@@ -119,11 +144,20 @@ class CableSystem(BaseModel):
     # Ready for Service — see RfsStatus. Constrains route search whenever the
     # request carries a service_date (app/rfs.py).
     rfs_status: RfsStatus = RfsStatus.in_service
-    rfs_quarter: Optional[str] = Field(default=None, pattern=_RFS_QUARTER_PATTERN)
+    rfs_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
+    # End of Life — see EolStatus. The other end of the same constraint: RFS
+    # says when this system starts carrying traffic, EOL when it stops.
+    eol_status: EolStatus = EolStatus.active
+    eol_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
 
     @model_validator(mode="after")
     def _rfs_consistent(self):
         _check_rfs_quarter(self.rfs_status, self.rfs_quarter)
+        return self
+
+    @model_validator(mode="after")
+    def _eol_consistent(self):
+        _check_eol_quarter(self.eol_status, self.eol_quarter)
         return self
 
 
@@ -149,11 +183,20 @@ class CableSegment(BaseModel):
     # Ready for Service — see RfsStatus. Constrains route search whenever the
     # request carries a service_date (app/rfs.py).
     rfs_status: RfsStatus = RfsStatus.in_service
-    rfs_quarter: Optional[str] = Field(default=None, pattern=_RFS_QUARTER_PATTERN)
+    rfs_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
+    # End of Life — see EolStatus. The other end of the same constraint: RFS
+    # says when this segment starts carrying traffic, EOL when it stops.
+    eol_status: EolStatus = EolStatus.active
+    eol_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
 
     @model_validator(mode="after")
     def _rfs_consistent(self):
         _check_rfs_quarter(self.rfs_status, self.rfs_quarter)
+        return self
+
+    @model_validator(mode="after")
+    def _eol_consistent(self):
+        _check_eol_quarter(self.eol_status, self.eol_quarter)
         return self
 
 
@@ -318,14 +361,18 @@ class CableSegmentUpdate(BaseModel):
     verification_status: Optional[VerificationStatus] = None
     last_verified_date: Optional[str] = None
     rfs_status: Optional[RfsStatus] = None
-    rfs_quarter: Optional[str] = Field(default=None, pattern=_RFS_QUARTER_PATTERN)
+    rfs_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
+    eol_status: Optional[EolStatus] = None
+    eol_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
 
 class CableSystemUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     margin: Optional[float] = None
     rfs_status: Optional[RfsStatus] = None
-    rfs_quarter: Optional[str] = Field(default=None, pattern=_RFS_QUARTER_PATTERN)
+    rfs_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
+    eol_status: Optional[EolStatus] = None
+    eol_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
 
 class SegmentCapacityUpdate(BaseModel):
     # Review finding #11: same non-negativity constraints as SegmentCapacity.

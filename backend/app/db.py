@@ -621,6 +621,7 @@ def init_db() -> None:
             _once(cur, 'm058', _run_migration_058)   # Malay Peninsula / Arabian / Mediterranean waypoints
             _once(cur, 'm059', _run_migration_059)   # C2C-S3C and EAC-K south-of-Japan re-route
             _once(cur, 'm060', _run_migration_060)   # backfill rfs_status='in_service' on systems/segments
+            _once(cur, 'm061', _run_migration_061)   # backfill eol_status='active' on systems/segments
             # ↑ ADD NEW MIGRATIONS HERE (m061, m062, ...) — see the
             #   "HOW TO ADD A NEW MIGRATION" comment at the top of this list.
         conn.commit()
@@ -3284,3 +3285,20 @@ def _run_migration_060(cur) -> None:
     """
     cur.execute("UPDATE systems SET data = jsonb_set(data, '{rfs_status}', '\"in_service\"'::jsonb)")
     cur.execute("UPDATE segments SET data = jsonb_set(data, '{rfs_status}', '\"in_service\"'::jsonb)")
+
+
+def _run_migration_061(cur) -> None:
+    """Backfill eol_status='active' onto every existing system and segment.
+
+    New fields: CableSystem.eol_status / CableSegment.eol_status ("End of
+    Life" — active | eol) plus an optional eol_quarter ("YYYY-QN") for the ones
+    being decommissioned. The exact mirror of m060's RFS backfill: everything
+    in the dataset up to this point is a system/segment we intend to keep
+    running, so it all backfills to active with no quarter. Pydantic's field
+    default would already imply this for any row read without the key, but
+    writing it explicitly (matching the convention for every other
+    field-backfill migration in this file, m060 included) keeps the stored data
+    self-describing rather than relying on a code default.
+    """
+    cur.execute("UPDATE systems SET data = jsonb_set(data, '{eol_status}', '\"active\"'::jsonb)")
+    cur.execute("UPDATE segments SET data = jsonb_set(data, '{eol_status}', '\"active\"'::jsonb)")

@@ -49,8 +49,9 @@ def search_routes(request: RouteRequest):
       - diversity: request physically diverse alternative routes.
       - optimise_for: the objective to rank by (e.g. latency/cost).
       - service_date: optional ISO "YYYY-MM-DD"; when present, segments whose
-        Ready-For-Service date (or whose system's) is later than this date are
-        excluded from the graph entirely. Omitted/None = no RFS filtering.
+        Ready-For-Service date (or whose system's) is later than this date, and
+        segments whose End-Of-Life date (or whose system's) is earlier than it,
+        are excluded from the graph entirely. Omitted/None = no filtering.
     Response: a RouteResponse containing the matching routes.
 
     Auth: this is a read-style QUERY that happens to use POST (it never mutates

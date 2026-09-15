@@ -175,11 +175,13 @@ def find_city_pair_routes(
     appears at most once.
 
     service_date: optional ISO "YYYY-MM-DD". When given, segments that are not
-    Ready For Service on that date are dropped before the wet graph is built,
-    exactly as in graph.build_graph — a city pair that is only reachable over a
-    cable still under construction must not be presented as available today.
-    None (the default) means no RFS filtering. systems_by_id is already on hand
-    here, so honouring the constraint costs one call.
+    Ready For Service on that date — or that reach End Of Life before it — are
+    dropped before the wet graph is built, exactly as in graph.build_graph: a
+    city pair that is only reachable over a cable still under construction must
+    not be presented as available today, and one only reachable over a cable
+    being decommissioned must not be sold for a future date.
+    None (the default) means no lifecycle filtering. systems_by_id is already
+    on hand here, so honouring the constraint costs one call.
     """
     segments = filter_segments_in_service(
         segments, systems_by_id, parse_service_date(service_date),
