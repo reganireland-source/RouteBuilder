@@ -145,8 +145,10 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       desc: `Network Explorer → Nodes takes either kind of question. Type a node code you already know — SYD1, TUAS, PALI — and the map flies straight to it and opens it; half-remembered codes are offered as a tappable shortlist as you type. Type a customer address or a lat/lng pair instead and it finds the nearest landing stations and PoPs, showing owner, trading name, node type and straight-line distance. Either way, one click sets the node as Origin or Destination and you are in a route search.` },
     { icon: '⛶', title: 'Node Full View',
       desc: 'Click a node, then "Full View", for everything known about the site on one page: identity and owner, a site map, the product coverage matrix, every cable system present, live capacity on each segment leaving it, and any solution notes recorded against it — plus a fan-out diagram drawing every segment at its true compass bearing. Click a spoke to walk to the node at the other end and keep going, hop by hop, without returning to the map. Admins can correct the node in place. On a phone, tapping a node opens Full View directly as a full-screen sheet.' },
-    { icon: '📆', title: 'Ready for Service (RFS)',
-      desc: 'Cable systems and segments record whether they are in service today or a planned future build with a target quarter — so a cable that is funded but not yet laid is visibly distinct from one carrying traffic. A planned system carries an amber RFS badge with its quarter wherever it is listed. Today this is information you read; a service date on the search, filtering results to the network as it will be on a customer\'s in-service date, is the next step.' },
+    { icon: '🔎', title: 'Asset Search — One Box for the Whole Network',
+      desc: 'A single box at the top of the app that searches nodes, cities, cable systems, segments and countries at the same time, and takes you to whatever you pick. Type a code you know — SYD1, PALI — and it is the first result; type "cross" and Southern Cross NEXT appears; type "Singapore" and the city, the country and every Singapore node compete in one ranked list rather than sitting under headings you have to scan past. Ctrl+K (⌘K on a Mac) puts the cursor in it from anywhere. Choosing a result flies the map there and does the obvious thing for that kind of asset — a node opens, a city is fitted, a cable is spotlit, a system joins the highlight set, a country opens Country Viewer — and it never disturbs the route you were building.' },
+    { icon: '📆', title: 'Current vs Planned — The Network on a Future Date',
+      desc: 'Customers buy against a service date, not against today\'s network. The selector at the very top of the app switches the whole platform between Current — the network carrying traffic today — and Planned at a quarter you choose. Planned is cumulative: everything in service by the end of that quarter, today\'s live cables included, which is the honest answer to "what can I sell for delivery in Q2 2027?". It governs the map, route search, City Pairs and Country Viewer together, so no screen can disagree with another. A future view also drops cables that will have been decommissioned by then, so a date years out is not quietly padded with capacity that is being retired. An amber banner stays across the top for as long as a future date is active, and the app always reloads on Current.' },
     { icon: '📌', title: 'Pinned Routes & SLD Export',
       desc: 'Pin up to 5 routes for comparison, then export a straight-line diagram. Choose a version label (Proposal / Draft / Final) and export as PDF (branded, customer-ready cover page plus per-route diagrams with proportional segment layout) or DrawIO / Visio XML for collaborative editing.' },
     { icon: '✎', title: 'Visual Network Editor (admin)',
@@ -720,6 +722,40 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           </div>
         </div>
 
+        {/* Service date gate */}
+        <div style={{ ...card() as React.CSSProperties, marginBottom: 24, padding: '22px 20px', borderLeft: `4px solid ${t.orange}` }}>
+          <div style={sectionLabel as React.CSSProperties}>Service Date — Step 0: Which Network Is Being Searched</div>
+          <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.65, margin: '0 0 16px' }}>
+            Before the graph is walked at all, it is built for a date. The <strong style={{ color: t.text }}>Current | Planned</strong> selector at the top of the app decides which one: today, the end of a quarter you choose, or no date at all. Set to <strong style={{ color: t.text }}>Current</strong> — the default — this changes nothing you would notice; set to a future quarter, the engine searches the network as it will be then. It is not a preference and not a sort: a cable that is not usable on that date does not exist for that search, exactly as if it had been listed in Must Avoid.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+            {constraintRowAlgo('🏗', 'Ready For Service (RFS)', 'NOT BUILT YET', t.orange, 'A segment is excluded when its RFS date falls after the service date. Its effective RFS is the LATER of its own and its parent cable system\'s — a segment cannot go live before the cable it belongs to, so the system acts as a floor.')}
+            {constraintRowAlgo('🌅', 'End of Life (EOL)', 'ALREADY RETIRED', t.red, 'The exact mirror: a segment is excluded when its EOL date falls before the service date. Its effective EOL is the EARLIER of its own and its system\'s — a segment cannot outlive its cable, so here the system is a ceiling.')}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 8, marginBottom: 14 }}>
+            {[
+              ['Both tests must pass', 'A segment is routable only if it is built by the service date AND not retired by it. Either one alone would let a route through a cable that cannot carry it.'],
+              ['A quarter means the end of it', '"2027-Q2" resolves to 30 June 2027. RFS promises service by the end of a quarter, so resolving any earlier would over-promise; a cable retiring in that quarter is usable through 30 June and gone from 1 July.'],
+              ['Planned is cumulative', 'Choosing a quarter means every cable in service by then — today\'s live network plus the new builds — not the new builds on their own.'],
+              ['An unknown date is not a yes', 'A planned asset whose quarter is missing or unreadable is treated as never in service, and a retiring one the same way as already gone. Quoting over a cable whose dates nobody knows is worse than quoting one route fewer.'],
+              ['"» All planned" applies no filter', 'Dates several years out are aspirational. This option searches everything and says so, rather than implying a precision the data does not have.'],
+              ['Front end and engine agree', 'The map filters what it draws by the same two rules the routing engine applies to its graph, so the map can never show a cable the search refuses to use, or the reverse.'],
+            ].map(([title, desc]) => (
+              <div key={title} style={{ background: t.bgCard, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.border}` }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: t.text, marginBottom: 4 }}>{title}</div>
+                <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.55 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{
+            padding: '12px 16px', borderRadius: 8,
+            background: t.bgDeep, border: `1px solid ${t.orange}33`,
+            fontSize: 11, color: t.textMuted, lineHeight: 1.65,
+          }}>
+            ⚠ <strong style={{ color: t.text }}>Read the banner before you quote.</strong> A future-dated result set looks identical to a live one. While any date other than Current is active an amber strip across the top of the app names the quarter and offers one click back — it is there so nobody reads a Q4 2027 result as something they can sell for delivery next month.
+          </div>
+        </div>
+
         {/* Constraints */}
         <div style={{ ...card() as React.CSSProperties, marginBottom: 24, padding: '22px 20px' }}>
           <div style={sectionLabel as React.CSSProperties}>Constraints — Step 2: Hard Rules</div>
@@ -941,6 +977,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               { field: 'waypoints',           type: '[lat,lng][]', desc: 'Optional list of points the cable actually passes through. Without them a segment is drawn as a straight line between its two endpoints — fine for a subsea crossing, wrong for a cross-country backhaul, which is why Australia\'s long-haul terrestrial segments now follow their real highway corridors instead of cutting across the Great Australian Bight or the Gulf of Carpentaria.' },
               { field: 'rfs_status',          type: 'enum',    desc: 'in_service | planned. Whether the segment is live today or a future build. Everything in the dataset today is in_service.' },
               { field: 'rfs_quarter',         type: 'string',  desc: 'When a planned segment is expected to enter service, as a quarter ("2027-Q3"). Required when rfs_status is planned, and must be empty otherwise.' },
+              { field: 'eol_status',          type: 'enum',    desc: 'active | eol. The mirror of rfs_status: whether the segment runs indefinitely, or is scheduled to be decommissioned. Everything in the dataset today is active.' },
+              { field: 'eol_quarter',         type: 'string',  desc: 'The quarter a retiring segment is switched off, as "2029-Q1" — it stays usable to the last day of that quarter. Required when eol_status is eol, and empty otherwise.' },
               { field: 'verification_status', type: 'enum',    desc: 'draft | under_verification | verified. Click the badge in any segment row to update status directly.' },
             ])}
             {entityCard('🌊', 'Cable System', t.green, [
@@ -949,16 +987,18 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               { field: 'margin',      type: 'float',  desc: 'Commercial margin score (1–10). Combined with per-segment ownership weight to rank route attractiveness.' },
               { field: 'rfs_status',  type: 'enum',   desc: 'in_service | planned — the same Ready for Service status a segment carries, at whole-system level for a cable still under construction.' },
               { field: 'rfs_quarter', type: 'string', desc: 'Target service quarter for a planned system ("2027-Q3"). Shown as an "RFS" badge against the system wherever it appears, including a node\'s Full View.' },
+              { field: 'eol_status',  type: 'enum',   desc: 'active | eol — whether the whole cable is scheduled for decommissioning. It acts as a ceiling on every segment it owns: no segment outlives its cable.' },
+              { field: 'eol_quarter', type: 'string', desc: 'The quarter the system is retired ("2029-Q1"). Every segment on the cable becomes unroutable for any service date after the last day of that quarter.' },
             ])}
           </div>
         </div>
 
         {/* Ready for Service */}
         <div style={{ marginBottom: 28 }}>
-          <div style={sectionLabel}>Ready for Service — Designing on a Future Network</div>
+          <div style={sectionLabel}>Service Life — Ready for Service & End of Life</div>
           <div style={{ ...card() as React.CSSProperties, borderLeft: `4px solid ${t.orange}`, paddingLeft: 16 }}>
             <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.7, margin: '0 0 14px' }}>
-              Customers buy against a service date, not against today's network. A deal signed this quarter for a circuit in service eighteen months' time can legitimately ride a cable that has not been laid yet — but only if everyone knows that is what they are looking at. Every cable system and every segment therefore records whether it is carrying traffic today or is still a future build, and when that build is due.
+              Customers buy against a service date, not against today's network. A deal signed this quarter for a circuit in service eighteen months' time can legitimately ride a cable that has not been laid yet — and must not ride one that is being switched off before then. Every cable system and every segment therefore carries both ends of its own life: when it enters service, and when it leaves.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
               {[
@@ -966,6 +1006,10 @@ export function UserGuide({ nodes, segments, systems }: Props) {
                   desc: 'The default, and what everything in the dataset is today. The asset is commissioned and carrying traffic — a route across it can be sold for delivery now.' },
                 { badge: 'PLANNED', color: t.orange, title: 'Future build',
                   desc: 'Recorded against a target quarter — 2027-Q3 and the like. The quarter is mandatory for a planned asset and must be blank for a live one, so "planned, date unknown" can never be entered by accident.' },
+                { badge: 'ACTIVE', color: t.green, title: 'No retirement date',
+                  desc: 'The End of Life default. The asset runs indefinitely as far as the data knows, and no future date will ever remove it from a search.' },
+                { badge: 'EOL', color: t.red, title: 'Scheduled for retirement',
+                  desc: 'Recorded against the quarter the cable is switched off. It stays fully usable to the last day of that quarter and disappears from every view dated after it.' },
               ].map(({ badge, color, title, desc }) => (
                 <div key={badge} style={{ background: t.bgBase, borderRadius: 8, padding: '12px 14px', border: `1px solid ${color}44` }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -979,10 +1023,29 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.6, marginBottom: 12 }}>
               Set it in Ref Data on the segment and cable system forms, or on a segment you create in the Network Editor. A planned system shows an amber <strong style={{ color: t.text }}>RFS</strong> badge with its quarter wherever the system is listed, including in a node's Full View.
             </div>
+            <div style={{ padding: '12px 14px', borderRadius: 8, background: t.bgDeep, border: `1px solid ${t.orange}33`, marginBottom: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: t.orange, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>How the four fields resolve to one answer</div>
+              <div style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.65, marginBottom: 8 }}>
+                Both dates live on the segment and on its parent cable system, and the two are combined before anything is filtered — a segment is never judged on its own row alone.
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {[
+                  ['Effective RFS = the LATER of the two', 'The system is a floor. A segment cannot enter service before the cable it belongs to, so a 2027-Q1 segment on a 2028-Q2 system is available from 2028-Q2.'],
+                  ['Effective EOL = the EARLIER of the two', 'The system is a ceiling. A segment cannot outlive its cable, so a segment with no retirement date on a system retiring in 2029-Q1 goes with it.'],
+                  ['A quarter resolves to its LAST day', '"2027-Q2" is 30 June 2027 for both dates. RFS promises service by the end of a quarter; a cable retiring in a quarter is usable to the end of it.'],
+                  ['Routable = built AND not retired', 'Both tests are applied, everywhere. A segment that fails either one is absent from the map, from route search, from City Pairs and from Country Viewer alike.'],
+                  ['A date nobody knows is not a yes', 'A planned row with a missing or malformed quarter is treated as never in service; an EOL row the same way is treated as already gone. If we cannot tell when a cable is usable, we do not offer it.'],
+                ].map(([title, desc]) => (
+                  <div key={title} style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.55 }}>
+                    <strong style={{ color: t.text }}>{title}</strong> — {desc}
+                  </div>
+                ))}
+              </div>
+            </div>
             <div style={{ padding: '12px 14px', borderRadius: 8, background: t.bgDeep, border: `1px solid ${t.blue}33` }}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: t.blue, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Coming next — service date as a search constraint</div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: t.blue, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 6 }}>Where you use it — the Current vs Planned selector</div>
               <div style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.65 }}>
-                Today RFS is recorded but does not change what a search returns: a planned asset is still offered like any other. The next step gives the search its own service date — defaulting to today, so nothing changes unless you move it — and filters out anything not yet in service by that date. Set it to the customer's in-service date and the results become the network as it will be then. Until that ships, read RFS as information, and check it before quoting a delivery date.
+                These fields are not just reference data: they are what the <strong style={{ color: t.text }}>Current | Planned</strong> control at the top of the app acts on. Current means today; Planned takes one of the next eight quarters and shows everything in service by the end of it, today's live cables included; "»" applies no date filter at all. The choice governs the map, route search, City Pairs and Country Viewer together, and an amber banner names the active quarter until you go back to Current. The routing engine and the browser apply identical rules to identical fields, so the map can never draw a cable the search will not use.
               </div>
             </div>
           </div>
@@ -2463,6 +2526,89 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         </div>
       </div>
 
+      {/* ── Asset Search ── */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel}>Asset Search — One Box for the Whole Network</div>
+        <div style={{ ...card(), borderLeft: `4px solid ${t.blue}`, paddingLeft: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <span style={{ fontSize: 22 }}>🔎</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>Know what you are looking for? Type it and go.</div>
+              <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
+                The search box at the top of the app, on desktop and phone. Press <strong style={{ color: t.text }}>Ctrl+K</strong> (⌘K on a Mac) from anywhere to jump into it.
+              </div>
+            </div>
+          </div>
+          <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.7, margin: '0 0 14px' }}>
+            Five kinds of thing — nodes, cities, cable systems, segments and countries — are searched at once and compete in a single ranked list, not in separate sections you have to scan past. Typing an exact code puts that asset first; typing part of a name finds it wherever the words fall, so "C2C S5" reaches C2C Segment S5 and "cross" reaches Southern Cross NEXT. A small coloured chip on each row says which kind of asset it is. This is the "take me there" path — use RouteFinder to build a route, and Node Search when you have an address rather than a name.
+          </p>
+          <div style={{ fontSize: 10, fontWeight: 800, color: t.blue, letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginBottom: 8 }}>What happens when you pick a result</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 8 }}>
+            {[
+              { chip: 'NODE', color: t.blue, desc: 'The map flies to the site and its info panel opens — from there it is one click to set it as Origin or Destination, or to open Full View.' },
+              { chip: 'CITY', color: '#8b5cf6', desc: 'The map fits every site in that city at once, so a market with four landing stations is shown as a market rather than as one dot.' },
+              { chip: 'SYSTEM', color: t.green, desc: 'The cable is added to the highlight set and the map fits its whole run. Searching a second cable adds it alongside the first, so two systems can be compared.' },
+              { chip: 'SEGMENT', color: t.orange, desc: 'The map fits that one section of cable and spotlights it in orange-red — the same spotlight the Segment Breakdown uses, so it is unmistakable on a busy map.' },
+              { chip: 'COUNTRY', color: '#f472b6', desc: 'Country Viewer opens on that country with every landing system and backhaul route already highlighted.' },
+            ].map(({ chip, color, desc }) => (
+              <div key={chip} style={{ background: t.bgBase, borderRadius: 7, padding: '10px 12px', border: `1px solid ${t.border}` }}>
+                <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 4, background: color + '22', color, border: `1px solid ${color}55`, letterSpacing: '0.06em' }}>{chip}</span>
+                <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.55, marginTop: 6 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 12, fontSize: 10, color: t.textFaint, lineHeight: 1.6 }}>
+            Nothing you have set up is thrown away: searching for a node halfway through configuring a route leaves the search form, the pinned routes and the constraints exactly as they were. Nodes are written code-first throughout — "PALI - Pali Cable Station" — because the code is the only part guaranteed to be unique.
+          </div>
+        </div>
+      </div>
+
+      {/* ── Current vs Planned ── */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel}>Current vs Planned — Selling Against a Service Date</div>
+        <div style={{ ...card(), background: '#1a1206', border: `1px solid ${t.orange}66` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <span style={{ fontSize: 22 }}>📆</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>Look at the network as it will be on the day the circuit goes live</div>
+              <div style={{ fontSize: 11, color: 'rgba(253,200,150,0.85)', marginTop: 2 }}>
+                The Current | Planned control at the very top of the app, above the mode tabs.
+              </div>
+            </div>
+          </div>
+          <p style={{ fontSize: 11, color: 'rgba(245,215,180,0.85)', lineHeight: 1.7, margin: '0 0 16px' }}>
+            A deal signed this quarter for a circuit in service eighteen months out can legitimately ride a cable that has not been laid yet — and must not ride one that is being switched off before then. Set the selector to the customer's in-service quarter and the entire platform answers as at that date: the map, route search, City Pairs and Country Viewer all move together, so no two screens can tell you different things.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 14 }}>
+            {[
+              { badge: 'CURRENT', color: t.green, title: 'Today\'s network', desc: 'The default, and where every reload lands — a future view is deliberately never remembered, so a fresh tab can never quietly be a future one.' },
+              { badge: 'PLANNED', color: t.orange, title: 'A chosen quarter', desc: 'The next eight quarters are offered. Cumulative: everything in service by the end of that quarter, today\'s live cables included — not just the new builds.' },
+              { badge: '» ALL PLANNED', color: '#8b5cf6', title: 'No date filter', desc: 'Every planned system, whenever it lands. Offered because RFS dates years out are aspirational, so "show me everything" is more honest than pretending to a date.' },
+            ].map(({ badge, color, title, desc }) => (
+              <div key={badge} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 7, padding: '11px 13px', border: `1px solid ${color}55` }}>
+                <span style={{ fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 4, background: color + '22', color, border: `1px solid ${color}66`, letterSpacing: '0.06em' }}>{badge}</span>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#ffd9a8', margin: '7px 0 4px' }}>{title}</div>
+                <div style={{ fontSize: 10, color: 'rgba(240,210,175,0.8)', lineHeight: 1.55 }}>{desc}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' as const }}>
+            <div style={{ flex: 1, minWidth: 230, background: 'rgba(250,179,135,0.1)', border: '1px solid rgba(250,179,135,0.35)', borderRadius: 7, padding: '10px 12px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#fab387', marginBottom: 4 }}>⚠ You are told, constantly, that it is not today</div>
+              <div style={{ fontSize: 10, color: 'rgba(250,210,180,0.85)', lineHeight: 1.55 }}>
+                While any future date is active an amber banner sits across the top reading "Viewing network as at Q2 2027", with a "Back to Current" button on it. It cannot be dismissed — the only way to clear it is to actually return to the live network. A future view looks exactly like a live one otherwise, and quoting a cable that does not exist yet is the one mistake this feature could cause.
+              </div>
+            </div>
+            <div style={{ flex: 1, minWidth: 230, background: 'rgba(137,180,250,0.1)', border: '1px solid rgba(137,180,250,0.35)', borderRadius: 7, padding: '10px 12px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#89b4fa', marginBottom: 4 }}>Built by then — and not yet retired</div>
+              <div style={{ fontSize: 10, color: 'rgba(200,220,255,0.85)', lineHeight: 1.55 }}>
+                Two dates decide whether a cable can carry the circuit: its Ready for Service date must have passed, and its End of Life date must not have. A future view therefore adds the cables that will exist and removes the ones that will have gone — which is what makes it a picture of that quarter rather than of today plus everything ever announced.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* ── Features ── */}
       <div style={{ marginBottom: 32 }}>
         <div style={sectionLabel}>Key Features</div>
@@ -2839,6 +2985,21 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               icon: '🎨',
               title: 'Theme Cycling',
               desc: 'The theme button in the top-right control bar cycles through available colour themes (dark, light, and variants). The theme applies globally — map tiles change automatically to match.',
+            },
+            {
+              icon: '🔎',
+              title: 'Asset Search & Ctrl+K',
+              desc: 'The box at the top of the app searches nodes, cities, cable systems, segments and countries together. Ctrl+K (⌘K on a Mac) focuses it from anywhere; ↑ / ↓ move through the results, Enter picks one, Escape closes. On a phone it collapses to a magnifier that expands over the header.',
+            },
+            {
+              icon: '📆',
+              title: 'Current | Planned Selector',
+              desc: 'Above the mode tabs. Current is today\'s live network and the default; Planned takes a quarter from the next eight, or "»" for every planned system with no date filter. Whatever is chosen governs the map, route search, City Pairs and Country Viewer at once, and an amber banner names it until you return to Current.',
+            },
+            {
+              icon: '✓',
+              title: 'In-App Confirmations',
+              desc: 'Anything destructive or lossy — deleting a node, discarding staged editor changes, leaving a mode with unsaved work — asks in a themed dialog inside the app rather than in the browser\'s grey system box. It reads in the current theme, names the record it is about, colours the button red when the action cannot be undone, and takes Enter to confirm or Escape to cancel.',
             },
           ].map(f => (
             <div key={f.title} style={card({ display: 'flex', flexDirection: 'column', gap: 8 })}>

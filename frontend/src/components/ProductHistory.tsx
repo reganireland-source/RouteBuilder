@@ -31,8 +31,13 @@
  * commits, and are necessarily approximate: the ladder fixes the ORDER of the
  * work and its latest possible date, not the day any of it landed. From late
  * June onward the months are git-verified — 8 commits in June, 39 in July, 3 in
- * August, 17 in September — and INTENSITY is calibrated against those counts
+ * August, 30 in September — and INTENSITY is calibrated against those counts
  * (August really was that quiet; July really was the peak).
+ *
+ * September is deliberately ONE band rather than two. Every station on it has a
+ * commit dated 14 or 15 September 2026, so splitting the later work into an
+ * October band would make the map easier to read by inventing a month the work
+ * did not happen in — the same fiction the paragraph below refuses for May.
  *
  * The compression is the honest shape of this project, not a drafting artefact:
  * the foundation, the pathfinder, the diversity engine, three countries' worth
@@ -168,9 +173,13 @@ const MONTHS: Month[] = [
     ],
   },
   {
-    // 17 commits, and still open — the editor and the visual work landed in a
-    // single concentrated burst.
-    key: '2026-09', label: 'SEP', sub: '2026', intensity: 4, era: 'The Visual Era',
+    // 30 commits, and still open — the editor, the visual work, the two search
+    // surfaces and the future-network engine all landed in a single burst
+    // across 14-15 September. Every station below has a commit on one of those
+    // two days, which is why there is no October band: the work is September's,
+    // and giving it a month of its own to make the map look tidier would be a
+    // drafting fiction of exactly the kind the header disowns.
+    key: '2026-09', label: 'SEP', sub: '2026', intensity: 4, era: 'The Visual Era → Selling on a Future Date',
     milestones: [
       { cat: 'ui',   icon: '🛰', title: 'Readable basemaps', detail: 'CARTO started gating its tiles behind an API key — and served a watermarked image with an HTTP 200, which fooled the health check. Moved to Esri, which also renders East Asian place names in English.' },
       { cat: 'ui',   icon: '✨', title: 'Routes that glow', detail: 'A selected route pulses at 1 Hz; hovering a row in the segment breakdown spotlights that segment on the map in orange-red. Finding the route you are reading about stopped being work.', major: true },
@@ -178,6 +187,13 @@ const MONTHS: Month[] = [
       { cat: 'data', icon: '📆', title: 'Ready For Service dates', detail: 'Every system and segment now carries an RFS status and quarter, backfilled to in-service — the data model groundwork for routing over a future network.' },
       { cat: 'arch', icon: '🕹', title: 'Visual Network Editor', detail: 'A dedicated admin mode where topology is edited on the map: drag a node, drag a cable path into shape, click two nodes to create a segment. Every change is staged locally with undo/redo and written only when you press Save All.', major: true },
       { cat: 'ui',   icon: '🚦', title: 'Traffic-light saves', detail: 'The editor narrates every write as it happens — queued, in flight, saved, failed — with a progress bar and an expandable log, because a batch of waypoint writes is slow enough to need it.' },
+      { cat: 'arch', icon: '🔢', title: 'A build stamp you can quote', detail: 'The footer stopped saying only "v1" and started carrying build number, commit, branch and timestamp — so "is my browser on the version with the fix?" is answered by reading one line instead of by guessing, and a bug report identifies the exact code it came from.' },
+      { cat: 'ui',   icon: '🏷', title: 'Codes first, and dialogs that belong to the app', detail: 'Nodes are written code-first everywhere — "PALI - Pali Cable Station" — because the code is the only part of a site guaranteed to be unique. At the same time the browser\'s grey confirm box was replaced with an in-app dialog that reads in the current theme, names the record it is about and goes red when the action cannot be undone.' },
+      { cat: 'ui',   icon: '⛶', title: 'Node Full View', detail: 'One page per site: identity, a map of the building, product coverage, every system present, live capacity on each segment leaving it, and the local knowledge recorded against it — plus a fan-out diagram drawing every cable at its TRUE compass bearing, wet as wavy blue and terrestrial as straight orange. Clicking a spoke walks to the node at the far end, so you can follow a cable across the network without going back to the map.', major: true },
+      { cat: 'ui',   icon: '🔎', title: 'Asset Search', detail: 'One box at the top of the app over nodes, cities, cable systems, segments and countries at once, ranked in a single flat list with Ctrl+K to reach it. Picking a result flies the map there and does the right thing for that kind of asset. The fastest path through the product stopped being a menu.', major: true },
+      { cat: 'algo', icon: '📆', title: 'Routing on a future network', detail: 'RFS stopped being a field you read and became a constraint the engine obeys. A Current vs Planned selector at the top of the app chooses the network — today, or everything in service by the end of a chosen quarter — and governs the map, route search, City Pairs and Country Viewer together. An amber banner names the quarter for as long as a future view is up, because a future result set looks exactly like a live one.', major: true },
+      { cat: 'algo', icon: '🌅', title: 'End of Life — the other end of the life', detail: 'The mirror of RFS: systems and segments also record when they retire, and a future-dated view drops what will be gone by then. A segment is routable only if it is both built and not yet decommissioned — so a date two years out is a picture of that quarter, not of today plus everything ever announced.' },
+      { cat: 'docs', icon: '📘', title: 'The guide keeps up, and starts telling its own story', detail: 'The in-app guide and its PDF export rewritten around the editor, Full View, Asset Search and the future-network engine — and this metro map added to it, so the shape of how the product was built is finally readable alongside what it does.' },
     ],
   },
 ]
