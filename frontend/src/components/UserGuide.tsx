@@ -2962,6 +2962,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               { icon: '📏', label: 'Matched to your assets', desc: 'Every event is tested against every node and every cable path — segments are walked end to end, not just at their endpoints, so a quake mid-Pacific still finds the cable it sits on. Nodes and terrestrial segments use a 25 km radius, wet segments 100 km, because seabed disturbance travels further than a grass fire.' },
               { icon: '🎯', label: 'Signal over noise', desc: 'Only classifications that can credibly take infrastructure down are carried — the feed\'s shark sightings, school closures and ambulance callouts are dropped. Only Watch and above is shown. Events near your network get a solid ring; everything else is dashed and muted.' },
               { icon: '🔒', label: 'The key stays on the server', desc: 'The browser never talks to either feed. The backend holds the bushfire.io credential, caches the assembled result, and serves every open tab from one upstream fetch per ten minutes.' },
+              { icon: '⚡', label: 'Ready before you ask', desc: 'The backend builds its cache at startup and the browser quietly prefetches once the app has settled, so turning the layer on draws immediately instead of making you wait. It only polls for updates while it is switched on, and skips the prefetch entirely on a metered or data-saver connection.' },
             ].map(({ icon, label, desc }) => (
               <div key={label} style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 7, padding: '10px 12px', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
@@ -3123,7 +3124,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             {
               icon: '⚠️',
               title: 'Network Hazards',
-              desc: 'OFF by default. Draws live fires, floods, storms, earthquakes and tsunamis from two third-party feeds, and flags which of your nodes and segments each one is near. Nothing is fetched until you switch it on. Coverage is NOT worldwide — the status panel on the map says what each source can speak for, because an empty map is not an all-clear.',
+              desc: 'OFF by default. Draws live fires, floods, storms, earthquakes and tsunamis from two third-party feeds, and flags which of your nodes and segments each one is near. The feed loads quietly in the background when the app starts, so switching the layer on is instant — except on a metered connection, where it waits until you ask. Coverage is NOT worldwide: the status panel on the map says what each source can speak for, because an empty map is not an all-clear.',
             },
             {
               icon: '🐋',

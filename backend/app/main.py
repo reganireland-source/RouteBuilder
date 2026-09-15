@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
+from .hazards.service import warm_in_background as warm_hazard_cache
 from .api import (
     auth as auth_api,
     bulk,
@@ -103,6 +104,9 @@ async def lifespan(app: FastAPI):
             "browser. Set ALLOWED_ORIGINS to your frontend domain(s) in production."
         )
     init_db()
+    # Build the hazard cache before anyone asks for it — see warm_in_background.
+    # Non-blocking and failure-tolerant: boot never waits on a third-party feed.
+    warm_hazard_cache()
     yield
 
 

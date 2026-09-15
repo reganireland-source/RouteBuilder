@@ -244,3 +244,40 @@ def _dedupe(hazards: list[Hazard]) -> list[Hazard]:
 
 #: Process-wide instance. The cache is only useful if it is shared.
 service = HazardService()
+
+
+def warm_in_background() -> None:
+    """
+    Build the hazard cache once at startup, off the main thread.
+
+    Without this, the first request after a deploy pays the full cold build —
+    about nineteen seconds, most of it hydrating fire perimeters. That is bad
+    enough for one caller, but the cache is behind a lock, so a handful of
+    browsers prefetching at once would queue on it and hold a FastAPI worker
+    thread each for the duration. Doing the work before anyone asks means the
+    first real request is a cache hit.
+
+    Daemon thread, and every failure is swallowed: a third-party feed being down
+    must never stop this service from starting. The endpoint will simply build
+    on demand and report whatever went wrong through the usual source status.
+    """
+    if os.getenv("HAZARDS_WARM_ON_BOOT", "").strip().lower() == "false":
+        log.info("hazard cache warm-up disabled (HAZARDS_WARM_ON_BOOT=false)")
+        return
+
+    def run() -> None:
+        started = time.monotonic()
+        try:
+            feed = service.get()
+        except Exception:  # noqa: BLE001 — never let a feed take down boot
+            log.exception("hazard cache warm-up failed; will build on demand")
+            return
+        log.info(
+            "hazard cache warmed in %.1fs — %d hazards, %d near the network%s",
+            time.monotonic() - started,
+            len(feed.hazards),
+            sum(1 for h in feed.hazards if h.affected),
+            " (degraded)" if feed.degraded else "",
+        )
+
+    threading.Thread(target=run, name="hazard-warmup", daemon=True).start()
