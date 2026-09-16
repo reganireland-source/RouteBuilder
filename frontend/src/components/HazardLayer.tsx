@@ -176,20 +176,20 @@ function esc(value: string | null | undefined): string {
  *  conditionals are statements rather than ternaries nested in a template. */
 function affectedHtml(h: Hazard, t: T): string {
   if (h.affected.length === 0) {
-    return `<div style="color:${t.textFaintest};font-style:italic;margin-top:6px">No network assets within range.</div>`
+    return `<div style="color:${t.textMuted};font-style:italic;margin-top:6px">No network assets within range.</div>`
   }
   const SHOWN = 8
   const rows = h.affected.slice(0, SHOWN).map(a => {
     const marker = a.kind === 'node' ? '◉' : '━'
     return `<div style="font-size:11px;color:${t.text};margin-top:2px">`
-      + `<span style="color:${t.textFaint}">${marker}</span> `
-      + `${esc(a.label)} <span style="color:${t.textFaint}">· ${a.distance_km} km</span></div>`
+      + `<span style="color:${t.textMuted}">${marker}</span> `
+      + `${esc(a.label)} <span style="color:${t.textMuted}">· ${a.distance_km} km</span></div>`
   }).join('')
   const overflow = h.affected.length > SHOWN
-    ? `<div style="font-size:10px;color:${t.textFaint};margin-top:2px">…and ${h.affected.length - SHOWN} more</div>`
+    ? `<div style="font-size:11px;color:${t.textMuted};margin-top:2px">…and ${h.affected.length - SHOWN} more</div>`
     : ''
   return `<div style="margin-top:6px">
-      <div style="font-size:9px;font-weight:700;letter-spacing:.06em;color:${t.textFaint};text-transform:uppercase">
+      <div style="font-size:10px;font-weight:700;letter-spacing:.06em;color:${t.textMuted};text-transform:uppercase">
         Network assets in range (${h.affected.length})
       </div>${rows}${overflow}
     </div>`
@@ -206,14 +206,14 @@ function popupHtml(h: Hazard, t: T): string {
                      padding:1px 5px;border-radius:3px;color:${color};background:${color}22;border:1px solid ${color}66">
           ${SEVERITY_LABEL[h.severity]}
         </span>
-        <span style="font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:${t.textFaint}">
+        <span style="font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:${t.textMuted}">
           ${KIND_LABEL[h.kind] ?? h.kind}
         </span>
       </div>
       <div style="font-size:13px;font-weight:700;color:${t.text};margin-top:4px">${esc(h.title)}</div>
       ${h.detail ? `<div style="font-size:11px;color:${t.textMuted};margin-top:4px;line-height:1.5;max-height:120px;overflow:auto">${esc(h.detail)}</div>` : ''}
       ${affected}
-      <div style="font-size:10px;color:${t.textFaintest};margin-top:7px;border-top:1px solid ${t.border};padding-top:5px">
+      <div style="font-size:11px;color:${t.textMuted};margin-top:7px;border-top:1px solid ${t.border};padding-top:5px">
         ${esc(h.attribution)}${when ? ` · ${esc(when.slice(0, 16).replace('T', ' '))}` : ''}
         ${h.url ? ` · <a href="${esc(h.url)}" target="_blank" rel="noopener noreferrer" style="color:${t.blue}">source</a>` : ''}
       </div>

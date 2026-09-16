@@ -14,6 +14,16 @@
  * deliberately plain text rather than a status light, because "green" would
  * imply an all-clear this data cannot support.
  *
+ * CONTRAST IS NOT COSMETIC HERE. The coverage lines and the "an empty map is
+ * not an all-clear" caveat are the honesty mechanism of the whole feature — if
+ * they are not read, the layer overstates what it knows. They were originally
+ * set in `textFaintest`, which measures 1.9:1 against the panel background in
+ * dark and dusk and 2.1:1 in light, against the 4.5:1 WCAG AA needs at this
+ * size; on a real screen, photographed, they were simply not legible. They now
+ * use `textMuted` (5.1-7.9:1 across the three themes) at 11px. The de-emphasis
+ * is carried by size, indentation and italics instead of by fading the text to
+ * the edge of visibility.
+ *
  * Mounted from: Map.tsx, alongside HazardLayer, whenever the layer is on.
  */
 import { useState } from 'react'
@@ -68,7 +78,7 @@ export function HazardStatusPanel({ feed, loading, error, onRefresh, narrow = fa
       </button>
 
       {open && (
-        <div style={{ padding: '0 10px 9px', fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>
+        <div style={{ padding: '0 10px 10px', fontSize: 11, color: t.textMuted, lineHeight: 1.55 }}>
           {error && (
             <div style={{ color: t.red, marginBottom: 6 }}>
               Could not load the hazard feed. {error}
@@ -87,9 +97,9 @@ export function HazardStatusPanel({ feed, loading, error, onRefresh, narrow = fa
                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                     <span style={{ color: s.ok ? t.green : t.orange, fontSize: 9 }}>{s.ok ? '●' : '○'}</span>
                     <span style={{ color: t.text, fontWeight: 600 }}>{s.label}</span>
-                    {s.ok && <span style={{ color: t.textFaint }}>· {s.count}</span>}
+                    {s.ok && <span style={{ color: t.textMuted }}>· {s.count}</span>}
                   </div>
-                  <div style={{ color: s.ok ? t.textFaintest : t.orange, marginLeft: 14 }}>
+                  <div style={{ color: s.ok ? t.textMuted : t.orange, marginLeft: 14 }}>
                     {s.error ?? s.coverage}
                   </div>
                 </div>
@@ -99,7 +109,7 @@ export function HazardStatusPanel({ feed, loading, error, onRefresh, narrow = fa
                   coverage is a permanent property of these feeds, not an incident. */}
               <div style={{
                 marginTop: 7, paddingTop: 6, borderTop: `1px solid ${t.border}`,
-                color: t.textFaintest, fontStyle: 'italic',
+                color: t.textMuted, fontStyle: 'italic',
               }}>
                 An empty map is not an all-clear — it means these sources report nothing here.
               </div>
@@ -109,15 +119,15 @@ export function HazardStatusPanel({ feed, loading, error, onRefresh, narrow = fa
                   onClick={onRefresh}
                   disabled={loading}
                   style={{
-                    padding: '3px 8px', borderRadius: 4, fontSize: 10, fontFamily: 'inherit',
+                    padding: '4px 9px', borderRadius: 4, fontSize: 11, fontFamily: 'inherit',
                     border: `1px solid ${t.border}`, background: 'transparent',
-                    color: loading ? t.textFaintest : t.textMuted,
+                    color: loading ? t.textFaint : t.textMuted,
                     cursor: loading ? 'default' : 'pointer',
                   }}
                 >
                   {loading ? 'Refreshing…' : 'Refresh'}
                 </button>
-                <span style={{ color: t.textFaintest }}>
+                <span style={{ color: t.textMuted }}>
                   {feed.fetched_at.slice(11, 16)} UTC
                 </span>
               </div>

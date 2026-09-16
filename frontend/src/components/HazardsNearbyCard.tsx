@@ -34,7 +34,7 @@ export function HazardsNearbyCard({ hazards, kind, assetId, grow = true }: Props
       {hazards.map(h => (
         <HazardRow key={h.id} t={t} hazard={h} kind={kind} assetId={assetId} />
       ))}
-      <div style={{ fontSize: 10, color: t.textFaintest, marginTop: 6, fontStyle: 'italic', lineHeight: 1.5 }}>
+      <div style={{ fontSize: 11, color: t.textMuted, marginTop: 6, fontStyle: 'italic', lineHeight: 1.5 }}>
         Live third-party feeds — coverage is not worldwide. See the hazard panel on the map.
       </div>
     </Card>
@@ -53,11 +53,11 @@ function HazardRow({ t, hazard, kind, assetId }: {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         <Pill color={color}>{SEVERITY_LABEL[hazard.severity]}</Pill>
-        <span style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        <span style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           {KIND_LABEL[hazard.kind] ?? hazard.kind}
         </span>
         {distance !== null && (
-          <span style={{ fontSize: 11, color: t.textFaint, marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 11, color: t.textMuted, marginLeft: 'auto', whiteSpace: 'nowrap' }}>
             {distance} km
           </span>
         )}
@@ -73,7 +73,7 @@ function HazardRow({ t, hazard, kind, assetId }: {
           {hazard.detail}
         </div>
       )}
-      <div style={{ fontSize: 10, color: t.textFaintest, marginTop: 4 }}>
+      <div style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>
         {hazard.attribution}
         {hazard.url && (
           <>
