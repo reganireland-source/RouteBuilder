@@ -57,18 +57,19 @@
  * is provided.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import * as L from 'leaflet'
 import 'leaflet.gridlayer.googlemutant'
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet'
-import type { CableNode, CableSegment, CountryHighlight, HazardFeed, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
+import type { CableNode, CableSegment, CountryHighlight, HazardAssetView, HazardFeed, HazardSeverity, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
 import { useTheme } from '../theme'
 import type { ManualState, NextHopCandidate } from './RouteManual'
 import { useSegmentHover } from '../context/SegmentHoverContext'
 import { normalizeLng, geoLines, NODE_STYLE, NODE_TYPE_LABEL } from '../mapGeometry'
 import { EditorMapLayer } from './EditorMapLayer'
 import { LivingWorldLayer } from './LivingWorldLayer'
-import { HazardLayer } from './HazardLayer'
+import { HazardLayer, severityColor } from './HazardLayer'
+import { worstSeverityByAsset } from '../context/HazardContext'
 import { HazardStatusPanel } from './HazardStatusPanel'
 import type { EditorSubMode, EditorSelection, SegmentDraft } from '../state/editorState'
 import { emptySegmentDraft } from '../state/editorState'
@@ -116,6 +117,9 @@ interface Props {
    *  HazardLayer.tsx. Absent/undefined means the layer is not mounted at all. */
   hazardFeed?: HazardFeed | null
   hazardsOn?: boolean
+  /** How much of our own network to draw while the hazard layer is on. */
+  hazardAssetView?: HazardAssetView
+  onHazardAssetViewChange?: (next: HazardAssetView) => void
   hazardsLoading?: boolean
   hazardsError?: string | null
   onRefreshHazards?: () => void
@@ -424,10 +428,24 @@ function NodeTypeLegend({ narrow }: { narrow: boolean }) {
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
   const t = useTheme()
   const narrowViewport = useNarrowViewport()
   const { hoveredSegmentId } = useSegmentHover()
+  /**
+   * Worst hazard severity touching each of our assets, and whether that lens is
+   * active at all. Only computed while the layer is on AND the view is
+   * "in range" — when it is off or set to "all" this is an empty map and every
+   * lookup below falls straight through to the normal styling.
+   */
+  const hazardLens = hazardsOn && hazardAssetView === 'inRange'
+  const hazardSeverityByAsset = useMemo(
+    () => (hazardLens && hazardFeed ? worstSeverityByAsset(hazardFeed.hazards) : new Map<string, HazardSeverity>()),
+    [hazardLens, hazardFeed],
+  )
+  /** True while the network should not be drawn at all. */
+  const hideAllAssets = hazardsOn && hazardAssetView === 'none'
+
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
 
@@ -582,6 +600,8 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         loading={hazardsLoading}
         error={hazardsError}
         onRefresh={onRefreshHazards ?? (() => {})}
+        assetView={hazardAssetView}
+        onAssetViewChange={onHazardAssetViewChange ?? (() => {})}
         narrow={narrowViewport}
       />
     )}
@@ -701,6 +721,7 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         const isActiveSegment = !!segmentColor[seg.id] ||
           !!(systemViewerActive && systemColorMap[seg.system_id]) ||
           isCountryHighlightedSeg
+        if (hideAllAssets) return []
         if (hideNonActive && !isActiveSegment) return []
 
         let color: string
@@ -733,11 +754,22 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
 
         // Only highlight as downed when segment is on an active route/pin
         const showAsDown = isDown && isActiveSegment
-        const pathOptions = {
+        let pathOptions = {
           color:     showAsDown ? '#ef4444' : color,
           weight:    showAsDown ? 2.5 : weight,
           opacity:   showAsDown ? 0.95 : opacity,
           dashArray: showAsDown ? '6 3 2 3' : seg.type === 'terrestrial' ? '6 4' : undefined,
+        }
+
+        // ── Hazard lens ──
+        // Applied AFTER the ladder above rather than as another branch inside
+        // it, so the country/system/route precedence it encodes is untouched
+        // and this can be removed without unpicking any of it.
+        const segHazard = hazardSeverityByAsset.get(seg.id)
+        if (hazardLens) {
+          pathOptions = segHazard
+            ? { ...pathOptions, color: severityColor(segHazard, t), weight: Math.max(pathOptions.weight, 3.5), opacity: 0.95 }
+            : { ...pathOptions, opacity: Math.min(pathOptions.opacity, 0.07) }
         }
 
         return lines.map((positions, i) => (
@@ -804,6 +836,7 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         const isDimmed      = systemViewerActive && !isSystemNode && !isRouteNode
         const isCountryNode = countryActive && (countryHighlight!.nodeIds.has(node.id) || countryEndpointIds.has(node.id))
 
+        if (hideAllAssets) return null
         // Outage map mode: only show nodes on downed segments
         if (showAllOutages) {
           if (!outageNodeIds?.has(node.id)) return null
@@ -832,6 +865,21 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
           weight    = isNearest ? 2.5 : isRouteNode || isSystemNode ? Math.max(ns.weight, 2) : ns.weight
           fillOpacity = isDimmed ? 0.12 : ns.opacity
           nodeOpacity = isDimmed ? 0.12 : ns.opacity
+        }
+
+        // ── Hazard lens ── see the matching block in the segment loop.
+        const nodeHazard = hazardSeverityByAsset.get(node.id)
+        if (hazardLens) {
+          if (nodeHazard) {
+            const hz = severityColor(nodeHazard, t)
+            color = hz; fillColor = hz
+            radius = Math.max(radius + 2, 7)
+            weight = Math.max(weight, 2.5)
+            fillOpacity = 0.85; nodeOpacity = 1
+          } else {
+            fillOpacity = Math.min(fillOpacity, 0.07)
+            nodeOpacity = Math.min(nodeOpacity, 0.07)
+          }
         }
 
         return (

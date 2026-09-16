@@ -30,7 +30,7 @@ import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, useTheme, type Theme, type ThemeMode } from './theme'
 import { useHazards } from './hooks/useHazards'
 import { HazardProvider } from './context/HazardContext'
-import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem, Hazard} from './types'
+import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem, Hazard, HazardAssetView} from './types'
 import { ProjectsModal } from './components/ProjectsModal'
 import { RouteManualLeft, RouteManualMiddle, computeCandidates, assembleRoute } from './components/RouteManual'
 import type { NextHopCandidate } from './components/RouteManual'
@@ -171,6 +171,18 @@ const EMPTY_HAZARDS: Hazard[] = []
 
 /** localStorage key for the Network Hazards overlay. */
 const HAZARDS_KEY = 'rb.hazards'
+
+/** localStorage key for how much of the network the hazard layer draws. */
+const HAZARD_ASSET_VIEW_KEY = 'rb.hazardAssetView'
+
+/** Defaults to "in range": the question this layer answers is "what of mine is
+ *  at risk", and drawing the whole network at equal weight buries the answer. */
+function loadHazardAssetView(): HazardAssetView {
+  try {
+    const raw = localStorage.getItem(HAZARD_ASSET_VIEW_KEY)
+    return raw === 'all' || raw === 'none' ? raw : 'inRange'
+  } catch { return 'inRange' }
+}
 
 /** Network Hazards is OFF unless this browser has explicitly turned it on —
  *  the opposite default to Living World, because this one calls two third-party
@@ -418,6 +430,11 @@ export default function App() {
 
   // Persist the Living World choice. Wrapped because storage throws in a
   // private window and a decorative toggle must never take the app down.
+  function changeHazardAssetView(next: HazardAssetView) {
+    setHazardAssetView(next)
+    try { localStorage.setItem(HAZARD_ASSET_VIEW_KEY, next) } catch { /* private mode */ }
+  }
+
   function toggleHazards() {
     setHazardsOn(on => {
       const next = !on
@@ -615,6 +632,7 @@ export default function App() {
   // "Network Hazards" — live disasters from bushfire.io + USGS. Off by default;
   // useHazards does nothing at all until this flips on.
   const [hazardsOn, setHazardsOn]                   = useState(loadHazardsOn)
+  const [hazardAssetView, setHazardAssetView]       = useState<HazardAssetView>(loadHazardAssetView)
   const hazards = useHazards(hazardsOn)
   // Stable identity while the layer is off, so HazardProvider's memo never churns.
   const hazardList = hazards.feed?.hazards ?? EMPTY_HAZARDS
@@ -1205,6 +1223,8 @@ export default function App() {
           onToggleLivingWorld={toggleLivingWorld}
           hazardsOn={hazardsOn}
           onToggleHazards={toggleHazards}
+          hazardAssetView={hazardAssetView}
+          onHazardAssetViewChange={changeHazardAssetView}
           hazardFeed={hazards.feed}
           hazardsLoading={hazards.loading}
           hazardsError={hazards.error}
@@ -1904,6 +1924,8 @@ export default function App() {
               spotlightNodeId={spotlightNodeId}
               livingWorld={livingWorld}
               hazardsOn={hazardsOn}
+              hazardAssetView={hazardAssetView}
+              onHazardAssetViewChange={changeHazardAssetView}
               hazardFeed={hazards.feed}
               hazardsLoading={hazards.loading}
               hazardsError={hazards.error}

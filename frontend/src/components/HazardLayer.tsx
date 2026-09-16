@@ -238,6 +238,13 @@ export function HazardLayer({ hazards, focusId }: Props) {
   useEffect(() => {
     const pane = map.createPane(PANE_NAME)
     pane.style.zIndex = String(PANE_Z)
+    // A vector layer takes its pane from its RENDERER, not from its own `pane`
+    // option — that option only places non-vector layers. Without an explicit
+    // renderer bound to this pane, every hazard polygon was quietly drawn into
+    // the default overlay pane at z-index 400, i.e. interleaved with the cables
+    // instead of above them. The markers were unaffected, which is why it went
+    // unnoticed: only the footprints were in the wrong place.
+    const renderer = L.svg({ pane: PANE_NAME })
     const layer = L.layerGroup([], { pane: PANE_NAME }).addTo(map)
 
     for (const h of shown) {
@@ -252,7 +259,11 @@ export function HazardLayer({ hazards, focusId }: Props) {
           L.geoJSON(h.geometry as never, {
             pane: PANE_NAME,
             interactive: false,
+            // `renderer` belongs in the PATH options, not at the top level:
+            // GeoJSONOptions has no such field, and it is the renderer that
+            // decides which pane a vector is drawn into.
             style: () => ({
+              renderer,
               color,
               weight: relevant ? 2 : 1,
               opacity: relevant ? 0.9 : 0.5,
@@ -261,7 +272,7 @@ export function HazardLayer({ hazards, focusId }: Props) {
             }),
             // A GeometryCollection can still carry loose Points; drawing them
             // as default blue Leaflet pins next to our own marker looks broken.
-            pointToLayer: () => L.circleMarker([0, 0], { radius: 0, opacity: 0, fillOpacity: 0 }),
+            pointToLayer: () => L.circleMarker([0, 0], { renderer, radius: 0, opacity: 0, fillOpacity: 0 }),
           }).addTo(layer)
         } catch {
           // A malformed geometry from a third-party feed must not take the

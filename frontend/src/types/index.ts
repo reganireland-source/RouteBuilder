@@ -799,6 +799,19 @@ export interface HazardSourceStatus {
   coverage: string
 }
 
+/**
+ * How much of OUR network to draw while the hazard layer is on.
+ *
+ *   all     — the map as normal; hazards sit on top of the full network.
+ *   inRange — assets within range of a hazard are highlighted in that hazard's
+ *             severity colour and everything else fades back. The default,
+ *             because the question this layer answers is "what of mine is at
+ *             risk", and a full network drawn at equal weight buries the answer.
+ *   none    — the network is hidden entirely, leaving basemap and hazards. For
+ *             reading the hazard picture without our own cables over it.
+ */
+export type HazardAssetView = 'all' | 'inRange' | 'none'
+
 export interface HazardFeed {
   hazards: Hazard[]
   sources: HazardSourceStatus[]

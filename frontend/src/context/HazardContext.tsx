@@ -15,7 +15,7 @@
  * map's own status panel is the one place that explains coverage.
  */
 import { createContext, useContext, useMemo } from 'react'
-import type { Hazard } from '../types'
+import type { Hazard, HazardSeverity } from '../types'
 
 const HazardContext = createContext<Hazard[]>([])
 
@@ -36,11 +36,36 @@ export function HazardProvider({ hazards, children }: { hazards: Hazard[]; child
 export function useHazardsFor(kind: 'node' | 'segment', id: string): Hazard[] {
   const all = useContext(HazardContext)
   return useMemo(() => {
-    const severityRank = { emergency: 3, warning: 2, watch: 1, advisory: 0 }
     return all
       .filter(h => h.affected.some(a => a.kind === kind && a.id === id))
-      .sort((a, b) => severityRank[b.severity] - severityRank[a.severity])
+      .sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity])
   }, [all, kind, id])
+}
+
+/** Ascending, so a larger number is a worse hazard. */
+const SEVERITY_RANK: Record<HazardSeverity, number> = {
+  advisory: 0, watch: 1, warning: 2, emergency: 3,
+}
+
+/**
+ * The WORST severity affecting each of our assets, keyed by asset id.
+ *
+ * One pass over the feed rather than a scan per asset: the map asks this
+ * question for all 230 nodes and 322 segments on every render, and doing it the
+ * other way round is quadratic for no reason. Node and segment ids share one
+ * map because they do not collide in this dataset.
+ */
+export function worstSeverityByAsset(hazards: Hazard[]): Map<string, HazardSeverity> {
+  const out = new Map<string, HazardSeverity>()
+  for (const h of hazards) {
+    for (const a of h.affected) {
+      const current = out.get(a.id)
+      if (current === undefined || SEVERITY_RANK[h.severity] > SEVERITY_RANK[current]) {
+        out.set(a.id, h.severity)
+      }
+    }
+  }
+  return out
 }
 
 /** Distance from this asset to a hazard, as the backend measured it. */

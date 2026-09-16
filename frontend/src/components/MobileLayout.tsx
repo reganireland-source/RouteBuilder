@@ -56,7 +56,7 @@ import type { ThemeMode } from '../theme'
 import type {
   AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule,
   NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage,
-  SelectedSystem, DiversityType, HazardFeed,
+  SelectedSystem, DiversityType, HazardFeed, HazardAssetView,
 } from '../types'
 
 // Lazily, for the same reason App.tsx does: an eager import on EITHER side
@@ -151,6 +151,8 @@ export interface MobileLayoutProps {
   /** "Network Hazards" — the live disaster overlay. Off by default. */
   hazardsOn:                     boolean
   onToggleHazards:               () => void
+  hazardAssetView:               HazardAssetView
+  onHazardAssetViewChange:       (next: HazardAssetView) => void
   hazardFeed:                    HazardFeed | null
   hazardsLoading:                boolean
   hazardsError:                  string | null
@@ -591,7 +593,8 @@ export function MobileLayout({
   switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowNodeLabels, onToggleShowAllOutages,
   onToggleShowPlannedEvents,
   onToggleSubseaOnly, onToggleBackhaulOnly, livingWorld, onToggleLivingWorld,
-  hazardsOn, onToggleHazards, hazardFeed, hazardsLoading, hazardsError, onRefreshHazards,
+  hazardsOn, onToggleHazards, hazardAssetView, onHazardAssetViewChange,
+  hazardFeed, hazardsLoading, hazardsError, onRefreshHazards,
   onApplySort, nlpSortKey, nlpPushOutages, optimiseFor, flippedPairIds, onFlipPair,
   onAddToProject, onEnrichCircuit, onOpenProjects, activeProject, onExitProjectMode, onSwitchProject, onOpenGuide,
   manualState, manualCandidates = [], manualResults = [], onManualNodeClick,
@@ -677,6 +680,8 @@ export function MobileLayout({
           <NetworkMap
             livingWorld={livingWorld}
             hazardsOn={hazardsOn}
+            hazardAssetView={hazardAssetView}
+            onHazardAssetViewChange={onHazardAssetViewChange}
             hazardFeed={hazardFeed}
             hazardsLoading={hazardsLoading}
             hazardsError={hazardsError}

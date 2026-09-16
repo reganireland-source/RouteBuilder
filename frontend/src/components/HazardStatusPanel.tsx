@@ -27,7 +27,7 @@
  * Mounted from: Map.tsx, alongside HazardLayer, whenever the layer is on.
  */
 import { useState } from 'react'
-import type { HazardFeed } from '../types'
+import type { HazardAssetView, HazardFeed } from '../types'
 import { useTheme } from '../theme'
 
 interface Props {
@@ -35,11 +35,21 @@ interface Props {
   loading: boolean
   error: string | null
   onRefresh: () => void
+  /** How much of our own network the map is drawing. */
+  assetView: HazardAssetView
+  onAssetViewChange: (next: HazardAssetView) => void
   /** Narrow viewport — the panel shrinks and starts collapsed. */
   narrow?: boolean
 }
 
-export function HazardStatusPanel({ feed, loading, error, onRefresh, narrow = false }: Props) {
+/** The three ways to draw the network underneath the hazards. */
+const ASSET_VIEWS: { value: HazardAssetView; label: string; hint: string }[] = [
+  { value: 'all',     label: 'All',      hint: 'Draw the whole network as normal, with hazards on top.' },
+  { value: 'inRange', label: 'In range', hint: 'Highlight only the nodes and cables within range of a hazard, and fade the rest.' },
+  { value: 'none',    label: 'Hidden',   hint: 'Hide the network entirely and show only the hazards.' },
+]
+
+export function HazardStatusPanel({ feed, loading, error, onRefresh, assetView, onAssetViewChange, narrow = false }: Props) {
   const t = useTheme()
   const [open, setOpen] = useState(!narrow)
 
@@ -90,6 +100,40 @@ export function HazardStatusPanel({ feed, loading, error, onRefresh, narrow = fa
               <div style={{ marginBottom: 6 }}>
                 <strong style={{ color: t.text }}>{total}</strong> active,{' '}
                 <strong style={{ color: relevant ? t.orange : t.text }}>{relevant}</strong> within range of a node or cable.
+              </div>
+
+              {/* Asset view — what of OUR network is drawn beneath the hazards. */}
+              <div style={{ marginBottom: 8 }}>
+                <div style={{
+                  fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+                  color: t.textMuted, marginBottom: 4,
+                }}>
+                  Network assets
+                </div>
+                <div style={{ display: 'flex', border: `1px solid ${t.border}`, borderRadius: 5, overflow: 'hidden' }}>
+                  {ASSET_VIEWS.map(v => {
+                    const active = assetView === v.value
+                    return (
+                      <button
+                        key={v.value}
+                        onClick={() => onAssetViewChange(v.value)}
+                        title={v.hint}
+                        aria-pressed={active}
+                        style={{
+                          flex: 1, padding: '4px 2px', fontSize: 10, fontFamily: 'inherit',
+                          fontWeight: active ? 700 : 500,
+                          border: 'none',
+                          borderRight: v.value === 'none' ? 'none' : `1px solid ${t.border}`,
+                          background: active ? t.orange + '2a' : 'transparent',
+                          color: active ? t.orange : t.textMuted,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {v.label}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               {feed.sources.map(s => (
