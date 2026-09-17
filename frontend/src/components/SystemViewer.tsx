@@ -19,18 +19,48 @@
  * Backend endpoints: none — operates entirely on data passed in via props.
  */
 import { useState } from 'react'
-import type { CableSystem, SelectedSystem } from '../types'
+import type { CableNode, CableSegment, CableSystem, SelectedSystem } from '../types'
 import { useTheme } from '../theme'
 
 interface Props {
   systems: CableSystem[]
   selected: SelectedSystem[]
   onToggle: (systemId: string) => void
+  /** Needed to export a system's geometry — every segment that belongs to it. */
+  segments?: CableSegment[]
+  nodes?: CableNode[]
+  /** Which segments have a surveyed route on file, from /api/kml/paths. */
+  hasKml?: (segmentId: string) => boolean
 }
 
-export function SystemViewer({ systems, selected, onToggle }: Props) {
+export function SystemViewer({ systems, selected, onToggle, segments, nodes, hasKml }: Props) {
   const t = useTheme()
   const [query, setQuery] = useState('')
+  const [exporting, setExporting] = useState<string | null>(null)
+
+  /**
+   * Download one cable system as a KML.
+   *
+   * Uses the surveyed route for every segment that has one and the map's own
+   * approximation for the rest, and the file says which is which — see
+   * utils/generateKml.ts. Lazily imported so the exporter is not in the bundle
+   * for everyone who merely looks at a system.
+   */
+  async function exportSystem(systemId: string, systemName: string) {
+    if (!segments || !nodes) return
+    setExporting(systemId)
+    try {
+      const { exportSegmentsAsKml } = await import('../utils/exportKml')
+      const mine = segments.filter(s => s.system_id === systemId)
+      await exportSegmentsAsKml(mine, nodes, id => hasKml?.(id) ?? false, {
+        title: `${systemId} — ${systemName}`,
+        subtitle: `Every segment of the ${systemId} cable system.`,
+        filename: `${systemId}-${new Date().toISOString().slice(0, 10)}`,
+      })
+    } finally {
+      setExporting(null)
+    }
+  }
 
   const displaySystems = systems.filter(s => s.id !== 'TERRESTRIAL')
   const filtered = displaySystems.filter(s =>
@@ -117,6 +147,29 @@ export function SystemViewer({ systems, selected, onToggle }: Props) {
                   {sys.name}
                 </div>
                 <div style={{ fontSize: 10, color: t.textFaint }}>{sys.id}</div>
+              </div>
+              {/* Export sits on the row rather than behind selection, because
+                  wanting a system's geometry is not the same as wanting it
+                  highlighted — and the five-system selection cap would
+                  otherwise limit what you can export. stopPropagation so it
+                  does not toggle the row it lives in. */}
+              {segments && nodes && (
+                <button
+                  onClick={e => { e.stopPropagation(); void exportSystem(sys.id, sys.name) }}
+                  disabled={exporting === sys.id}
+                  // The row this sits in is itself role="button", so without an
+                  // explicit label a screen reader announces the two together
+                  // as one control ("Australia-Japan Cable AJC ⬇ KML").
+                  aria-label={`Download ${sys.id} as KML`}
+                  title={`Download every ${sys.id} segment as a KML — surveyed routes where we have them, approximations marked as such`}
+                  style={{
+                    flexShrink: 0, padding: '3px 7px', borderRadius: 4, fontSize: 10,
+                    fontFamily: 'inherit', cursor: 'pointer',
+                    border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted,
+                  }}
+                >{exporting === sys.id ? '…' : '⬇ KML'}</button>
+              )}
+              <div style={{ display: 'none' }}>
               </div>
             </div>
           )

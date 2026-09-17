@@ -1792,7 +1792,8 @@ export default function App() {
               <CityPairPanel nodes={nodes} segments={visibleSegments} systems={systems} onNetOwnership={config.on_net_ownership} onPlanRoute={handleSetPair} />
             )}
             {mode === 'systemviewer' && (
-              <SystemViewer systems={systems} selected={selectedSystems} onToggle={handleToggleSystem} />
+              <SystemViewer systems={systems} selected={selectedSystems} onToggle={handleToggleSystem}
+                segments={segments} nodes={nodes} hasKml={id => !!kmlPaths[id]} />
             )}
             {mode === 'countryviewer' && (
               <CountryViewer
@@ -2345,6 +2346,27 @@ export default function App() {
                 }}
                 style={{ padding: '8px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.blue}`, background: 'transparent', color: theme.blue, fontFamily: 'inherit' }}
               >Export DrawIO</button>
+              <button
+                onClick={async () => {
+                  // Every segment of every pinned route, in order, deduplicated
+                  // — a worker/protect pair shares terrestrial tails and the
+                  // recipient does not want the same cable twice.
+                  const { exportSegmentsAsKml } = await import('./utils/exportKml')
+                  const seen = new Set<string>()
+                  const segs = pinnedRoutes
+                    .flatMap(p => p.route.segments)
+                    .map(rs => segments.find(s => s.id === rs.segment_id))
+                    .filter((s): s is CableSegment => !!s && !seen.has(s.id) && !!seen.add(s.id))
+                  const label = pinnedRoutes[0]?.circuitLabel ?? pinnedRoutes[0]?.searchLabel ?? 'Route'
+                  await exportSegmentsAsKml(segs, nodes, id => !!kmlPaths[id], {
+                    title: label,
+                    subtitle: `${pinnedRoutes.length} pinned route${pinnedRoutes.length === 1 ? '' : 's'}.`,
+                    filename: `${label}-${new Date().toISOString().slice(0, 10)}`,
+                  })
+                  setSldVersionPrompt(false)
+                }}
+                style={{ padding: '8px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${theme.blue}`, background: 'transparent', color: theme.blue, fontFamily: 'inherit' }}
+              >Export KML</button>
               <button
                 onClick={async () => {
                   const { generateVisioVsdx } = await loadExporters()

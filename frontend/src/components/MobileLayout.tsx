@@ -1085,7 +1085,8 @@ export function MobileLayout({
           {/* ── Systems mode ──────────────────────────────────────────── */}
           {mode === 'systemviewer' && (
             <div style={{ padding: '14px 16px 32px' }}>
-              <SystemViewer systems={systems} selected={selectedSystems} onToggle={onToggleSystem} />
+              <SystemViewer systems={systems} selected={selectedSystems} onToggle={onToggleSystem}
+                segments={segments} nodes={nodes} hasKml={id => !!kmlPaths[id]} />
             </div>
           )}
 
