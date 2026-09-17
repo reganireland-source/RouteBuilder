@@ -64,6 +64,20 @@ function adminHeaders(): Record<string, string> {
   return _adminToken ? { 'X-Admin-Token': _adminToken } : {}
 }
 
+/**
+ * Percent-encode one value for use as a URL PATH SEGMENT.
+ *
+ * Every id below that comes from the dataset goes through this. Ids are allowed
+ * to contain `&` (real station codes do — see backend/app/id_utils.py), and
+ * while `&` happens to be legal in a path segment, an id must not have to be
+ * lucky about that: the moment a character that isn't (`#`, `?`, `%`, a space)
+ * reaches a path unencoded, the request silently addresses something else
+ * rather than failing loudly. Encoding here makes the id opaque to the URL
+ * whatever the allow-list grows to accept, and FastAPI decodes the path
+ * parameter back to the original string on the other side.
+ */
+const enc = encodeURIComponent
+
 /** GET a JSON resource. Public (no admin header). Throws Error with the HTTP status on failure. */
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`)
@@ -208,29 +222,29 @@ export const api = {
 
   // Nodes
   createNode:   (data: CableNode)                          => post<CableNode>('/api/nodes', data),
-  updateNode:   (id: string, data: Partial<CableNode>)     => put<CableNode>(`/api/nodes/${id}`, data),
-  deleteNode:   (id: string)                               => del(`/api/nodes/${id}`),
+  updateNode:   (id: string, data: Partial<CableNode>)     => put<CableNode>(`/api/nodes/${enc(id)}`, data),
+  deleteNode:   (id: string)                               => del(`/api/nodes/${enc(id)}`),
 
   // Segments
   createSegment:  (data: CableSegment)                       => post<CableSegment>('/api/segments', data),
-  updateSegment:  (id: string, data: Partial<CableSegment>)  => put<CableSegment>(`/api/segments/${id}`, data),
-  deleteSegment:  (id: string)                               => del(`/api/segments/${id}`),
+  updateSegment:  (id: string, data: Partial<CableSegment>)  => put<CableSegment>(`/api/segments/${enc(id)}`, data),
+  deleteSegment:  (id: string)                               => del(`/api/segments/${enc(id)}`),
 
   // Systems
   createSystem:   (data: CableSystem)                        => post<CableSystem>('/api/systems', data),
-  updateSystem:   (id: string, data: Partial<CableSystem>)   => put<CableSystem>(`/api/systems/${id}`, data),
-  deleteSystem:   (id: string)                               => del(`/api/systems/${id}`),
+  updateSystem:   (id: string, data: Partial<CableSystem>)   => put<CableSystem>(`/api/systems/${enc(id)}`, data),
+  deleteSystem:   (id: string)                               => del(`/api/systems/${enc(id)}`),
 
   // Capacity
   createCapacity: (data: SegmentCapacity)                           => post<SegmentCapacity>('/api/capacity', data),
-  updateCapacity: (segId: string, data: Partial<SegmentCapacity>)   => put<SegmentCapacity>(`/api/capacity/${segId}`, data),
-  deleteCapacity: (segId: string)                                   => del(`/api/capacity/${segId}`),
+  updateCapacity: (segId: string, data: Partial<SegmentCapacity>)   => put<SegmentCapacity>(`/api/capacity/${enc(segId)}`, data),
+  deleteCapacity: (segId: string)                                   => del(`/api/capacity/${enc(segId)}`),
 
   // Outages
   getOutages:     ()                                                   => get<SegmentOutage[]>('/api/outages'),
   createOutage:   (data: SegmentOutage)                                => post<SegmentOutage>('/api/outages', data),
-  updateOutage:   (faultId: string, data: Partial<SegmentOutage>)      => put<SegmentOutage>(`/api/outages/${faultId}`, data),
-  deleteOutage:   (faultId: string)                                    => del(`/api/outages/${faultId}`),
+  updateOutage:   (faultId: string, data: Partial<SegmentOutage>)      => put<SegmentOutage>(`/api/outages/${enc(faultId)}`, data),
+  deleteOutage:   (faultId: string)                                    => del(`/api/outages/${enc(faultId)}`),
   // Outage Parser: send pasted text and/or one-or-more files (screenshots pasted
   // from the clipboard, and/or a CSV/XLSX) to be parsed into proposed outages by
   // AI. Does not save. `replaceAllOutages` is the destructive "Accept All"
@@ -266,39 +280,39 @@ export const api = {
   parseNlp: (text: string) => post<NlpParseResponse>('/api/nlp/parse', { text }),
 
   // Bulk import / export
-  bulkExportUrl: (table: string) => `${BASE_URL}/api/bulk/export/${table}`,
+  bulkExportUrl: (table: string) => `${BASE_URL}/api/bulk/export/${enc(table)}`,
   bulkValidate: <T>(table: string, file: File, mode: string) =>
-    uploadFile<T>(`/api/bulk/validate/${table}?mode=${mode}`, file),
+    uploadFile<T>(`/api/bulk/validate/${enc(table)}?mode=${enc(mode)}`, file),
   bulkImport: <T>(table: string, file: File, mode: string) =>
-    uploadFile<T>(`/api/bulk/import/${table}?mode=${mode}`, file),
+    uploadFile<T>(`/api/bulk/import/${enc(table)}?mode=${enc(mode)}`, file),
 
   // Rules
   getRules:     ()                                                  => get<InterconnectRule[]>('/api/rules'),
   createRule:   (data: InterconnectRule)                            => post<InterconnectRule>('/api/rules', data),
-  updateRule:   (nodeId: string, data: Partial<InterconnectRule>)   => put<InterconnectRule>(`/api/rules/${nodeId}`, data),
-  deleteRule:   (nodeId: string)                                    => del(`/api/rules/${nodeId}`),
+  updateRule:   (nodeId: string, data: Partial<InterconnectRule>)   => put<InterconnectRule>(`/api/rules/${enc(nodeId)}`, data),
+  deleteRule:   (nodeId: string)                                    => del(`/api/rules/${enc(nodeId)}`),
 
   // Interface Types
   getInterfaces:    ()                                                    => get<InterfaceType[]>('/api/interfaces'),
   createInterface:  (data: InterfaceType)                                 => post<InterfaceType>('/api/interfaces', data),
-  updateInterface:  (id: string, data: Partial<InterfaceType>)            => put<InterfaceType>(`/api/interfaces/${id}`, data),
-  deleteInterface:  (id: string)                                          => del(`/api/interfaces/${id}`),
+  updateInterface:  (id: string, data: Partial<InterfaceType>)            => put<InterfaceType>(`/api/interfaces/${enc(id)}`, data),
+  deleteInterface:  (id: string)                                          => del(`/api/interfaces/${enc(id)}`),
 
   // Projects
   getProjects:      ()                                                    => get<Project[]>('/api/projects'),
   createProject:    (data: Project)                                       => post<Project>('/api/projects', data),
-  updateProject:    (id: string, data: Partial<Project>)                  => put<Project>(`/api/projects/${id}`, data),
-  deleteProject:    (id: string)                                          => del(`/api/projects/${id}`),
-  addCircuit:       (projectId: string, circuit: ProjectCircuit)          => post<Project>(`/api/projects/${projectId}/circuits`, circuit),
-  updateCircuit:    (projectId: string, circuitId: string, c: ProjectCircuit) => put<Project>(`/api/projects/${projectId}/circuits/${circuitId}`, c),
-  removeCircuit:    (projectId: string, circuitId: string)                => delJson<Project>(`/api/projects/${projectId}/circuits/${circuitId}`),
-  updateSldConfig:  (projectId: string, config: SldConfig)                => put<Project>(`/api/projects/${projectId}/sld-config`, config),
+  updateProject:    (id: string, data: Partial<Project>)                  => put<Project>(`/api/projects/${enc(id)}`, data),
+  deleteProject:    (id: string)                                          => del(`/api/projects/${enc(id)}`),
+  addCircuit:       (projectId: string, circuit: ProjectCircuit)          => post<Project>(`/api/projects/${enc(projectId)}/circuits`, circuit),
+  updateCircuit:    (projectId: string, circuitId: string, c: ProjectCircuit) => put<Project>(`/api/projects/${enc(projectId)}/circuits/${enc(circuitId)}`, c),
+  removeCircuit:    (projectId: string, circuitId: string)                => delJson<Project>(`/api/projects/${enc(projectId)}/circuits/${enc(circuitId)}`),
+  updateSldConfig:  (projectId: string, config: SldConfig)                => put<Project>(`/api/projects/${enc(projectId)}/sld-config`, config),
 
   // Technical Enrichment Lookups
-  getTechLookup:    (table: TechLookupTable)                              => get<TechLookupItem[]>(`/api/tech-lookups/${table}`),
-  createTechItem:   (table: TechLookupTable, item: TechLookupItem)        => post<TechLookupItem>(`/api/tech-lookups/${table}`, item),
-  updateTechItem:   (table: TechLookupTable, id: string, data: Partial<TechLookupItem>) => put<TechLookupItem>(`/api/tech-lookups/${table}/${id}`, data),
-  deleteTechItem:   (table: TechLookupTable, id: string)                  => del(`/api/tech-lookups/${table}/${id}`),
+  getTechLookup:    (table: TechLookupTable)                              => get<TechLookupItem[]>(`/api/tech-lookups/${enc(table)}`),
+  createTechItem:   (table: TechLookupTable, item: TechLookupItem)        => post<TechLookupItem>(`/api/tech-lookups/${enc(table)}`, item),
+  updateTechItem:   (table: TechLookupTable, id: string, data: Partial<TechLookupItem>) => put<TechLookupItem>(`/api/tech-lookups/${enc(table)}/${enc(id)}`, data),
+  deleteTechItem:   (table: TechLookupTable, id: string)                  => del(`/api/tech-lookups/${enc(table)}/${enc(id)}`),
 
   // Solution Notes
   getSolutionNotes:     ()                                                   => get<SolutionNote[]>('/api/solution-notes'),
@@ -308,14 +322,14 @@ export const api = {
   // this from every tab costs one upstream fetch per TTL window.
   getHazards:     (force = false) => get<HazardFeed>(`/api/hazards${force ? '?force=true' : ''}`),
   createSolutionNote:   (data: SolutionNote)                                 => post<SolutionNote>('/api/solution-notes', data),
-  updateSolutionNote:   (id: string, data: Partial<SolutionNote>)            => put<SolutionNote>(`/api/solution-notes/${id}`, data),
-  deleteSolutionNote:   (id: string)                                         => del(`/api/solution-notes/${id}`),
+  updateSolutionNote:   (id: string, data: Partial<SolutionNote>)            => put<SolutionNote>(`/api/solution-notes/${enc(id)}`, data),
+  deleteSolutionNote:   (id: string)                                         => del(`/api/solution-notes/${enc(id)}`),
 
   // Note Categories
   getNoteCategories:    ()                                                   => get<NoteCategory[]>('/api/note-categories'),
   createNoteCategory:   (data: NoteCategory)                                 => post<NoteCategory>('/api/note-categories', data),
-  updateNoteCategory:   (id: string, data: Partial<NoteCategory>)            => put<NoteCategory>(`/api/note-categories/${id}`, data),
-  deleteNoteCategory:   (id: string)                                         => del(`/api/note-categories/${id}`),
+  updateNoteCategory:   (id: string, data: Partial<NoteCategory>)            => put<NoteCategory>(`/api/note-categories/${enc(id)}`, data),
+  deleteNoteCategory:   (id: string)                                         => del(`/api/note-categories/${enc(id)}`),
 
   // Feature Requests
   getFeatureRequests:    ()                                                         => get<FeatureRequest[]>('/api/feature-requests'),

@@ -8,7 +8,7 @@ from typing import Any, Literal, get_args
 from fastapi import APIRouter, File, Query, UploadFile
 from fastapi.responses import StreamingResponse
 
-from ..id_utils import ID_MAX_LEN, ID_SAFE_RE
+from ..id_utils import ID_MAX_LEN, ID_RULE_DESCRIPTION, ID_SAFE_RE, invalid_chars
 from ..data_loader import (
     load_capacity,
     load_nodes,
@@ -106,10 +106,12 @@ def _validate_id(
     rid = raw.strip()
 
     # ── 1. Block unsafe characters (same rule as API) ─────────────────────────
+    # Both the character class and the wording come from id_utils, so a bulk
+    # import can never accept an id the API would refuse, or explain the rule
+    # differently from the way the form does.
     if not ID_SAFE_RE.match(rid):
-        bad = sorted({c for c in rid if not _re.match(r'[A-Za-z0-9_\-]', c)})
         errors.append(_err(row_num, rid, "id", rid,
-            f"Contains invalid characters {bad!r}. Only letters, digits, hyphens (-) and underscores (_) are allowed"))
+            f"Contains invalid characters {invalid_chars(rid)!r}. {ID_RULE_DESCRIPTION}"))
         return rid.upper(), errors, warnings
 
     # ── 2. Auto-uppercase ─────────────────────────────────────────────────────

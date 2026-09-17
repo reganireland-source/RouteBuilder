@@ -1087,7 +1087,11 @@ export async function generateVisioVsdx(
     const route   = pin.route
     const circuit = project?.circuits.find(c => c.circuit_id === pin.circuitId)
     const rv      = buildRouteView(route)
-    const label   = escVml(pin.circuitLabel ?? pin.searchLabel ?? `Circuit ${pi + 1}`)
+    // NOT pre-escaped: mkShape() escapes its `text` argument itself, so escaping
+    // here too rendered a title like "Sydney & Melbourne" as "Sydney &amp; Melbourne"
+    // in Visio. Every other mkShape call site passes raw text; this one was the
+    // odd one out.
+    const label   = pin.circuitLabel ?? pin.searchLabel ?? `Circuit ${pi + 1}`
 
     let shapeId = 1
     const shapes: string[] = []

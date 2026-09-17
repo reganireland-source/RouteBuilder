@@ -52,8 +52,13 @@ export function suggestSegmentDefaults(lengthKm: number, type: SegmentType): {
 
 /** Strip anything the backend's id validator would reject, and upper-case it
  *  (the backend normalises ids to upper case on write anyway). */
+/** Keep a suggested id to the characters the backend accepts (the allow-list in
+ *  backend/app/id_utils.py — letters, digits, `_`, `-` and `&`). This only ever
+ *  trims a SUGGESTION, so being marginally out of date with the backend would
+ *  cost the user a retype rather than corrupt anything; `&` is here because
+ *  node codes carry it and a suggested segment id is built out of node ids. */
 function sanitiseId(raw: string): string {
-  return raw.toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 30)
+  return raw.toUpperCase().replace(/[^A-Z0-9_&-]/g, '').slice(0, 30)
 }
 
 /**
