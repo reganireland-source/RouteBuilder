@@ -61,7 +61,8 @@ import { useEffect, useMemo, useState } from 'react'
 import * as L from 'leaflet'
 import 'leaflet.gridlayer.googlemutant'
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet'
-import type { CableNode, CableSegment, CountryHighlight, HazardAssetView, HazardFeed, HazardSeverity, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
+import type { CableNode, CableSegment, CountryHighlight, HazardAssetView, HazardFeed, HazardOwnerView, HazardSeverity, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
+import { isNodeOnNet, isSegmentOnNet } from '../utils/onNet'
 import { useTheme } from '../theme'
 import type { ManualState, NextHopCandidate } from './RouteManual'
 import { useSegmentHover } from '../context/SegmentHoverContext'
@@ -77,6 +78,10 @@ import { emptySegmentDraft } from '../state/editorState'
 // Stable empty-Set fallback for optional Network Editor props, so a missing
 // pendingNodeIds prop doesn't create a new Set identity on every render.
 const EMPTY_STRING_SET: Set<string> = new Set()
+
+// Same reasoning for the on-net ownership list: it feeds a useMemo dep array,
+// so a fresh [] default would invalidate the hazard lens on every render.
+const EMPTY_OWNERSHIP: string[] = []
 
 // Human-readable labels for the Ownership enum, used in segment tooltips.
 const OWNERSHIP_LABEL: Record<string, string> = {
@@ -120,6 +125,11 @@ interface Props {
   /** How much of our own network to draw while the hazard layer is on. */
   hazardAssetView?: HazardAssetView
   onHazardAssetViewChange?: (next: HazardAssetView) => void
+  /** Which in-range assets the lens highlights (on-net only, or everything). */
+  hazardOwnerView?: HazardOwnerView
+  onHazardOwnerViewChange?: (next: HazardOwnerView) => void
+  /** Ownership types that count as on-net, from AppConfig.on_net_ownership. */
+  onNetOwnership?: string[]
   hazardsLoading?: boolean
   hazardsError?: string | null
   onRefreshHazards?: () => void
@@ -428,7 +438,7 @@ function NodeTypeLegend({ narrow }: { narrow: boolean }) {
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
   const t = useTheme()
   const narrowViewport = useNarrowViewport()
   const { hoveredSegmentId } = useSegmentHover()
@@ -440,8 +450,28 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
    */
   const hazardLens = hazardsOn && hazardAssetView === 'inRange'
   const hazardSeverityByAsset = useMemo(
-    () => (hazardLens && hazardFeed ? worstSeverityByAsset(hazardFeed.hazards) : new Map<string, HazardSeverity>()),
-    [hazardLens, hazardFeed],
+    () => {
+      if (!hazardLens || !hazardFeed) return new Map<string, HazardSeverity>()
+      const worst = worstSeverityByAsset(hazardFeed.hazards)
+      if (hazardOwnerView === 'all') return worst
+      // On-net only: drop the off-net assets from the highlight set. Doing it
+      // HERE rather than in the two styling blocks below means an off-net asset
+      // simply looks like one that is out of range — it fades back with
+      // everything else instead of vanishing, so the network around a hazard
+      // stays readable as context.
+      const onNetSet = new Set(onNetOwnership)
+      const filtered = new Map<string, HazardSeverity>()
+      for (const node of nodes) {
+        const sev = worst.get(node.id)
+        if (sev !== undefined && isNodeOnNet(node)) filtered.set(node.id, sev)
+      }
+      for (const seg of segments) {
+        const sev = worst.get(seg.id)
+        if (sev !== undefined && isSegmentOnNet(seg, onNetSet)) filtered.set(seg.id, sev)
+      }
+      return filtered
+    },
+    [hazardLens, hazardFeed, hazardOwnerView, nodes, segments, onNetOwnership],
   )
   /** True while the network should not be drawn at all. */
   const hideAllAssets = hazardsOn && hazardAssetView === 'none'
@@ -602,6 +632,8 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         onRefresh={onRefreshHazards ?? (() => {})}
         assetView={hazardAssetView}
         onAssetViewChange={onHazardAssetViewChange ?? (() => {})}
+        ownerView={hazardOwnerView}
+        onOwnerViewChange={onHazardOwnerViewChange ?? (() => {})}
         narrow={narrowViewport}
       />
     )}

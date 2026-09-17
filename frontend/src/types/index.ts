@@ -812,6 +812,23 @@ export interface HazardSourceStatus {
  */
 export type HazardAssetView = 'all' | 'inRange' | 'none'
 
+/**
+ * WHICH in-range assets the "in range" view highlights — a second filter that
+ * only means anything while HazardAssetView is 'inRange'.
+ *
+ *   onNet — only nodes and segments on our own network. The default: the layer
+ *           exists to answer "what of MINE is at risk", and a third-party site
+ *           near a fire is someone else's incident.
+ *   all   — every in-range asset, ours or not. For when the exposure that
+ *           matters is a supplier's, e.g. an off-net tail you rely on.
+ *
+ * Off-net assets are not hidden by 'onNet' — they fade back like any other
+ * asset out of range, so the surrounding network stays legible as context.
+ * See utils/onNet.ts for how on-net is decided (it is not symmetrical between
+ * nodes and segments, and most nodes do not state it).
+ */
+export type HazardOwnerView = 'onNet' | 'all'
+
 export interface HazardFeed {
   hazards: Hazard[]
   sources: HazardSourceStatus[]

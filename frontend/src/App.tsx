@@ -30,7 +30,7 @@ import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, useTheme, type Theme, type ThemeMode } from './theme'
 import { useHazards } from './hooks/useHazards'
 import { HazardProvider } from './context/HazardContext'
-import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem, Hazard, HazardAssetView} from './types'
+import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem, Hazard, HazardAssetView, HazardOwnerView} from './types'
 import { ProjectsModal } from './components/ProjectsModal'
 import { RouteManualLeft, RouteManualMiddle, computeCandidates, assembleRoute } from './components/RouteManual'
 import type { NextHopCandidate } from './components/RouteManual'
@@ -182,6 +182,17 @@ function loadHazardAssetView(): HazardAssetView {
     const raw = localStorage.getItem(HAZARD_ASSET_VIEW_KEY)
     return raw === 'all' || raw === 'none' ? raw : 'inRange'
   } catch { return 'inRange' }
+}
+
+/** localStorage key for which in-range assets the hazard lens highlights. */
+const HAZARD_OWNER_VIEW_KEY = 'rb.hazardOwnerView'
+
+/** Defaults to on-net: the layer answers "what of MINE is at risk", so a
+ *  third-party site near a fire is someone else's incident until asked for. */
+function loadHazardOwnerView(): HazardOwnerView {
+  try {
+    return localStorage.getItem(HAZARD_OWNER_VIEW_KEY) === 'all' ? 'all' : 'onNet'
+  } catch { return 'onNet' }
 }
 
 /** Network Hazards is OFF unless this browser has explicitly turned it on —
@@ -435,6 +446,11 @@ export default function App() {
     try { localStorage.setItem(HAZARD_ASSET_VIEW_KEY, next) } catch { /* private mode */ }
   }
 
+  function changeHazardOwnerView(next: HazardOwnerView) {
+    setHazardOwnerView(next)
+    try { localStorage.setItem(HAZARD_OWNER_VIEW_KEY, next) } catch { /* private mode */ }
+  }
+
   function toggleHazards() {
     setHazardsOn(on => {
       const next = !on
@@ -633,6 +649,7 @@ export default function App() {
   // useHazards does nothing at all until this flips on.
   const [hazardsOn, setHazardsOn]                   = useState(loadHazardsOn)
   const [hazardAssetView, setHazardAssetView]       = useState<HazardAssetView>(loadHazardAssetView)
+  const [hazardOwnerView, setHazardOwnerView]       = useState<HazardOwnerView>(loadHazardOwnerView)
   const hazards = useHazards(hazardsOn)
   // Stable identity while the layer is off, so HazardProvider's memo never churns.
   const hazardList = hazards.feed?.hazards ?? EMPTY_HAZARDS
@@ -1225,6 +1242,8 @@ export default function App() {
           onToggleHazards={toggleHazards}
           hazardAssetView={hazardAssetView}
           onHazardAssetViewChange={changeHazardAssetView}
+          hazardOwnerView={hazardOwnerView}
+          onHazardOwnerViewChange={changeHazardOwnerView}
           hazardFeed={hazards.feed}
           hazardsLoading={hazards.loading}
           hazardsError={hazards.error}
@@ -1926,6 +1945,9 @@ export default function App() {
               hazardsOn={hazardsOn}
               hazardAssetView={hazardAssetView}
               onHazardAssetViewChange={changeHazardAssetView}
+              hazardOwnerView={hazardOwnerView}
+              onHazardOwnerViewChange={changeHazardOwnerView}
+              onNetOwnership={config.on_net_ownership}
               hazardFeed={hazards.feed}
               hazardsLoading={hazards.loading}
               hazardsError={hazards.error}

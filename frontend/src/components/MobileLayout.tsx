@@ -56,7 +56,7 @@ import type { ThemeMode } from '../theme'
 import type {
   AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule,
   NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage,
-  SelectedSystem, DiversityType, HazardFeed, HazardAssetView,
+  SelectedSystem, DiversityType, HazardFeed, HazardAssetView, HazardOwnerView,
 } from '../types'
 
 // Lazily, for the same reason App.tsx does: an eager import on EITHER side
@@ -153,6 +153,8 @@ export interface MobileLayoutProps {
   onToggleHazards:               () => void
   hazardAssetView:               HazardAssetView
   onHazardAssetViewChange:       (next: HazardAssetView) => void
+  hazardOwnerView:               HazardOwnerView
+  onHazardOwnerViewChange:       (next: HazardOwnerView) => void
   hazardFeed:                    HazardFeed | null
   hazardsLoading:                boolean
   hazardsError:                  string | null
@@ -594,6 +596,7 @@ export function MobileLayout({
   onToggleShowPlannedEvents,
   onToggleSubseaOnly, onToggleBackhaulOnly, livingWorld, onToggleLivingWorld,
   hazardsOn, onToggleHazards, hazardAssetView, onHazardAssetViewChange,
+  hazardOwnerView, onHazardOwnerViewChange,
   hazardFeed, hazardsLoading, hazardsError, onRefreshHazards,
   onApplySort, nlpSortKey, nlpPushOutages, optimiseFor, flippedPairIds, onFlipPair,
   onAddToProject, onEnrichCircuit, onOpenProjects, activeProject, onExitProjectMode, onSwitchProject, onOpenGuide,
@@ -682,6 +685,9 @@ export function MobileLayout({
             hazardsOn={hazardsOn}
             hazardAssetView={hazardAssetView}
             onHazardAssetViewChange={onHazardAssetViewChange}
+            hazardOwnerView={hazardOwnerView}
+            onHazardOwnerViewChange={onHazardOwnerViewChange}
+            onNetOwnership={config.on_net_ownership}
             hazardFeed={hazardFeed}
             hazardsLoading={hazardsLoading}
             hazardsError={hazardsError}

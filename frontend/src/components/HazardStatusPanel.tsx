@@ -27,7 +27,7 @@
  * Mounted from: Map.tsx, alongside HazardLayer, whenever the layer is on.
  */
 import { useState } from 'react'
-import type { HazardAssetView, HazardFeed } from '../types'
+import type { HazardAssetView, HazardFeed, HazardOwnerView } from '../types'
 import { useTheme } from '../theme'
 
 interface Props {
@@ -38,6 +38,9 @@ interface Props {
   /** How much of our own network the map is drawing. */
   assetView: HazardAssetView
   onAssetViewChange: (next: HazardAssetView) => void
+  /** Which in-range assets get highlighted. Only meaningful while assetView is 'inRange'. */
+  ownerView: HazardOwnerView
+  onOwnerViewChange: (next: HazardOwnerView) => void
   /** Narrow viewport — the panel shrinks and starts collapsed. */
   narrow?: boolean
 }
@@ -49,7 +52,64 @@ const ASSET_VIEWS: { value: HazardAssetView; label: string; hint: string }[] = [
   { value: 'none',    label: 'Hidden',   hint: 'Hide the network entirely and show only the hazards.' },
 ]
 
-export function HazardStatusPanel({ feed, loading, error, onRefresh, assetView, onAssetViewChange, narrow = false }: Props) {
+/** Which of the in-range assets to highlight. Shown only under "In range". */
+const OWNER_VIEWS: { value: HazardOwnerView; label: string; hint: string }[] = [
+  { value: 'onNet', label: 'On-Net', hint: 'Highlight only our own nodes and cables. Off-net assets fade back like anything else out of range.' },
+  { value: 'all',   label: 'All',    hint: 'Highlight every asset in range, including off-net sites and third-party capacity.' },
+]
+
+/**
+ * One row of mutually-exclusive buttons. Module-level (not a closure inside
+ * HazardStatusPanel) because a component defined during render remounts its
+ * children on every keystroke — and because the lint rule
+ * react-hooks/static-components refuses it outright.
+ */
+function SegmentedControl<T extends string>(
+  { label, options, value, onChange, t }: {
+    label: string
+    options: { value: T; label: string; hint: string }[]
+    value: T
+    onChange: (next: T) => void
+    t: ReturnType<typeof useTheme>
+  },
+) {
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={{
+        fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+        color: t.textMuted, marginBottom: 4,
+      }}>
+        {label}
+      </div>
+      <div style={{ display: 'flex', border: `1px solid ${t.border}`, borderRadius: 5, overflow: 'hidden' }}>
+        {options.map((o, i) => {
+          const active = value === o.value
+          return (
+            <button
+              key={o.value}
+              onClick={() => onChange(o.value)}
+              title={o.hint}
+              aria-pressed={active}
+              style={{
+                flex: 1, padding: '4px 2px', fontSize: 10, fontFamily: 'inherit',
+                fontWeight: active ? 700 : 500,
+                border: 'none',
+                borderRight: i === options.length - 1 ? 'none' : `1px solid ${t.border}`,
+                background: active ? t.orange + '2a' : 'transparent',
+                color: active ? t.orange : t.textMuted,
+                cursor: 'pointer',
+              }}
+            >
+              {o.label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export function HazardStatusPanel({ feed, loading, error, onRefresh, assetView, onAssetViewChange, ownerView, onOwnerViewChange, narrow = false }: Props) {
   const t = useTheme()
   const [open, setOpen] = useState(!narrow)
 
@@ -103,38 +163,27 @@ export function HazardStatusPanel({ feed, loading, error, onRefresh, assetView, 
               </div>
 
               {/* Asset view — what of OUR network is drawn beneath the hazards. */}
-              <div style={{ marginBottom: 8 }}>
-                <div style={{
-                  fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
-                  color: t.textMuted, marginBottom: 4,
-                }}>
-                  Network assets
-                </div>
-                <div style={{ display: 'flex', border: `1px solid ${t.border}`, borderRadius: 5, overflow: 'hidden' }}>
-                  {ASSET_VIEWS.map(v => {
-                    const active = assetView === v.value
-                    return (
-                      <button
-                        key={v.value}
-                        onClick={() => onAssetViewChange(v.value)}
-                        title={v.hint}
-                        aria-pressed={active}
-                        style={{
-                          flex: 1, padding: '4px 2px', fontSize: 10, fontFamily: 'inherit',
-                          fontWeight: active ? 700 : 500,
-                          border: 'none',
-                          borderRight: v.value === 'none' ? 'none' : `1px solid ${t.border}`,
-                          background: active ? t.orange + '2a' : 'transparent',
-                          color: active ? t.orange : t.textMuted,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {v.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
+              <SegmentedControl
+                label="Network assets"
+                options={ASSET_VIEWS}
+                value={assetView}
+                onChange={onAssetViewChange}
+                t={t}
+              />
+
+              {/* Owner filter — narrows WHICH in-range assets are highlighted.
+                  Rendered only under "In range", because under "All" nothing is
+                  singled out and under "Hidden" nothing is drawn, so in both
+                  cases the control would sit there doing nothing. */}
+              {assetView === 'inRange' && (
+                <SegmentedControl
+                  label="Highlight"
+                  options={OWNER_VIEWS}
+                  value={ownerView}
+                  onChange={onOwnerViewChange}
+                  t={t}
+                />
+              )}
 
               {feed.sources.map(s => (
                 <div key={s.source} style={{ marginBottom: 5 }}>
