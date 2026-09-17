@@ -940,6 +940,10 @@ export interface KmlProposal {
   piece_count: number | null
   piece_start_node: string | null
   piece_end_node: string | null
+  /** Simplified geometry for drawing this proposal on the real map before
+   *  anything is attached. For a split file, seeing the pieces in place is the
+   *  only way to judge whether the cuts landed where the cable actually joins. */
+  preview_path: [number, number][]
   path_name: string
   folder: string | null
   point_count: number
@@ -950,6 +954,20 @@ export interface KmlProposal {
   /** Strong geometry AND nothing else close. Safe to accept without opening. */
   auto_acceptable: boolean
   candidates: KmlCandidate[]
+}
+
+/**
+ * One line drawn on the map while reviewing an import. Purely transient — it
+ * exists between choosing a file and attaching it, and is never stored.
+ */
+export interface KmlPreviewLine {
+  label: string
+  coords: [number, number][]
+  color: string
+  /** Where this piece begins, when it is a slice of a longer trace. Drawn as a
+   *  marker so the cut itself is visible, not just the pieces either side. */
+  cutAt?: [number, number]
+  cutLabel?: string
 }
 
 /** POST /api/kml/bulk/propose — parsed and scored, nothing written yet. */

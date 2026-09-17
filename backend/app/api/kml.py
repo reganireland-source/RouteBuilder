@@ -43,7 +43,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 
 from ..data_loader import load_nodes, load_segments
 from ..kml import store
-from ..kml.geometry import DISPLAY_POINT_BUDGET, build_geometry
+from ..kml.geometry import DISPLAY_POINT_BUDGET, build_geometry, simplify_path
 from ..kml.matcher import (
     Candidate,
     PathProposal,
@@ -354,12 +354,24 @@ def _file_id_for_link(link_id: str):
 #: this size so progress is visible and one failure does not lose the batch.
 MAX_FILES_PER_BATCH = 25
 
+#: Points in a proposal's preview path. Smaller than the stored display budget
+#: because this is for judging a shape against the map, not for drawing the
+#: final route — and because a batch ships one of these per row, so the cost is
+#: paid per proposal rather than per segment.
+PREVIEW_POINT_BUDGET = 100
+
 
 def _proposal_dict(
     file_id, filename, path_index, path, parsed, *, coords, candidates,
     piece_index=None, piece_count=None, piece_nodes=None,
 ):
-    """One reviewable row, whether it is a whole path or a slice of one."""
+    """One reviewable row, whether it is a whole path or a slice of one.
+
+    Carries a simplified `preview_path` so the review screen can draw the
+    proposal on the real map. For a file that was cut into pieces this is the
+    only way to judge the cuts: a table of node ids cannot show you that a join
+    landed 200 km out to sea, or that a piece doubles back on itself.
+    """
     proposal = PathProposal(
         file_id=file_id, filename=filename, path_index=path_index,
         path_name=path.name, folder=path.folder, point_count=len(coords),
@@ -379,6 +391,7 @@ def _proposal_dict(
         "piece_count": piece_count,
         "piece_start_node": piece_nodes[0] if piece_nodes else None,
         "piece_end_node": piece_nodes[1] if piece_nodes else None,
+        "preview_path": simplify_path(coords, PREVIEW_POINT_BUDGET),
         "ambiguous": proposal.ambiguous,
         "auto_acceptable": proposal.auto_acceptable,
         "candidates": [vars(c) for c in proposal.candidates],

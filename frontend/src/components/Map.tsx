@@ -61,7 +61,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import * as L from 'leaflet'
 import 'leaflet.gridlayer.googlemutant'
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet'
-import type { CableNode, CableSegment, CountryHighlight, HazardAssetView, HazardFeed, HazardOwnerView, HazardSeverity, KmlPathInfo, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
+import type { CableNode, CableSegment, CountryHighlight, HazardAssetView, HazardFeed, HazardOwnerView, HazardSeverity, KmlPathInfo, KmlPreviewLine, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
 import { isNodeOnNet, isSegmentOnNet } from '../utils/onNet'
 import { useTheme } from '../theme'
 import type { ManualState, NextHopCandidate } from './RouteManual'
@@ -72,6 +72,7 @@ import { LivingWorldLayer } from './LivingWorldLayer'
 import { HazardLayer, severityColor } from './HazardLayer'
 import { worstSeverityByAsset } from '../context/HazardContext'
 import { HazardStatusPanel } from './HazardStatusPanel'
+import { KmlPreviewLayer } from './KmlPreviewLayer'
 import type { EditorSubMode, EditorSelection, SegmentDraft } from '../state/editorState'
 import { emptySegmentDraft } from '../state/editorState'
 
@@ -86,6 +87,9 @@ const EMPTY_OWNERSHIP: string[] = []
 // Stable empty default for the KML path map, for the same reason as the two
 // above: it feeds memo dependency lists and render loops.
 const EMPTY_KML_PATHS: Record<string, never> = {}
+
+// Stable empty default, same reasoning as the two above.
+const EMPTY_PREVIEW: KmlPreviewLine[] = []
 
 /** Stroke width of the invisible click/tap target laid under each cable.
  *  Cables render at 1-3.5px. 14 is about a fingertip at this zoom and still
@@ -151,6 +155,11 @@ interface Props {
   kmlPaths?: Record<string, KmlPathInfo>
   /** Draw surveyed routes where we have them, and mark which cables are which. */
   kmlMode?: boolean
+  /** An import being reviewed, drawn over the network so the cuts can be
+   *  checked against it. Transient — never stored, cleared when review ends. */
+  kmlPreview?: KmlPreviewLine[]
+  /** Bumped per preview request so re-previewing the same path still re-fits. */
+  kmlPreviewKey?: number
   hazardsLoading?: boolean
   hazardsError?: string | null
   onRefreshHazards?: () => void
@@ -459,7 +468,7 @@ function NodeTypeLegend({ narrow }: { narrow: boolean }) {
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, controlsOpen = false, kmlPaths = EMPTY_KML_PATHS, kmlMode = false, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, controlsOpen = false, kmlPaths = EMPTY_KML_PATHS, kmlMode = false, kmlPreview = EMPTY_PREVIEW, kmlPreviewKey = 0, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
   const t = useTheme()
   const narrowViewport = useNarrowViewport()
   const { hoveredSegmentId } = useSegmentHover()
@@ -1188,6 +1197,7 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
              cables. Off in Network Editor: that mode is for precise work and
              a passing whale is a distraction there. ── */}
       {livingWorld && !editorMode && <LivingWorldLayer nodes={nodes} />}
+      <KmlPreviewLayer lines={kmlPreview} fitKey={kmlPreviewKey} />
 
       {/* ── Network Hazards — live disasters, in a pane ABOVE the cables so an
              event can be seen to overlap a route. Off in Network Editor, where

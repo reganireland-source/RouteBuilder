@@ -34,7 +34,7 @@ import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, useTheme, type Theme, type ThemeMode } from './theme'
 import { useHazards } from './hooks/useHazards'
 import { HazardProvider } from './context/HazardContext'
-import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem, Hazard, HazardAssetView, HazardOwnerView, KmlPathInfo} from './types'
+import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem, Hazard, HazardAssetView, HazardOwnerView, KmlPathInfo, KmlPreviewLine} from './types'
 import { ProjectsModal } from './components/ProjectsModal'
 import { RouteManualLeft, RouteManualMiddle, computeCandidates, assembleRoute } from './components/RouteManual'
 import type { NextHopCandidate } from './components/RouteManual'
@@ -556,6 +556,10 @@ export default function App() {
   const [lastOptimiseFor, setLastOptimiseFor] = useState<string | undefined>(undefined)                   // remembers the "optimise for" objective of the last search
   const [selectedNode, setSelectedNode] = useState<{ node: CableNode; x: number; y: number } | null>(null) // node whose info popup is open (with click coords)
   const [kmlImportOpen, setKmlImportOpen] = useState(false)
+  // Geometry being examined during an import — drawn over the network so the
+  // cuts can be checked against it, and never stored. `key` is bumped per
+  // request so re-previewing the same path still re-fits the map.
+  const [kmlPreview, setKmlPreview] = useState<{ lines: KmlPreviewLine[]; key: number }>({ lines: [], key: 0 })
   const [selectedSegment, setSelectedSegment] = useState<{ segment: CableSegment; x: number; y: number } | null>(null) // segment whose info card is open
   // Fly-to request from a node-code lookup. `key` increments every time so
   // asking for the same node twice still flies.
@@ -2032,6 +2036,8 @@ export default function App() {
               controlsOpen={ctrlMenuOpen}
               kmlPaths={kmlPaths}
               kmlMode={kmlMode}
+              kmlPreview={kmlPreview.lines}
+              kmlPreviewKey={kmlPreview.key}
               searchPin={searchPin ?? undefined}
               nearestNodeIds={nearestNodeIds}
               hideNonActive={hideNonActive}
@@ -2090,8 +2096,9 @@ export default function App() {
         <Suspense fallback={null}>
           <KmlBulkImport
             segments={segments}
-            onClose={() => setKmlImportOpen(false)}
+            onClose={() => { setKmlImportOpen(false); setKmlPreview({ lines: [], key: 0 }) }}
             onDataChange={handleDataChange}
+            onPreview={lines => setKmlPreview(p => ({ lines, key: p.key + 1 }))}
           />
         </Suspense>
       )}
