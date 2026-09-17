@@ -37,7 +37,7 @@
  * requests). Request/response shapes are the interfaces in ../types.
  */
 
-import type { AppConfig, CableNode, KmlFullPath, KmlPathsResponse, KmlUploadResult, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, HazardFeed, NlpParseResponse, NoteCategory, OutageEventType, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
+import type { AppConfig, CableNode, KmlCommitResponse, KmlFullPath, KmlPathsResponse, KmlProposeResponse, KmlUploadResult, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, HazardFeed, NlpParseResponse, NoteCategory, OutageEventType, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
 
 // Backend origin baked in at build time. Empty string = same-origin (dev proxy).
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
@@ -355,6 +355,16 @@ export const api = {
     if (placemark) form.append('placemark', placemark)
     return uploadForm<KmlUploadResult>('/api/kml/upload', form)
   },
+  /** Parse and score a batch. Writes NOTHING — the review screen decides. Sent
+   *  in batches so progress is visible and one failure does not lose the lot. */
+  proposeKmlBatch: (files: File[]) => {
+    const form = new FormData()
+    for (const f of files) form.append('files', f)
+    return uploadForm<KmlProposeResponse>('/api/kml/bulk/propose', form)
+  },
+  /** Attach the approved matches. Each becomes a new version on its segment. */
+  commitKmlBatch: (accepted: { file_id: string; path_index: number; segment_id: string }[]) =>
+    post<KmlCommitResponse>('/api/kml/bulk/commit', { accepted }),
   activateKml:    (linkId: string) => post<{ segment_id: string }>(`/api/kml/activate/${enc(linkId)}`, {}),
   deleteKml:      (linkId: string) => del(`/api/kml/link/${enc(linkId)}`),
   kmlDownloadUrl: (linkId: string) => `${BASE_URL}/api/kml/download/${enc(linkId)}`,

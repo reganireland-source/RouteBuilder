@@ -910,3 +910,70 @@ export interface KmlUploadResult {
   points_stored: number
   paths_in_file: number
 }
+
+/** One segment a bulk-uploaded path might belong to, with the working shown. */
+export interface KmlCandidate {
+  segment_id: string
+  segment_name: string
+  system_id: string
+  /** 0-100. Geometry contributes up to 70, the filename up to 30. */
+  score: number
+  geometry_score: number
+  name_score: number
+  a_end_gap_km: number
+  z_end_gap_km: number
+  reversed: boolean
+  /** This segment already has a surveyed route; accepting makes a new version. */
+  already_linked: boolean
+}
+
+/** One cable path found in one uploaded file, and what it might be. */
+export interface KmlProposal {
+  file_id: string
+  filename: string
+  /** Which path within the file — a whole-system KMZ yields several. */
+  path_index: number
+  path_name: string
+  folder: string | null
+  point_count: number
+  paths_in_file: number
+  /** The runner-up scored within a hair of the winner — parallel cables between
+   *  the same two stations look identical to geometry, so a human must choose. */
+  ambiguous: boolean
+  /** Strong geometry AND nothing else close. Safe to accept without opening. */
+  auto_acceptable: boolean
+  candidates: KmlCandidate[]
+}
+
+/** POST /api/kml/bulk/propose — parsed and scored, nothing written yet. */
+export interface KmlProposeResponse {
+  proposals: KmlProposal[]
+  /** Files that could not be read, with the reason. One bad file in a folder of
+   *  300 must not cost the other 299, so these are reported, not thrown. */
+  rejected: { filename: string; reason: string }[]
+  /** Segment id -> indices of the proposals competing for it. */
+  conflicts: Record<string, number[]>
+  summary: {
+    files_read: number
+    files_rejected: number
+    paths_found: number
+    auto_acceptable: number
+    ambiguous: number
+    no_candidate: number
+  }
+}
+
+/** POST /api/kml/bulk/commit — what actually landed. */
+export interface KmlCommitResponse {
+  linked: {
+    segment_id: string
+    link_id: string
+    version: number
+    length_km: number | null
+    stored_length_km: number
+    point_count: number
+    needs_review: boolean
+  }[]
+  failed: { file_id: string; segment_id: string; path_index: number; reason: string }[]
+  summary: { linked: number; failed: number }
+}

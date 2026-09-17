@@ -25,6 +25,8 @@ Endpoints:
   GET    /api/kml/library                  linkage overview: linked, gaps, orphans
   GET    /api/kml/versions/{segment_id}    version history for one segment
   POST   /api/kml/upload                   upload one file against one segment
+  POST   /api/kml/bulk/propose             parse a batch, score, write nothing
+  POST   /api/kml/bulk/commit              attach the approved matches
   POST   /api/kml/activate/{link_id}       roll back to a stored version
   DELETE /api/kml/link/{link_id}           remove one version
   GET    /api/kml/download/{link_id}       the original file, byte for byte
@@ -42,6 +44,14 @@ from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from ..data_loader import load_nodes, load_segments
 from ..kml import store
 from ..kml.geometry import DISPLAY_POINT_BUDGET, build_geometry
+from ..kml.matcher import (
+    Candidate,
+    PathProposal,
+    rank_candidates,
+    resolve_conflicts,
+    segment_tokens_for,
+    tokenise,
+)
 from ..kml.parser import KmlParseError, parse_upload
 
 log = logging.getLogger("routebuilder.kml")
@@ -324,3 +334,186 @@ def _file_id_for_link(link_id: str):
         if link["id"] == link_id:
             return link["file_id"]
     return None
+
+
+# ── Bulk import ──────────────────────────────────────────────────────────────
+#
+# TWO STEPS, ALWAYS. `propose` parses and scores but writes no links; `commit`
+# applies exactly what the reviewer approved. Nothing is attached to a segment
+# without a person having seen which segment it was going to.
+#
+# The uploaded BYTES are stored during propose, even for paths that are never
+# committed. That is deliberate: it is what lets commit carry only
+# (file_id, path_index, segment_id) instead of re-uploading tens of MB, and the
+# blob store is content-addressed so a file proposed twice costs one copy. The
+# cost is that abandoning a review leaves unreferenced blobs, which the library
+# view reports and Phase 3 will offer to sweep up.
+
+#: Files per propose call. The frontend sends a few hundred files in batches of
+#: this size so progress is visible and one failure does not lose the batch.
+MAX_FILES_PER_BATCH = 25
+
+
+@router.post("/bulk/propose")
+async def bulk_propose(files: list[UploadFile] = File(...)):
+    """
+    POST /api/kml/bulk/propose — parse a batch and say what each path might be.
+
+    Writes NO links. Returns one proposal per cable path found (a whole-system
+    file yields several), each with ranked candidates and the numbers behind
+    them. Files that cannot be parsed are reported with their reason rather than
+    failing the batch — one corrupt KMZ in a folder of three hundred should not
+    cost the other 299.
+
+    Auth: admin (admin_write_guard covers POST).
+    """
+    if len(files) > MAX_FILES_PER_BATCH:
+        raise HTTPException(
+            status_code=413,
+            detail=f"{len(files)} files in one request; send at most {MAX_FILES_PER_BATCH} per batch.",
+        )
+
+    segments = [s.model_dump() for s in load_segments()]
+    nodes = load_nodes()
+    nodes_by_id = {n.id: n.model_dump() for n in nodes}
+    seg_tokens = {s["id"]: segment_tokens_for(s, nodes_by_id) for s in segments}
+    linked_ids = set(store.active_links())
+
+    proposals: list[dict] = []
+    rejected: list[dict] = []
+
+    for upload in files:
+        name = upload.filename or "upload.kml"
+        data = await upload.read()
+        try:
+            parsed = parse_upload(data, name)
+        except KmlParseError as exc:
+            rejected.append({"filename": name, "reason": str(exc)})
+            continue
+
+        file_id = store.put_file(data, name)
+        for index, path in enumerate(parsed.paths):
+            tokens = tokenise(name, path.name, path.folder, parsed.document_name)
+            candidates = rank_candidates(
+                path.coords, tokens, segments, nodes_by_id, seg_tokens, linked_ids,
+            )
+            proposal = PathProposal(
+                file_id=file_id, filename=name, path_index=index,
+                path_name=path.name, folder=path.folder, point_count=len(path.coords),
+                candidates=candidates,
+            )
+            proposals.append({
+                "file_id": proposal.file_id,
+                "filename": proposal.filename,
+                "path_index": proposal.path_index,
+                "path_name": proposal.path_name,
+                "folder": proposal.folder,
+                "point_count": proposal.point_count,
+                "paths_in_file": len(parsed.paths),
+                "ambiguous": proposal.ambiguous,
+                "auto_acceptable": proposal.auto_acceptable,
+                "candidates": [vars(c) for c in proposal.candidates],
+            })
+
+    # Rebuilt as PathProposal only to reuse the conflict logic on the same data.
+    conflicts = resolve_conflicts([
+        PathProposal(
+            file_id=p["file_id"], filename=p["filename"], path_index=p["path_index"],
+            path_name=p["path_name"], folder=p["folder"], point_count=p["point_count"],
+            candidates=[Candidate(**c) for c in p["candidates"]],
+        )
+        for p in proposals
+    ])
+
+    return {
+        "proposals": proposals,
+        "rejected": rejected,
+        "conflicts": conflicts,
+        "summary": {
+            "files_read": len(files) - len(rejected),
+            "files_rejected": len(rejected),
+            "paths_found": len(proposals),
+            "auto_acceptable": sum(1 for p in proposals if p["auto_acceptable"]),
+            "ambiguous": sum(1 for p in proposals if p["ambiguous"]),
+            "no_candidate": sum(1 for p in proposals if not p["candidates"]),
+        },
+    }
+
+
+@router.post("/bulk/commit")
+def bulk_commit(payload: dict):
+    """
+    POST /api/kml/bulk/commit — attach the approved matches.
+
+    Body: {"accepted": [{"file_id", "path_index", "segment_id"}, ...]}
+
+    Each entry becomes a new version on its segment and is made active. The
+    file is re-read from the blob store and re-parsed rather than any parsed
+    state being held between the two calls — the request carries an index into a
+    file, and the file is the source of truth for what that index means.
+
+    One failure does not stop the rest: every entry is attempted and the result
+    lists what worked and what did not, so a reviewer never has to guess which
+    half of a batch landed.
+
+    Auth: admin.
+    """
+    accepted = payload.get("accepted") or []
+    if not isinstance(accepted, list):
+        raise HTTPException(status_code=422, detail="'accepted' must be a list")
+
+    segments = {s.id: s for s in load_segments()}
+    nodes = load_nodes()
+    linked: list[dict] = []
+    failed: list[dict] = []
+    parsed_cache: dict[str, object] = {}
+
+    for entry in accepted:
+        file_id = entry.get("file_id")
+        segment_id = entry.get("segment_id")
+        index = entry.get("path_index", 0)
+        try:
+            segment = segments.get(segment_id)
+            if segment is None:
+                raise ValueError(f"Unknown segment {segment_id!r}")
+
+            if file_id not in parsed_cache:
+                got = store.get_file_bytes(file_id)
+                if got is None:
+                    raise ValueError("Uploaded file is no longer in the store")
+                parsed_cache[file_id] = parse_upload(got[0], got[1])
+            parsed = parsed_cache[file_id]
+
+            if index >= len(parsed.paths):
+                raise ValueError(f"File has {len(parsed.paths)} paths; asked for index {index}")
+            path = parsed.paths[index]
+
+            geometry = build_geometry(
+                path.coords,
+                _node_latlng(nodes, segment.start_node_id),
+                _node_latlng(nodes, segment.end_node_id),
+            )
+            points = [
+                {"name": p.name, "lat": p.lat, "lng": p.lng, "folder": p.folder}
+                for p in parsed.points
+            ]
+            row = store.link_segment(
+                segment_id, file_id, geometry,
+                placemark_name=path.name or "", points=points,
+            )
+            linked.append({
+                "segment_id": segment_id,
+                "link_id": row["id"],
+                "version": row["version"],
+                "length_km": row["length_km"],
+                "stored_length_km": segment.length_km,
+                "point_count": row["point_count"],
+                "needs_review": geometry.needs_review,
+            })
+        except (ValueError, KmlParseError) as exc:
+            failed.append({"file_id": file_id, "segment_id": segment_id,
+                           "path_index": index, "reason": str(exc)})
+
+    log.info("KML bulk commit: %d linked, %d failed", len(linked), len(failed))
+    return {"linked": linked, "failed": failed,
+            "summary": {"linked": len(linked), "failed": len(failed)}}

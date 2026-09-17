@@ -13,6 +13,9 @@ import { editorReducer, initialEditorState, applyPendingChanges, pendingAffected
 import { saveAll } from './state/networkEditorSave'
 import { NodeInfoPanel } from './components/NodeInfoPanel'
 import { SegmentInfoPanel } from './components/SegmentInfoPanel'
+// Lazy: the review table and its matcher types are only ever opened by an
+// admin importing files, so it has no business in the initial bundle.
+const KmlBulkImport = lazy(() => import('./components/KmlBulkImport').then(m => ({ default: m.KmlBulkImport })))
 import { NodeFinder } from './components/NodeFinder'
 import { CityPairPanel } from './components/CityPairPanel'
 import { HealthBar } from './components/HealthBar'
@@ -552,6 +555,7 @@ export default function App() {
   const [lastSearchDiversity, setLastSearchDiversity] = useState<import('./types').DiversityType>('none') // remembers the diversity of the last search (affects how RouteList pairs cards)
   const [lastOptimiseFor, setLastOptimiseFor] = useState<string | undefined>(undefined)                   // remembers the "optimise for" objective of the last search
   const [selectedNode, setSelectedNode] = useState<{ node: CableNode; x: number; y: number } | null>(null) // node whose info popup is open (with click coords)
+  const [kmlImportOpen, setKmlImportOpen] = useState(false)
   const [selectedSegment, setSelectedSegment] = useState<{ segment: CableSegment; x: number; y: number } | null>(null) // segment whose info card is open
   // Fly-to request from a node-code lookup. `key` increments every time so
   // asking for the same node twice still flies.
@@ -1573,6 +1577,10 @@ export default function App() {
                       { label: 'Projects',  icon: '📁', onClick: () => { setProjectsOpen(true);  setCtrlMenuOpen(false) } },
                       { label: 'Ref Data',  icon: '⚙',  onClick: () => { setRefDataOpen(true);   setCtrlMenuOpen(false) } },
                       { label: 'Algo Eval', icon: '🧪', onClick: () => { setAlgoEvalOpen(true);  setCtrlMenuOpen(false) } },
+                      // Admin-only: it writes. Hidden rather than disabled, the
+                      // same call as the Network Editor tab — a review table a
+                      // viewer can never act on has no read-only value.
+                      ...(isAdmin ? [{ label: 'KML Import', icon: '🛰', onClick: () => { setKmlImportOpen(true); setCtrlMenuOpen(false) } }] : []),
                     ].map(item => (
                       <button
                         key={item.label}
@@ -2076,6 +2084,16 @@ export default function App() {
           onClose={() => setSelectedNode(null)}
           onDataChange={handleDataChange}
         />
+      )}
+
+      {kmlImportOpen && (
+        <Suspense fallback={null}>
+          <KmlBulkImport
+            segments={segments}
+            onClose={() => setKmlImportOpen(false)}
+            onDataChange={handleDataChange}
+          />
+        </Suspense>
       )}
 
       {selectedSegment && (
