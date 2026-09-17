@@ -389,56 +389,56 @@ function SegmentBody({
     </Card>
   )
   const identityCard = (
-    <Card t={t} title={editing ? 'Edit Segment' : 'Key Information'} grow>
+    <Card key="identity" t={t} title={editing ? 'Edit Segment' : 'Key Information'} grow>
       {editing
         ? <EditSegmentForm t={t} segment={segment} systems={systems} onSaved={onSaved} onCancel={onCancelEdit} />
         : <IdentityList t={t} segment={segment} system={system} />}
     </Card>
   )
   const endpointsCard = (
-    <Card t={t} title="Endpoints" grow>
+    <Card key="endpoints" t={t} title="Endpoints" grow>
       <EndpointRow t={t} role="A-End" node={start} fallbackId={segment.start_node_id} onOpen={onOpenNode} />
       <div style={{ height: 8 }} />
       <EndpointRow t={t} role="Z-End" node={end} fallbackId={segment.end_node_id} onOpen={onOpenNode} />
     </Card>
   )
   const geometryCard = (
-    <Card t={t} title="Path Geometry" grow>
+    <Card key="geometry" t={t} title="Path Geometry" grow>
       <PathGeometry t={t} segment={segment} start={start} end={end} />
     </Card>
   )
   const metricsCard = (
-    <Card t={t} title="Routing Metrics" grow>
+    <Card key="metrics" t={t} title="Routing Metrics" grow>
       <MetricsList t={t} segment={segment} />
     </Card>
   )
   const capacityCard = (
-    <Card t={t} title="Capacity" grow>
+    <Card key="capacity" t={t} title="Capacity" grow>
       <CapacityBlock t={t} cap={cap} />
     </Card>
   )
   const lifecycleCard = (
-    <Card t={t} title="Lifecycle" grow>
+    <Card key="lifecycle" t={t} title="Lifecycle" grow>
       <LifecycleBlock t={t} segment={segment} system={system} />
     </Card>
   )
   const parallelCard = (
-    <Card t={t} title={`Parallel Segments (${parallel.length})`} grow>
+    <Card key="parallel" t={t} title={`Parallel Segments (${parallel.length})`} grow>
       <ParallelList t={t} parallel={parallel} capacity={capacity} onOpen={onNavigateSegment} />
     </Card>
   )
   const outagesCard = (
-    <Card t={t} title={`Outages & Planned Work (${segOutages.length})`} grow>
+    <Card key="outages" t={t} title={`Outages & Planned Work (${segOutages.length})`} grow>
       <OutageList t={t} outages={segOutages} />
     </Card>
   )
   const notesCard = (
-    <Card t={t} title={null} grow>
+    <Card key="notes" t={t} title={null} grow>
       <EntityNotesPanel kind="segment" entityId={segment.id} notes={notes} categories={noteCategories} />
     </Card>
   )
   // Renders nothing when there is nothing to report — see HazardsNearbyCard.
-  const hazardsCard = <HazardsNearbyCard hazards={segmentHazards} kind="segment" assetId={segment.id} />
+  const hazardsCard = <HazardsNearbyCard key="hazards" hazards={segmentHazards} kind="segment" assetId={segment.id} />
 
   const scroller = scrollerStyle(phone)
 

@@ -45,6 +45,7 @@ import { RouteManual } from './RouteManual'
 import type { ManualState, NextHopCandidate } from './RouteManual'
 import { OutagePanel } from './OutagePanel'
 import { NodeFullView } from './NodeFullView'
+import { SegmentFullView } from './SegmentFullView'
 import { AssetSearch } from './AssetSearch'
 import type { AssetHit } from '../utils/assetSearch'
 import { ServiceDateSelector } from './ServiceDateSelector'
@@ -97,6 +98,7 @@ export interface MobileLayoutProps {
   loading: boolean
   error: string | null
   selectedNode: { node: CableNode; x: number; y: number } | null
+  selectedSegment: { segment: CableSegment; x: number; y: number } | null
   searchPin: { lat: number; lng: number; label: string } | null
   nearestNodeIds: string[]
   prefilledOrigin: string
@@ -129,6 +131,8 @@ export interface MobileLayoutProps {
   /** Segments filtered to the chosen service date, for every read-only view. */
   visibleSegments?:  CableSegment[]
   onNodeClick:       (node: CableNode, x: number, y: number) => void
+  onSegmentClick:    (segment: CableSegment, x: number, y: number) => void
+  onCloseSegment:    () => void
   onPinChange:       (pin: { lat: number; lng: number; label: string } | null, ids: string[]) => void
   onCloseNode:       () => void
   onOpenRefData:     () => void
@@ -584,13 +588,13 @@ function MobileModeBanner({ activeProject, onSwitch, onExit, t }: {
 export function MobileLayout({
   nodes, segments, systems, capacity, outages, rules,
   response, selectedRoutes, selectedRouteIds, pinnedRoutes, selectedSystems,
-  mode, loading, error, selectedNode, searchPin, nearestNodeIds,
+  mode, loading, error, selectedNode, selectedSegment, searchPin, nearestNodeIds,
   prefilledOrigin, prefilledDest, lastSearchDiversity,
   refDataOpen, themeMode, config,
   onSearch, onToggleRoute, onPin, onUnpin, onPinPair, onToggleSystem,
   onSetOrigin, onSetDest, onSetPair, onGoToNode, flyToNode, onAssetSelect, fitBounds, spotlightNodeId, serviceDate,
   serviceChoice, onServiceChoiceChange, visibleSegments,
-  onNodeClick, onPinChange,
+  onNodeClick, onSegmentClick, onCloseSegment, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
   switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowNodeLabels, onToggleShowAllOutages,
   onToggleShowPlannedEvents,
@@ -699,6 +703,8 @@ export function MobileLayout({
             pinnedRoutes={pinnedRoutes}
             selectedSystems={selectedSystems}
             onNodeClick={mode === 'routemanual' && onManualNodeClick ? onManualNodeClick : onNodeClick}
+            onSegmentClick={mode === 'routemanual' ? undefined : onSegmentClick}
+            selectedSegmentId={selectedSegment?.segment.id ?? null}
             flyToNode={flyToNode}
             fitBounds={fitBounds}
             spotlightNodeId={spotlightNodeId}
@@ -1109,6 +1115,25 @@ export function MobileLayout({
           systems={systems}
           capacity={capacity}
           onClose={onCloseNode}
+          onDataChange={onDataChange}
+        />
+      )}
+
+      {/* ── Segment full view ───────────────────────────────────────────── */}
+      {/* Straight to Full View for the same reason as the node above: the
+          floating SegmentInfoPanel is a fixed 380px desktop card, which on a
+          ~390px screen would sit edge to edge wherever the finger landed. The
+          tap coordinates are still carried in state — they are simply not used
+          on this layout. */}
+      {selectedSegment && (
+        <SegmentFullView
+          segmentId={selectedSegment.segment.id}
+          nodes={nodes}
+          segments={segments}
+          systems={systems}
+          capacity={capacity}
+          outages={outages}
+          onClose={onCloseSegment}
           onDataChange={onDataChange}
         />
       )}

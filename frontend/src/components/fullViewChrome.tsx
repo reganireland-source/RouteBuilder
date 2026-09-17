@@ -150,11 +150,16 @@ export function rowStyle(phone: boolean) {
  * line. Inside a row the same flex sizes width, which is what it is for.
  */
 export function FullViewColumn({ children, gap = 16 }: { children: React.ReactNode[]; gap?: number }) {
+  // NOTE FOR CALLERS: this takes an ARRAY LITERAL as its single child, e.g.
+  // <FullViewColumn>{[identityCard, endpointsCard]}</FullViewColumn>. React
+  // validates that array for keys when the JSX is created — in the CALLER,
+  // before this component runs — so keying the wrappers below does not satisfy
+  // it. Each card element must carry its own `key` where it is defined.
   return (
     <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', gap }}>
       {children.map((card, i) => (
-        // Index keys: this is a fixed, ordered list of literal cards that never
-        // reorders, so the index IS the identity.
+        // Index keys on the wrappers: a fixed, ordered list of literal cards
+        // that never reorders, so the index IS the identity.
         <div key={i} style={{ display: 'flex', alignItems: 'flex-start' }}>{card}</div>
       ))}
     </div>

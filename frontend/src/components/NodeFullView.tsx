@@ -398,14 +398,14 @@ function FullViewBody({
   // The cards, named once so the two layouts below compose the SAME content
   // rather than each carrying its own copy that could drift.
   const identityCard = (
-    <Card t={t} title={editing ? 'Edit Node' : 'Key Information'} grow>
+    <Card key="identity" t={t} title={editing ? 'Edit Node' : 'Key Information'} grow>
       {editing
         ? <EditNodeForm t={t} node={node} onSaved={onSaved} onCancel={onCancelEdit} />
         : <IdentityList t={t} node={node} />}
     </Card>
   )
   const siteCard = (
-    <Card t={t} title="Site Location" pad={0} grow>
+    <Card key="site" t={t} title="Site Location" pad={0} grow>
       <iframe
         key={node.id}
         src={mapUrl}
@@ -419,7 +419,7 @@ function FullViewBody({
   // container and its fonts are fixed in viewBox units, so a smaller nominal
   // size actually MAGNIFIES the labels relative to the picture.
   const fanCard = (
-    <Card t={t} title={`Segments Leaving This Node (${nodeSegments.length})`} grow>
+    <Card key="fan" t={t} title={`Segments Leaving This Node (${nodeSegments.length})`} grow>
       <div style={{ display: 'flex', justifyContent: 'center' }}>
         <SegmentFanDiagram
           node={node}
@@ -432,19 +432,19 @@ function FullViewBody({
     </Card>
   )
   const coverageCard = (
-    <Card t={t} title="Product Coverage" grow>
+    <Card key="coverage" t={t} title="Product Coverage" grow>
       {node.capabilities
         ? <ProductCoverageMatrix capabilities={node.capabilities} heading={null} />
         : <Empty t={t}>No product coverage configured for this node.</Empty>}
     </Card>
   )
   const systemsCard = (
-    <Card t={t} title={`Cable Systems (${systemCounts.size})`} grow>
+    <Card key="systems" t={t} title={`Cable Systems (${systemCounts.size})`} grow>
       <CableSystemsList t={t} counts={systemCounts} systemsById={systemsById} />
     </Card>
   )
   const capacityCard = (
-    <Card t={t} title="Segment Capacity" grow>
+    <Card key="capacity" t={t} title="Segment Capacity" grow>
       <SegmentCapacityList
         t={t} node={node} nodeSegments={nodeSegments} capacity={capacity} nodesById={nodesById}
         onOpenSegment={onOpenSegment}
@@ -452,12 +452,12 @@ function FullViewBody({
     </Card>
   )
   const notesCard = (
-    <Card t={t} title={null} grow>
+    <Card key="notes" t={t} title={null} grow>
       <EntityNotesPanel kind="node" entityId={node.id} notes={notes} categories={noteCategories} />
     </Card>
   )
   // Renders nothing when there is nothing to report — see HazardsNearbyCard.
-  const hazardsCard = <HazardsNearbyCard hazards={nodeHazards} kind="node" assetId={node.id} />
+  const hazardsCard = <HazardsNearbyCard key="hazards" hazards={nodeHazards} kind="node" assetId={node.id} />
 
   const scroller = scrollerStyle(phone)
 

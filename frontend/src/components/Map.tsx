@@ -57,7 +57,7 @@
  * is provided.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import * as L from 'leaflet'
 import 'leaflet.gridlayer.googlemutant'
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet'
@@ -83,6 +83,11 @@ const EMPTY_STRING_SET: Set<string> = new Set()
 // so a fresh [] default would invalidate the hazard lens on every render.
 const EMPTY_OWNERSHIP: string[] = []
 
+/** Stroke width of the invisible click/tap target laid under each cable.
+ *  Cables render at 1-3.5px. 14 is about a fingertip at this zoom and still
+ *  narrow enough that two parallel cables stay separately selectable. */
+const HIT_TARGET_WEIGHT = 14
+
 // Human-readable labels for the Ownership enum, used in segment tooltips.
 const OWNERSHIP_LABEL: Record<string, string> = {
   owned:                'Owned',
@@ -100,6 +105,12 @@ interface Props {
   pinnedRoutes: PinnedRoute[]
   selectedSystems: SelectedSystem[]
   onNodeClick?: (node: CableNode, screenX: number, screenY: number) => void
+  /** Click/tap a cable to pin its details. Omitted (e.g. in the Network Editor,
+   *  where a segment click means "edit this path") leaves segments
+   *  non-clickable and the hover tooltip attached to the visible line. */
+  onSegmentClick?: (segment: CableSegment, screenX: number, screenY: number) => void
+  /** The segment whose info card is open, drawn emphasised. */
+  selectedSegmentId?: string | null
   /** Fly the map to one node. `key` is bumped by the caller on every request so
    *  asking for the SAME node twice still flies (the user typed its code
    *  again); without it the effect would see identical deps and do nothing. */
@@ -438,7 +449,7 @@ function NodeTypeLegend({ narrow }: { narrow: boolean }) {
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
   const t = useTheme()
   const narrowViewport = useNarrowViewport()
   const { hoveredSegmentId } = useSegmentHover()
@@ -602,6 +613,17 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
       .rb-route-glow {
         animation: rb-route-glow-pulse 1s ease-in-out infinite;
         filter: blur(2px);
+      }
+      /* Clicking an SVG path focuses it, and the browser's default focus ring is
+         a rectangle around the element's BOUNDING BOX — for a diagonal cable
+         that is a huge box spanning from one landing station to the other. It
+         looked like the map was drawing a stray rectangle. Suppressed for
+         pointer focus only: :focus-visible still draws a ring for keyboard Tab
+         users, who otherwise have no way to see which segment they are on. */
+      .leaflet-interactive:focus { outline: none; }
+      .leaflet-interactive:focus-visible {
+        outline: 2px solid #38bdf8;
+        outline-offset: 2px;
       }
       @keyframes rb-segment-glow-pulse {
         0%, 100% { opacity: 0.15; stroke-width: 8;  }
@@ -804,19 +826,54 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
             : { ...pathOptions, opacity: Math.min(pathOptions.opacity, 0.07) }
         }
 
+        // ── Selection ── the card names one cable; this is what says WHICH.
+        // Applied last so it wins over the whole ladder above: if you clicked
+        // it, you want to see it, whatever mode the map is in.
+        if (seg.id === selectedSegmentId) {
+          pathOptions = {
+            ...pathOptions,
+            color: t.blue,
+            weight: Math.max(pathOptions.weight, 4),
+            opacity: 1,
+          }
+        }
+
+        const onSegClick = onSegmentClick
+          ? (e: L.LeafletMouseEvent) => {
+              e.originalEvent.stopPropagation()
+              onSegmentClick(seg, e.originalEvent.clientX, e.originalEvent.clientY)
+            }
+          : undefined
+
         return lines.map((positions, i) => (
-          <Polyline
-            key={`${seg.id}-${i}`}
-            positions={positions}
-            pathOptions={pathOptions}
-          >
-            {i === 0 && tooltip}
-            {i === 0 && showSegmentLabels && isActiveSegment && (
-              <Tooltip permanent direction="center" className="seg-label" offset={[0, 0]}>
-                {seg.id}
-              </Tooltip>
+          <Fragment key={`${seg.id}-${i}`}>
+            {/* Invisible fat line under the real one, purely to be clicked.
+                A cable is drawn 1-3.5px wide, which is a hard target with a
+                mouse and an unusable one with a fingertip. This carries the
+                click; the visible line below is left non-interactive for
+                pointers so the two can never fight over the same event. */}
+            {onSegClick && (
+              <Polyline
+                positions={positions}
+                pathOptions={{ color: '#000', weight: HIT_TARGET_WEIGHT, opacity: 0, lineCap: 'round' }}
+                eventHandlers={{ click: onSegClick }}
+              >
+                {i === 0 && tooltip}
+              </Polyline>
             )}
-          </Polyline>
+            <Polyline
+              positions={positions}
+              pathOptions={pathOptions}
+              interactive={!onSegClick}
+            >
+              {i === 0 && !onSegClick && tooltip}
+              {i === 0 && showSegmentLabels && isActiveSegment && (
+                <Tooltip permanent direction="center" className="seg-label" offset={[0, 0]}>
+                  {seg.id}
+                </Tooltip>
+              )}
+            </Polyline>
+          </Fragment>
         ))
       })}
 

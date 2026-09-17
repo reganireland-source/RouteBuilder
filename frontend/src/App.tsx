@@ -12,6 +12,7 @@ import { EditorPendingPanel } from './components/EditorPendingPanel'
 import { editorReducer, initialEditorState, applyPendingChanges, pendingAffectedIds } from './state/editorState'
 import { saveAll } from './state/networkEditorSave'
 import { NodeInfoPanel } from './components/NodeInfoPanel'
+import { SegmentInfoPanel } from './components/SegmentInfoPanel'
 import { NodeFinder } from './components/NodeFinder'
 import { CityPairPanel } from './components/CityPairPanel'
 import { HealthBar } from './components/HealthBar'
@@ -530,6 +531,7 @@ export default function App() {
   const [lastSearchDiversity, setLastSearchDiversity] = useState<import('./types').DiversityType>('none') // remembers the diversity of the last search (affects how RouteList pairs cards)
   const [lastOptimiseFor, setLastOptimiseFor] = useState<string | undefined>(undefined)                   // remembers the "optimise for" objective of the last search
   const [selectedNode, setSelectedNode] = useState<{ node: CableNode; x: number; y: number } | null>(null) // node whose info popup is open (with click coords)
+  const [selectedSegment, setSelectedSegment] = useState<{ segment: CableSegment; x: number; y: number } | null>(null) // segment whose info card is open
   // Fly-to request from a node-code lookup. `key` increments every time so
   // asking for the same node twice still flies.
   const [flyToNode, setFlyToNode] = useState<{ lat: number; lng: number; key: number } | undefined>(undefined)
@@ -1209,6 +1211,8 @@ export default function App() {
           selectedSystems={selectedSystems}
           mode={mode} loading={loading} error={error}
           selectedNode={selectedNode} searchPin={searchPin}
+          selectedSegment={selectedSegment}
+          onCloseSegment={() => setSelectedSegment(null)}
           nearestNodeIds={nearestNodeIds}
           prefilledOrigin={prefilledOrigin} prefilledDest={prefilledDest}
           lastSearchDiversity={lastSearchDiversity}
@@ -1222,6 +1226,7 @@ export default function App() {
           onSetDest={handleSetDest}
           onSetPair={handleSetPair}
           onNodeClick={(node, x, y) => setSelectedNode({ node, x, y })}
+          onSegmentClick={(segment, x, y) => setSelectedSegment({ segment, x, y })}
           onGoToNode={handleGoToNode}
           flyToNode={flyToNode}
           onAssetSelect={hit => handleAssetSelect(hit, { openNodePanel: false })}
@@ -1974,6 +1979,8 @@ export default function App() {
               onRefreshHazards={hazards.refresh}
               bannerOffset={isFutureView(serviceChoice)}
               onNodeClick={mode === 'routemanual' ? undefined : (node, x, y) => setSelectedNode({ node, x, y })}
+              onSegmentClick={mode === 'routemanual' ? undefined : (segment, x, y) => setSelectedSegment({ segment, x, y })}
+              selectedSegmentId={selectedSegment?.segment.id ?? null}
               searchPin={searchPin ?? undefined}
               nearestNodeIds={nearestNodeIds}
               hideNonActive={hideNonActive}
@@ -2024,6 +2031,17 @@ export default function App() {
           nodes={nodes} capacity={capacity}
           initialX={selectedNode.x} initialY={selectedNode.y}
           onClose={() => setSelectedNode(null)}
+          onDataChange={handleDataChange}
+        />
+      )}
+
+      {selectedSegment && (
+        <SegmentInfoPanel
+          segment={selectedSegment.segment}
+          nodes={nodes} segments={segments} systems={systems} capacity={capacity}
+          outages={outages}
+          initialX={selectedSegment.x} initialY={selectedSegment.y}
+          onClose={() => setSelectedSegment(null)}
           onDataChange={handleDataChange}
         />
       )}
