@@ -172,14 +172,32 @@ const EMPTY_HAZARDS: Hazard[] = []
 /** localStorage key for the Network Hazards overlay. */
 const HAZARDS_KEY = 'rb.hazards'
 
-/** localStorage key for how much of the network the hazard layer draws. */
+/** SESSION storage key for how much of the network the hazard layer draws.
+ *  Session, not local, on purpose — see loadHazardAssetView. */
 const HAZARD_ASSET_VIEW_KEY = 'rb.hazardAssetView'
 
-/** Defaults to "in range": the question this layer answers is "what of mine is
- *  at risk", and drawing the whole network at equal weight buries the answer. */
+/**
+ * Always starts at "in range" in a new session, then remembers within it.
+ *
+ * This deliberately does NOT persist across sessions, unlike every other view
+ * toggle in the app. "All" and "Hidden" are things you switch to in order to
+ * answer one question — what does the whole picture look like, what do the
+ * hazards look like on their own — not states you want to come back to days
+ * later. A browser that kept "All" would open the layer with nothing
+ * highlighted, which reads as the feature being broken rather than as a setting
+ * being remembered; that is exactly what happened in practice.
+ *
+ * Session storage keeps the choice while you are actually working (it survives
+ * reloads in the tab, so it does not fight you) and drops it when the tab goes.
+ * The On-Net/All filter below is the opposite: a standing preference about
+ * whose assets you care about, so that one does persist in localStorage.
+ */
 function loadHazardAssetView(): HazardAssetView {
   try {
-    const raw = localStorage.getItem(HAZARD_ASSET_VIEW_KEY)
+    // Clear the value written by the older localStorage-backed version, so a
+    // browser carrying a stale "all" is not stuck with it forever.
+    localStorage.removeItem(HAZARD_ASSET_VIEW_KEY)
+    const raw = sessionStorage.getItem(HAZARD_ASSET_VIEW_KEY)
     return raw === 'all' || raw === 'none' ? raw : 'inRange'
   } catch { return 'inRange' }
 }
@@ -443,7 +461,9 @@ export default function App() {
   // private window and a decorative toggle must never take the app down.
   function changeHazardAssetView(next: HazardAssetView) {
     setHazardAssetView(next)
-    try { localStorage.setItem(HAZARD_ASSET_VIEW_KEY, next) } catch { /* private mode */ }
+    // sessionStorage: survives reloads in this tab, gone next session. See
+    // loadHazardAssetView for why this one does not persist like the others.
+    try { sessionStorage.setItem(HAZARD_ASSET_VIEW_KEY, next) } catch { /* private mode */ }
   }
 
   function changeHazardOwnerView(next: HazardOwnerView) {

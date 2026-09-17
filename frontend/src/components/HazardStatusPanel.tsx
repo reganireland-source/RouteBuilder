@@ -52,7 +52,9 @@ const ASSET_VIEWS: { value: HazardAssetView; label: string; hint: string }[] = [
   { value: 'none',    label: 'Hidden',   hint: 'Hide the network entirely and show only the hazards.' },
 ]
 
-/** Which of the in-range assets to highlight. Shown only under "In range". */
+/** Which of the in-range assets to highlight. Only bites under "In range" — but
+ *  it stays on screen when it doesn't, greyed out, so the option is discoverable
+ *  rather than appearing and disappearing. */
 const OWNER_VIEWS: { value: HazardOwnerView; label: string; hint: string }[] = [
   { value: 'onNet', label: 'On-Net', hint: 'Highlight only our own nodes and cables. Off-net assets fade back like anything else out of range.' },
   { value: 'all',   label: 'All',    hint: 'Highlight every asset in range, including off-net sites and third-party capacity.' },
@@ -63,41 +65,59 @@ const OWNER_VIEWS: { value: HazardOwnerView; label: string; hint: string }[] = [
  * HazardStatusPanel) because a component defined during render remounts its
  * children on every keystroke — and because the lint rule
  * react-hooks/static-components refuses it outright.
+ *
+ * `disabled` greys the row out but keeps it rendered, which is the convention
+ * RefDataModal already uses. The label stays at full `textMuted` strength while
+ * the buttons drop to `textFaint`: the point of leaving a dead control on screen
+ * is that you can still read what it is, so fading the word that names it would
+ * defeat the exercise. `textFaint` measures 3.5-4.1:1, which is the readable
+ * "inactive" band — deliberately not `textFaintest`, which at 1.9-2.2:1 is the
+ * one that turned out to be illegible on a real screen.
  */
 function SegmentedControl<T extends string>(
-  { label, options, value, onChange, t }: {
+  { label, options, value, onChange, t, disabled = false, disabledHint }: {
     label: string
     options: { value: T; label: string; hint: string }[]
     value: T
     onChange: (next: T) => void
     t: ReturnType<typeof useTheme>
+    disabled?: boolean
+    /** Why it is dead, shown on hover over the whole row. */
+    disabledHint?: string
   },
 ) {
   return (
-    <div style={{ marginBottom: 8 }}>
+    <div style={{ marginBottom: 8 }} title={disabled ? disabledHint : undefined}>
       <div style={{
         fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
         color: t.textMuted, marginBottom: 4,
       }}>
         {label}
       </div>
-      <div style={{ display: 'flex', border: `1px solid ${t.border}`, borderRadius: 5, overflow: 'hidden' }}>
+      <div style={{
+        display: 'flex', border: `1px solid ${t.border}`, borderRadius: 5, overflow: 'hidden',
+        opacity: disabled ? 0.55 : 1,
+      }}>
         {options.map((o, i) => {
           const active = value === o.value
+          let labelColor = t.textMuted
+          if (disabled) labelColor = t.textFaint
+          else if (active) labelColor = t.orange
           return (
             <button
               key={o.value}
               onClick={() => onChange(o.value)}
-              title={o.hint}
+              disabled={disabled}
+              title={disabled ? disabledHint : o.hint}
               aria-pressed={active}
               style={{
                 flex: 1, padding: '4px 2px', fontSize: 10, fontFamily: 'inherit',
                 fontWeight: active ? 700 : 500,
                 border: 'none',
                 borderRight: i === options.length - 1 ? 'none' : `1px solid ${t.border}`,
-                background: active ? t.orange + '2a' : 'transparent',
-                color: active ? t.orange : t.textMuted,
-                cursor: 'pointer',
+                background: active && !disabled ? t.orange + '2a' : 'transparent',
+                color: labelColor,
+                cursor: disabled ? 'default' : 'pointer',
               }}
             >
               {o.label}
@@ -172,18 +192,20 @@ export function HazardStatusPanel({ feed, loading, error, onRefresh, assetView, 
               />
 
               {/* Owner filter — narrows WHICH in-range assets are highlighted.
-                  Rendered only under "In range", because under "All" nothing is
-                  singled out and under "Hidden" nothing is drawn, so in both
-                  cases the control would sit there doing nothing. */}
-              {assetView === 'inRange' && (
-                <SegmentedControl
-                  label="Highlight"
-                  options={OWNER_VIEWS}
-                  value={ownerView}
-                  onChange={onOwnerViewChange}
-                  t={t}
-                />
-              )}
+                  Only meaningful under "In range" (under "All" nothing is singled
+                  out, under "Hidden" nothing is drawn), but it stays on screen
+                  greyed out rather than unmounting: a control that vanishes reads
+                  as a missing feature, and a browser holding an old "All" choice
+                  would otherwise never show this row at all. */}
+              <SegmentedControl
+                label="Highlight"
+                options={OWNER_VIEWS}
+                value={ownerView}
+                onChange={onOwnerViewChange}
+                t={t}
+                disabled={assetView !== 'inRange'}
+                disabledHint={'Only applies to the "In range" view — switch Network assets to In range to use it.'}
+              />
 
               {feed.sources.map(s => (
                 <div key={s.source} style={{ marginBottom: 5 }}>
