@@ -342,3 +342,66 @@ def coverage() -> dict[str, int]:
     """How much of the network has geometry — the honest headline for the UI."""
     links = active_links()
     return {"segments_with_kml": len(links)}
+
+
+def unreferenced_files() -> list[dict]:
+    """
+    Uploaded blobs that no segment version points at any more.
+
+    These accumulate honestly: `propose` stores every file it parses so that
+    `commit` can carry an index instead of re-uploading tens of MB, and a review
+    that is abandoned — or where only three of fifty paths were approved —
+    leaves the rest behind. Nothing is swept automatically, because "delete the
+    files nobody asked for" is exactly the kind of tidying that turns out to
+    have deleted something.
+    """
+    if _use_db():
+        with get_conn() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT f.id, f.filename, f.size_bytes, f.uploaded_at, f.uploaded_by, f.sha256"
+                " FROM kml_files f"
+                " LEFT JOIN segment_kml k ON k.file_id = f.id"
+                " WHERE k.id IS NULL"
+                " ORDER BY f.uploaded_at DESC NULLS LAST",
+            )
+            return [dict(r) for r in cur.fetchall()]
+
+    index = _read_index()
+    referenced = {l["file_id"] for l in index["links"]}
+    return [
+        {k: f.get(k) for k in ("id", "filename", "size_bytes", "uploaded_at", "uploaded_by", "sha256")}
+        for f in index["files"] if f["id"] not in referenced
+    ]
+
+
+def delete_file(file_id: str) -> bool:
+    """
+    Remove one stored blob. Returns False when it is still referenced.
+
+    The reference check is here rather than at the call site so the rule cannot
+    be bypassed: deleting a blob a version still points at would leave that
+    version undownloadable while still claiming to be the segment's route.
+    """
+    if _use_db():
+        with get_conn() as conn, conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM segment_kml WHERE file_id = %s LIMIT 1", (file_id,))
+            if cur.fetchone():
+                return False
+            cur.execute("DELETE FROM kml_files WHERE id = %s", (file_id,))
+            return cur.rowcount > 0
+
+    index = _read_index()
+    if any(l["file_id"] == file_id for l in index["links"]):
+        return False
+    rec = next((f for f in index["files"] if f["id"] == file_id), None)
+    if rec is None:
+        return False
+    index["files"] = [f for f in index["files"] if f["id"] != file_id]
+    # Only remove the blob when no OTHER record shares its checksum — the store
+    # is content-addressed, so two records can legitimately name one file.
+    if not any(f["sha256"] == rec["sha256"] for f in index["files"]):
+        path = KML_BLOB_DIR / f"{rec['sha256']}.bin"
+        if path.exists():
+            path.unlink()
+    _write_index(index)
+    return True

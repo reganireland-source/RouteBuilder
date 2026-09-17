@@ -16,6 +16,7 @@ import { SegmentInfoPanel } from './components/SegmentInfoPanel'
 // Lazy: the review table and its matcher types are only ever opened by an
 // admin importing files, so it has no business in the initial bundle.
 const KmlBulkImport = lazy(() => import('./components/KmlBulkImport').then(m => ({ default: m.KmlBulkImport })))
+const KmlLibrary = lazy(() => import('./components/KmlLibrary').then(m => ({ default: m.KmlLibrary })))
 import { NodeFinder } from './components/NodeFinder'
 import { CityPairPanel } from './components/CityPairPanel'
 import { HealthBar } from './components/HealthBar'
@@ -556,6 +557,7 @@ export default function App() {
   const [lastOptimiseFor, setLastOptimiseFor] = useState<string | undefined>(undefined)                   // remembers the "optimise for" objective of the last search
   const [selectedNode, setSelectedNode] = useState<{ node: CableNode; x: number; y: number } | null>(null) // node whose info popup is open (with click coords)
   const [kmlImportOpen, setKmlImportOpen] = useState(false)
+  const [kmlLibraryOpen, setKmlLibraryOpen] = useState(false)
   // Geometry being examined during an import — drawn over the network so the
   // cuts can be checked against it, and never stored. `key` is bumped per
   // request so re-previewing the same path still re-fits the map.
@@ -1584,6 +1586,11 @@ export default function App() {
                       // Admin-only: it writes. Hidden rather than disabled, the
                       // same call as the Network Editor tab — a review table a
                       // viewer can never act on has no read-only value.
+                      // The library is READ-ONLY for a viewer — coverage is
+                      // worth knowing whether or not you can change it — so
+                      // unlike Import it is not hidden. Rollback and delete
+                      // inside it are still admin-only.
+                      { label: 'KML Library', icon: '📚', onClick: () => { setKmlLibraryOpen(true); setCtrlMenuOpen(false) } },
                       ...(isAdmin ? [{ label: 'KML Import', icon: '🛰', onClick: () => { setKmlImportOpen(true); setCtrlMenuOpen(false) } }] : []),
                     ].map(item => (
                       <button
@@ -2097,6 +2104,16 @@ export default function App() {
           <KmlBulkImport
             segments={segments}
             onClose={() => { setKmlImportOpen(false); setKmlPreview({ lines: [], key: 0 }) }}
+            onDataChange={handleDataChange}
+            onPreview={lines => setKmlPreview(p => ({ lines, key: p.key + 1 }))}
+          />
+        </Suspense>
+      )}
+
+      {kmlLibraryOpen && (
+        <Suspense fallback={null}>
+          <KmlLibrary
+            onClose={() => { setKmlLibraryOpen(false); setKmlPreview({ lines: [], key: 0 }) }}
             onDataChange={handleDataChange}
             onPreview={lines => setKmlPreview(p => ({ lines, key: p.key + 1 }))}
           />

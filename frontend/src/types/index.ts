@@ -1006,3 +1006,64 @@ export interface KmlCommitResponse {
   failed: { file_id: string; segment_id: string; path_index: number; reason: string }[]
   summary: { linked: number; failed: number }
 }
+
+/** One segment that has a surveyed route on file. */
+export interface KmlLibraryLinked {
+  segment_id: string
+  name: string
+  system_id: string
+  type: SegmentType
+  link_id: string
+  version: number
+  kml_length_km: number | null
+  /** The segment's own length_km. Routing uses THIS, not the measured one. */
+  stored_length_km: number
+  point_count: number
+  a_end_gap_km: number | null
+  z_end_gap_km: number | null
+  created_at: string | null
+}
+
+/** A segment with no surveyed route — what the map is still approximating. */
+export interface KmlLibraryGap {
+  segment_id: string
+  name: string
+  system_id: string
+  type: SegmentType
+  waypoint_count: number
+}
+
+/** GET /api/kml/library. `orphans` are links whose segment no longer exists —
+ *  renamed or deleted after the KML was attached. */
+export interface KmlLibrary {
+  linked: KmlLibraryLinked[]
+  gaps: KmlLibraryGap[]
+  orphans: { segment_id: string; link_id: string; version: number }[]
+  summary: { segments_total: number; linked: number; gaps: number; orphans: number }
+}
+
+/** One upload in a segment's history. Exactly one per segment is `active`. */
+export interface KmlVersion {
+  id: string
+  segment_id: string
+  file_id: string
+  version: number
+  active: boolean
+  placemark_name: string
+  length_km: number | null
+  a_end_gap_km: number | null
+  z_end_gap_km: number | null
+  reversed: boolean
+  point_count: number
+  created_at: string | null
+  created_by: string | null
+  filename: string
+  size_bytes: number
+}
+
+/** GET /api/kml/unused-files — blobs left behind by abandoned reviews. */
+export interface KmlUnusedFiles {
+  files: { id: string; filename: string; size_bytes: number; uploaded_at: string | null; uploaded_by: string | null; sha256: string }[]
+  count: number
+  total_bytes: number
+}

@@ -37,7 +37,7 @@
  * requests). Request/response shapes are the interfaces in ../types.
  */
 
-import type { AppConfig, CableNode, KmlCommitResponse, KmlFullPath, KmlPathsResponse, KmlProposeResponse, KmlUploadResult, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, HazardFeed, NlpParseResponse, NoteCategory, OutageEventType, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
+import type { AppConfig, CableNode, KmlCommitResponse, KmlFullPath, KmlLibrary, KmlPathsResponse, KmlProposeResponse, KmlUnusedFiles, KmlUploadResult, KmlVersion, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, HazardFeed, NlpParseResponse, NoteCategory, OutageEventType, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
 
 // Backend origin baked in at build time. Empty string = same-origin (dev proxy).
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
@@ -343,8 +343,11 @@ export const api = {
   // ~39MB per page load to draw detail finer than a pixel.
   getKmlPaths:    () => get<KmlPathsResponse>('/api/kml/paths'),
   getKmlFullPath: (segmentId: string) => get<KmlFullPath>(`/api/kml/paths/${enc(segmentId)}`),
-  getKmlLibrary:  () => get<{ linked: unknown[]; gaps: unknown[]; orphans: unknown[]; summary: Record<string, number> }>('/api/kml/library'),
-  getKmlVersions: (segmentId: string) => get<{ segment_id: string; versions: Record<string, unknown>[] }>(`/api/kml/versions/${enc(segmentId)}`),
+  getKmlLibrary:  () => get<KmlLibrary>('/api/kml/library'),
+  getKmlVersions: (segmentId: string) => get<{ segment_id: string; versions: KmlVersion[] }>(`/api/kml/versions/${enc(segmentId)}`),
+  /** Blobs no version points at — abandoned reviews leave these behind. */
+  getKmlUnusedFiles: () => get<KmlUnusedFiles>('/api/kml/unused-files'),
+  deleteKmlUnusedFile: (fileId: string) => del(`/api/kml/unused-files/${enc(fileId)}`),
   /** Attach one KMZ/KML to one segment. Always creates a new version. A file
    *  holding several paths returns 409 with the candidates rather than guessing
    *  — guessing would attach a neighbouring cable and look entirely plausible. */

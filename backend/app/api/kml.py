@@ -30,6 +30,8 @@ Endpoints:
   POST   /api/kml/activate/{link_id}       roll back to a stored version
   DELETE /api/kml/link/{link_id}           remove one version
   GET    /api/kml/download/{link_id}       the original file, byte for byte
+  GET    /api/kml/unused-files             blobs no version points at
+  DELETE /api/kml/unused-files/{file_id}   remove one unreferenced blob
 
 Writes are covered by admin_write_guard in main.py, which gates every
 POST/PUT/DELETE — there is no separate auth here by design, so the rule stays in
@@ -639,3 +641,44 @@ def bulk_commit(payload: dict):
     log.info("KML bulk commit: %d linked, %d failed", len(linked), len(failed))
     return {"linked": linked, "failed": failed,
             "summary": {"linked": len(linked), "failed": len(failed)}}
+
+
+@router.get("/unused-files")
+def list_unused_files():
+    """
+    GET /api/kml/unused-files — uploaded blobs no version points at.
+
+    These accumulate honestly: propose stores every file it parses so commit can
+    carry an index rather than re-uploading, so an abandoned review — or one
+    where three of fifty paths were approved — leaves the rest behind. Listed
+    rather than swept, because deleting what nobody asked about is how you lose
+    the one file someone meant to come back to.
+
+    Auth: public read (it is a list of names and sizes, not content).
+    """
+    files = store.unreferenced_files()
+    return {
+        "files": files,
+        "count": len(files),
+        "total_bytes": sum(f.get("size_bytes") or 0 for f in files),
+    }
+
+
+@router.delete("/unused-files/{file_id}")
+def delete_unused_file(file_id: str):
+    """
+    DELETE /api/kml/unused-files/{file_id} — remove one unreferenced blob.
+
+    Refuses if a version still points at it. That check lives in the store, not
+    here, so it cannot be bypassed by a second caller: deleting a referenced
+    blob would leave a version undownloadable while still claiming to be the
+    segment's surveyed route.
+
+    Auth: admin.
+    """
+    if not store.delete_file(file_id):
+        raise HTTPException(
+            status_code=409,
+            detail="That file is still attached to a segment version, or no longer exists.",
+        )
+    return {"deleted": file_id}
