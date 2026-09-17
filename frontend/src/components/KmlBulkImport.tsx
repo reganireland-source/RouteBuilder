@@ -241,6 +241,15 @@ function ReviewRow({
           {p.folder && ` · ${p.folder}`}
           {' · '}{p.point_count.toLocaleString()} pts
         </div>
+        {/* Say when a row is several of the file's LineStrings put
+            back together. Otherwise "1,000 pts" from a file the
+            reviewer knows holds fifty placemarks reads as the
+            importer having lost most of it. */}
+        {p.fragment_count > 1 && (
+          <div style={{ fontSize: 10, color: t.green, marginTop: 2 }}>
+            ⛓ joined from {p.fragment_count} fragments in the file
+          </div>
+        )}
         {/* Say plainly when a row is only part of a file. One
             trace cut into three is three rows, and a reviewer
             who does not know that will read them as three

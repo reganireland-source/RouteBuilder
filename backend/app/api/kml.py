@@ -52,6 +52,7 @@ from ..kml.matcher import (
     segment_tokens_for,
     tokenise,
 )
+from ..kml.joiner import merge_fragments
 from ..kml.parser import KmlParseError, parse_upload
 from ..kml.splitter import split_path
 
@@ -216,27 +217,34 @@ async def upload_kml(
     except KmlParseError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    if len(parsed.paths) > 1 and not placemark:
+    # Fragments are reassembled here too, for the same reason as in bulk: a file
+    # an exporter chopped into fifty runs is ONE cable, and offering fifty
+    # candidates would be describing the export rather than the network. After
+    # merging, a file that still holds several paths genuinely holds several.
+    merged = _merged_paths(parsed)
+
+    if len(merged) > 1 and not placemark:
         raise HTTPException(
             status_code=409,
             detail={
                 "message": (
-                    f"This file contains {len(parsed.paths)} paths. Choose which one belongs "
+                    f"This file contains {len(merged)} separate paths. Choose which one belongs "
                     f"to {segment_id}, or use bulk upload to match them all at once."
                 ),
                 "candidates": [
-                    {"index": i, "name": p.name, "folder": p.folder, "points": len(p.coords)}
-                    for i, p in enumerate(parsed.paths)
+                    {"index": i, "name": p.name, "folder": p.folder,
+                     "points": len(p.coords), "fragments": p.fragment_count}
+                    for i, p in enumerate(merged)
                 ],
             },
         )
 
     if placemark:
-        chosen = next((p for p in parsed.paths if p.name == placemark), None)
+        chosen = next((p for p in merged if p.name == placemark), None)
         if chosen is None:
             raise HTTPException(status_code=404, detail=f"No path named {placemark!r} in this file")
     else:
-        chosen = parsed.paths[0]
+        chosen = merged[0]
 
     nodes = load_nodes()
     geometry = build_geometry(
@@ -271,7 +279,8 @@ async def upload_kml(
         "reversed": row["reversed"],
         "needs_review": geometry.needs_review,
         "points_stored": len(points),
-        "paths_in_file": len(parsed.paths),
+        "paths_in_file": len(merged),
+        "fragments_merged": chosen.fragment_count,
     }
 
 
@@ -361,8 +370,28 @@ MAX_FILES_PER_BATCH = 25
 PREVIEW_POINT_BUDGET = 100
 
 
+def _merged_paths(parsed):
+    """The reviewable paths in a file, after fragments are reassembled.
+
+    THE PIPELINE IS parse → join → split → match, and this is the join. Some
+    exporters write a cable as one LineString per survey run or chart sheet, so
+    a single segment can arrive as fifty placemarks in no order with half of
+    them drawn backwards. Matching those individually gives fifty rows all
+    claiming the same segment and none of them scoring.
+
+    Both propose and commit call this, so a path index always means the same
+    thing. Deriving it rather than carrying merged geometry through the request
+    is what keeps the two steps in agreement.
+    """
+    return merge_fragments(
+        [p.coords for p in parsed.paths],
+        names=[p.name for p in parsed.paths],
+        folders=[p.folder for p in parsed.paths],
+    )
+
+
 def _proposal_dict(
-    file_id, filename, path_index, path, parsed, *, coords, candidates,
+    file_id, filename, path_index, path, path_count, *, coords, candidates,
     piece_index=None, piece_count=None, piece_nodes=None,
 ):
     """One reviewable row, whether it is a whole path or a slice of one.
@@ -384,7 +413,7 @@ def _proposal_dict(
         "path_name": path.name,
         "folder": path.folder,
         "point_count": len(coords),
-        "paths_in_file": len(parsed.paths),
+        "paths_in_file": path_count,
         # Set only when this row is a slice of a longer trace. commit needs
         # both to cut the same way again; the UI needs them to say so.
         "piece_index": piece_index,
@@ -392,6 +421,10 @@ def _proposal_dict(
         "piece_start_node": piece_nodes[0] if piece_nodes else None,
         "piece_end_node": piece_nodes[1] if piece_nodes else None,
         "preview_path": simplify_path(coords, PREVIEW_POINT_BUDGET),
+        # How many of the file's LineStrings were reassembled into this path.
+        # 1 means it arrived whole; 50 means the exporter had chopped it up and
+        # the importer put it back together, which the reviewer should be told.
+        "fragment_count": getattr(path, "fragment_count", 1),
         "ambiguous": proposal.ambiguous,
         "auto_acceptable": proposal.auto_acceptable,
         "candidates": [vars(c) for c in proposal.candidates],
@@ -436,7 +469,8 @@ async def bulk_propose(files: list[UploadFile] = File(...)):
             continue
 
         file_id = store.put_file(data, name)
-        for index, path in enumerate(parsed.paths):
+        merged = _merged_paths(parsed)
+        for index, path in enumerate(merged):
             # ONE LINESTRING MAY COVER SEVERAL SEGMENTS. A file is often a
             # single unbroken trace of a whole cable — Singapore to Mumbai to
             # Dubai to London — while the network models that as three
@@ -454,7 +488,7 @@ async def bulk_propose(files: list[UploadFile] = File(...)):
                     # valid and only the ranking can say which are plausible.
                     tokens = tokenise(name, path.name, path.folder, parsed.document_name)
                     proposals.append(_proposal_dict(
-                        file_id, name, index, path, parsed,
+                        file_id, name, index, path, len(merged),
                         coords=piece.coords,
                         candidates=rank_candidates(
                             piece.coords, tokens, segments, nodes_by_id, seg_tokens, linked_ids,
@@ -466,7 +500,7 @@ async def bulk_propose(files: list[UploadFile] = File(...)):
 
             tokens = tokenise(name, path.name, path.folder, parsed.document_name)
             proposals.append(_proposal_dict(
-                file_id, name, index, path, parsed,
+                file_id, name, index, path, len(merged),
                 coords=path.coords,
                 candidates=rank_candidates(
                     path.coords, tokens, segments, nodes_by_id, seg_tokens, linked_ids,
@@ -544,9 +578,18 @@ def bulk_commit(payload: dict):
                 parsed_cache[file_id] = parse_upload(got[0], got[1])
             parsed = parsed_cache[file_id]
 
-            if index >= len(parsed.paths):
-                raise ValueError(f"File has {len(parsed.paths)} paths; asked for index {index}")
-            path = parsed.paths[index]
+            # SAME JOIN AS propose. The path index refers to a MERGED path, so
+            # commit has to reassemble the fragments the same way before it can
+            # look one up — re-derived from the file rather than carried through
+            # the request, so the two steps cannot disagree about what index 3
+            # means.
+            merged = _merged_paths(parsed)
+            if index >= len(merged):
+                raise ValueError(
+                    f"File now yields {len(merged)} paths; asked for index {index}. "
+                    "Re-run the import."
+                )
+            path = merged[index]
 
             # A row may be one SLICE of a longer trace. The cut is recomputed
             # from the file rather than the coordinates being carried through

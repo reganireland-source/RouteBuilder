@@ -940,6 +940,10 @@ export interface KmlProposal {
   piece_count: number | null
   piece_start_node: string | null
   piece_end_node: string | null
+  /** How many of the file's LineStrings were reassembled into this path. 1 means
+   *  it arrived whole; 50 means an exporter had chopped one cable into fifty
+   *  runs and the importer put it back together. */
+  fragment_count: number
   /** Simplified geometry for drawing this proposal on the real map before
    *  anything is attached. For a split file, seeing the pieces in place is the
    *  only way to judge whether the cuts landed where the cable actually joins. */
