@@ -53,6 +53,7 @@ from ..kml.matcher import (
     tokenise,
 )
 from ..kml.parser import KmlParseError, parse_upload
+from ..kml.splitter import split_path
 
 log = logging.getLogger("routebuilder.kml")
 
@@ -354,6 +355,36 @@ def _file_id_for_link(link_id: str):
 MAX_FILES_PER_BATCH = 25
 
 
+def _proposal_dict(
+    file_id, filename, path_index, path, parsed, *, coords, candidates,
+    piece_index=None, piece_count=None, piece_nodes=None,
+):
+    """One reviewable row, whether it is a whole path or a slice of one."""
+    proposal = PathProposal(
+        file_id=file_id, filename=filename, path_index=path_index,
+        path_name=path.name, folder=path.folder, point_count=len(coords),
+        candidates=candidates,
+    )
+    return {
+        "file_id": file_id,
+        "filename": filename,
+        "path_index": path_index,
+        "path_name": path.name,
+        "folder": path.folder,
+        "point_count": len(coords),
+        "paths_in_file": len(parsed.paths),
+        # Set only when this row is a slice of a longer trace. commit needs
+        # both to cut the same way again; the UI needs them to say so.
+        "piece_index": piece_index,
+        "piece_count": piece_count,
+        "piece_start_node": piece_nodes[0] if piece_nodes else None,
+        "piece_end_node": piece_nodes[1] if piece_nodes else None,
+        "ambiguous": proposal.ambiguous,
+        "auto_acceptable": proposal.auto_acceptable,
+        "candidates": [vars(c) for c in proposal.candidates],
+    }
+
+
 @router.post("/bulk/propose")
 async def bulk_propose(files: list[UploadFile] = File(...)):
     """
@@ -393,27 +424,41 @@ async def bulk_propose(files: list[UploadFile] = File(...)):
 
         file_id = store.put_file(data, name)
         for index, path in enumerate(parsed.paths):
+            # ONE LINESTRING MAY COVER SEVERAL SEGMENTS. A file is often a
+            # single unbroken trace of a whole cable — Singapore to Mumbai to
+            # Dubai to London — while the network models that as three
+            # segments. split_path cuts it at the nodes it genuinely passes,
+            # but only where every hop is a segment that already exists; when
+            # it cannot do that honestly it returns None and the path is
+            # matched whole, exactly as before.
+            pieces = split_path(path.coords, list(nodes_by_id.values()), segments)
+
+            if pieces:
+                for piece_no, piece in enumerate(pieces):
+                    # Each piece is scored from scratch rather than trusting the
+                    # segment that justified the cut: where parallel cables run
+                    # between the same two stations, any of them makes the hop
+                    # valid and only the ranking can say which are plausible.
+                    tokens = tokenise(name, path.name, path.folder, parsed.document_name)
+                    proposals.append(_proposal_dict(
+                        file_id, name, index, path, parsed,
+                        coords=piece.coords,
+                        candidates=rank_candidates(
+                            piece.coords, tokens, segments, nodes_by_id, seg_tokens, linked_ids,
+                        ),
+                        piece_index=piece_no, piece_count=len(pieces),
+                        piece_nodes=(piece.start_node_id, piece.end_node_id),
+                    ))
+                continue
+
             tokens = tokenise(name, path.name, path.folder, parsed.document_name)
-            candidates = rank_candidates(
-                path.coords, tokens, segments, nodes_by_id, seg_tokens, linked_ids,
-            )
-            proposal = PathProposal(
-                file_id=file_id, filename=name, path_index=index,
-                path_name=path.name, folder=path.folder, point_count=len(path.coords),
-                candidates=candidates,
-            )
-            proposals.append({
-                "file_id": proposal.file_id,
-                "filename": proposal.filename,
-                "path_index": proposal.path_index,
-                "path_name": proposal.path_name,
-                "folder": proposal.folder,
-                "point_count": proposal.point_count,
-                "paths_in_file": len(parsed.paths),
-                "ambiguous": proposal.ambiguous,
-                "auto_acceptable": proposal.auto_acceptable,
-                "candidates": [vars(c) for c in proposal.candidates],
-            })
+            proposals.append(_proposal_dict(
+                file_id, name, index, path, parsed,
+                coords=path.coords,
+                candidates=rank_candidates(
+                    path.coords, tokens, segments, nodes_by_id, seg_tokens, linked_ids,
+                ),
+            ))
 
     # Rebuilt as PathProposal only to reuse the conflict logic on the same data.
     conflicts = resolve_conflicts([
@@ -462,7 +507,9 @@ def bulk_commit(payload: dict):
     if not isinstance(accepted, list):
         raise HTTPException(status_code=422, detail="'accepted' must be a list")
 
-    segments = {s.id: s for s in load_segments()}
+    segment_list = load_segments()
+    segments = {s.id: s for s in segment_list}
+    seg_dicts = [s.model_dump() for s in segment_list]
     nodes = load_nodes()
     linked: list[dict] = []
     failed: list[dict] = []
@@ -488,8 +535,26 @@ def bulk_commit(payload: dict):
                 raise ValueError(f"File has {len(parsed.paths)} paths; asked for index {index}")
             path = parsed.paths[index]
 
+            # A row may be one SLICE of a longer trace. The cut is recomputed
+            # from the file rather than the coordinates being carried through
+            # the request: the file is the source of truth for what a piece
+            # index means, and re-deriving it means propose and commit cannot
+            # disagree about where the joins are.
+            coords = path.coords
+            piece_index = entry.get("piece_index")
+            if piece_index is not None:
+                pieces = split_path(coords, [n.model_dump() for n in nodes], seg_dicts)
+                if not pieces:
+                    raise ValueError(
+                        "This path no longer splits into segments — the network may have "
+                        "changed since it was proposed. Re-run the import."
+                    )
+                if piece_index >= len(pieces):
+                    raise ValueError(f"Path splits into {len(pieces)} pieces; asked for {piece_index}")
+                coords = pieces[piece_index].coords
+
             geometry = build_geometry(
-                path.coords,
+                coords,
                 _node_latlng(nodes, segment.start_node_id),
                 _node_latlng(nodes, segment.end_node_id),
             )
@@ -503,6 +568,7 @@ def bulk_commit(payload: dict):
             )
             linked.append({
                 "segment_id": segment_id,
+                "piece_index": piece_index,
                 "link_id": row["id"],
                 "version": row["version"],
                 "length_km": row["length_km"],

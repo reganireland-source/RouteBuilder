@@ -88,7 +88,7 @@ export function KmlBulkImport({ segments, onClose, onDataChange }: Props) {
   )
 
   /** Stable per-row key: a file may contribute several paths. */
-  const rowKey = (p: KmlProposal) => `${p.file_id}:${p.path_index}`
+  const rowKey = (p: KmlProposal) => `${p.file_id}:${p.path_index}:${p.piece_index ?? 'whole'}`
 
   async function pickFiles(files: File[]) {
     if (!files.length) return
@@ -155,6 +155,7 @@ export function KmlBulkImport({ segments, onClose, onDataChange }: Props) {
         .map(p => ({
           file_id: p.file_id,
           path_index: p.path_index,
+          piece_index: p.piece_index,
           segment_id: decisions[rowKey(p)].segmentId,
         }))
       setResult(await api.commitKmlBatch(accepted))
@@ -364,6 +365,17 @@ export function KmlBulkImport({ segments, onClose, onDataChange }: Props) {
                           {p.folder && ` · ${p.folder}`}
                           {' · '}{p.point_count.toLocaleString()} pts
                         </div>
+                        {/* Say plainly when a row is only part of a file. One
+                            trace cut into three is three rows, and a reviewer
+                            who does not know that will read them as three
+                            separate files and wonder where they came from. */}
+                        {p.piece_index !== null && (
+                          <div style={{ fontSize: 10, color: t.blue, marginTop: 2 }}>
+                            ✂ split piece {p.piece_index + 1} of {p.piece_count}
+                            {p.piece_start_node && p.piece_end_node &&
+                              ` · ${p.piece_start_node} → ${p.piece_end_node}`}
+                          </div>
+                        )}
                       </td>
                       <td style={cell}>
                         <select

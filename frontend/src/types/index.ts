@@ -933,6 +933,13 @@ export interface KmlProposal {
   filename: string
   /** Which path within the file — a whole-system KMZ yields several. */
   path_index: number
+  /** Set when this row is one SLICE of a longer trace: a single LineString
+   *  running Singapore→Mumbai→Dubai→London is cut at the nodes it passes and
+   *  each piece reviewed separately. null when the path is matched whole. */
+  piece_index: number | null
+  piece_count: number | null
+  piece_start_node: string | null
+  piece_end_node: string | null
   path_name: string
   folder: string | null
   point_count: number

@@ -363,7 +363,7 @@ export const api = {
     return uploadForm<KmlProposeResponse>('/api/kml/bulk/propose', form)
   },
   /** Attach the approved matches. Each becomes a new version on its segment. */
-  commitKmlBatch: (accepted: { file_id: string; path_index: number; segment_id: string }[]) =>
+  commitKmlBatch: (accepted: { file_id: string; path_index: number; segment_id: string; piece_index?: number | null }[]) =>
     post<KmlCommitResponse>('/api/kml/bulk/commit', { accepted }),
   activateKml:    (linkId: string) => post<{ segment_id: string }>(`/api/kml/activate/${enc(linkId)}`, {}),
   deleteKml:      (linkId: string) => del(`/api/kml/link/${enc(linkId)}`),
