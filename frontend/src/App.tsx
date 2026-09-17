@@ -1981,6 +1981,7 @@ export default function App() {
               onNodeClick={mode === 'routemanual' ? undefined : (node, x, y) => setSelectedNode({ node, x, y })}
               onSegmentClick={mode === 'routemanual' ? undefined : (segment, x, y) => setSelectedSegment({ segment, x, y })}
               selectedSegmentId={selectedSegment?.segment.id ?? null}
+              controlsOpen={ctrlMenuOpen}
               searchPin={searchPin ?? undefined}
               nearestNodeIds={nearestNodeIds}
               hideNonActive={hideNonActive}

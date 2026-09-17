@@ -705,6 +705,7 @@ export function MobileLayout({
             onNodeClick={mode === 'routemanual' && onManualNodeClick ? onManualNodeClick : onNodeClick}
             onSegmentClick={mode === 'routemanual' ? undefined : onSegmentClick}
             selectedSegmentId={selectedSegment?.segment.id ?? null}
+            controlsOpen={drawerOpen}
             flyToNode={flyToNode}
             fitBounds={fitBounds}
             spotlightNodeId={spotlightNodeId}

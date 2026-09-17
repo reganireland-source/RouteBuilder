@@ -43,6 +43,61 @@ interface Props {
   onOwnerViewChange: (next: HazardOwnerView) => void
   /** Narrow viewport — the panel shrinks and starts collapsed. */
   narrow?: boolean
+  /** The top-right Controls menu is open. Both live in the same corner, so the
+   *  panel gets out of its way — see CONTROLS_CLEARANCE. */
+  controlsOpen?: boolean
+}
+
+/**
+ * How far the panel slides left to clear the desktop Controls menu.
+ *
+ * The menu button sits at right:12 and its dropdown is 240 wide, so together
+ * they own the first 252px in from the right edge; +10 leaves a visible gap
+ * rather than butting the two panels together.
+ *
+ * This is measured against the VIEWPORT, which is why the panel is positioned
+ * `fixed` rather than `absolute`. The map is flush to the top and right edges at
+ * every width (verified from 390px to 2560px), so fixed puts the resting panel
+ * in exactly the same place absolute did — but it also lets the panel slide left
+ * over the results column instead of being clipped by the map's own bounds. The
+ * map is only 287px wide at a 1280px window and 507px at 1500px, so an
+ * absolutely-positioned slide had nowhere near enough room: it clipped by 237px
+ * and 17px respectively.
+ */
+const CONTROLS_CLEARANCE = 262
+
+/**
+ * The floating card's own box. Module-level so the two Controls-menu rules
+ * below stay readable next to each other rather than as more branches inside an
+ * already long component.
+ *
+ * On a phone there is nowhere to slide TO: the drawer is 220px wide and the
+ * panel 210px, which cannot sit side by side in 390px. So a narrow viewport
+ * fades the panel out for as long as the drawer is open instead of moving it,
+ * and it comes straight back when the drawer closes.
+ */
+function panelShell(
+  { t, narrow, controlsOpen, warn }:
+  { t: ReturnType<typeof useTheme>; narrow: boolean; controlsOpen: boolean; warn: boolean },
+): React.CSSProperties {
+  const slideAside = controlsOpen && !narrow
+  const hideBehindDrawer = controlsOpen && narrow
+  return {
+    position: 'fixed',
+    top: narrow ? 100 : 62,
+    right: slideAside ? CONTROLS_CLEARANCE : 12,
+    opacity: hideBehindDrawer ? 0 : 1,
+    pointerEvents: hideBehindDrawer ? 'none' : 'auto',
+    transition: 'right 220ms cubic-bezier(.4, 0, .2, 1), opacity 160ms ease',
+    zIndex: 1000,
+    width: narrow ? 210 : 260,
+    background: t.bgPanel,
+    border: `1px solid ${warn ? t.orange : t.border}`,
+    borderRadius: 8,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+    fontFamily: 'system-ui, sans-serif',
+    overflow: 'hidden',
+  }
 }
 
 /** The three ways to draw the network underneath the hazards. */
@@ -129,26 +184,14 @@ function SegmentedControl<T extends string>(
   )
 }
 
-export function HazardStatusPanel({ feed, loading, error, onRefresh, assetView, onAssetViewChange, ownerView, onOwnerViewChange, narrow = false }: Props) {
+export function HazardStatusPanel({ feed, loading, error, onRefresh, assetView, onAssetViewChange, ownerView, onOwnerViewChange, narrow = false, controlsOpen = false }: Props) {
   const t = useTheme()
   const [open, setOpen] = useState(!narrow)
 
   const relevant = feed ? feed.hazards.filter(h => h.affected.length > 0).length : 0
   const total = feed?.hazards.length ?? 0
 
-  const shell: React.CSSProperties = {
-    position: 'absolute',
-    top: narrow ? 100 : 62,
-    right: 12,
-    zIndex: 1000,
-    width: narrow ? 210 : 260,
-    background: t.bgPanel,
-    border: `1px solid ${feed?.degraded || error ? t.orange : t.border}`,
-    borderRadius: 8,
-    boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
-    fontFamily: 'system-ui, sans-serif',
-    overflow: 'hidden',
-  }
+  const shell = panelShell({ t, narrow, controlsOpen, warn: !!feed?.degraded || !!error })
 
   return (
     <div style={shell}>
