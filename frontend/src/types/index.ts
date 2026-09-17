@@ -836,3 +836,77 @@ export interface HazardFeed {
   /** True when at least one source failed — drives the degraded banner. */
   degraded: boolean
 }
+
+/**
+ * ── KML / KMZ cable route geometry ──────────────────────────────────────────
+ *
+ * A segment's path as surveyed, uploaded from a KMZ/KML, replacing the
+ * hand-placed `waypoints` approximation where one exists.
+ *
+ * TWO RESOLUTIONS, AND THE SPLIT IS THE WHOLE DESIGN. The app fetches every
+ * segment at boot; that payload is ~180KB today because waypoints are a median
+ * of two points per segment. A surveyed route carries thousands of points for
+ * ONE segment, so shipping full resolution for all 322 would be ~39MB per page
+ * load to draw detail finer than a pixel. So `display_path` (simplified to 150
+ * points, measured at 0.16px of error at world zoom) rides along for the
+ * overview, and the full path is fetched per segment on demand.
+ */
+export interface KmlPathInfo {
+  link_id: string
+  version: number
+  /** Simplified path, [[lat, lng], ...] — what the overview map draws. */
+  display_path: [number, number][]
+  /** Length measured along the FULL path, not this simplified one. */
+  length_km: number | null
+  /** Points in the full path — how much detail is waiting behind the on-demand fetch. */
+  point_count: number
+  /** How far each end sits from its node. A KML legitimately stops at the beach
+   *  manhole rather than inside the station, so a few km is normal. */
+  a_end_gap_km: number | null
+  z_end_gap_km: number | null
+  /** The file was drawn Z→A and was turned round on import. */
+  reversed: boolean
+  /** Placemark points carried by the file (BMH, repeaters). Stored, not drawn. */
+  point_markers: number
+}
+
+/** GET /api/kml/paths — every segment's simplified path, keyed by segment id. */
+export interface KmlPathsResponse {
+  paths: Record<string, KmlPathInfo>
+  count: number
+  display_point_budget: number
+}
+
+/** GET /api/kml/paths/{id} — one segment's full-resolution path. */
+export interface KmlFullPath {
+  segment_id: string
+  link_id: string
+  version: number
+  full_path: [number, number][]
+  points: { name: string; lat: number; lng: number; folder: string | null }[]
+  length_km: number | null
+  point_count: number
+  a_end_gap_km: number | null
+  z_end_gap_km: number | null
+  reversed: boolean
+}
+
+/** What POST /api/kml/upload reports back about one attached file. */
+export interface KmlUploadResult {
+  segment_id: string
+  link_id: string
+  version: number
+  placemark_name: string
+  length_km: number | null
+  /** The segment's stored length_km, for the data-quality comparison. Routing
+   *  keeps using the stored value — the KML never changes it. */
+  stored_length_km: number
+  point_count: number
+  display_point_count: number
+  a_end_gap_km: number | null
+  z_end_gap_km: number | null
+  reversed: boolean
+  needs_review: boolean
+  points_stored: number
+  paths_in_file: number
+}

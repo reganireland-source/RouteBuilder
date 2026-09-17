@@ -354,6 +354,60 @@ CREATE TABLE IF NOT EXISTS note_categories (
     applies_to  TEXT NOT NULL DEFAULT 'node',
     order_num   INTEGER NOT NULL DEFAULT 0
 );
+
+-- ── KML / KMZ cable route geometry ──────────────────────────────────────────
+-- Relational, not the JSONB document shape used above, for the same reason
+-- solution_notes was converted in m055: these rows are queried and updated
+-- field by field (activate one version, list gaps, look up by checksum), and a
+-- KMZ blob has no business inside a document that the whole app deserialises.
+--
+-- kml_files holds the uploaded bytes ONCE, keyed by sha256, so re-uploading the
+-- same file or matching one file to several segments does not store it twice.
+--
+-- NOT ENCRYPTED AT THE APPLICATION LAYER, deliberately. Railway's managed
+-- Postgres encrypts the underlying volume, which covers the physical media.
+-- Be clear about what that does NOT cover: a database dump, a leaked
+-- connection string, or a snapshot restored elsewhere all yield readable
+-- routes, because the server decrypts transparently for anyone who can
+-- connect. If cable routes ever need protecting against those, the fix is
+-- app-layer AES-GCM on kml_files.blob with a key outside the database — the
+-- schema is already shaped for it, since only that one column would change.
+CREATE TABLE IF NOT EXISTS kml_files (
+    id            TEXT PRIMARY KEY,
+    sha256        TEXT NOT NULL UNIQUE,
+    filename      TEXT NOT NULL DEFAULT '',
+    size_bytes    INTEGER NOT NULL DEFAULT 0,
+    blob          BYTEA NOT NULL,
+    uploaded_at   TEXT,
+    uploaded_by   TEXT
+);
+
+-- One row per (segment, version). Exactly one may be active per segment; that
+-- is enforced by a partial unique index rather than by application code, so a
+-- half-finished activate cannot leave two versions drawn at once.
+CREATE TABLE IF NOT EXISTS segment_kml (
+    id             TEXT PRIMARY KEY,
+    segment_id     TEXT NOT NULL,
+    file_id        TEXT NOT NULL REFERENCES kml_files(id) ON DELETE CASCADE,
+    version        INTEGER NOT NULL DEFAULT 1,
+    active         BOOLEAN NOT NULL DEFAULT TRUE,
+    placemark_name TEXT NOT NULL DEFAULT '',
+    display_path   JSONB NOT NULL,
+    full_path      JSONB NOT NULL,
+    points         JSONB,
+    length_km      REAL,
+    a_end_gap_km   REAL,
+    z_end_gap_km   REAL,
+    reversed       BOOLEAN NOT NULL DEFAULT FALSE,
+    point_count    INTEGER NOT NULL DEFAULT 0,
+    created_at     TEXT,
+    created_by     TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS segment_kml_one_active
+    ON segment_kml (segment_id) WHERE active;
+CREATE UNIQUE INDEX IF NOT EXISTS segment_kml_version
+    ON segment_kml (segment_id, version);
+CREATE INDEX IF NOT EXISTS segment_kml_by_segment ON segment_kml (segment_id);
 """
 
 # Default rows for the "interfaces" reference table (physical handoff types a

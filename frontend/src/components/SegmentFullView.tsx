@@ -54,7 +54,7 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import type {
   CableNode, CableSegment, CableSystem, SegmentCapacity, SegmentOutage,
-  SolutionNote, NoteCategory, SegmentType, Ownership, RfsStatus, EolStatus,
+  SolutionNote, NoteCategory, SegmentType, Ownership, RfsStatus, EolStatus, KmlPathInfo,
 } from '../types'
 import { useTheme } from '../theme'
 import { useAuth } from '../context/AuthContext'
@@ -68,6 +68,7 @@ import {
 import { SegmentPathDiagram } from './SegmentPathDiagram'
 import { EntityNotesPanel } from './EntityNotesPanel'
 import { HazardsNearbyCard } from './HazardsNearbyCard'
+import { SegmentKmlCard } from './SegmentKmlCard'
 import { useHazardsFor } from '../context/HazardContext'
 import { NodeFullView } from './NodeFullView'
 import {
@@ -115,6 +116,8 @@ interface Props {
   systems: CableSystem[]
   capacity: SegmentCapacity[]
   outages?: SegmentOutage[]
+  /** Surveyed routes on file, keyed by segment id. */
+  kmlPaths?: Record<string, KmlPathInfo>
   notes?: SolutionNote[]
   noteCategories?: NoteCategory[]
   onClose: () => void
@@ -126,7 +129,7 @@ interface Props {
 
 export function SegmentFullView({
   segmentId, nodes, segments, systems, capacity, outages = [], notes, noteCategories,
-  onClose, onDataChange, zIndex = Z_FULL_VIEW_BASE,
+  onClose, onDataChange, kmlPaths, zIndex = Z_FULL_VIEW_BASE,
 }: Props) {
   const t = useTheme()
   const { isAdmin } = useAuth()
@@ -216,6 +219,8 @@ export function SegmentFullView({
               onNavigateSegment={navigateTo}
               onSaved={() => { setEditing(false); onDataChange?.() }}
               onCancelEdit={() => setEditing(false)}
+              kmlPaths={kmlPaths}
+              onDataChange={onDataChange}
             />
           ) : (
             <NotFound t={t} what="segment" id={current} />
@@ -337,7 +342,7 @@ function SegmentHeader({ t, phone, segment, current, nodesById, backTo, canEdit,
 
 function SegmentBody({
   t, segment, nodesById, segments, systems, capacity, outages, notes, noteCategories,
-  editing, onOpenNode, onNavigateSegment, onSaved, onCancelEdit,
+  editing, onOpenNode, onNavigateSegment, onSaved, onCancelEdit, kmlPaths, onDataChange,
 }: {
   t: T
   segment: CableSegment
@@ -353,6 +358,8 @@ function SegmentBody({
   onNavigateSegment: (id: string) => void
   onSaved: () => void
   onCancelEdit: () => void
+  kmlPaths?: Record<string, KmlPathInfo>
+  onDataChange?: () => void
 }) {
   const { phone, landscape } = useLayout()
 
@@ -401,6 +408,9 @@ function SegmentBody({
       <div style={{ height: 8 }} />
       <EndpointRow t={t} role="Z-End" node={end} fallbackId={segment.end_node_id} onOpen={onOpenNode} />
     </Card>
+  )
+  const kmlCard = (
+    <SegmentKmlCard key="kml" t={t} segment={segment} info={kmlPaths?.[segment.id]} onUploaded={onDataChange} />
   )
   const geometryCard = (
     <Card key="geometry" t={t} title="Path Geometry" grow>
@@ -455,7 +465,7 @@ function SegmentBody({
             collapsed to a sliver. */}
         <div style={row}>{diagramCard}</div>
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-          <FullViewColumn>{[identityCard, endpointsCard, geometryCard]}</FullViewColumn>
+          <FullViewColumn>{[identityCard, endpointsCard, geometryCard, kmlCard]}</FullViewColumn>
           <FullViewColumn>{[metricsCard, capacityCard, lifecycleCard, hazardsCard, parallelCard, outagesCard, notesCard]}</FullViewColumn>
         </div>
       </div>
@@ -467,6 +477,7 @@ function SegmentBody({
     <div style={{ ...scroller, display: 'flex', flexDirection: 'column', gap: phone ? 12 : 16 }}>
       <div style={row}>{diagramCard}</div>
       <div style={row}>{identityCard}{endpointsCard}</div>
+      <div style={row}>{kmlCard}</div>
       <div style={row}>{metricsCard}{capacityCard}</div>
       <div style={row}>{geometryCard}{lifecycleCard}</div>
       <div style={row}>{hazardsCard}</div>

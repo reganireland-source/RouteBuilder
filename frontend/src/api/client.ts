@@ -37,7 +37,7 @@
  * requests). Request/response shapes are the interfaces in ../types.
  */
 
-import type { AppConfig, CableNode, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, HazardFeed, NlpParseResponse, NoteCategory, OutageEventType, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
+import type { AppConfig, CableNode, KmlFullPath, KmlPathsResponse, KmlUploadResult, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, HazardFeed, NlpParseResponse, NoteCategory, OutageEventType, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
 
 // Backend origin baked in at build time. Empty string = same-origin (dev proxy).
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
@@ -138,6 +138,20 @@ async function delJson<T>(path: string): Promise<T> {
     let detail = ''
     try { detail = (await res.json()).detail ?? '' } catch { /* ignore */ }
     throw new Error(`DELETE ${path} failed: ${res.status}${detail ? `: ${detail}` : ''}`)
+  }
+  return res.json()
+}
+
+/** POST a prepared FormData. Like uploadFile but for requests carrying extra
+ *  fields alongside the file (KML upload sends segment_id and placemark too). */
+async function uploadForm<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers: adminHeaders(), body: form })
+  if (!res.ok) {
+    let detail: unknown = ''
+    try { detail = (await res.json()).detail ?? '' } catch { /* ignore */ }
+    const text = typeof detail === 'string' ? detail : JSON.stringify(detail)
+    const suffix = text ? `: ${text}` : ''
+    throw new Error(`${res.status}${suffix}`)
   }
   return res.json()
 }
@@ -321,6 +335,29 @@ export const api = {
   // reaches the browser and the response is cached backend-side, so calling
   // this from every tab costs one upstream fetch per TTL window.
   getHazards:     (force = false) => get<HazardFeed>(`/api/hazards${force ? '?force=true' : ''}`),
+
+  // ── KML / KMZ route geometry ── Two resolutions on purpose: getKmlPaths is
+  // the SIMPLIFIED path for every segment (~1MB for the whole network, fetched
+  // once), getKmlFullPath is one segment's surveyed detail, fetched only when
+  // that segment is opened. Shipping full resolution for all 322 would be
+  // ~39MB per page load to draw detail finer than a pixel.
+  getKmlPaths:    () => get<KmlPathsResponse>('/api/kml/paths'),
+  getKmlFullPath: (segmentId: string) => get<KmlFullPath>(`/api/kml/paths/${enc(segmentId)}`),
+  getKmlLibrary:  () => get<{ linked: unknown[]; gaps: unknown[]; orphans: unknown[]; summary: Record<string, number> }>('/api/kml/library'),
+  getKmlVersions: (segmentId: string) => get<{ segment_id: string; versions: Record<string, unknown>[] }>(`/api/kml/versions/${enc(segmentId)}`),
+  /** Attach one KMZ/KML to one segment. Always creates a new version. A file
+   *  holding several paths returns 409 with the candidates rather than guessing
+   *  — guessing would attach a neighbouring cable and look entirely plausible. */
+  uploadKml:      (segmentId: string, file: File, placemark?: string) => {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('segment_id', segmentId)
+    if (placemark) form.append('placemark', placemark)
+    return uploadForm<KmlUploadResult>('/api/kml/upload', form)
+  },
+  activateKml:    (linkId: string) => post<{ segment_id: string }>(`/api/kml/activate/${enc(linkId)}`, {}),
+  deleteKml:      (linkId: string) => del(`/api/kml/link/${enc(linkId)}`),
+  kmlDownloadUrl: (linkId: string) => `${BASE_URL}/api/kml/download/${enc(linkId)}`,
   createSolutionNote:   (data: SolutionNote)                                 => post<SolutionNote>('/api/solution-notes', data),
   updateSolutionNote:   (id: string, data: Partial<SolutionNote>)            => put<SolutionNote>(`/api/solution-notes/${enc(id)}`, data),
   deleteSolutionNote:   (id: string)                                         => del(`/api/solution-notes/${enc(id)}`),

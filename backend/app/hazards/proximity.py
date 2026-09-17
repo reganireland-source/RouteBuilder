@@ -157,6 +157,7 @@ class NetworkGeometry:
         node_radius_km: float = DEFAULT_NODE_RADIUS_KM,
         terrestrial_radius_km: float = DEFAULT_TERRESTRIAL_RADIUS_KM,
         wet_radius_km: float = DEFAULT_WET_RADIUS_KM,
+        kml_paths: Optional[dict[str, list[list[float]]]] = None,
     ) -> None:
         self.node_radius_km = node_radius_km
         self.terrestrial_radius_km = terrestrial_radius_km
@@ -175,16 +176,40 @@ class NetworkGeometry:
 
         # (segment id, label, radius, densified path)
         self.segments: list[tuple[str, str, float, list[tuple[float, float]]]] = []
+        #: Segment ids whose path came from a surveyed KML rather than waypoints.
+        self.kml_backed: set[str] = set()
+        kml_paths = kml_paths or {}
+
         for s in segments:
             start, end = by_id.get(s.get("start_node_id")), by_id.get(s.get("end_node_id"))
             if not start or not end:
                 continue
-            raw = [(float(start["lat"]), float(start["lng"]))]
-            raw += [(float(w[0]), float(w[1])) for w in (s.get("waypoints") or [])]
-            raw.append((float(end["lat"]), float(end["lng"])))
+
+            # PREFER A SURVEYED PATH WHEN WE HAVE ONE. "Within 100 km of a
+            # cable" is only as true as the line it is measured from, and a
+            # waypoint spline is an approximation drawn to avoid landmasses on
+            # a map — a median of two points between two landing stations. A
+            # cable that bends hundreds of km around a trench is nowhere near
+            # that straight line, so a hazard sitting on the real route could be
+            # reported as clear, and one far from it reported as a threat. When
+            # a KML has been uploaded its path replaces the waypoints outright.
+            #
+            # No densify_path() on a KML path: densify exists to turn a handful
+            # of waypoints into something measurable, and a surveyed route is
+            # already denser than the step it would insert.
+            kml_path = kml_paths.get(s.get("id"))
+            if kml_path and len(kml_path) >= 2:
+                path = [(float(p[0]), float(p[1])) for p in kml_path]
+                self.kml_backed.add(s["id"])
+            else:
+                raw = [(float(start["lat"]), float(start["lng"]))]
+                raw += [(float(w[0]), float(w[1])) for w in (s.get("waypoints") or [])]
+                raw.append((float(end["lat"]), float(end["lng"])))
+                path = densify_path(raw)
+
             radius = wet_radius_km if s.get("type") == "wet" else terrestrial_radius_km
             label = s.get("name") or s.get("id") or "?"
-            self.segments.append((s["id"], label, radius, densify_path(raw)))
+            self.segments.append((s["id"], label, radius, path))
 
     def assets_near(self, lat: float, lng: float) -> list[HazardAsset]:
         """

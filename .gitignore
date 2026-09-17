@@ -16,3 +16,9 @@ dist/
 # Editor
 .DS_Store
 *.swp
+
+# Uploaded KMZ/KML blobs and their index in file-storage mode (no DATABASE_URL).
+# Real cable route geometry — customer data, and large. Postgres holds it in
+# deployment; this is the local-dev fallback and must not be committed.
+backend/data/kml/
+backend/data/kml_index.json

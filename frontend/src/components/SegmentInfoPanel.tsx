@@ -22,7 +22,7 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type {
-  CableNode, CableSegment, CableSystem, NoteCategory, SegmentCapacity, SegmentOutage, SolutionNote,
+  CableNode, CableSegment, CableSystem, KmlPathInfo, NoteCategory, SegmentCapacity, SegmentOutage, SolutionNote,
 } from '../types'
 import { useTheme } from '../theme'
 import { SegmentFullView } from './SegmentFullView'
@@ -34,6 +34,7 @@ interface Props {
   systems: CableSystem[]
   capacity: SegmentCapacity[]
   outages?: SegmentOutage[]
+  kmlPaths?: Record<string, KmlPathInfo>
   notes?: SolutionNote[]
   noteCategories?: NoteCategory[]
   /** The map click position; the card is clamped into the viewport from here. */
@@ -66,7 +67,7 @@ function capacityColor(pct: number, t: ReturnType<typeof useTheme>): string {
 }
 
 export function SegmentInfoPanel({
-  segment, nodes, segments, systems, capacity, outages, notes, noteCategories,
+  segment, nodes, segments, systems, capacity, outages, notes, noteCategories, kmlPaths,
   initialX, initialY, onClose, onDataChange,
 }: Props) {
   const t = useTheme()
@@ -249,6 +250,7 @@ export function SegmentInfoPanel({
             systems={systems}
             capacity={capacity}
             outages={outages}
+            kmlPaths={kmlPaths}
             notes={notes}
             noteCategories={noteCategories}
             onClose={() => setFullView(false)}

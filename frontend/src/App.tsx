@@ -31,7 +31,7 @@ import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, useTheme, type Theme, type ThemeMode } from './theme'
 import { useHazards } from './hooks/useHazards'
 import { HazardProvider } from './context/HazardContext'
-import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem, Hazard, HazardAssetView, HazardOwnerView} from './types'
+import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem, Hazard, HazardAssetView, HazardOwnerView, KmlPathInfo} from './types'
 import { ProjectsModal } from './components/ProjectsModal'
 import { RouteManualLeft, RouteManualMiddle, computeCandidates, assembleRoute } from './components/RouteManual'
 import type { NextHopCandidate } from './components/RouteManual'
@@ -212,6 +212,19 @@ function loadHazardOwnerView(): HazardOwnerView {
   try {
     return localStorage.getItem(HAZARD_OWNER_VIEW_KEY) === 'all' ? 'all' : 'onNet'
   } catch { return 'onNet' }
+}
+
+/** localStorage key for KML Mode — draw surveyed routes where we have them. */
+const KML_MODE_KEY = 'rb.kmlMode'
+
+/** ON by default. Where a surveyed route exists it is simply better data than
+ *  the waypoint spline standing in for it, so the useful default is to draw it;
+ *  the toggle exists to get back the clean schematic view, not to opt in to
+ *  accuracy. Costs nothing when no KML has been uploaded — every segment falls
+ *  through to its waypoints exactly as before. */
+function loadKmlMode(): boolean {
+  try { return localStorage.getItem(KML_MODE_KEY) !== '0' }
+  catch { return true }
 }
 
 /** Network Hazards is OFF unless this browser has explicitly turned it on —
@@ -472,6 +485,14 @@ export default function App() {
     try { localStorage.setItem(HAZARD_OWNER_VIEW_KEY, next) } catch { /* private mode */ }
   }
 
+  function toggleKmlMode() {
+    setKmlMode(on => {
+      const next = !on
+      try { localStorage.setItem(KML_MODE_KEY, next ? '1' : '0') } catch { /* private mode */ }
+      return next
+    })
+  }
+
   function toggleHazards() {
     setHazardsOn(on => {
       const next = !on
@@ -672,6 +693,11 @@ export default function App() {
   const [hazardsOn, setHazardsOn]                   = useState(loadHazardsOn)
   const [hazardAssetView, setHazardAssetView]       = useState<HazardAssetView>(loadHazardAssetView)
   const [hazardOwnerView, setHazardOwnerView]       = useState<HazardOwnerView>(loadHazardOwnerView)
+  const [kmlMode, setKmlMode]                       = useState<boolean>(loadKmlMode)
+  // Surveyed routes, keyed by segment id. Fetched once alongside the reference
+  // data: this is the SIMPLIFIED path for every segment (~1MB network-wide),
+  // never the full resolution, which is fetched per segment on demand.
+  const [kmlPaths, setKmlPaths]                     = useState<Record<string, KmlPathInfo>>({})
   const hazards = useHazards(hazardsOn)
   // Stable identity while the layer is off, so HazardProvider's memo never churns.
   const hazardList = hazards.feed?.hazards ?? EMPTY_HAZARDS
@@ -722,6 +748,12 @@ export default function App() {
       .then(([n, s, c, sys, r, cfg, o]) => { setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r); setConfig(cfg); setOutages(o) })
       .catch(() => setError('Failed to load network data'))
     api.getProjects().then(setCachedProjects).catch(() => {})
+    // Deliberately NOT part of the Promise.all above. If the KML store is
+    // unavailable — a bad deploy, a missing table — the map must still draw,
+    // and joining it to the reference-data fetch would make one failure take
+    // the whole network down with it. An empty map here just means every
+    // segment falls back to its waypoints, which is exactly what it did before.
+    api.getKmlPaths().then(r => setKmlPaths(r.paths)).catch(() => {})
   }, [])
 
   // True while the user is actively assembling a route by hand in RouteManual.
@@ -1083,6 +1115,7 @@ export default function App() {
   async function handleDataChange() {
     const [n, s, c, sys, r, cfg, o] = await Promise.all([api.getNodes(), api.getSegments(), api.getCapacity(), api.getSystems(), api.getRules(), api.getConfig(), api.getOutages()])
     setNodes(n); setSegments(s); setCapacity(c); setSystems(sys); setRules(r); setConfig(cfg); setOutages(o)
+    api.getKmlPaths().then(kr => setKmlPaths(kr.paths)).catch(() => {})
   }
 
   /** Stage a waypoint edit (insert / move / delete are all just "here is the
@@ -1227,6 +1260,9 @@ export default function App() {
           onSetPair={handleSetPair}
           onNodeClick={(node, x, y) => setSelectedNode({ node, x, y })}
           onSegmentClick={(segment, x, y) => setSelectedSegment({ segment, x, y })}
+          kmlPaths={kmlPaths}
+          kmlMode={kmlMode}
+          onToggleKmlMode={toggleKmlMode}
           onGoToNode={handleGoToNode}
           flyToNode={flyToNode}
           onAssetSelect={hit => handleAssetSelect(hit, { openNodePanel: false })}
@@ -1505,6 +1541,10 @@ export default function App() {
                       { label: 'Backhaul Only',    icon: '🗺',  active: backhaulOnly, color: theme.blue, onClick: () => { setBackhaulOnly(v => !v); if (!backhaulOnly) setSubseaOnly(false)  } },
                       { label: 'Living World',     icon: '🐋', active: livingWorld,  color: theme.green, onClick: toggleLivingWorld },
                       { label: 'Network Hazards',  icon: '⚠️', active: hazardsOn,    color: theme.orange, onClick: toggleHazards },
+                      // Coverage in the label: "KML Mode ON" alone would not
+                      // say whether that means 3 cables or 300, and the whole
+                      // point of the mode is knowing which lines are real.
+                      { label: `KML Mode  ${Object.keys(kmlPaths).length}/${segments.length}`, icon: '🛰', active: kmlMode, color: theme.blue, onClick: toggleKmlMode },
                     ].map(item => (
                       <button
                         key={item.label}
@@ -1982,6 +2022,8 @@ export default function App() {
               onSegmentClick={mode === 'routemanual' ? undefined : (segment, x, y) => setSelectedSegment({ segment, x, y })}
               selectedSegmentId={selectedSegment?.segment.id ?? null}
               controlsOpen={ctrlMenuOpen}
+              kmlPaths={kmlPaths}
+              kmlMode={kmlMode}
               searchPin={searchPin ?? undefined}
               nearestNodeIds={nearestNodeIds}
               hideNonActive={hideNonActive}
@@ -2041,6 +2083,7 @@ export default function App() {
           segment={selectedSegment.segment}
           nodes={nodes} segments={segments} systems={systems} capacity={capacity}
           outages={outages}
+          kmlPaths={kmlPaths}
           initialX={selectedSegment.x} initialY={selectedSegment.y}
           onClose={() => setSelectedSegment(null)}
           onDataChange={handleDataChange}
@@ -2076,6 +2119,7 @@ export default function App() {
       {refDataOpen && (
         <Suspense fallback={null}>
           <RefDataModal
+            kmlPaths={kmlPaths}
             nodes={nodes} segments={segments} systems={systems}
             capacity={capacity} outages={outages} rules={rules} config={config}
             onDataChange={handleDataChange}

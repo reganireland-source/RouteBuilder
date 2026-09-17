@@ -192,12 +192,37 @@ class HazardService:
         except Exception:  # noqa: BLE001
             log.exception("could not load network for hazard proximity")
             return
+
+        # Surveyed routes beat waypoint splines for "is this hazard near a
+        # cable" — see the comment in NetworkGeometry. The FULL path is used,
+        # not the simplified display one: simplification is tuned to be
+        # invisible on screen (sub-pixel), but this is a distance measurement,
+        # not a drawing, and there is no reason to measure against a
+        # deliberately lossy copy when the real one is right there.
+        #
+        # Wrapped because hazards must keep working if the KML store is
+        # unavailable — an empty dict just falls back to waypoints everywhere.
+        kml_paths: dict[str, list[list[float]]] = {}
+        try:
+            from ..kml import store as kml_store
+            for seg_id in kml_store.active_links():
+                row = kml_store.full_path_for(seg_id)
+                if row and row.get("full_path"):
+                    kml_paths[seg_id] = row["full_path"]
+        except Exception:  # noqa: BLE001
+            log.exception("could not load KML geometry for hazard proximity; using waypoints")
+            kml_paths = {}
+
         geometry = NetworkGeometry(
             nodes, segments,
             node_radius_km=_env_float("HAZARDS_NODE_RADIUS_KM", DEFAULT_NODE_RADIUS_KM),
             terrestrial_radius_km=_env_float("HAZARDS_TERRESTRIAL_RADIUS_KM", DEFAULT_TERRESTRIAL_RADIUS_KM),
             wet_radius_km=_env_float("HAZARDS_WET_RADIUS_KM", DEFAULT_WET_RADIUS_KM),
+            kml_paths=kml_paths,
         )
+        if geometry.kml_backed:
+            log.info("hazard proximity using surveyed KML paths for %d of %d segments",
+                     len(geometry.kml_backed), len(segments))
         for hazard in hazards:
             hazard.affected = geometry.assets_near(hazard.lat, hazard.lng)
 

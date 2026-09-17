@@ -49,9 +49,20 @@ export function catmullRom(pts: [number, number][], steps = 12): [number, number
 }
 
 /**
- * Return Leaflet Polyline positions for a segment. When waypoints are
- * provided (static ocean-routing hints) the path threads through them via
- * a Catmull-Rom spline for smooth rendering; otherwise a direct arc is drawn.
+ * Return Leaflet Polyline positions for a segment, in descending order of how
+ * much we actually know about where the cable goes:
+ *
+ *   1. kmlPath  — a SURVEYED route from an uploaded KMZ/KML. Drawn as given.
+ *   2. waypoints — hand-placed hints (a median of two per segment), threaded
+ *                  through a Catmull-Rom spline to look like a cable.
+ *   3. neither  — a straight line between the two nodes.
+ *
+ * A KML PATH IS NEVER SMOOTHED. Catmull-Rom exists to make three hand-placed
+ * points look like a cable; running it over a surveyed route would invent
+ * curvature between real measurements and bend the line off the path that was
+ * actually laid. The one case where smoothing is clearly wrong is the one case
+ * where the data is clearly right.
+ *
  * All longitudes are Pacific-normalised so transpacific cables render as
  * single lines without antimeridian splits.
  */
@@ -59,12 +70,17 @@ export function geoLines(
   lat1: number, lng1: number,
   lat2: number, lng2: number,
   waypoints?: [number, number][],
+  kmlPath?: [number, number][],
 ): [number, number][][] {
   const nLng1 = normalizeLng(lng1)
   const nLng2 = normalizeLng(lng2)
   let d = nLng2 - nLng1
   if (d >  180) d -= 360
   if (d < -180) d += 360
+
+  if (kmlPath && kmlPath.length >= 2) {
+    return [kmlPath.map(([klat, klng]): [number, number] => [klat, normalizeLng(klng)])]
+  }
 
   if (waypoints && waypoints.length > 0) {
     const pts: [number, number][] = [

@@ -21,6 +21,7 @@ from .api import (
     hazards,
     health,
     interfaces,
+    kml as kml_api,
     nodes,
     outage_parser,
     outages,
@@ -524,6 +525,7 @@ app.include_router(tech_lookups.router, prefix="/api")
 app.include_router(feature_requests.router, prefix="/api")
 app.include_router(solution_notes.router, prefix="/api")
 app.include_router(hazards.router, prefix="/api")
+app.include_router(kml_api.router, prefix="/api")
 
 # NLP route parsing — only registered when NLP_ENABLED=true
 if os.getenv("NLP_ENABLED", "").lower() == "true":

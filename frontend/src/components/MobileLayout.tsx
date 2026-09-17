@@ -57,7 +57,7 @@ import type { ThemeMode } from '../theme'
 import type {
   AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule,
   NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage,
-  SelectedSystem, DiversityType, HazardFeed, HazardAssetView, HazardOwnerView,
+  SelectedSystem, DiversityType, HazardFeed, HazardAssetView, HazardOwnerView, KmlPathInfo,
 } from '../types'
 
 // Lazily, for the same reason App.tsx does: an eager import on EITHER side
@@ -159,6 +159,9 @@ export interface MobileLayoutProps {
   onHazardAssetViewChange:       (next: HazardAssetView) => void
   hazardOwnerView:               HazardOwnerView
   onHazardOwnerViewChange:       (next: HazardOwnerView) => void
+  kmlPaths:                      Record<string, KmlPathInfo>
+  kmlMode:                       boolean
+  onToggleKmlMode:               () => void
   hazardFeed:                    HazardFeed | null
   hazardsLoading:                boolean
   hazardsError:                  string | null
@@ -214,9 +217,10 @@ function MobileControlsDrawer({
   open, setOpen, t, themeMode,
   showAllOutages, showPlannedEvents, showSegmentLabels, showNodeLabels,
   hideNonActive, subseaOnly, backhaulOnly, livingWorld, hazardsOn,
+  kmlMode, kmlCount, segmentCount,
   onToggleShowAllOutages, onToggleShowPlannedEvents, onToggleShowSegmentLabels,
   onToggleShowNodeLabels, onToggleHideNonActive, onToggleSubseaOnly, onToggleBackhaulOnly,
-  onToggleLivingWorld, onToggleHazards,
+  onToggleLivingWorld, onToggleHazards, onToggleKmlMode,
   onOpenProjects, onOpenCapacity, onOpenRefData, cycleTheme,
 }: {
   open: boolean
@@ -227,6 +231,9 @@ function MobileControlsDrawer({
   showNodeLabels: boolean; hideNonActive: boolean; subseaOnly: boolean; backhaulOnly: boolean
   livingWorld: boolean
   hazardsOn: boolean
+  kmlMode: boolean
+  kmlCount: number
+  segmentCount: number
   onToggleShowAllOutages: () => void
   onToggleShowPlannedEvents: () => void
   onToggleShowSegmentLabels: () => void
@@ -236,6 +243,7 @@ function MobileControlsDrawer({
   onToggleBackhaulOnly: () => void
   onToggleLivingWorld: () => void
   onToggleHazards: () => void
+  onToggleKmlMode: () => void
   onOpenProjects?: () => void
   onOpenCapacity: () => void
   onOpenRefData: () => void
@@ -346,6 +354,15 @@ function MobileControlsDrawer({
                 active: hazardsOn,
                 color: t.orange,
                 onClick: () => { onToggleHazards(); setOpen(false) },
+              },
+              {
+                // Coverage in the label for the same reason as desktop: "ON"
+                // alone does not say whether that is 3 cables or 300.
+                label: `KML Mode  ${kmlCount}/${segmentCount}`,
+                icon: '🛰',
+                active: kmlMode,
+                color: t.blue,
+                onClick: () => { onToggleKmlMode(); setOpen(false) },
               },
             ].map(item => (
               <button
@@ -601,6 +618,7 @@ export function MobileLayout({
   onToggleSubseaOnly, onToggleBackhaulOnly, livingWorld, onToggleLivingWorld,
   hazardsOn, onToggleHazards, hazardAssetView, onHazardAssetViewChange,
   hazardOwnerView, onHazardOwnerViewChange,
+  kmlPaths, kmlMode, onToggleKmlMode,
   hazardFeed, hazardsLoading, hazardsError, onRefreshHazards,
   onApplySort, nlpSortKey, nlpPushOutages, optimiseFor, flippedPairIds, onFlipPair,
   onAddToProject, onEnrichCircuit, onOpenProjects, activeProject, onExitProjectMode, onSwitchProject, onOpenGuide,
@@ -706,6 +724,8 @@ export function MobileLayout({
             onSegmentClick={mode === 'routemanual' ? undefined : onSegmentClick}
             selectedSegmentId={selectedSegment?.segment.id ?? null}
             controlsOpen={drawerOpen}
+            kmlPaths={kmlPaths}
+            kmlMode={kmlMode}
             flyToNode={flyToNode}
             fitBounds={fitBounds}
             spotlightNodeId={spotlightNodeId}
@@ -785,6 +805,10 @@ export function MobileLayout({
 
       {/* ── Top-right drawer toggle + panel ────────────────────────────── */}
       <MobileControlsDrawer
+        kmlMode={kmlMode}
+        kmlCount={Object.keys(kmlPaths).length}
+        segmentCount={segments.length}
+        onToggleKmlMode={onToggleKmlMode}
         open={drawerOpen}
         setOpen={setDrawerOpen}
         t={t}
@@ -1134,6 +1158,7 @@ export function MobileLayout({
           systems={systems}
           capacity={capacity}
           outages={outages}
+          kmlPaths={kmlPaths}
           onClose={onCloseSegment}
           onDataChange={onDataChange}
         />
@@ -1153,6 +1178,7 @@ export function MobileLayout({
       {refDataOpen && (
         <Suspense fallback={null}>
           <RefDataModal
+            kmlPaths={kmlPaths}
             nodes={nodes} segments={segments} systems={systems}
             capacity={capacity} outages={outages} rules={rules} config={config}
             onDataChange={onDataChange}

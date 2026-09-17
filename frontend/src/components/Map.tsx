@@ -61,7 +61,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import * as L from 'leaflet'
 import 'leaflet.gridlayer.googlemutant'
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet'
-import type { CableNode, CableSegment, CountryHighlight, HazardAssetView, HazardFeed, HazardOwnerView, HazardSeverity, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
+import type { CableNode, CableSegment, CountryHighlight, HazardAssetView, HazardFeed, HazardOwnerView, HazardSeverity, KmlPathInfo, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
 import { isNodeOnNet, isSegmentOnNet } from '../utils/onNet'
 import { useTheme } from '../theme'
 import type { ManualState, NextHopCandidate } from './RouteManual'
@@ -82,6 +82,10 @@ const EMPTY_STRING_SET: Set<string> = new Set()
 // Same reasoning for the on-net ownership list: it feeds a useMemo dep array,
 // so a fresh [] default would invalidate the hazard lens on every render.
 const EMPTY_OWNERSHIP: string[] = []
+
+// Stable empty default for the KML path map, for the same reason as the two
+// above: it feeds memo dependency lists and render loops.
+const EMPTY_KML_PATHS: Record<string, never> = {}
 
 /** Stroke width of the invisible click/tap target laid under each cable.
  *  Cables render at 1-3.5px. 14 is about a fingertip at this zoom and still
@@ -143,6 +147,10 @@ interface Props {
   onNetOwnership?: string[]
   /** The top-right Controls menu is open; the hazard panel moves out of its way. */
   controlsOpen?: boolean
+  /** Surveyed cable routes from uploaded KMZ/KML, keyed by segment id. */
+  kmlPaths?: Record<string, KmlPathInfo>
+  /** Draw surveyed routes where we have them, and mark which cables are which. */
+  kmlMode?: boolean
   hazardsLoading?: boolean
   hazardsError?: string | null
   onRefreshHazards?: () => void
@@ -451,7 +459,7 @@ function NodeTypeLegend({ narrow }: { narrow: boolean }) {
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, controlsOpen = false, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, controlsOpen = false, kmlPaths = EMPTY_KML_PATHS, kmlMode = false, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
   const t = useTheme()
   const narrowViewport = useNarrowViewport()
   const { hoveredSegmentId } = useSegmentHover()
@@ -726,7 +734,14 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         if (!start || !end) return []
 
         const isDown = outageSegIds.has(seg.id)
-        const lines = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined)
+        // Surveyed route when we have one and the mode is on; otherwise the
+        // waypoint spline exactly as before.
+        const kml = kmlMode ? kmlPaths[seg.id] : undefined
+        const lines = geoLines(
+          start.lat, start.lng, end.lat, end.lng,
+          seg.waypoints ?? undefined,
+          kml?.display_path,
+        )
 
         const tooltip = (
           <Tooltip sticky>
@@ -734,6 +749,13 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
             <br />{seg.system_id} · {seg.type} · {OWNERSHIP_LABEL[seg.ownership] ?? seg.ownership}
             <br />{start.name} → {end.name}
             <br />{seg.length_km.toLocaleString()} km · {seg.latency} ms · Cost: {seg.cost_weight}
+            {kmlMode && (
+              <><br /><span style={{ fontWeight: 700 }}>
+                {kmlPaths[seg.id]
+                  ? `Surveyed route · ${kmlPaths[seg.id].point_count.toLocaleString()} pts`
+                  : 'Approximate (waypoints)'}
+              </span></>
+            )}
             {capacityById[seg.id] && (() => {
               const cap = capacityById[seg.id]
               const pct = Math.round((cap.available_capacity_t / cap.total_capacity_t) * 100)
@@ -827,6 +849,29 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
           pathOptions = segHazard
             ? { ...pathOptions, color: severityColor(segHazard, t), weight: Math.max(pathOptions.weight, 3.5), opacity: 0.95 }
             : { ...pathOptions, opacity: Math.min(pathOptions.opacity, 0.07) }
+        }
+
+        // ── KML Mode ── a surveyed route and a smoothed guess must not look
+        // identical, or the map quietly presents an approximation as truth.
+        //
+        // EMPHASISE THE SURVEYED FEW RATHER THAN SUPPRESS THE UNSURVEYED MANY.
+        // The first version did the opposite — faded every cable without a KML,
+        // borrowing the hazard lens idiom — and at the coverage this feature
+        // actually starts from it made the map look broken: with one segment
+        // uploaded, 321 of 322 cables dropped to near-invisible and the default
+        // view of the app was an empty ocean. Suppression only reads as "these
+        // ones, not those" when the two groups are comparable; emphasis reads
+        // correctly at every ratio, from 1/322 to 322/322.
+        //
+        // Weight rather than colour, because colour is already carrying route,
+        // system, country and outage state, and dash patterns are taken by
+        // terrestrial/outage/planned. The tooltip states it in words either way.
+        if (kmlMode && kml) {
+          pathOptions = {
+            ...pathOptions,
+            weight: pathOptions.weight + 0.8,
+            opacity: Math.max(pathOptions.opacity, 0.85),
+          }
         }
 
         // ── Selection ── the card names one cable; this is what says WHICH.

@@ -45,7 +45,7 @@
  * ============================================================================
  */
 import { useState, useEffect, useRef } from 'react'
-import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, AllowedHandoffSegment, InterconnectRule, NoteCategory, NoteSeverity, OnNet, SegmentCapacity, SegmentOutage, SolutionNote, VerificationStatus } from '../types'
+import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, AllowedHandoffSegment, InterconnectRule, KmlPathInfo, NoteCategory, NoteSeverity, OnNet, SegmentCapacity, SegmentOutage, SolutionNote, VerificationStatus } from '../types'
 import { useTheme, type Theme } from '../theme'
 import { useAuth } from '../context/AuthContext'
 import { nodeLabelById } from '../utils/nodeLabel'
@@ -459,6 +459,43 @@ function NodeSearchField({ label, k, src, setSrc, nodes }: {
 
 /** Type-ahead combobox for picking a segment id (used by capacity/outage forms,
  *  which reference a segment). Stores the selected segment's id into `src[k]`. */
+/**
+ * Whether a segment has a surveyed route on file, and how good a fit it is.
+ *
+ * Shows the KML's own measured length next to nothing else on purpose: the
+ * comparison that matters (stored vs surveyed) lives in the segment's Full
+ * View, and repeating it per row here would be a column of numbers nobody can
+ * act on. What a reference-data table needs to answer is "do we have one".
+ */
+function KmlBadge({ info, t }: { info?: KmlPathInfo; t: Theme }) {
+  if (!info) {
+    return <span style={{ fontSize: 10, color: t.textFaint }}>—</span>
+  }
+  // A big endpoint gap means the file may belong to a different segment. Saying
+  // so here is the cheapest place to catch a mis-matched upload.
+  const gap = Math.max(info.a_end_gap_km ?? 0, info.z_end_gap_km ?? 0)
+  const suspect = gap > 10
+  return (
+    <span
+      title={
+        `v${info.version} · ${info.point_count.toLocaleString()} surveyed points` +
+        (info.length_km != null ? ` · ${info.length_km.toLocaleString()} km` : '') +
+        (suspect ? `\nEndpoints sit up to ${gap.toFixed(0)} km from this segment's nodes — check it is the right file.` : '')
+      }
+      style={{
+        fontSize: 9, fontWeight: 700, letterSpacing: '0.04em',
+        padding: '2px 6px', borderRadius: 4,
+        border: `1px solid ${suspect ? t.orange : t.green}`,
+        color: suspect ? t.orange : t.green,
+        background: (suspect ? t.orange : t.green) + '18',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {suspect ? '⚠ KMZ' : 'KMZ'} v{info.version}
+    </span>
+  )
+}
+
 function SegmentSearchField({ label, k, src, setSrc, segments }: {
   label: string; k: string
   src: Record<string, unknown>; setSrc: (v: Record<string, unknown>) => void
@@ -585,6 +622,8 @@ interface Props {
   outages: SegmentOutage[]
   rules: InterconnectRule[]
   config: AppConfig
+  /** Surveyed routes on file, so the segment table can show which have one. */
+  kmlPaths?: Record<string, KmlPathInfo>
   onDataChange: () => void
   onClose: () => void
   initialNoteFocus?: { kind: 'node' | 'segment'; id: string }
@@ -597,7 +636,7 @@ interface Props {
  * tabs, and the active tab's body. See the file header for the full tab list and
  * the generic CRUD pattern the data tabs share.
  */
-export function RefDataModal({ nodes, segments, systems, capacity, outages, rules, config, onDataChange, onClose, initialNoteFocus }: Props) {
+export function RefDataModal({ nodes, segments, systems, capacity, outages, rules, config, kmlPaths = {}, onDataChange, onClose, initialNoteFocus }: Props) {
   const t = useTheme()
   const { isAdmin } = useAuth()
   const isMobile = useIsMobile()
@@ -1143,6 +1182,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                   { label: 'Latency', value: s.latency != null ? `${s.latency} ms` : '—' },
                   { label: 'Ownership', value: OWNERSHIP_LABEL[s.ownership] ?? s.ownership },
                   { label: 'Network', value: isOnNet(s.ownership) ? 'ON-NET' : 'OFF-NET' },
+                  { label: 'KMZ', value: <KmlBadge info={kmlPaths[s.id]} t={t} /> },
                   { label: 'Status', value: <VerifBadge status={s.verification_status} onClick={() => setSegVerifPending(s.id)} /> },
                 ]}
                 onEdit={() => editId === s.id ? setEditId(null) : startEdit(s.id, segEditDefaults(s))}
@@ -1159,6 +1199,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
               <div style={colH(1.5)}>Start Node</div><div style={colH(1.5)}>End Node</div>
               <div style={colH(0.8)}>Type</div><div style={colH(1)}>Length</div><div style={colH(0.8)}>Latency</div>
               <div style={colH(0.7)}>Cost</div><div style={colH(1)}>Ownership</div><div style={colH(0.8)}>Network</div>
+              <div style={colH(0.9)}>KMZ</div>
               <div style={colH(1.5)}>Status</div>
               <div style={{ width: 140 }} />
             </div>
@@ -1180,6 +1221,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                     {isOnNet(s.ownership) ? 'ON-NET' : 'OFF-NET'}
                   </span>
                 </div>
+                <div style={cell(0.9)}><KmlBadge info={kmlPaths[s.id]} t={t} /></div>
                 <div style={cell(1.5)}><VerifBadge status={s.verification_status} onClick={() => setSegVerifPending(s.id)} /></div>
                 <ActionsCell id={s.id}
                   onEdit={() => startEdit(s.id, segEditDefaults(s))}
