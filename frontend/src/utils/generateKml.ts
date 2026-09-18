@@ -5,15 +5,19 @@
  * and this is how a route or a whole cable system goes back out — to a
  * customer, a carrier, or anyone who wants to open it in Google Earth.
  *
- * THE FILE SAYS WHICH LINES ARE SURVEYED AND WHICH ARE NOT, and that is the
- * point rather than a nicety. Coverage is partial and will stay partial: some
- * segments have an uploaded route measured along the cable as laid, and the
- * rest are drawn from a median of two hand-placed waypoints threaded through a
- * spline to look like a cable. Both render as a confident line in Google Earth.
- * Exporting them identically would hand someone a file that looks like a survey
- * and is in part a sketch — so surveyed segments are drawn solid and green,
- * approximated ones dashed and amber, each placemark's description says which
- * it is, and the document description states the split up front.
+ * THE FILE SAYS WHERE EACH LINE CAME FROM, and that is the point rather than
+ * a nicety. Coverage is partial and will stay mixed across THREE tiers, not
+ * two: a segment may have an uploaded route measured along the cable as laid
+ * (a real survey), a route synced from submarinecablemap.com's public map
+ * data (real geometry, but a simplified web-map trace, not survey-grade), or
+ * — most segments — nothing on file at all, drawn from a median of two
+ * hand-placed waypoints threaded through a spline to look like a cable. All
+ * three render as a confident line in Google Earth. Exporting them identically
+ * would hand someone a file that looks like a survey and is in part a sketch or
+ * a community trace — so surveyed segments are drawn solid and green, synced
+ * ones dashed and blue, approximated ones dashed and amber, each placemark's
+ * description says which it is, and the document description states the split
+ * up front.
  *
  * FULL RESOLUTION WHERE WE HAVE IT. The map draws a simplified path because a
  * browser is redrawing 322 of them; an exported file is opened once and may be
@@ -29,18 +33,26 @@ import { geoLines } from '../mapGeometry'
 
 /** KML colours are aabbggrr — alpha, blue, green, red. Not rrggbb. */
 const COLOR_SURVEYED = 'ff4ade80'      // green
+const COLOR_SYNCED = 'fff9c015'        // blue — real geometry, not a survey
 const COLOR_APPROX = 'ff15c0f9'        // amber
 const WIDTH_SURVEYED = 3
+const WIDTH_SYNCED = 2.5
 const WIDTH_APPROX = 2
+
+/** Where an exported segment's geometry came from — the three-way honesty
+ *  split this whole module exists to preserve. 'upload' is a real carrier
+ *  survey; 'submarinecablemap' is real but simplified public map geometry
+ *  (see KmlSource in types.ts); 'approximate' is this app's own
+ *  waypoint/straight-line guess, drawn identically to how the map draws it. */
+export type ExportSource = 'upload' | 'submarinecablemap' | 'approximate'
 
 /** Geometry for one exported segment, and where it came from. */
 export interface ExportGeometry {
   /** [[lat, lng], ...] in export order (A→Z). */
   coords: [number, number][]
-  /** True when these are surveyed points from an uploaded KML. */
-  surveyed: boolean
-  /** Measured length of the surveyed path, when there is one. */
-  surveyedLengthKm?: number | null
+  source: ExportSource
+  /** Measured length of the on-file path, when there is one. */
+  fileLengthKm?: number | null
 }
 
 export interface KmlExportOptions {
@@ -70,8 +82,11 @@ function coordsToKml(coords: [number, number][]): string {
 
 function styleBlock(): string {
   return `
-    <Style id="surveyed">
+    <Style id="upload">
       <LineStyle><color>${COLOR_SURVEYED}</color><width>${WIDTH_SURVEYED}</width></LineStyle>
+    </Style>
+    <Style id="submarinecablemap">
+      <LineStyle><color>${COLOR_SYNCED}</color><width>${WIDTH_SYNCED}</width></LineStyle>
     </Style>
     <Style id="approximate">
       <LineStyle><color>${COLOR_APPROX}</color><width>${WIDTH_APPROX}</width></LineStyle>
@@ -113,13 +128,15 @@ function approximationSource(segment: CableSegment): string {
 
 /** The provenance sentence — the honest half of every placemark. */
 function provenanceOf(segment: CableSegment, geom: ExportGeometry): string {
-  if (geom.surveyed) {
-    const measured = geom.surveyedLengthKm != null
-      ? `, measured ${geom.surveyedLengthKm.toLocaleString()} km`
-      : ''
+  const measured = geom.fileLengthKm != null ? `, measured ${geom.fileLengthKm.toLocaleString()} km` : ''
+  if (geom.source === 'upload') {
     return `Surveyed route from an uploaded KML — ${geom.coords.length.toLocaleString()} points${measured}`
   }
-  return 'APPROXIMATE. No surveyed route on file; this line is drawn from '
+  if (geom.source === 'submarinecablemap') {
+    return 'SYNCED, NOT A SURVEY. Fetched from submarinecablemap.com’s public map data — '
+      + `real geometry, but a simplified web-map trace, not a carrier survey — ${geom.coords.length.toLocaleString()} points${measured}.`
+  }
+  return 'APPROXIMATE. No route geometry on file; this line is drawn from '
     + approximationSource(segment)
     + ' and is for orientation only.'
 }
@@ -149,7 +166,7 @@ function placemark(
       <Placemark>
         <name>${esc(segment.id)} — ${esc(segment.name)}</name>
         <description>${esc(desc)}</description>
-        <styleUrl>#${geom.surveyed ? 'surveyed' : 'approximate'}</styleUrl>
+        <styleUrl>#${geom.source}</styleUrl>
         <LineString>
           <tessellate>1</tessellate>
           <coordinates>${coordsToKml(geom.coords)}</coordinates>
@@ -160,8 +177,9 @@ function placemark(
 /**
  * Build a KML document for an ordered list of segments.
  *
- * `geometryFor` supplies each segment's points and says whether they are
- * surveyed; the caller owns the fetching so this stays pure.
+ * `geometryFor` supplies each segment's points and says where they came from
+ * (upload / submarinecablemap / approximate); the caller owns the fetching so
+ * this stays pure.
  */
 export function generateKml(
   segments: CableSegment[],
@@ -173,8 +191,9 @@ export function generateKml(
     .map(seg => ({ seg, geom: geometryFor(seg) }))
     .filter(r => r.geom.coords.length >= 2)
 
-  const surveyed = rows.filter(r => r.geom.surveyed).length
-  const approx = rows.length - surveyed
+  const surveyed = rows.filter(r => r.geom.source === 'upload').length
+  const synced = rows.filter(r => r.geom.source === 'submarinecablemap').length
+  const approx = rows.length - surveyed - synced
 
   // Stated on the document itself, not only per placemark: whoever receives
   // this should learn the mix before they have clicked anything.
@@ -182,6 +201,10 @@ export function generateKml(
     options.subtitle,
     `${rows.length} segment${rows.length === 1 ? '' : 's'}.`,
     surveyed > 0 ? `${surveyed} drawn from a surveyed route (solid green).` : null,
+    synced > 0
+      ? `${synced} SYNCED from submarinecablemap.com (dashed blue) — real but simplified `
+        + 'public map geometry, not a carrier survey.'
+      : null,
     approx > 0
       ? `${approx} APPROXIMATE (dashed amber) — drawn from hand-placed waypoints, `
         + 'for orientation only, not survey data.'

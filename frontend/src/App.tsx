@@ -2104,6 +2104,7 @@ export default function App() {
         <Suspense fallback={null}>
           <KmlBulkImport
             segments={segments}
+            systems={systems}
             onClose={() => { setKmlImportOpen(false); setKmlPreview({ lines: [], key: 0 }) }}
             onDataChange={handleDataChange}
             onPreview={lines => setKmlPreview(p => ({ lines, key: p.key + 1 }))}

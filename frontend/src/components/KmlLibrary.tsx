@@ -1,6 +1,6 @@
 /**
- * KmlLibrary — what surveyed geometry we hold, what we do not, and how to undo
- * an upload that turned out to be wrong.
+ * KmlLibrary — what route geometry we hold, what we do not, and how to undo
+ * an upload (or sync) that turned out to be wrong.
  *
  * IT OPENS ON COVERAGE, NOT ON CONTENT. A library that lists 218 attached files
  * and says nothing about the 104 segments still drawn from waypoints invites
@@ -8,6 +8,11 @@
  * all three numbers together and the Gaps tab is a first-class view, not a
  * footnote, because "which cables are still approximations" is the question a
  * library like this is usually being opened to answer.
+ *
+ * NOT EVERY LINKED SEGMENT IS SURVEYED — the Linked tab's Source column says
+ * which of "uploaded" (potentially a real carrier survey) or "synced" (a
+ * simplified public trace from submarinecablemap.com) each one is. See
+ * types.ts's KmlSource and SegmentKmlCard.tsx.
  *
  * NOTHING IS EVER OVERWRITTEN, so every upload is recoverable. Re-uploading a
  * segment adds a version and makes it active; the previous one stays, and one
@@ -137,6 +142,17 @@ function LinkedRow({ row, t, expanded, versions, busy, isAdmin, onToggle, onPrev
           <div style={{ color: t.textFaint, fontSize: 10 }}>{row.name}</div>
         </td>
         <td style={cell}>{row.system_id}</td>
+        <td style={cell}>
+          <span style={{
+            fontSize: 9, fontWeight: 700, letterSpacing: '0.03em', padding: '2px 6px', borderRadius: 4,
+            border: `1px solid ${row.source === 'submarinecablemap' ? t.blue : t.green}`,
+            color: row.source === 'submarinecablemap' ? t.blue : t.green,
+            background: (row.source === 'submarinecablemap' ? t.blue : t.green) + '14',
+            whiteSpace: 'nowrap',
+          }}>
+            {row.source === 'submarinecablemap' ? 'SYNCED' : 'UPLOADED'}
+          </span>
+        </td>
         <td style={cell}>v{row.version}</td>
         <td style={cell}>{row.point_count.toLocaleString()}</td>
         <td style={cell}>
@@ -162,7 +178,7 @@ function LinkedRow({ row, t, expanded, versions, busy, isAdmin, onToggle, onPrev
       </tr>
       {expanded && (
         <tr style={{ borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
-          <td colSpan={9} style={{ padding: '8px 14px' }}>
+          <td colSpan={10} style={{ padding: '8px 14px' }}>
             {versions === undefined ? (
               <div style={{ fontSize: 11, color: t.textFaint }}>Loading history…</div>
             ) : (
@@ -356,8 +372,8 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
             <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
               {s ? (
                 <>
-                  <strong style={{ color: t.green }}>{s.linked}</strong> of {s.segments_total} segments have a
-                  surveyed route · <strong style={{ color: t.orange }}>{s.gaps}</strong> still drawn from waypoints
+                  <strong style={{ color: t.green }}>{s.linked}</strong> of {s.segments_total} segments have
+                  route geometry on file · <strong style={{ color: t.orange }}>{s.gaps}</strong> still drawn from waypoints
                   {s.orphans > 0 && <> · <strong style={{ color: t.red }}>{s.orphans}</strong> orphaned</>}
                 </>
               ) : 'Loading…'}
@@ -399,9 +415,10 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
                   <th style={{ ...headCell(t), width: 34 }} />
                   <th style={headCell(t)}>Segment</th>
                   <th style={headCell(t)}>System</th>
+                  <th style={headCell(t)}>Source</th>
                   <th style={headCell(t)}>Ver</th>
                   <th style={headCell(t)}>Points</th>
-                  <th style={headCell(t)}>Surveyed length</th>
+                  <th style={headCell(t)}>Length on file</th>
                   <th style={headCell(t)}>End gaps A / Z</th>
                   <th style={headCell(t)}>Added</th>
                   <th style={{ ...headCell(t), width: 110 }} />

@@ -154,6 +154,7 @@ def link_segment(
     placemark_name: str = "",
     points: Optional[list[dict]] = None,
     created_by: Optional[str] = None,
+    source: str = "upload",
 ) -> dict:
     """
     Attach a parsed path to a segment as a NEW VERSION, and make it active.
@@ -161,6 +162,12 @@ def link_segment(
     Never overwrites: a re-upload is always a new version, so a bad file can be
     rolled back rather than having destroyed the good one it replaced. The
     previous active version is deactivated in the same transaction.
+
+    `source` says where the geometry came from — 'upload' (the default) for a
+    KMZ/KML someone attached, 'submarinecablemap' for a fetch from
+    submarinecablemap.com's public map data. It is stored, not inferred, and it
+    is what every reader downstream (map, segment card, library, exports) uses
+    to avoid presenting lower-fidelity community geometry as a carrier survey.
     """
     version = _next_version(segment_id)
     link_id = uuid.uuid4().hex
@@ -179,6 +186,7 @@ def link_segment(
         "z_end_gap_km": geometry.z_end_gap_km,
         "reversed": geometry.reversed_to_match,
         "point_count": len(geometry.full_path),
+        "source": source,
         "created_at": _now(),
         "created_by": created_by,
     }
@@ -192,13 +200,13 @@ def link_segment(
             cur.execute(
                 "INSERT INTO segment_kml (id, segment_id, file_id, version, active, placemark_name,"
                 " display_path, full_path, points, length_km, a_end_gap_km, z_end_gap_km,"
-                " reversed, point_count, created_at, created_by)"
-                " VALUES (%s,%s,%s,%s,TRUE,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                " reversed, point_count, source, created_at, created_by)"
+                " VALUES (%s,%s,%s,%s,TRUE,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                 (link_id, segment_id, file_id, version, placemark_name,
                  json.dumps(row["display_path"]), json.dumps(row["full_path"]),
                  json.dumps(row["points"]), row["length_km"], row["a_end_gap_km"],
                  row["z_end_gap_km"], row["reversed"], row["point_count"],
-                 row["created_at"], created_by),
+                 source, row["created_at"], created_by),
             )
         return row
 
@@ -219,7 +227,7 @@ def active_links() -> dict[str, dict]:
     it here would silently undo the design and put ~39 MB back on page load.
     """
     cols = ("id, segment_id, file_id, version, placemark_name, display_path, points,"
-            " length_km, a_end_gap_km, z_end_gap_km, reversed, point_count, created_at, created_by")
+            " length_km, a_end_gap_km, z_end_gap_km, reversed, point_count, source, created_at, created_by")
     if _use_db():
         with get_conn() as conn, conn.cursor() as cur:
             cur.execute(f"SELECT {cols} FROM segment_kml WHERE active")
@@ -228,7 +236,11 @@ def active_links() -> dict[str, dict]:
     out = {}
     for l in _read_index()["links"]:
         if l.get("active"):
-            out[l["segment_id"]] = {k: v for k, v in l.items() if k != "full_path"}
+            out[l["segment_id"]] = {k: v for k, v in l.items() if k != "full_path"} | {
+                # Rows written before 'source' existed are uploads — the only
+                # source this feature had at the time.
+                "source": l.get("source", "upload"),
+            }
     return out
 
 
@@ -238,7 +250,7 @@ def full_path_for(segment_id: str) -> Optional[dict]:
         with get_conn() as conn, conn.cursor() as cur:
             cur.execute(
                 "SELECT id, segment_id, file_id, version, full_path, points, length_km,"
-                " a_end_gap_km, z_end_gap_km, reversed, point_count, created_at"
+                " a_end_gap_km, z_end_gap_km, reversed, point_count, source, created_at"
                 " FROM segment_kml WHERE segment_id = %s AND active",
                 (segment_id,),
             )
@@ -247,7 +259,7 @@ def full_path_for(segment_id: str) -> Optional[dict]:
 
     for l in _read_index()["links"]:
         if l["segment_id"] == segment_id and l.get("active"):
-            return l
+            return l | {"source": l.get("source", "upload")}
     return None
 
 
@@ -258,7 +270,7 @@ def versions_for(segment_id: str) -> list[dict]:
             cur.execute(
                 "SELECT k.id, k.segment_id, k.file_id, k.version, k.active, k.placemark_name,"
                 " k.length_km, k.a_end_gap_km, k.z_end_gap_km, k.reversed, k.point_count,"
-                " k.created_at, k.created_by, f.filename, f.size_bytes"
+                " k.source, k.created_at, k.created_by, f.filename, f.size_bytes"
                 " FROM segment_kml k JOIN kml_files f ON f.id = k.file_id"
                 " WHERE k.segment_id = %s ORDER BY k.version DESC",
                 (segment_id,),
@@ -271,6 +283,7 @@ def versions_for(segment_id: str) -> list[dict]:
     out = []
     for l in sorted(rows, key=lambda r: r["version"], reverse=True):
         rec = {k: v for k, v in l.items() if k not in ("full_path", "display_path", "points")}
+        rec.setdefault("source", "upload")
         f = files.get(l["file_id"], {})
         rec["filename"] = f.get("filename", "")
         rec["size_bytes"] = f.get("size_bytes", 0)

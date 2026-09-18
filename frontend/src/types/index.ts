@@ -851,6 +851,16 @@ export interface HazardFeed {
  * points, measured at 0.16px of error at world zoom) rides along for the
  * overview, and the full path is fetched per segment on demand.
  */
+/**
+ * Where a segment's KML geometry came from. 'upload' is a KMZ/KML someone
+ * attached — potentially a real carrier survey. 'submarinecablemap' is fetched
+ * from submarinecablemap.com's public map data: real geometry, but a
+ * simplified public trace rather than an as-laid route, and never labelled
+ * "surveyed" anywhere in this app — see backend/app/db.py's m062 migration and
+ * utils/generateKml.ts.
+ */
+export type KmlSource = 'upload' | 'submarinecablemap'
+
 export interface KmlPathInfo {
   link_id: string
   version: number
@@ -868,6 +878,7 @@ export interface KmlPathInfo {
   reversed: boolean
   /** Placemark points carried by the file (BMH, repeaters). Stored, not drawn. */
   point_markers: number
+  source: KmlSource
 }
 
 /** GET /api/kml/paths — every segment's simplified path, keyed by segment id. */
@@ -889,6 +900,7 @@ export interface KmlFullPath {
   a_end_gap_km: number | null
   z_end_gap_km: number | null
   reversed: boolean
+  source: KmlSource
 }
 
 /** What POST /api/kml/upload reports back about one attached file. */
@@ -1002,12 +1014,13 @@ export interface KmlCommitResponse {
     stored_length_km: number
     point_count: number
     needs_review: boolean
+    source: KmlSource
   }[]
   failed: { file_id: string; segment_id: string; path_index: number; reason: string }[]
   summary: { linked: number; failed: number }
 }
 
-/** One segment that has a surveyed route on file. */
+/** One segment that has a route on file — not necessarily surveyed, see `source`. */
 export interface KmlLibraryLinked {
   segment_id: string
   name: string
@@ -1022,6 +1035,7 @@ export interface KmlLibraryLinked {
   a_end_gap_km: number | null
   z_end_gap_km: number | null
   created_at: string | null
+  source: KmlSource
 }
 
 /** A segment with no surveyed route — what the map is still approximating. */
@@ -1055,10 +1069,29 @@ export interface KmlVersion {
   z_end_gap_km: number | null
   reversed: boolean
   point_count: number
+  source: KmlSource
   created_at: string | null
   created_by: string | null
   filename: string
   size_bytes: number
+}
+
+/** One cable submarinecablemap.com knows about — the sync picker's data. */
+export interface ScmCable {
+  id: string
+  name: string
+}
+
+/** GET /api/kml/scm/cables?q= */
+export interface ScmCablesResponse {
+  cables: ScmCable[]
+}
+
+/** POST /api/kml/scm/propose — same shape as bulk propose, plus which cable
+ *  it came from. */
+export interface ScmProposeResponse extends KmlProposeResponse {
+  cable_id: string
+  cable_name: string
 }
 
 /** GET /api/kml/unused-files — blobs left behind by abandoned reviews. */

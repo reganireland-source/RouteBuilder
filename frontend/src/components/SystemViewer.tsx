@@ -29,7 +29,8 @@ interface Props {
   /** Needed to export a system's geometry — every segment that belongs to it. */
   segments?: CableSegment[]
   nodes?: CableNode[]
-  /** Which segments have a surveyed route on file, from /api/kml/paths. */
+  /** Which segments have route geometry on file (uploaded or synced from
+   *  submarinecablemap.com), from /api/kml/paths. */
   hasKml?: (segmentId: string) => boolean
 }
 
@@ -41,9 +42,9 @@ export function SystemViewer({ systems, selected, onToggle, segments, nodes, has
   /**
    * Download one cable system as a KML.
    *
-   * Uses the surveyed route for every segment that has one and the map's own
-   * approximation for the rest, and the file says which is which — see
-   * utils/generateKml.ts. Lazily imported so the exporter is not in the bundle
+   * Uses the route on file for every segment that has one (uploaded or synced)
+   * and the map's own approximation for the rest, and the file says which is
+   * which — see utils/generateKml.ts. Lazily imported so the exporter is not in the bundle
    * for everyone who merely looks at a system.
    */
   async function exportSystem(systemId: string, systemName: string) {
@@ -161,7 +162,7 @@ export function SystemViewer({ systems, selected, onToggle, segments, nodes, has
                   // explicit label a screen reader announces the two together
                   // as one control ("Australia-Japan Cable AJC ⬇ KML").
                   aria-label={`Download ${sys.id} as KML`}
-                  title={`Download every ${sys.id} segment as a KML — surveyed routes where we have them, approximations marked as such`}
+                  title={`Download every ${sys.id} segment as a KML — routes on file where we have them (uploaded or synced), approximations marked as such`}
                   style={{
                     flexShrink: 0, padding: '3px 7px', borderRadius: 4, fontSize: 10,
                     fontFamily: 'inherit', cursor: 'pointer',

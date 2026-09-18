@@ -460,12 +460,13 @@ function NodeSearchField({ label, k, src, setSrc, nodes }: {
 /** Type-ahead combobox for picking a segment id (used by capacity/outage forms,
  *  which reference a segment). Stores the selected segment's id into `src[k]`. */
 /**
- * Whether a segment has a surveyed route on file, and how good a fit it is.
+ * Whether a segment has route geometry on file, and how good a fit it is.
  *
  * Shows the KML's own measured length next to nothing else on purpose: the
- * comparison that matters (stored vs surveyed) lives in the segment's Full
+ * comparison that matters (stored vs on-file) lives in the segment's Full
  * View, and repeating it per row here would be a column of numbers nobody can
- * act on. What a reference-data table needs to answer is "do we have one".
+ * act on. What a reference-data table needs to answer is "do we have one" —
+ * and, since not every one is a survey (see `source`), which kind.
  */
 function KmlBadge({ info, t }: { info?: KmlPathInfo; t: Theme }) {
   if (!info) {
@@ -475,23 +476,29 @@ function KmlBadge({ info, t }: { info?: KmlPathInfo; t: Theme }) {
   // so here is the cheapest place to catch a mis-matched upload.
   const gap = Math.max(info.a_end_gap_km ?? 0, info.z_end_gap_km ?? 0)
   const suspect = gap > 10
+  const synced = info.source === 'submarinecablemap'
+  let tone = t.green
+  let label = synced ? 'SYNCED' : 'KMZ'
+  if (suspect) { tone = t.orange; label = `⚠ ${label}` }
+  else if (synced) { tone = t.blue }
   return (
     <span
       title={
-        `v${info.version} · ${info.point_count.toLocaleString()} surveyed points` +
+        `${synced ? 'Synced from submarinecablemap.com (not a survey)' : 'Uploaded'}` +
+        ` · v${info.version} · ${info.point_count.toLocaleString()} points` +
         (info.length_km != null ? ` · ${info.length_km.toLocaleString()} km` : '') +
         (suspect ? `\nEndpoints sit up to ${gap.toFixed(0)} km from this segment's nodes — check it is the right file.` : '')
       }
       style={{
         fontSize: 9, fontWeight: 700, letterSpacing: '0.04em',
         padding: '2px 6px', borderRadius: 4,
-        border: `1px solid ${suspect ? t.orange : t.green}`,
-        color: suspect ? t.orange : t.green,
-        background: (suspect ? t.orange : t.green) + '18',
+        border: `1px solid ${tone}`,
+        color: tone,
+        background: tone + '18',
         whiteSpace: 'nowrap',
       }}
     >
-      {suspect ? '⚠ KMZ' : 'KMZ'} v{info.version}
+      {label} v{info.version}
     </span>
   )
 }

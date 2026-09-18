@@ -151,9 +151,10 @@ interface Props {
   onNetOwnership?: string[]
   /** The top-right Controls menu is open; the hazard panel moves out of its way. */
   controlsOpen?: boolean
-  /** Surveyed cable routes from uploaded KMZ/KML, keyed by segment id. */
+  /** Cable route geometry on file — uploaded or synced from
+   *  submarinecablemap.com, see KmlPathInfo.source — keyed by segment id. */
   kmlPaths?: Record<string, KmlPathInfo>
-  /** Draw surveyed routes where we have them, and mark which cables are which. */
+  /** Draw routes on file where we have them, and mark which cables are which. */
   kmlMode?: boolean
   /** An import being reviewed, drawn over the network so the cuts can be
    *  checked against it. Transient — never stored, cleared when review ends. */

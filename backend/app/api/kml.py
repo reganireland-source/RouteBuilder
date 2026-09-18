@@ -40,11 +40,12 @@ one place.
 from __future__ import annotations
 
 import logging
+from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 
 from ..data_loader import load_nodes, load_segments
-from ..kml import store
+from ..kml import store, submarinecablemap
 from ..kml.geometry import DISPLAY_POINT_BUDGET, build_geometry, simplify_path
 from ..kml.matcher import (
     Candidate,
@@ -55,7 +56,7 @@ from ..kml.matcher import (
     tokenise,
 )
 from ..kml.joiner import merge_fragments
-from ..kml.parser import KmlParseError, parse_upload
+from ..kml.parser import KmlParseError, parse_kml, parse_upload
 from ..kml.splitter import split_path
 
 log = logging.getLogger("routebuilder.kml")
@@ -92,6 +93,7 @@ def get_paths():
                 "z_end_gap_km": row["z_end_gap_km"],
                 "reversed": row["reversed"],
                 "point_markers": len(row.get("points") or []),
+                "source": row.get("source", "upload"),
             }
             for seg_id, row in links.items()
         },
@@ -125,6 +127,7 @@ def get_full_path(segment_id: str):
         "a_end_gap_km": row["a_end_gap_km"],
         "z_end_gap_km": row["z_end_gap_km"],
         "reversed": row["reversed"],
+        "source": row.get("source", "upload"),
     }
 
 
@@ -155,6 +158,7 @@ def get_library():
                 "point_count": row["point_count"],
                 "a_end_gap_km": row["a_end_gap_km"], "z_end_gap_km": row["z_end_gap_km"],
                 "created_at": row["created_at"],
+                "source": row.get("source", "upload"),
             })
         else:
             gaps.append({
@@ -433,8 +437,87 @@ def _proposal_dict(
     }
 
 
+def _proposals_for_file(
+    file_id: str, name: str, parsed, segments: list[dict], nodes_by_id: dict[str, dict],
+    seg_tokens: dict[str, set[str]], linked_ids: set[str], system_hint: Optional[str] = None,
+) -> list[dict]:
+    """
+    Every reviewable row one parsed file produces: join fragments, split at
+    nodes where a path spans several segments, rank each piece.
+
+    Shared by bulk_propose (once per uploaded file) and scm_propose (once for
+    the single synthetic KML a submarinecablemap.com sync produces) so the two
+    entry points can never disagree about what "propose" means for a file —
+    there is exactly one implementation of parse -> join -> split -> match.
+    """
+    proposals: list[dict] = []
+    merged = _merged_paths(parsed)
+    for index, path in enumerate(merged):
+        # ONE LINESTRING MAY COVER SEVERAL SEGMENTS. A file is often a
+        # single unbroken trace of a whole cable — Singapore to Mumbai to
+        # Dubai to London — while the network models that as three
+        # segments. split_path cuts it at the nodes it genuinely passes,
+        # but only where every hop is a segment that already exists; when
+        # it cannot do that honestly it returns None and the path is
+        # matched whole, exactly as before.
+        pieces = split_path(path.coords, list(nodes_by_id.values()), segments)
+
+        if pieces:
+            for piece_no, piece in enumerate(pieces):
+                # Each piece is scored from scratch rather than trusting the
+                # segment that justified the cut: where parallel cables run
+                # between the same two stations, any of them makes the hop
+                # valid and only the ranking can say which are plausible.
+                tokens = tokenise(name, path.name, path.folder, parsed.document_name)
+                proposals.append(_proposal_dict(
+                    file_id, name, index, path, len(merged),
+                    coords=piece.coords,
+                    candidates=rank_candidates(
+                        piece.coords, tokens, segments, nodes_by_id, seg_tokens, linked_ids,
+                        system_hint=system_hint,
+                    ),
+                    piece_index=piece_no, piece_count=len(pieces),
+                    piece_nodes=(piece.start_node_id, piece.end_node_id),
+                ))
+            continue
+
+        tokens = tokenise(name, path.name, path.folder, parsed.document_name)
+        proposals.append(_proposal_dict(
+            file_id, name, index, path, len(merged),
+            coords=path.coords,
+            candidates=rank_candidates(
+                path.coords, tokens, segments, nodes_by_id, seg_tokens, linked_ids,
+                system_hint=system_hint,
+            ),
+        ))
+    return proposals
+
+
+def _conflicts_for(proposals: list[dict]) -> dict[str, list[int]]:
+    """Rebuilt as PathProposal only to reuse the conflict logic on plain dicts."""
+    return resolve_conflicts([
+        PathProposal(
+            file_id=p["file_id"], filename=p["filename"], path_index=p["path_index"],
+            path_name=p["path_name"], folder=p["folder"], point_count=p["point_count"],
+            candidates=[Candidate(**c) for c in p["candidates"]],
+        )
+        for p in proposals
+    ])
+
+
+def _propose_summary(proposals: list[dict], files_read: int, files_rejected: int) -> dict:
+    return {
+        "files_read": files_read,
+        "files_rejected": files_rejected,
+        "paths_found": len(proposals),
+        "auto_acceptable": sum(1 for p in proposals if p["auto_acceptable"]),
+        "ambiguous": sum(1 for p in proposals if p["ambiguous"]),
+        "no_candidate": sum(1 for p in proposals if not p["candidates"]),
+    }
+
+
 @router.post("/bulk/propose")
-async def bulk_propose(files: list[UploadFile] = File(...)):
+async def bulk_propose(files: list[UploadFile] = File(...), system_hint: str = Form(None)):
     """
     POST /api/kml/bulk/propose — parse a batch and say what each path might be.
 
@@ -443,6 +526,11 @@ async def bulk_propose(files: list[UploadFile] = File(...)):
     them. Files that cannot be parsed are reported with their reason rather than
     failing the batch — one corrupt KMZ in a folder of three hundred should not
     cost the other 299.
+
+    `system_hint` is an optional cable-system id the importer believes this
+    batch belongs to — see rank_candidates' docstring for exactly what it does
+    and does not change. Applied to every file in the batch; a batch that mixes
+    systems should be split into separate uploads rather than hinted once.
 
     Auth: admin (admin_write_guard covers POST).
     """
@@ -471,66 +559,91 @@ async def bulk_propose(files: list[UploadFile] = File(...)):
             continue
 
         file_id = store.put_file(data, name)
-        merged = _merged_paths(parsed)
-        for index, path in enumerate(merged):
-            # ONE LINESTRING MAY COVER SEVERAL SEGMENTS. A file is often a
-            # single unbroken trace of a whole cable — Singapore to Mumbai to
-            # Dubai to London — while the network models that as three
-            # segments. split_path cuts it at the nodes it genuinely passes,
-            # but only where every hop is a segment that already exists; when
-            # it cannot do that honestly it returns None and the path is
-            # matched whole, exactly as before.
-            pieces = split_path(path.coords, list(nodes_by_id.values()), segments)
-
-            if pieces:
-                for piece_no, piece in enumerate(pieces):
-                    # Each piece is scored from scratch rather than trusting the
-                    # segment that justified the cut: where parallel cables run
-                    # between the same two stations, any of them makes the hop
-                    # valid and only the ranking can say which are plausible.
-                    tokens = tokenise(name, path.name, path.folder, parsed.document_name)
-                    proposals.append(_proposal_dict(
-                        file_id, name, index, path, len(merged),
-                        coords=piece.coords,
-                        candidates=rank_candidates(
-                            piece.coords, tokens, segments, nodes_by_id, seg_tokens, linked_ids,
-                        ),
-                        piece_index=piece_no, piece_count=len(pieces),
-                        piece_nodes=(piece.start_node_id, piece.end_node_id),
-                    ))
-                continue
-
-            tokens = tokenise(name, path.name, path.folder, parsed.document_name)
-            proposals.append(_proposal_dict(
-                file_id, name, index, path, len(merged),
-                coords=path.coords,
-                candidates=rank_candidates(
-                    path.coords, tokens, segments, nodes_by_id, seg_tokens, linked_ids,
-                ),
-            ))
-
-    # Rebuilt as PathProposal only to reuse the conflict logic on the same data.
-    conflicts = resolve_conflicts([
-        PathProposal(
-            file_id=p["file_id"], filename=p["filename"], path_index=p["path_index"],
-            path_name=p["path_name"], folder=p["folder"], point_count=p["point_count"],
-            candidates=[Candidate(**c) for c in p["candidates"]],
-        )
-        for p in proposals
-    ])
+        proposals.extend(_proposals_for_file(
+            file_id, name, parsed, segments, nodes_by_id, seg_tokens, linked_ids,
+            system_hint=system_hint or None,
+        ))
 
     return {
         "proposals": proposals,
         "rejected": rejected,
-        "conflicts": conflicts,
-        "summary": {
-            "files_read": len(files) - len(rejected),
-            "files_rejected": len(rejected),
-            "paths_found": len(proposals),
-            "auto_acceptable": sum(1 for p in proposals if p["auto_acceptable"]),
-            "ambiguous": sum(1 for p in proposals if p["ambiguous"]),
-            "no_candidate": sum(1 for p in proposals if not p["candidates"]),
-        },
+        "conflicts": _conflicts_for(proposals),
+        "summary": _propose_summary(proposals, len(files) - len(rejected), len(rejected)),
+    }
+
+
+@router.get("/scm/cables")
+def scm_cables(q: str = ""):
+    """
+    GET /api/kml/scm/cables?q= — search submarinecablemap.com's cable list.
+
+    A thin proxy so the frontend never calls a third-party host directly, the
+    same reasoning as the bushfire.io proxy in api/hazards.py — though here
+    there is no secret to protect, only a consistent cache and error shape. An
+    empty `q` returns the first page alphabetically, enough for a picker to
+    show something before anyone has typed.
+
+    Auth: public read.
+    """
+    try:
+        cables = submarinecablemap.search_cables(q) if q else submarinecablemap.list_cables()
+    except submarinecablemap.ScmError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"cables": cables}
+
+
+@router.post("/scm/propose")
+def scm_propose(cable_id: str = Form(...), system_hint: str = Form(None)):
+    """
+    POST /api/kml/scm/propose — fetch one cable's geometry from
+    submarinecablemap.com and score it against every segment.
+
+    The "sync" import path: rather than a person supplying a file, this fetches
+    one, builds a synthetic KML from it (see submarinecablemap.cable_to_kml_bytes),
+    and runs it through EXACTLY the same propose pipeline a real upload would —
+    same join/split/match, same response shape as bulk_propose. Writes a file
+    (content-addressed, so re-syncing the same cable costs nothing extra) but
+    no segment_kml links; review and commit through the existing
+    POST /api/kml/bulk/commit, with each accepted entry carrying
+    "source": "submarinecablemap" so the link records where the geometry
+    actually came from — see store.link_segment's docstring.
+
+    `system_hint` is usually the system the caller is syncing this cable
+    against — the whole reason this endpoint exists alongside bulk upload is
+    that the reviewer already knows which of our systems this is, which is
+    exactly what the hint is for.
+
+    Auth: admin (admin_write_guard covers POST).
+    """
+    try:
+        kml_bytes, filename, cable_name = submarinecablemap.fetch_cable_kml(cable_id)
+    except submarinecablemap.ScmError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    try:
+        parsed = parse_kml(kml_bytes, source_name=filename)
+    except KmlParseError as exc:  # pragma: no cover — our own builder's output
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    segments = [s.model_dump() for s in load_segments()]
+    nodes = load_nodes()
+    nodes_by_id = {n.id: n.model_dump() for n in nodes}
+    seg_tokens = {s["id"]: segment_tokens_for(s, nodes_by_id) for s in segments}
+    linked_ids = set(store.active_links())
+
+    file_id = store.put_file(kml_bytes, filename, uploaded_by="submarinecablemap-sync")
+    proposals = _proposals_for_file(
+        file_id, filename, parsed, segments, nodes_by_id, seg_tokens, linked_ids,
+        system_hint=system_hint or None,
+    )
+
+    return {
+        "cable_id": cable_id,
+        "cable_name": cable_name,
+        "proposals": proposals,
+        "rejected": [],
+        "conflicts": _conflicts_for(proposals),
+        "summary": _propose_summary(proposals, 1, 0),
     }
 
 
@@ -568,6 +681,17 @@ def bulk_commit(payload: dict):
         file_id = entry.get("file_id")
         segment_id = entry.get("segment_id")
         index = entry.get("path_index", 0)
+        # What produced this file — 'upload' (default, for bulk_propose) or
+        # 'submarinecablemap' (scm_propose). Trusted from the request because
+        # the reviewer's own UI is what sets it, not the file itself: the byte
+        # content of a synced KML and an uploaded one can look identical, and
+        # provenance has to come from how the geometry got here, not a guess
+        # made by sniffing the file after the fact.
+        source = entry.get("source") or "upload"
+        if source not in ("upload", "submarinecablemap"):
+            failed.append({"file_id": file_id, "segment_id": segment_id,
+                           "path_index": index, "reason": f"Unknown source {source!r}"})
+            continue
         try:
             segment = segments.get(segment_id)
             if segment is None:
@@ -622,7 +746,7 @@ def bulk_commit(payload: dict):
             ]
             row = store.link_segment(
                 segment_id, file_id, geometry,
-                placemark_name=path.name or "", points=points,
+                placemark_name=path.name or "", points=points, source=source,
             )
             linked.append({
                 "segment_id": segment_id,
@@ -633,6 +757,7 @@ def bulk_commit(payload: dict):
                 "stored_length_km": segment.length_km,
                 "point_count": row["point_count"],
                 "needs_review": geometry.needs_review,
+                "source": source,
             })
         except (ValueError, KmlParseError) as exc:
             failed.append({"file_id": file_id, "segment_id": segment_id,

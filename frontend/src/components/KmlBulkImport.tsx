@@ -22,22 +22,36 @@
  *
  * Uploads go in batches (MAX_FILES_PER_BATCH server-side) so a few hundred
  * files show progress as they go and one failed batch does not lose the rest.
+ *
+ * A THIRD WAY IN, alongside "choose files" and the single-segment upload on
+ * SegmentKmlCard: sync a cable straight from submarinecablemap.com's public
+ * map data (see backend/app/kml/submarinecablemap.py). It runs through the
+ * exact same review table — the only difference is where the file came from —
+ * and everything it attaches is stamped source='submarinecablemap' rather
+ * than 'upload', which is what keeps this lower-fidelity community geometry
+ * from ever being drawn or exported as a "surveyed" route (see
+ * utils/generateKml.ts and SegmentKmlCard.tsx).
  */
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { CableSegment, KmlCommitResponse, KmlPreviewLine, KmlProposal, KmlProposeResponse } from '../types'
+import type { CableSegment, CableSystem, KmlCommitResponse, KmlPreviewLine, KmlProposal, KmlProposeResponse, KmlSource, ScmCable } from '../types'
 import { useTheme, type Theme } from '../theme'
 import { api } from '../api/client'
 import { PREVIEW_COLORS } from './KmlPreviewLayer'
 
 interface Props {
   segments: CableSegment[]
+  /** For the system-hint dropdown and the sync picker's "which system is
+   *  this" question — both features exist to disambiguate the same thing. */
+  systems: CableSystem[]
   onClose: () => void
   /** Refetch hook so the map and Ref Data pick up what was attached. */
   onDataChange?: () => void
   /** Draw a proposal on the real map. Passing [] clears it. */
   onPreview?: (lines: KmlPreviewLine[]) => void
 }
+
+type Mode = 'upload' | 'sync'
 
 /** Matches MAX_FILES_PER_BATCH in backend/app/api/kml.py. */
 const BATCH_SIZE = 25
@@ -88,6 +102,7 @@ function zeroTotals(): KmlProposeResponse['summary'] {
  */
 async function proposeInBatches(
   files: File[],
+  systemHint: string,
   onBatch: (soFar: KmlProposal[], rejected: { filename: string; reason: string }[], done: number) => void,
 ): Promise<{ proposals: KmlProposal[]; totals: KmlProposeResponse['summary'] }> {
   const proposals: KmlProposal[] = []
@@ -95,13 +110,27 @@ async function proposeInBatches(
   const totals = zeroTotals()
 
   for (let i = 0; i < files.length; i += BATCH_SIZE) {
-    const res = await api.proposeKmlBatch(files.slice(i, i + BATCH_SIZE))
+    const res = await api.proposeKmlBatch(files.slice(i, i + BATCH_SIZE), systemHint || undefined)
     proposals.push(...res.proposals)
     rejected.push(...res.rejected)
     for (const k of Object.keys(totals) as (keyof typeof totals)[]) totals[k] += res.summary[k]
     onBatch([...proposals], [...rejected], Math.min(i + BATCH_SIZE, files.length))
   }
   return { proposals, totals }
+}
+
+/** Pre-tick only what the matcher is confident about. Everything else starts
+ *  unticked, so waving the dialog through cannot attach a guess. Shared by
+ *  the upload and sync flows so the two cannot drift on this rule. */
+function defaultDecisions(found: KmlProposal[]): Record<string, Decision> {
+  const initial: Record<string, Decision> = {}
+  for (const p of found) {
+    initial[`${p.file_id}:${p.path_index}:${p.piece_index ?? 'whole'}`] = {
+      accept: p.auto_acceptable,
+      segmentId: p.candidates[0]?.segment_id ?? '',
+    }
+  }
+  return initial
 }
 
 /**
@@ -352,7 +381,178 @@ function ReviewRow({
   )
 }
 
-export function KmlBulkImport({ segments, onClose, onDataChange, onPreview }: Props) {
+/** Upload / Sync toggle. Module-level, like every other piece of this
+ *  toolbar, so switching this on does not push the dialog's own cognitive
+ *  complexity over the lint ceiling. */
+function ModeButtons({ mode, busy, onChange, t }: {
+  mode: Mode
+  busy: boolean
+  onChange: (m: Mode) => void
+  t: Theme
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 6, padding: '10px 16px 0', flexWrap: 'wrap' }}>
+      {(['upload', 'sync'] as const).map(m => (
+        <button
+          key={m}
+          onClick={() => onChange(m)}
+          disabled={busy}
+          style={{
+            padding: '5px 11px', borderRadius: 5, fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
+            border: `1px solid ${mode === m ? t.blue : t.border}`,
+            background: mode === m ? t.blue + '18' : 'transparent',
+            color: mode === m ? t.blue : t.textMuted,
+            cursor: busy ? 'default' : 'pointer',
+          }}
+        >{m === 'upload' ? '⬆ Upload files' : '🔄 Sync from Submarine Cable Map'}</button>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * The toolbar's mode-specific picker — choose files, or search + fetch one
+ * cable. An early return per mode rather than a ternary, so each half is a
+ * plain, independently-readable block instead of one branch buried in the
+ * other.
+ */
+function SourcePicker({
+  mode, busy, fileRef, onPickFiles, scmQuery, onScmQueryChange, scmCables, scmMatch, onSync, t,
+}: {
+  mode: Mode
+  busy: boolean
+  fileRef: React.RefObject<HTMLInputElement>
+  onPickFiles: (files: File[]) => void
+  scmQuery: string
+  onScmQueryChange: (q: string) => void
+  scmCables: ScmCable[]
+  scmMatch: ScmCable | undefined
+  onSync: () => void
+  t: Theme
+}) {
+  if (mode === 'upload') {
+    return (
+      <>
+        <input
+          ref={fileRef} type="file" multiple
+          accept=".kmz,.kml,application/vnd.google-earth.kmz,application/vnd.google-earth.kml+xml"
+          style={{ display: 'none' }}
+          onChange={e => { onPickFiles([...(e.target.files ?? [])]); e.target.value = '' }}
+        />
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={busy}
+          style={{
+            padding: '7px 13px', borderRadius: 6, fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
+            border: `1px solid ${t.blue}`, background: t.blue + '18', color: t.blue,
+            cursor: busy ? 'default' : 'pointer',
+          }}
+        >{busy ? 'Reading…' : '⬆ Choose KMZ / KML files'}</button>
+      </>
+    )
+  }
+
+  const loading = scmCables.length === 0
+  const syncTitle = scmMatch
+    ? `Fetch ${scmMatch.name} from submarinecablemap.com`
+    : 'Pick an exact cable name from the list first'
+  return (
+    <>
+      <input
+        list="scm-cable-options"
+        value={scmQuery}
+        onChange={e => onScmQueryChange(e.target.value)}
+        placeholder={loading ? 'Loading cable list…' : 'Search submarine cable name…'}
+        disabled={busy || loading}
+        style={{
+          padding: '6px 8px', fontSize: 11, fontFamily: 'inherit', minWidth: 240,
+          background: t.bgDeep, color: t.text, border: `1px solid ${t.border}`, borderRadius: 5,
+        }}
+      />
+      <datalist id="scm-cable-options">
+        {scmCables.map(c => <option key={c.id} value={c.name} />)}
+      </datalist>
+      <button
+        onClick={onSync}
+        disabled={busy || !scmMatch}
+        title={syncTitle}
+        style={{
+          padding: '7px 13px', borderRadius: 6, fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
+          border: `1px solid ${scmMatch ? t.blue : t.border}`,
+          background: scmMatch ? t.blue + '18' : 'transparent',
+          color: scmMatch ? t.blue : t.textFaint,
+          cursor: busy || !scmMatch ? 'default' : 'pointer',
+        }}
+      >{busy ? 'Fetching…' : '🔄 Fetch & review'}</button>
+    </>
+  )
+}
+
+/** Which cable system the importer believes this batch belongs to — shared by
+ *  both modes, see rank_candidates' docstring for exactly what it changes. */
+function SystemHintSelect({ value, onChange, options, busy, t }: {
+  value: string
+  onChange: (v: string) => void
+  options: CableSystem[]
+  busy: boolean
+  t: Theme
+}) {
+  return (
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      disabled={busy}
+      title="Optional: which cable system this batch belongs to. Boosts the matcher's ranking toward that system without ever overriding what the geometry itself says."
+      style={{
+        padding: '6px 8px', fontSize: 11, fontFamily: 'inherit',
+        background: t.bgDeep, color: value ? t.text : t.textFaint,
+        border: `1px solid ${t.border}`, borderRadius: 5,
+      }}
+    >
+      <option value="">System hint (optional)</option>
+      {options.map(s => <option key={s.id} value={s.id}>{s.id} — {s.name}</option>)}
+    </select>
+  )
+}
+
+/** The honesty banner shown over a review table produced by a sync rather
+ *  than an upload — see the module docstring's "THIRD WAY IN". */
+function SyncBanner({ show, t }: { show: boolean; t: Theme }) {
+  if (!show) return null
+  return (
+    <div style={{
+      padding: '7px 16px', background: t.orange + '14', borderBottom: `1px solid ${t.border}`,
+      fontSize: 11, color: t.textMuted,
+    }}>
+      <strong style={{ color: t.orange }}>Community-sourced, not a survey.</strong>{' '}
+      This geometry is submarinecablemap.com's public map trace — real, but simplified for a
+      web map rather than measured as-laid. Attaching it stores it as such; it is never shown
+      or exported as a surveyed route.
+    </div>
+  )
+}
+
+/** What to show before anything has been proposed — one mode-specific block. */
+function EmptyState({ mode, t }: { mode: Mode; t: Theme }) {
+  const style: React.CSSProperties = { padding: 28, textAlign: 'center', fontSize: 12, color: t.textMuted, lineHeight: 1.7 }
+  if (mode === 'upload') {
+    return (
+      <div style={style}>
+        Choose a set of KMZ or KML files to begin.<br />
+        Files holding a whole cable system are split into their separate paths and
+        matched one at a time.
+      </div>
+    )
+  }
+  return (
+    <div style={style}>
+      Search for a cable above and Fetch &amp; review its geometry from submarinecablemap.com.<br />
+      Lower fidelity than a survey — a starting point when your own files are missing or messy.
+    </div>
+  )
+}
+
+export function KmlBulkImport({ segments, systems, onClose, onDataChange, onPreview }: Props) {
   const t = useTheme()
   const fileRef = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
@@ -367,43 +567,106 @@ export function KmlBulkImport({ segments, onClose, onDataChange, onPreview }: Pr
    *  whether the dialog has moved aside to let it be seen. */
   const [previewing, setPreviewing] = useState<string | null>(null)
 
+  /** Upload a file, or sync one cable from submarinecablemap.com. Whichever
+   *  produced the CURRENT batch of proposals — carried through to commit so
+   *  every link this dialog creates is stamped with where it actually came
+   *  from (see store.link_segment's docstring). */
+  const [mode, setMode] = useState<Mode>('upload')
+  const [source, setSource] = useState<KmlSource>('upload')
+  /** Which system the importer believes this batch belongs to. Optional in
+   *  both modes; boosts the matcher's ranking without ever being able to
+   *  override what the geometry itself says — see rank_candidates. */
+  const [systemHint, setSystemHint] = useState('')
+  const [scmCables, setScmCables] = useState<ScmCable[]>([])
+  const [scmQuery, setScmQuery] = useState('')
+  /** Guards the fetch below against firing twice — a ref rather than state
+   *  because it exists only to prevent a REPEAT call, never to drive a
+   *  render; "loading" itself is read straight off scmCables.length in
+   *  SourcePicker, the same empty-state-is-the-loading-state idiom
+   *  KmlLibrary's own mount fetch uses. */
+  const scmFetchStarted = useRef(false)
+
+  // Fetched once, the first time Sync mode is opened — ~700 cables, small
+  // enough to hold in full and filter client-side rather than round-tripping
+  // a search on every keystroke. State is only ever set from inside the
+  // promise callback, never synchronously in the effect body.
+  useEffect(() => {
+    if (mode !== 'sync' || scmFetchStarted.current) return
+    scmFetchStarted.current = true
+    api.searchScmCables('')
+      .then(res => setScmCables(res.cables))
+      .catch((e: unknown) => { scmFetchStarted.current = false; setError(e instanceof Error ? e.message : String(e)) })
+  }, [mode])
+
   const segmentIds = useMemo(
     () => segments.map(s => s.id).sort((a, b) => a.localeCompare(b)),
     [segments],
+  )
+  const systemOptions = useMemo(
+    () => [...systems].sort((a, b) => a.id.localeCompare(b.id)),
+    [systems],
+  )
+  /** The typed query resolved against the fetched list — only an EXACT name
+   *  match (case-insensitive) counts as a selection, so a half-typed query
+   *  can never silently sync the wrong cable. */
+  const scmMatch = useMemo(
+    () => scmCables.find(c => c.name.toLowerCase() === scmQuery.trim().toLowerCase()),
+    [scmCables, scmQuery],
   )
 
   /** Stable per-row key: a file may contribute several paths. */
   const rowKey = (p: KmlProposal) => `${p.file_id}:${p.path_index}:${p.piece_index ?? 'whole'}`
 
-  async function pickFiles(files: File[]) {
-    if (!files.length) return
-    setBusy(true); setError(null); setResult(null)
+  /** Clears whatever was reviewed — used both when starting a fresh
+   *  propose call and when switching modes, so an upload batch and a sync
+   *  can never mix in one review table. */
+  function resetReview() {
+    setError(null); setResult(null)
     setProposals([]); setRejected([]); setDecisions({}); setSummary(null)
     clearPreview()
+  }
 
+  function beginPropose() {
+    resetReview()
+    setBusy(true)
+  }
+
+  async function pickFiles(files: File[]) {
+    if (!files.length) return
+    beginPropose()
+    setSource('upload')
     setProgress({ done: 0, total: files.length })
 
     try {
-      const { proposals: found, totals } = await proposeInBatches(files, (soFar, rej, done) => {
+      const { proposals: found, totals } = await proposeInBatches(files, systemHint, (soFar, rej, done) => {
         setProposals(soFar)
         setRejected(rej)
         setProgress({ done, total: files.length })
       })
       setSummary(totals)
-      // Pre-tick only what the matcher is confident about. Everything else
-      // starts unticked, so waving the dialog through cannot attach a guess.
-      const initial: Record<string, Decision> = {}
-      for (const p of found) {
-        initial[rowKey(p)] = {
-          accept: p.auto_acceptable,
-          segmentId: p.candidates[0]?.segment_id ?? '',
-        }
-      }
-      setDecisions(initial)
+      setDecisions(defaultDecisions(found))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false); setProgress(null)
+    }
+  }
+
+  async function runScmSync() {
+    if (!scmMatch) return
+    beginPropose()
+    setSource('submarinecablemap')
+
+    try {
+      const res = await api.proposeScmSync(scmMatch.id, systemHint || undefined)
+      setProposals(res.proposals)
+      setRejected(res.rejected)
+      setSummary(res.summary)
+      setDecisions(defaultDecisions(res.proposals))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -459,6 +722,7 @@ export function KmlBulkImport({ segments, onClose, onDataChange, onPreview }: Pr
           path_index: p.path_index,
           piece_index: p.piece_index,
           segment_id: decisions[rowKey(p)].segmentId,
+          source,
         }))
       setResult(await api.commitKmlBatch(accepted))
       onDataChange?.()
@@ -519,6 +783,15 @@ export function KmlBulkImport({ segments, onClose, onDataChange, onPreview }: Pr
           >×</button>
         </div>
 
+        {/* Mode toggle — a third way in, alongside SegmentKmlCard's single
+            upload. Switching clears whatever was already reviewed rather than
+            mixing an upload batch with a sync in one review table, which
+            would make the shared "source" stamped on Attach ambiguous. */}
+        <ModeButtons
+          mode={mode} busy={busy} t={t}
+          onChange={m => { if (mode !== m) { setMode(m); resetReview() } }}
+        />
+
         {previewing && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10,
@@ -540,21 +813,14 @@ export function KmlBulkImport({ segments, onClose, onDataChange, onPreview }: Pr
 
         {/* Toolbar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderBottom: `1px solid ${t.border}`, flexWrap: 'wrap' }}>
-          <input
-            ref={fileRef} type="file" multiple
-            accept=".kmz,.kml,application/vnd.google-earth.kmz,application/vnd.google-earth.kml+xml"
-            style={{ display: 'none' }}
-            onChange={e => { void pickFiles([...(e.target.files ?? [])]); e.target.value = '' }}
+          <SourcePicker
+            mode={mode} busy={busy} fileRef={fileRef} t={t}
+            onPickFiles={files => void pickFiles(files)}
+            scmQuery={scmQuery} onScmQueryChange={setScmQuery}
+            scmCables={scmCables} scmMatch={scmMatch}
+            onSync={() => void runScmSync()}
           />
-          <button
-            onClick={() => fileRef.current?.click()}
-            disabled={busy}
-            style={{
-              padding: '7px 13px', borderRadius: 6, fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
-              border: `1px solid ${t.blue}`, background: t.blue + '18', color: t.blue,
-              cursor: busy ? 'default' : 'pointer',
-            }}
-          >{busy ? 'Reading…' : '⬆ Choose KMZ / KML files'}</button>
+          <SystemHintSelect value={systemHint} onChange={setSystemHint} options={systemOptions} busy={busy} t={t} />
 
           {progress && (
             <span style={{ fontSize: 11, color: t.textMuted }}>
@@ -610,16 +876,17 @@ export function KmlBulkImport({ segments, onClose, onDataChange, onPreview }: Pr
           )}
         </div>
 
+        {/* Community-sourced geometry is real but not a survey — said here,
+            once, rather than trusting a reviewer to remember which mode
+            produced the table below. source is what actually enforces this
+            downstream (never drawn or exported as "surveyed"); this banner is
+            what makes sure the reviewer knows it too, before they tick a row. */}
+        <SyncBanner show={source === 'submarinecablemap' && proposals.length > 0} t={t} />
+
         <ImportStatus summary={summary} rejected={rejected} error={error} result={result} t={t} />
         {/* Review table */}
         <div style={{ overflowY: 'auto', flex: 1 }}>
-          {proposals.length === 0 && !busy && (
-            <div style={{ padding: 28, textAlign: 'center', fontSize: 12, color: t.textMuted, lineHeight: 1.7 }}>
-              Choose a set of KMZ or KML files to begin.<br />
-              Files holding a whole cable system are split into their separate paths and
-              matched one at a time.
-            </div>
-          )}
+          {proposals.length === 0 && !busy && <EmptyState mode={mode} t={t} />}
           {proposals.length > 0 && (
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>

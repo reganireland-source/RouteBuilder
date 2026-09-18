@@ -1,5 +1,6 @@
 /**
- * SegmentKmlCard — the surveyed route for one segment: what is on file, how it
+ * SegmentKmlCard — the route geometry on file for one segment (uploaded, or
+ * synced from submarinecablemap.com — see `source`): what is on file, how it
  * compares to the stored figures, and (for admins) how to upload a new one.
  *
  * THE LENGTH COMPARISON IS THE POINT OF THIS CARD. A KML is measured along the
@@ -21,7 +22,7 @@
  * keeping them apart is also what keeps each under the complexity ceiling.
  */
 import { useRef, useState } from 'react'
-import type { CableSegment, KmlPathInfo, KmlUploadResult } from '../types'
+import type { CableSegment, KmlPathInfo, KmlSource, KmlUploadResult } from '../types'
 import type { T } from './fullViewChrome'
 import { Card, Row } from './fullViewChrome'
 import { api } from '../api/client'
@@ -41,10 +42,21 @@ const ENDPOINT_WARN_KM = 10
 /** Beyond this the surveyed and stored lengths are worth arguing about. */
 const LENGTH_WARN_PCT = 15
 
-/** How the map is drawing a cable that has no surveyed route on file. */
+/** How the map is drawing a cable that has no route on file. */
 function approximationSource(waypointCount: number): string {
   if (waypointCount === 0) return 'endpoints as a straight line'
   return `${waypointCount} hand-placed waypoint${waypointCount === 1 ? '' : 's'}`
+}
+
+/** What's on file, in words a reviewer should see before trusting it. */
+function sourceLabel(source: KmlSource): { text: string; color: (t: T) => string } {
+  if (source === 'submarinecablemap') {
+    return {
+      text: 'Synced · Submarine Cable Map',
+      color: t => t.blue,
+    }
+  }
+  return { text: 'Uploaded KMZ', color: t => t.green }
 }
 
 /** Percentage difference between the surveyed and stored lengths. */
@@ -61,18 +73,27 @@ function KmlDetails({ t, segment, info }: { t: T; segment: CableSegment; info: K
   const gap = Math.max(info.a_end_gap_km ?? 0, info.z_end_gap_km ?? 0)
   const gapSuspect = gap > ENDPOINT_WARN_KM
   const note: React.CSSProperties = { fontSize: 11, color: t.orange, margin: '4px 0 8px', lineHeight: 1.5 }
+  const surveyed = info.source !== 'submarinecablemap'
+  const src = sourceLabel(info.source)
 
   return (
     <>
       <Row t={t} label="On file">
-        <span style={{ color: t.green, fontWeight: 700 }}>KMZ v{info.version}</span>
-        <span style={{ color: t.textFaint }}> · {info.point_count.toLocaleString()} surveyed points</span>
+        <span style={{ color: src.color(t), fontWeight: 700 }}>{src.text} · v{info.version}</span>
+        <span style={{ color: t.textFaint }}> · {info.point_count.toLocaleString()} points</span>
       </Row>
+      {!surveyed && (
+        <div style={note}>
+          Fetched from submarinecablemap.com's public map data — real geometry, but a simplified
+          web-map trace, not a carrier survey. Treat it as better than a straight line, not as
+          as-laid fact.
+        </div>
+      )}
       <Row t={t} label="Drawn at">
         {info.display_path.length} points
         <span style={{ color: t.textFaint }}> (simplified for the map; full detail on request)</span>
       </Row>
-      <Row t={t} label="Length (surveyed)">
+      <Row t={t} label={surveyed ? 'Length (surveyed)' : 'Length (on file)'}>
         {info.length_km != null ? `${info.length_km.toLocaleString()} km` : '—'}
         {delta != null && (
           <span style={{ color: deltaLarge ? t.orange : t.textFaint, marginLeft: 8 }}>
@@ -82,9 +103,9 @@ function KmlDetails({ t, segment, info }: { t: T; segment: CableSegment; info: K
       </Row>
       {deltaLarge && (
         <div style={note}>
-          The surveyed length and the stored length disagree by more than {LENGTH_WARN_PCT}%.
-          Routing still uses the stored figure — nothing has changed — but one of
-          the two is likely wrong.
+          The {surveyed ? 'surveyed' : 'on-file'} length and the stored length disagree by more than
+          {' '}{LENGTH_WARN_PCT}%. Routing still uses the stored figure — nothing has changed — but
+          one of the two is likely wrong.
         </div>
       )}
       <Row t={t} label="Endpoints">
@@ -192,7 +213,7 @@ function KmlUpload({ t, segment, info, onUploaded }: Props) {
 export function SegmentKmlCard({ t, segment, info, onUploaded }: Props) {
   const { isAdmin } = useAuth()
   return (
-    <Card key="kml" t={t} title="Surveyed Route (KML)" grow>
+    <Card key="kml" t={t} title="Route Geometry (KML)" grow>
       {info ? (
         <KmlDetails t={t} segment={segment} info={info} />
       ) : (

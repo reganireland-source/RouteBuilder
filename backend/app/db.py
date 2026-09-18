@@ -400,6 +400,12 @@ CREATE TABLE IF NOT EXISTS segment_kml (
     z_end_gap_km   REAL,
     reversed       BOOLEAN NOT NULL DEFAULT FALSE,
     point_count    INTEGER NOT NULL DEFAULT 0,
+    -- 'upload' (a KMZ/KML someone attached) or 'submarinecablemap' (fetched
+    -- from submarinecablemap.com's public map data — see m062 and
+    -- app/kml/submarinecablemap.py). Never inferred from the file itself:
+    -- this is what keeps a lower-fidelity community trace from silently
+    -- reading as a carrier survey anywhere downstream.
+    source         TEXT NOT NULL DEFAULT 'upload',
     created_at     TEXT,
     created_by     TEXT
 );
@@ -676,6 +682,7 @@ def init_db() -> None:
             _once(cur, 'm059', _run_migration_059)   # C2C-S3C and EAC-K south-of-Japan re-route
             _once(cur, 'm060', _run_migration_060)   # backfill rfs_status='in_service' on systems/segments
             _once(cur, 'm061', _run_migration_061)   # backfill eol_status='active' on systems/segments
+            _once(cur, 'm062', _run_migration_062)   # add segment_kml.source (upload vs submarinecablemap)
             # ↑ ADD NEW MIGRATIONS HERE (m061, m062, ...) — see the
             #   "HOW TO ADD A NEW MIGRATION" comment at the top of this list.
         conn.commit()
@@ -3356,3 +3363,24 @@ def _run_migration_061(cur) -> None:
     """
     cur.execute("UPDATE systems SET data = jsonb_set(data, '{eol_status}', '\"active\"'::jsonb)")
     cur.execute("UPDATE segments SET data = jsonb_set(data, '{eol_status}', '\"active\"'::jsonb)")
+
+
+def _run_migration_062(cur) -> None:
+    """Add segment_kml.source, and backfill every existing row to 'upload'.
+
+    New source: syncing a cable's geometry from submarinecablemap.com's public
+    map data (see app/kml/submarinecablemap.py) rather than only accepting an
+    uploaded KMZ/KML. That data is real but lower-fidelity than a carrier
+    survey — a public map's simplified trace, not an as-laid route — and this
+    codebase's whole KML feature is built around never letting an approximation
+    pass as a survey (see generateKml.ts's COLOR_SURVEYED/COLOR_APPROX split).
+    A third, silent source would violate that by letting community-sourced
+    geometry inherit the "surveyed" label everywhere a segment_kml row is
+    read. 'source' is what lets every layer downstream — the map, the segment
+    card, the library, and file exports — tell the two apart and say so.
+
+    Every row that already exists came from an upload; that is the only source
+    this feature had until now, so the backfill is unconditional.
+    """
+    cur.execute("ALTER TABLE segment_kml ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'upload'")
+    cur.execute("UPDATE segment_kml SET source = 'upload' WHERE source IS NULL")

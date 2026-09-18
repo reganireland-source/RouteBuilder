@@ -41,8 +41,11 @@ async function fetchSurveyed(
     if (r.status !== 'fulfilled') return       // falls back to the approximation
     out.set(wanted[i].id, {
       coords: r.value.full_path,
-      surveyed: true,
-      surveyedLengthKm: r.value.length_km,
+      // Carried straight through from what the segment was actually linked
+      // as — never upgraded to 'upload' just because geometry exists, which
+      // is the mistake this whole source field exists to prevent.
+      source: r.value.source,
+      fileLengthKm: r.value.length_km,
     })
   })
   return out
@@ -54,20 +57,22 @@ export async function exportSegmentsAsKml(
   nodes: CableNode[],
   hasKml: (segmentId: string) => boolean,
   options: { title: string; subtitle?: string; filename: string },
-): Promise<{ surveyed: number; approximate: number }> {
+): Promise<{ surveyed: number; synced: number; approximate: number }> {
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
   const surveyed = await fetchSurveyed(segments, hasKml)
 
   let surveyedCount = 0
+  let syncedCount = 0
   let approxCount = 0
   const geometryFor = (seg: CableSegment): ExportGeometry => {
     const got = surveyed.get(seg.id)
     if (got && got.coords.length >= 2) {
-      surveyedCount += 1
+      if (got.source === 'upload') surveyedCount += 1
+      else syncedCount += 1
       return got
     }
     approxCount += 1
-    return { coords: approximateGeometry(seg, nodesById), surveyed: false }
+    return { coords: approximateGeometry(seg, nodesById), source: 'approximate' }
   }
 
   const xml = generateKml(segments, nodesById, geometryFor, {
@@ -75,5 +80,5 @@ export async function exportSegmentsAsKml(
     subtitle: options.subtitle,
   })
   downloadKml(xml, safeFilename(options.filename))
-  return { surveyed: surveyedCount, approximate: approxCount }
+  return { surveyed: surveyedCount, synced: syncedCount, approximate: approxCount }
 }

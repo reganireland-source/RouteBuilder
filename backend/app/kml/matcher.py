@@ -214,8 +214,24 @@ def rank_candidates(
     nodes_by_id: dict[str, dict],
     seg_tokens: dict[str, set[str]],
     linked_ids: Optional[set[str]] = None,
+    system_hint: Optional[str] = None,
 ) -> list[Candidate]:
-    """Score one path against every segment and return the best few."""
+    """
+    Score one path against every segment and return the best few.
+
+    `system_hint` is what the importer believes this file belongs to — a
+    cable-system id volunteered at upload time, or the system a "sync from
+    Submarine Cable Map" fetch was run against. It is a BOOST, not a filter: a
+    matching system_id raises a candidate's name component to its maximum
+    (NAME_WEIGHT, same ceiling as a perfect filename match), which is enough to
+    separate look-alike candidates — five cables between the same two stations
+    are geometrically identical and a hint is the only thing that can tell them
+    apart — but it never touches geometry_score, and AUTO_ACCEPT_GEOMETRY gates
+    on geometry_score alone. So a WRONG hint can raise a right-system candidate
+    above a wrong-system one when both already fit the geometry, but it can
+    never pull a match onto a segment the path does not fit, and it can never by
+    itself push a bad-geometry candidate over the auto-accept line.
+    """
     linked_ids = linked_ids or set()
     scored: list[Candidate] = []
 
@@ -227,6 +243,8 @@ def rank_candidates(
 
         geo, a_gap, z_gap, flipped = endpoint_score(coords, a_pt, z_pt)
         nm = name_score(path_tokens, seg_tokens.get(seg["id"], set()))
+        if system_hint and seg.get("system_id") == system_hint:
+            nm = max(nm, 1.0)
         total = geo * GEOMETRY_WEIGHT + nm * NAME_WEIGHT
         if total < MIN_CANDIDATE_SCORE:
             continue

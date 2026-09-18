@@ -172,6 +172,94 @@ def test_a_single_candidate_is_not_ambiguous(network):
     assert not p.auto_acceptable
 
 
+# ── system_hint: boost, not filter ──────────────────────────────────────────
+#
+# HAW1<->LAX1 is the worst real case in the dataset: five systems land at
+# exactly the same two stations (AAG, SEAUS, SXNEXT, TABUA, UNITY), so a
+# synthetic path between them is geometrically identical for all five and a
+# filename carries no useful signal either. This is exactly the situation the
+# hint exists for.
+
+_HAW_LAX_SYSTEMS = ("AAG", "SEAUS", "SXNEXT", "TABUA", "UNITY")
+
+
+def _haw_lax_segments(segments):
+    return {s["system_id"]: s for s in segments if {s["start_node_id"], s["end_node_id"]} == {"HAW1", "LAX1"}}
+
+
+def test_five_parallel_cables_are_ambiguous_without_a_hint(network):
+    segments, by_id, _ = network
+    by_system = _haw_lax_segments(segments)
+    if len(by_system) < 5:
+        pytest.skip("dataset no longer carries all five HAW1<->LAX1 systems")
+    seg = by_system["UNITY"]
+    p = proposal_for(synth_path(seg, by_id), tokenise("route.kmz"), network)
+    assert p.ambiguous
+    assert not p.auto_acceptable
+
+
+def test_a_correct_hint_resolves_the_ambiguity(network):
+    segments, by_id, seg_tokens = network
+    by_system = _haw_lax_segments(segments)
+    if len(by_system) < 5:
+        pytest.skip("dataset no longer carries all five HAW1<->LAX1 systems")
+    seg = by_system["UNITY"]
+    coords = synth_path(seg, by_id)
+    tokens = tokenise("route.kmz")
+    candidates = rank_candidates(coords, tokens, segments, by_id, seg_tokens, system_hint="UNITY")
+    assert candidates[0].segment_id == seg["id"]
+    p = PathProposal(file_id="f", filename="x", path_index=0, path_name="", folder=None,
+                     point_count=len(coords), candidates=candidates)
+    assert not p.ambiguous
+    assert p.auto_acceptable
+
+
+def test_a_wrong_hint_can_shift_the_ranking_but_never_the_geometry_score(network):
+    """The hint may prefer a different one of the five look-alikes — the whole
+    point is that geometry alone cannot tell them apart — but it must never
+    change what the geometry itself says, and it must never manufacture a fit
+    where the geometry does not have one."""
+    segments, by_id, seg_tokens = network
+    by_system = _haw_lax_segments(segments)
+    if len(by_system) < 5:
+        pytest.skip("dataset no longer carries all five HAW1<->LAX1 systems")
+    seg = by_system["UNITY"]
+    coords = synth_path(seg, by_id)
+    tokens = tokenise("route.kmz")
+
+    unhinted = rank_candidates(coords, tokens, segments, by_id, seg_tokens)
+    hinted = rank_candidates(coords, tokens, segments, by_id, seg_tokens, system_hint="TABUA")
+
+    geo_before = {c.segment_id: c.geometry_score for c in unhinted}
+    geo_after = {c.segment_id: c.geometry_score for c in hinted}
+    assert geo_before == geo_after, "system_hint changed a geometry_score — it must only touch naming"
+
+    assert hinted[0].segment_id == by_system["TABUA"]["id"]
+
+
+def test_a_hint_cannot_pull_a_geometrically_unrelated_segment_above_auto_accept(network):
+    """A wrong hint pointing at a system whose segment the path does not fit at
+    all — not one of the look-alikes, something geographically elsewhere —
+    must not be able to reach auto-accept. NAME_WEIGHT is the ceiling a hint
+    can add, and AUTO_ACCEPT_GEOMETRY gates on geometry_score alone."""
+    segments, by_id, seg_tokens = network
+    truth = next(s for s in segments if s["id"] == "PPC1-GUM-HAW")
+    elsewhere_system = next(
+        s["system_id"] for s in segments
+        if s["system_id"] not in (truth["system_id"],) and {s["start_node_id"], s["end_node_id"]} != {truth["start_node_id"], truth["end_node_id"]}
+    )
+    coords = synth_path(truth, by_id)
+    candidates = rank_candidates(
+        coords, tokenise("route.kmz"), segments, by_id, seg_tokens, system_hint=elsewhere_system,
+    )
+    hinted_wrong = next((c for c in candidates if c.system_id == elsewhere_system), None)
+    if hinted_wrong is not None:
+        assert hinted_wrong.geometry_score < AUTO_ACCEPT_GEOMETRY
+        p = PathProposal(file_id="f", filename="x", path_index=0, path_name="", folder=None,
+                         point_count=len(coords), candidates=candidates)
+        assert p.best.segment_id != hinted_wrong.segment_id or not p.auto_acceptable
+
+
 # ── Endpoint scoring ─────────────────────────────────────────────────────────
 
 def test_both_ends_must_fit_not_just_one():
