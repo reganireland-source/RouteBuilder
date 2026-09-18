@@ -1,8 +1,142 @@
-export type NodeType = 'landing_station' | 'terrestrial_pop'
-export type SegmentType = 'wet' | 'terrestrial'
-export type Ownership = 'owned' | 'iru' | 'consortium'
-export type DiversityType = 'none' | 'wet' | 'terrestrial' | 'full'
+/**
+ * ============================================================================
+ * types/index.ts — Shared TypeScript types for the RouteBuilder frontend
+ * ============================================================================
+ *
+ * This file is the single source of truth for every data shape that moves
+ * between the React frontend and the FastAPI backend, plus a handful of
+ * purely client-side UI types. Almost every component imports from here.
+ *
+ * Domain glossary (used throughout the app):
+ *   - "system"        = a named submarine cable (e.g. EAC, C2C, SJC).
+ *   - "wet segment"   = a section of submarine cable under the sea.
+ *   - CLS             = Cable Landing Station, where a submarine cable
+ *                       comes ashore (NodeType 'landing_station').
+ *   - "diversity"     = a physically separate backup path for a route.
+ *   - SLD             = Straight Line Diagram, the exported circuit schematic.
+ *   - "pinned route"  = a search result the user keeps visible on the map.
+ *   - "project"       = a saved customer solution containing one or more
+ *                       circuits (each circuit snapshots a route).
+ *
+ * Persistence note: the reference data (nodes/segments/systems/etc.) lives in
+ * normal backend tables, but Project and ProjectCircuit are persisted as
+ * whole JSONB documents by the backend — the frontend sends/receives the
+ * entire nested object graph (circuits, route snapshots, endpoint configs)
+ * in one payload rather than as separate rows.
+ */
 
+// ── Core enumerations ─────────────────────────────────────────────────────────
+// String-literal unions used across the whole app. They mirror the values the
+// backend stores, so changing one here requires a matching backend change.
+
+/**
+ * Classification of a network node, which drives map icon styling and routing:
+ *  - 'landing_station': a CLS where a submarine cable comes ashore.
+ *  - 'primary_pop' / 'secondary_pop' / 'extension_pop': on-net Points of
+ *    Presence of decreasing importance.
+ *  - 'branching_unit': an undersea splitter on a cable (no buildings/ports).
+ *  - 'off_net': a third-party site we can reach but do not operate.
+ */
+export type NodeType = 'landing_station' | 'primary_pop' | 'secondary_pop' | 'extension_pop' | 'branching_unit' | 'off_net'
+/** Whether a node is on the operator's own network ('on_net') or third-party ('off_net'). */
+export type OnNet = 'on_net' | 'off_net'
+/** Data-quality workflow state for reference data records (nodes/segments). */
+export type VerificationStatus = 'draft' | 'under_verification' | 'verified'
+/**
+ * Ready for Service — whether a CableSystem/CableSegment is already live
+ * ('in_service', the default — everything in the dataset is) or a future
+ * build not yet commissioned ('planned', paired with an rfs_quarter like
+ * "2027-Q3"). Not yet a route-search constraint — just recorded for now.
+ */
+export type RfsStatus = 'in_service' | 'planned'
+/** End of Life — the mirror of RfsStatus. 'active' never retires; 'eol' retires
+ *  at the end of its `eol_quarter`. See utils/serviceDate.ts. */
+export type EolStatus = 'active' | 'eol'
+/** Segment medium: 'wet' = submarine cable section, 'terrestrial' = land fibre. */
+export type SegmentType = 'wet' | 'terrestrial'
+/**
+ * Commercial ownership model of a segment. Used to decide whether a route is
+ * "on-net" (see AppConfig.on_net_ownership) and shown in SLD exports:
+ * owned outright, IRU (long-term lease), consortium share, integrated lit
+ * lease, or off-net resell.
+ */
+export type Ownership = 'owned' | 'iru' | 'consortium' | 'integrated_lit_lease' | 'offnet_resell'
+/**
+ * Diversity requirement passed to the route search (RouteRequest.diversity).
+ * Controls how physically separate the backup path must be from the primary:
+ *  - 'none': no diverse path requested.
+ *  - 'terrestrial_origin'/'terrestrial_destination'/'terrestrial_both':
+ *    land portions at one/both ends must differ.
+ *  - 'wet': the submarine (wet) portions must use different cables.
+ *  - 'full': no shared segments at all.
+ *  - 'full_nodes': no shared segments AND no shared intermediate nodes.
+ */
+export type DiversityType = 'none' | 'terrestrial_origin' | 'terrestrial_destination' | 'terrestrial_both' | 'wet' | 'full' | 'full_nodes'
+/**
+ * Top-level UI mode selected in App.tsx's mode switcher (and mirrored in
+ * MobileLayout). Each mode swaps the left-hand panel and changes what the
+ * map displays:
+ *  - 'routebuilder': constraint-based A→Z route search (SearchForm/RouteList).
+ *  - 'routemanual':  hand-build a route hop by hop (RouteManual).
+ *  - 'systemviewer': highlight whole cable systems on the map (SystemViewer).
+ *  - 'nodefinder':   filter/locate nodes by capability (NodeFinder).
+ *  - 'citypair':     city-to-city path summary view (CityPairPanel).
+ *  - 'countryviewer': show all systems/nodes touching a country (CountryViewer).
+ *  - 'outageviewer': show active cable faults/outages (OutagePanel).
+ *  - 'networkeditor': admin-only visual editor — move nodes, edit segment
+ *    waypoints and create nodes/segments+capacity directly on the map
+ *    (NetworkEditor). Desktop only; hidden from non-admins entirely.
+ */
+export type AppMode = 'routebuilder' | 'routemanual' | 'systemviewer' | 'nodefinder' | 'citypair' | 'countryviewer' | 'outageviewer' | 'networkeditor'
+
+/**
+ * Global app configuration served by GET /api/config and editable by admins.
+ * - on_net_ownership: which Ownership values count as "on-net" when the UI
+ *   labels a route/segment as on-net vs off-net.
+ * - maps_provider: which base map Map.tsx renders — 'google' uses the
+ *   GoogleMutant layer, 'osm' (default) uses CARTO tiles.
+ */
+export interface AppConfig {
+  on_net_ownership: string[]
+  maps_provider?: 'osm' | 'google'
+}
+
+/** Ethernet port speeds available at a node (used inside NodeCapabilities). */
+export type PortSpeed = '1G' | '10G' | '100G' | '400G'
+
+/**
+ * Optional service capabilities of a node, shown in NodeInfoPanel and used by
+ * NodeFinder's capability filters:
+ * - backbone: port speeds available per backbone product (IPT = IP Transit,
+ *   EPL = Ethernet Private Line, EVPL = Ethernet Virtual Private Line).
+ * - underlay: port speeds per underlay product (GID, IPVPN).
+ * - colocation: data-centre colocation tier (1 = best) if colo is offered.
+ * All sections are optional — an absent section means "not offered here".
+ */
+export interface NodeCapabilities {
+  backbone?: {
+    ipt?:  PortSpeed[]
+    epl?:  PortSpeed[]
+    evpl?: PortSpeed[]
+  }
+  underlay?: {
+    gid?:   PortSpeed[]
+    ipvpn?: PortSpeed[]
+  }
+  colocation?: {
+    category: 1 | 2 | 3 | 4 | 5
+  }
+}
+
+/**
+ * A physical network location — CLS, PoP, branching unit or off-net site.
+ * This is the vertex type of the routing graph. Fetched via GET /api/nodes,
+ * rendered as markers by Map.tsx (styling keyed off `type` and `on_net`),
+ * edited in RefDataModal, and referenced everywhere by its `id`.
+ * lat/lng are WGS84 degrees; Map.tsx normalises lng for the Pacific-centred
+ * view. `verification_status` tracks data quality; `capabilities` powers
+ * NodeFinder filtering.
+ */
 export interface CableNode {
   id: string
   name: string
@@ -10,14 +144,44 @@ export interface CableNode {
   lng: number
   type: NodeType
   country: string
+  owner?: string
+  trading_name?: string
+  city?: string
+  street_address?: string
+  description?: string
+  capabilities?: NodeCapabilities
+  verification_status?: VerificationStatus
+  last_verified_date?: string
+  on_net?: OnNet
 }
 
+/**
+ * A named submarine cable system (e.g. "EAC", "C2C") that groups segments
+ * via CableSegment.system_id. Fetched via GET /api/systems; SystemViewer
+ * lets users highlight one on the map; `margin` is an optional commercial
+ * margin figure used for margin/cost-based route sorting.
+ */
 export interface CableSystem {
   id: string
   name: string
   description: string
+  margin?: number
+  rfs_status?: RfsStatus
+  eol_status?: EolStatus
+  eol_quarter?: string | null
+  rfs_quarter?: string | null
 }
 
+/**
+ * An edge of the routing graph: one section of cable between two nodes.
+ * `type` says whether it is a wet (submarine) or terrestrial section, and
+ * `system_id` links wet segments to their parent CableSystem. The metric
+ * fields (length_km, latency, reliability, cost_weight) feed the backend
+ * path-finding algorithm and the totals shown per route. `waypoints` is an
+ * optional polyline of [lat, lng] pairs Map.tsx uses to draw the real cable
+ * path (smoothed with a Catmull-Rom spline) instead of a straight line.
+ * Fetched via GET /api/segments, edited in RefDataModal.
+ */
 export interface CableSegment {
   id: string
   name: string
@@ -29,8 +193,21 @@ export interface CableSegment {
   reliability: number
   cost_weight: number
   ownership: Ownership
+  latency: number
+  waypoints?: [number, number][]
+  verification_status?: VerificationStatus
+  last_verified_date?: string
+  rfs_status?: RfsStatus
+  eol_status?: EolStatus
+  eol_quarter?: string | null
+  rfs_quarter?: string | null
 }
 
+/**
+ * Per-hop detail embedded in a Route result — a denormalised snapshot of the
+ * CableSegment fields that mattered at search time (so a saved/pinned route
+ * still renders correctly even if reference data changes later).
+ */
 export interface RouteSegmentDetail {
   segment_id: string
   system_id: string
@@ -41,29 +218,885 @@ export interface RouteSegmentDetail {
   reliability: number
   cost_weight: number
   ownership: Ownership
+  latency: number
 }
 
+/**
+ * One candidate path returned by the route search (POST /api/routes).
+ * `nodes` is the ordered list of node ids from A-end to Z-end and `segments`
+ * the hops between them. The totals are pre-computed by the backend.
+ * `diversity_group` pairs a primary route with its diverse partner: routes
+ * sharing a group number form a primary+backup pair in the results list.
+ * Routes get pinned to the map (PinnedRoute) and snapshotted into project
+ * circuits (ProjectCircuit.route_snapshot).
+ */
 export interface Route {
   id: string
   nodes: string[]
   segments: RouteSegmentDetail[]
   total_cost: number
   total_length_km: number
+  total_latency: number
   end_to_end_reliability: number
   diversity_group: number
 }
 
+/**
+ * The search constraints sent to POST /api/routes. Built interactively by
+ * SearchForm (or auto-filled from natural language via NlpChat/NlpParseResponse).
+ * All the must_include_/must_avoid_ arrays hold ids (nodes/segments/systems)
+ * or ISO country codes; `diversity` requests a physically separate backup
+ * path (see DiversityType); the hop caps bound path length; `optimise_for`
+ * picks the backend cost function (e.g. latency vs distance).
+ */
 export interface RouteRequest {
   start_node_id: string
   end_node_id: string
   must_include_nodes: string[]
   must_avoid_nodes: string[]
   must_avoid_segments: string[]
+  must_include_segments: string[]
+  must_include_systems: string[]
+  must_avoid_systems: string[]
+  must_include_countries?: string[]
+  must_avoid_countries?: string[]
   diversity: DiversityType
+  max_wet_hops?: number
+  max_terrestrial_hops?: number
+  optimise_for?: string
+  /**
+   * "Only route over what is in service on this date" — an ISO YYYY-MM-DD.
+   *
+   * The UI sends today's date by default, so a normal search can never quote a
+   * route over a cable that has not been commissioned yet; pushing the date
+   * forward is how you plan against a future network. Omitting it entirely
+   * means no RFS filtering at all, which is what every existing API client
+   * gets.
+   *
+   * Backend resolution (backend/app/rfs.py): a segment is excluded when the
+   * LATER of its own and its owning system's RFS date falls after this date,
+   * with "YYYY-Qn" resolving to the last day of that quarter.
+   */
+  service_date?: string
 }
 
+/**
+ * Result envelope of POST /api/routes. `routes` is the flat list;
+ * `primary_routes`/`diverse_routes` split them when a diversity option was
+ * requested (matched up via Route.diversity_group). App.tsx stores this as
+ * `response` and RouteList renders it.
+ */
 export interface RouteResponse {
   routes: Route[]
   primary_routes: Route[]
   diverse_routes: Route[]
+  total_found: number
+}
+
+/**
+ * Capacity record for one segment (GET /api/capacity), in terabits.
+ * Shown in CapacityDashboard and used by capacity-based route sorting.
+ */
+export interface SegmentCapacity {
+  segment_id: string
+  total_capacity_t: number
+  available_capacity_t: number
+}
+
+/**
+ * Which of the two outage record kinds a SegmentOutage/ParsedOutage row is:
+ *  - 'outage': a CURRENT live fault on the network (the original/default kind
+ *    — legacy rows with no event_type stored are treated as this).
+ *  - 'planned_event': a FUTURE scheduled network work (e.g. a maintenance
+ *    window) that MAY take the segment down later. Never counts as a live
+ *    outage for map "down" styling or route outage warnings.
+ */
+export type OutageEventType = 'outage' | 'planned_event'
+
+/**
+ * An active/historical cable fault OR a future planned network event on a
+ * segment (GET /api/outages). Drives the 'outageviewer' mode (OutagePanel)
+ * and outage warnings/sorting in route results. Dates are ISO strings;
+ * repair fields are null while unknown.
+ *
+ * `event_type` distinguishes the two kinds this record can represent
+ * (defaults to 'outage' when absent, so legacy rows are unaffected):
+ *  - 'outage' rows use fault_date/repair_start/estimated_repair_date as
+ *    before.
+ *  - 'planned_event' rows leave repair_start/estimated_repair_date null and
+ *    instead carry planned_start/planned_end — the maintenance window to
+ *    show. fault_date still means "date this record was logged/raised" for
+ *    both kinds.
+ */
+export interface SegmentOutage {
+  segment_id: string
+  fault_id: string
+  fault_date: string
+  repair_start?: string | null
+  estimated_repair_date?: string | null
+  description: string
+  event_type?: OutageEventType
+  planned_start?: string | null
+  planned_end?: string | null
+}
+
+/** A pair of cable systems that must NOT interconnect at a node (see InterconnectRule). */
+// ── Outage Parser ─────────────────────────────────────────────────────────────
+// A single proposed outage returned by POST /api/outages/parse. The first six
+// fields are the SegmentOutage shape that gets saved; the rest are review-only
+// metadata driving the traffic-light UI (green/amber/red) and the segment picker.
+export interface ParsedOutage {
+  segment_id: string
+  fault_id: string
+  fault_date: string
+  repair_start: string | null
+  estimated_repair_date: string | null
+  description: string
+  matched: boolean                       // did the AI map it to a real segment_id?
+  confidence: 'high' | 'low' | 'none'    // green / amber / red
+  candidates: string[]                   // other plausible segment_ids (for amber)
+  raw_cable: string                      // cable name as written in the source
+  raw_segment: string                    // segment text as written in the source
+  event_type?: OutageEventType           // 'outage' (default) or 'planned_event' — mirrors SegmentOutage
+  planned_start?: string | null          // Planned Events only: ISO window start date
+  planned_end?: string | null            // Planned Events only: ISO window end date
+}
+
+export interface OutageParseResponse {
+  proposals: ParsedOutage[]
+  existing_count: number                 // how many outages the replace would overwrite
+  model: string                          // model id used for the parse
+}
+
+export interface DisallowedPair {
+  system_a: string
+  system_b: string
+  reason: string
+}
+
+/** A pair of cable systems explicitly allowed to interconnect at a node (see InterconnectRule). */
+export interface AllowedPair {
+  system_a: string
+  system_b: string
+  reason: string
+}
+
+/** A specific segment allowed as a hand-off at a node that otherwise has no_handoff set. */
+export interface AllowedHandoffSegment {
+  segment_id: string
+  reason: string
+}
+
+/**
+ * Per-node interconnect policy consumed by the backend route search
+ * (GET/POST /api/rules, managed in RefDataModal). Encodes physical/commercial
+ * reality at a site: which cable systems can(not) hand traffic to each other
+ * there, or `no_handoff` to forbid all transit through the node except via
+ * `allowed_handoff_segments`.
+ */
+export interface InterconnectRule {
+  node_id: string
+  disallowed_pairs: DisallowedPair[]
+  allowed_pairs: AllowedPair[]
+  no_handoff?: boolean
+  allowed_handoff_segments?: AllowedHandoffSegment[]
+}
+
+/**
+ * Client-side only: a cable system the user highlighted in SystemViewer mode,
+ * plus the display colour assigned to it. Held in App.tsx state and passed to
+ * Map.tsx for rendering.
+ */
+export interface SelectedSystem {
+  systemId: string
+  color: string
+}
+
+/**
+ * Client-side only: a route the user has "pinned" so it stays drawn on the
+ * map after new searches. `pinId` is a locally generated unique id, `color`
+ * the assigned display colour and `searchLabel` a human summary of the search
+ * that produced it (e.g. "HKG → SIN"). When the pin came from opening a saved
+ * project, projectId/circuitId/circuitLabel link it back to that circuit.
+ * Held in App.tsx state (`pinnedRoutes`) and rendered by Map.tsx/RouteList.
+ */
+export interface PinnedRoute {
+  pinId: string
+  route: Route
+  color: string
+  searchLabel: string
+  projectId?: string
+  circuitId?: string
+  circuitLabel?: string
+}
+
+/**
+ * A city and the node ids located in it, from GET /api/city-pairs/cities.
+ * Populates the origin/destination pickers in CityPairPanel.
+ */
+export interface CityInfo {
+  name: string
+  node_ids: string[]
+  country: string
+}
+
+/** An intermediate CLS a city-pair route passes through (id + display name). */
+export interface CityPairIntermediateNode {
+  node_id: string
+  name: string
+}
+
+/**
+ * One high-level city-to-city path from POST /api/city-pairs/search.
+ * Unlike Route, this is summarised at cable-system level: which systems the
+ * path rides, which CLS nodes it lands at, and headline latency/length/
+ * reliability figures. Rendered by CityPairPanel in 'citypair' mode.
+ */
+export interface CityPairRoute {
+  id: string
+  systems: string[]
+  system_names: string[]
+  nodes: string[]
+  cls_nodes: string[]
+  intermediate_cls: CityPairIntermediateNode[]
+  total_latency_ms: number
+  total_length_km: number
+  end_to_end_reliability: number
+  hop_count: number
+}
+
+/** Result envelope of POST /api/city-pairs/search: the echoed city names plus candidate routes. */
+export interface CityPairResponse {
+  origin_city: string
+  destination_city: string
+  routes: CityPairRoute[]
+}
+
+/**
+ * Sort orders the NLP assistant can request for route results
+ * (NlpParseResponse.sort_mode), applied by RouteList. Several values are
+ * aliases so the language model can use natural wording.
+ */
+export type NlpSortMode =
+  | 'hops'                             // hop count
+  | 'distance' | 'length'             // total km (length is alias)
+  | 'latency'                          // round-trip delay
+  | 'availability' | 'reliability'     // end-to-end availability
+  | 'margin' | 'cost'                  // route margin
+  | 'capacity'                         // available capacity
+  | 'ownership'                        // on-net ownership
+  | 'outages'                          // push outage routes down
+
+/**
+ * Client-side only: everything Map.tsx needs to spotlight one country in
+ * 'countryviewer' mode — which systems touch it (with per-system colours),
+ * which terrestrial segments and nodes belong to it, plus a centroid and
+ * lat/lng bounding box for zooming. Built by CountryViewer, held in App.tsx.
+ * Note it uses Set/Map so it is not JSON-serialisable (never persisted).
+ */
+export interface CountryHighlight {
+  countryCode: string
+  countryName: string
+  systemIds: Set<string>
+  systemColors: Map<string, string>
+  terrestrialSegIds: Set<string>
+  nodeIds: Set<string>
+  centroid: [number, number]
+  boundsLL: [[number, number], [number, number]]
+}
+
+// ── Interface Types ───────────────────────────────────────────────────────────
+
+/**
+ * A physical hand-off interface type (e.g. "10GBASE-LR") from
+ * GET /api/interfaces. Referenced by EndpointConfig.interface_id and managed
+ * in RefDataModal; shown on SLD exports.
+ */
+export interface InterfaceType {
+  id: string
+  name: string
+  description?: string
+}
+
+// ── Customer Solution Projects ────────────────────────────────────────────────
+
+/**
+ * Toggles controlling which figures appear on a project's exported SLD
+ * (Straight Line Diagram) — per-route latency, per-segment latency, distance,
+ * ownership labels, reliability and RTD (round-trip delay). Stored on the
+ * Project (and optionally overridden per circuit via sld_config_override);
+ * consumed by utils/generateDiagram.ts.
+ */
+export interface SldConfig {
+  show_latency: boolean
+  show_segment_latency: boolean
+  show_distance: boolean
+  show_ownership: boolean
+  show_reliability: boolean
+  show_rtd: boolean
+}
+
+/** Default SLD toggles applied to newly created projects (reliability off, everything else on). */
+export const DEFAULT_SLD_CONFIG: SldConfig = {
+  show_latency: true,
+  show_segment_latency: true,
+  show_distance: true,
+  show_ownership: true,
+  show_reliability: false,
+  show_rtd: true,
+}
+
+/**
+ * Customer-facing details for one end (A-end or Z-end) of a circuit: the
+ * customer site, local access arrangements (CC = cross connect, LL = local
+ * loop, each with supplier and who arranges it), hand-off interface,
+ * bandwidth and protection. Filled in via TechEnrichmentPanel and printed on
+ * SLD exports. Persisted as part of the ProjectCircuit JSONB document.
+ */
+export interface EndpointConfig {
+  customer_site_name?: string
+  customer_site_address?: string
+  access_type?: string
+  cc_supplier?: string
+  cc_arranged_by?: string
+  ll_supplier?: string
+  ll_arranged_by?: string
+  interface_id?: string
+  bandwidth?: string
+  protection?: string
+}
+
+/**
+ * One circuit inside a saved Project. It freezes the chosen route as
+ * `route_snapshot` (plus `protect_route_snapshot` when a diverse/protected
+ * pair was selected) so the design survives later reference-data edits, and
+ * carries the technical enrichment (service type, bandwidth, protection,
+ * frame size, L1 settings) and per-end customer details (a_end/z_end).
+ * `pin_color`/`search_label` restore the map pin when the project is opened.
+ * Persisted inside the Project JSONB document via the /api/projects endpoints.
+ */
+export interface ProjectCircuit {
+  circuit_id: string
+  label?: string
+  order: number
+  route_snapshot: Route
+  search_label: string
+  pin_color: string
+  // optional second route for diverse/protected circuits
+  protect_route_snapshot?: Route
+  protect_search_label?: string
+  circuit_description?: string
+  service_type?: string
+  bandwidth?: string
+  protection?: string
+  frame_size?: string
+  l1_settings?: string
+  a_end: EndpointConfig
+  z_end: EndpointConfig
+  sld_config_override?: Partial<SldConfig>
+}
+
+/**
+ * A saved customer solution: opportunity metadata (account manager, solution
+ * architect, opportunity id/name), visibility, SLD display settings and the
+ * list of circuits. The whole object — circuits and route snapshots included —
+ * is persisted by the backend as a single JSONB document via the
+ * /api/projects endpoints; there are no separate circuit rows. Managed in
+ * ProjectsModal; SLD/DrawIO/Visio exports are generated from it by
+ * utils/generateDiagram.ts.
+ */
+export interface Project {
+  id: string
+  name: string
+  account_manager?: string
+  solution_architect?: string
+  opportunity_id?: string
+  opportunity_name?: string
+  description?: string
+  date_prepared?: string
+  visibility: 'public' | 'confidential'
+  sld_config: SldConfig
+  circuits: ProjectCircuit[]
+  created_at?: string
+  updated_at?: string
+}
+
+/**
+ * Structured route-search intent extracted from a natural-language sentence
+ * by POST /api/nlp/parse (used by NlpChat). Mirrors RouteRequest field-for-
+ * field (nullable where the sentence didn't specify), plus the model's
+ * `explanation`, a `confidence` grade, any `ambiguities` it wants the user to
+ * resolve, and an optional result `sort_mode`. App.tsx converts this into a
+ * RouteRequest and runs the search.
+ */
+export interface NlpParseResponse {
+  start_node_id: string | null
+  end_node_id: string | null
+  must_include_nodes: string[]
+  must_avoid_nodes: string[]
+  must_include_segments: string[]
+  must_avoid_segments: string[]
+  must_include_systems: string[]
+  must_avoid_systems: string[]
+  must_include_countries: string[]
+  must_avoid_countries: string[]
+  diversity: DiversityType
+  max_wet_hops?: number | null
+  max_terrestrial_hops?: number | null
+  optimise_for?: string | null
+  sort_mode: NlpSortMode | null
+  explanation: string
+  confidence: 'high' | 'medium' | 'low'
+  ambiguities: string[]
+}
+
+// ── Technical Enrichment Lookups ─────────────────────────────────────────────
+
+/**
+ * One entry of an admin-editable dropdown list (service types, bandwidths,
+ * protection modes, ...) served by /api/tech-lookups/{table}. `order`
+ * controls dropdown ordering. Managed in RefDataModal, consumed by
+ * TechEnrichmentPanel when enriching project circuits.
+ */
+export interface TechLookupItem {
+  id: string
+  label: string
+  order: number
+  description?: string
+}
+
+/** The set of lookup table names accepted by the /api/tech-lookups/{table} endpoints. */
+export type TechLookupTable =
+  | 'tech_service_types'
+  | 'tech_bandwidths'
+  | 'tech_protections'
+  | 'tech_frame_sizes'
+  | 'tech_access_types'
+  | 'tech_arranged_by'
+  | 'tech_l1_settings'
+
+/** Human-readable titles for each tech lookup table, used in admin UI headings. */
+export const TECH_LOOKUP_LABELS: Record<TechLookupTable, string> = {
+  tech_service_types: 'Service Types',
+  tech_bandwidths:    'Bandwidths',
+  tech_protections:   'Protection Modes',
+  tech_frame_sizes:   'Frame Sizes (MTU)',
+  tech_access_types:  'Access Types',
+  tech_arranged_by:   'Arranged By',
+  tech_l1_settings:   'L1 / Optical Settings',
+}
+
+// ── Solution Notes ────────────────────────────────────────────────────────────
+
+/** Severity of a SolutionNote, used for badge colouring (info/warning/critical). */
+export type NoteSeverity = 'info' | 'warning' | 'critical'
+/** Whether a NoteCategory attaches its notes to nodes or to segments. */
+export type NoteAppliesTo = 'node' | 'segment'
+
+/**
+ * An engineering/commercial annotation pinned to a node OR a segment
+ * (exactly one of node_id/segment_id is set), e.g. "permit required at this
+ * CLS". CRUD via /api/solution-notes; surfaced by SolutionNotesOverlay when
+ * a route touches the annotated asset.
+ */
+export interface SolutionNote {
+  id: string
+  node_id?: string
+  segment_id?: string
+  category_id: string
+  title: string
+  text: string
+  severity: NoteSeverity
+  created_at?: string
+}
+
+/**
+ * Grouping bucket for solution notes (from /api/note-categories); applies_to
+ * says whether its notes attach to nodes or segments, `order` sorts display.
+ */
+export interface NoteCategory {
+  id: string
+  label: string
+  applies_to: NoteAppliesTo
+  order: number
+}
+
+/**
+ * A user-submitted feature request with a simple kanban status, created from
+ * the UserGuide screen via POST /api/feature-requests.
+ */
+export interface FeatureRequest {
+  id: string
+  title: string
+  description: string
+  category: string
+  status: 'backlog' | 'in_development' | 'completed'
+  created_at: string
+}
+
+
+// ── Hazards (the optional "Network Hazards" overlay) ────────────────────────
+//
+// Live disaster events from two third-party feeds — bushfire.io and USGS —
+// normalised by the backend into one shape (see backend/app/hazards/). The
+// browser never talks to either upstream: the bushfire.io API key lives on the
+// server, and one cached backend fetch serves every open tab.
+//
+// COVERAGE IS NOT GLOBAL and the UI has to say so. bushfire.io serves Australia,
+// North America and Europe only; USGS covers the whole planet but only
+// earthquakes. Hence `HazardSourceStatus.coverage`: an empty map over Tokyo
+// means "no earthquake this week", not "nothing is wrong".
+
+/** What physically happened. Deliberately coarse — 11 kinds, not the feed's 46. */
+export type HazardKind =
+  | 'fire' | 'flood' | 'storm' | 'cyclone' | 'earthquake' | 'tsunami'
+  | 'landslide' | 'marine' | 'power' | 'hazmat' | 'other'
+
+/** Ascending. Both feeds are mapped onto this one ladder. */
+export type HazardSeverity = 'advisory' | 'watch' | 'warning' | 'emergency'
+
+/** One of OUR assets that falls within range of a hazard. */
+export interface HazardAsset {
+  id: string
+  kind: 'node' | 'segment'
+  label: string
+  /** Great-circle km from the hazard centroid. */
+  distance_km: number
+}
+
+export interface Hazard {
+  /** Source-prefixed, e.g. "usgs:7000thl5" — ids from two feeds cannot collide. */
+  id: string
+  source: string
+  source_label: string
+  kind: HazardKind
+  severity: HazardSeverity
+  title: string
+  /** Plain text. Never HTML — render as a text node. */
+  detail: string
+  url?: string | null
+  /** The issuing agency, e.g. "Geoscience Australia". */
+  attribution: string
+  lat: number
+  lng: number
+  /** GeoJSON, already simplified server-side. Null when the source gave a point. */
+  geometry?: Record<string, unknown> | null
+  reported_at?: string | null
+  updated_at?: string | null
+  /** Our nodes and segments within range, nearest first. */
+  affected: HazardAsset[]
+}
+
+export interface HazardSourceStatus {
+  source: string
+  label: string
+  ok: boolean
+  count: number
+  /** Why it failed. Safe to display — never contains the API key. */
+  error?: string | null
+  /** What this source can actually speak for. Shown so an empty map is not
+   *  misread as "all clear". */
+  coverage: string
+}
+
+/**
+ * How much of OUR network to draw while the hazard layer is on.
+ *
+ *   all     — the map as normal; hazards sit on top of the full network.
+ *   inRange — assets within range of a hazard are highlighted in that hazard's
+ *             severity colour and everything else fades back. The default,
+ *             because the question this layer answers is "what of mine is at
+ *             risk", and a full network drawn at equal weight buries the answer.
+ *   none    — the network is hidden entirely, leaving basemap and hazards. For
+ *             reading the hazard picture without our own cables over it.
+ */
+export type HazardAssetView = 'all' | 'inRange' | 'none'
+
+/**
+ * WHICH in-range assets the "in range" view highlights — a second filter that
+ * only means anything while HazardAssetView is 'inRange'.
+ *
+ *   onNet — only nodes and segments on our own network. The default: the layer
+ *           exists to answer "what of MINE is at risk", and a third-party site
+ *           near a fire is someone else's incident.
+ *   all   — every in-range asset, ours or not. For when the exposure that
+ *           matters is a supplier's, e.g. an off-net tail you rely on.
+ *
+ * Off-net assets are not hidden by 'onNet' — they fade back like any other
+ * asset out of range, so the surrounding network stays legible as context.
+ * See utils/onNet.ts for how on-net is decided (it is not symmetrical between
+ * nodes and segments, and most nodes do not state it).
+ */
+export type HazardOwnerView = 'onNet' | 'all'
+
+export interface HazardFeed {
+  hazards: Hazard[]
+  sources: HazardSourceStatus[]
+  fetched_at: string
+  /** True when at least one source failed — drives the degraded banner. */
+  degraded: boolean
+}
+
+/**
+ * ── KML / KMZ cable route geometry ──────────────────────────────────────────
+ *
+ * A segment's path as surveyed, uploaded from a KMZ/KML, replacing the
+ * hand-placed `waypoints` approximation where one exists.
+ *
+ * TWO RESOLUTIONS, AND THE SPLIT IS THE WHOLE DESIGN. The app fetches every
+ * segment at boot; that payload is ~180KB today because waypoints are a median
+ * of two points per segment. A surveyed route carries thousands of points for
+ * ONE segment, so shipping full resolution for all 322 would be ~39MB per page
+ * load to draw detail finer than a pixel. So `display_path` (simplified to 150
+ * points, measured at 0.16px of error at world zoom) rides along for the
+ * overview, and the full path is fetched per segment on demand.
+ */
+/**
+ * Where a segment's KML geometry came from. 'upload' is a KMZ/KML someone
+ * attached — potentially a real carrier survey. 'submarinecablemap' is fetched
+ * from submarinecablemap.com's public map data: real geometry, but a
+ * simplified public trace rather than an as-laid route, and never labelled
+ * "surveyed" anywhere in this app — see backend/app/db.py's m062 migration and
+ * utils/generateKml.ts.
+ */
+export type KmlSource = 'upload' | 'submarinecablemap'
+
+export interface KmlPathInfo {
+  link_id: string
+  version: number
+  /** Simplified path, [[lat, lng], ...] — what the overview map draws. */
+  display_path: [number, number][]
+  /** Length measured along the FULL path, not this simplified one. */
+  length_km: number | null
+  /** Points in the full path — how much detail is waiting behind the on-demand fetch. */
+  point_count: number
+  /** How far each end sits from its node. A KML legitimately stops at the beach
+   *  manhole rather than inside the station, so a few km is normal. */
+  a_end_gap_km: number | null
+  z_end_gap_km: number | null
+  /** The file was drawn Z→A and was turned round on import. */
+  reversed: boolean
+  /** Placemark points carried by the file (BMH, repeaters). Stored, not drawn. */
+  point_markers: number
+  source: KmlSource
+}
+
+/** GET /api/kml/paths — every segment's simplified path, keyed by segment id. */
+export interface KmlPathsResponse {
+  paths: Record<string, KmlPathInfo>
+  count: number
+  display_point_budget: number
+}
+
+/** GET /api/kml/paths/{id} — one segment's full-resolution path. */
+export interface KmlFullPath {
+  segment_id: string
+  link_id: string
+  version: number
+  full_path: [number, number][]
+  points: { name: string; lat: number; lng: number; folder: string | null }[]
+  length_km: number | null
+  point_count: number
+  a_end_gap_km: number | null
+  z_end_gap_km: number | null
+  reversed: boolean
+  source: KmlSource
+}
+
+/** What POST /api/kml/upload reports back about one attached file. */
+export interface KmlUploadResult {
+  segment_id: string
+  link_id: string
+  version: number
+  placemark_name: string
+  length_km: number | null
+  /** The segment's stored length_km, for the data-quality comparison. Routing
+   *  keeps using the stored value — the KML never changes it. */
+  stored_length_km: number
+  point_count: number
+  display_point_count: number
+  a_end_gap_km: number | null
+  z_end_gap_km: number | null
+  reversed: boolean
+  needs_review: boolean
+  points_stored: number
+  paths_in_file: number
+}
+
+/** One segment a bulk-uploaded path might belong to, with the working shown. */
+export interface KmlCandidate {
+  segment_id: string
+  segment_name: string
+  system_id: string
+  /** 0-100. Geometry contributes up to 70, the filename up to 30. */
+  score: number
+  geometry_score: number
+  name_score: number
+  a_end_gap_km: number
+  z_end_gap_km: number
+  reversed: boolean
+  /** This segment already has a surveyed route; accepting makes a new version. */
+  already_linked: boolean
+}
+
+/** One cable path found in one uploaded file, and what it might be. */
+export interface KmlProposal {
+  file_id: string
+  filename: string
+  /** Which path within the file — a whole-system KMZ yields several. */
+  path_index: number
+  /** Set when this row is one SLICE of a longer trace: a single LineString
+   *  running Singapore→Mumbai→Dubai→London is cut at the nodes it passes and
+   *  each piece reviewed separately. null when the path is matched whole. */
+  piece_index: number | null
+  piece_count: number | null
+  piece_start_node: string | null
+  piece_end_node: string | null
+  /** How many of the file's LineStrings were reassembled into this path. 1 means
+   *  it arrived whole; 50 means an exporter had chopped one cable into fifty
+   *  runs and the importer put it back together. */
+  fragment_count: number
+  /** Simplified geometry for drawing this proposal on the real map before
+   *  anything is attached. For a split file, seeing the pieces in place is the
+   *  only way to judge whether the cuts landed where the cable actually joins. */
+  preview_path: [number, number][]
+  path_name: string
+  folder: string | null
+  point_count: number
+  paths_in_file: number
+  /** The runner-up scored within a hair of the winner — parallel cables between
+   *  the same two stations look identical to geometry, so a human must choose. */
+  ambiguous: boolean
+  /** Strong geometry AND nothing else close. Safe to accept without opening. */
+  auto_acceptable: boolean
+  candidates: KmlCandidate[]
+}
+
+/**
+ * One line drawn on the map while reviewing an import. Purely transient — it
+ * exists between choosing a file and attaching it, and is never stored.
+ */
+export interface KmlPreviewLine {
+  label: string
+  coords: [number, number][]
+  color: string
+  /** Where this piece begins, when it is a slice of a longer trace. Drawn as a
+   *  marker so the cut itself is visible, not just the pieces either side. */
+  cutAt?: [number, number]
+  cutLabel?: string
+}
+
+/** POST /api/kml/bulk/propose — parsed and scored, nothing written yet. */
+export interface KmlProposeResponse {
+  proposals: KmlProposal[]
+  /** Files that could not be read, with the reason. One bad file in a folder of
+   *  300 must not cost the other 299, so these are reported, not thrown. */
+  rejected: { filename: string; reason: string }[]
+  /** Segment id -> indices of the proposals competing for it. */
+  conflicts: Record<string, number[]>
+  summary: {
+    files_read: number
+    files_rejected: number
+    paths_found: number
+    auto_acceptable: number
+    ambiguous: number
+    no_candidate: number
+  }
+}
+
+/** POST /api/kml/bulk/commit — what actually landed. */
+export interface KmlCommitResponse {
+  linked: {
+    segment_id: string
+    link_id: string
+    version: number
+    length_km: number | null
+    stored_length_km: number
+    point_count: number
+    needs_review: boolean
+    source: KmlSource
+  }[]
+  failed: { file_id: string; segment_id: string; path_index: number; reason: string }[]
+  summary: { linked: number; failed: number }
+}
+
+/** One segment that has a route on file — not necessarily surveyed, see `source`. */
+export interface KmlLibraryLinked {
+  segment_id: string
+  name: string
+  system_id: string
+  type: SegmentType
+  link_id: string
+  version: number
+  kml_length_km: number | null
+  /** The segment's own length_km. Routing uses THIS, not the measured one. */
+  stored_length_km: number
+  point_count: number
+  a_end_gap_km: number | null
+  z_end_gap_km: number | null
+  created_at: string | null
+  source: KmlSource
+}
+
+/** A segment with no surveyed route — what the map is still approximating. */
+export interface KmlLibraryGap {
+  segment_id: string
+  name: string
+  system_id: string
+  type: SegmentType
+  waypoint_count: number
+}
+
+/** GET /api/kml/library. `orphans` are links whose segment no longer exists —
+ *  renamed or deleted after the KML was attached. */
+export interface KmlLibrary {
+  linked: KmlLibraryLinked[]
+  gaps: KmlLibraryGap[]
+  orphans: { segment_id: string; link_id: string; version: number }[]
+  summary: { segments_total: number; linked: number; gaps: number; orphans: number }
+}
+
+/** One upload in a segment's history. Exactly one per segment is `active`. */
+export interface KmlVersion {
+  id: string
+  segment_id: string
+  file_id: string
+  version: number
+  active: boolean
+  placemark_name: string
+  length_km: number | null
+  a_end_gap_km: number | null
+  z_end_gap_km: number | null
+  reversed: boolean
+  point_count: number
+  source: KmlSource
+  created_at: string | null
+  created_by: string | null
+  filename: string
+  size_bytes: number
+}
+
+/** One cable submarinecablemap.com knows about — the sync picker's data. */
+export interface ScmCable {
+  id: string
+  name: string
+}
+
+/** GET /api/kml/scm/cables?q= */
+export interface ScmCablesResponse {
+  cables: ScmCable[]
+}
+
+/** POST /api/kml/scm/propose — same shape as bulk propose, plus which cable
+ *  it came from. */
+export interface ScmProposeResponse extends KmlProposeResponse {
+  cable_id: string
+  cable_name: string
+}
+
+/** GET /api/kml/unused-files — blobs left behind by abandoned reviews. */
+export interface KmlUnusedFiles {
+  files: { id: string; filename: string; size_bytes: number; uploaded_at: string | null; uploaded_by: string | null; sha256: string }[]
+  count: number
+  total_bytes: number
 }

@@ -1,11 +1,15 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional
 from enum import Enum
 
 
 class NodeType(str, Enum):
     landing_station = "landing_station"
-    terrestrial_pop = "terrestrial_pop"
+    primary_pop     = "primary_pop"
+    secondary_pop   = "secondary_pop"
+    extension_pop   = "extension_pop"
+    branching_unit  = "branching_unit"
+    off_net         = "off_net"
 
 
 class SegmentType(str, Enum):
@@ -17,28 +21,149 @@ class Ownership(str, Enum):
     owned = "owned"
     iru = "iru"
     consortium = "consortium"
+    integrated_lit_lease = "integrated_lit_lease"
+    offnet_resell = "offnet_resell"
 
 
 class DiversityType(str, Enum):
     none = "none"
+    terrestrial_origin = "terrestrial_origin"
+    terrestrial_destination = "terrestrial_destination"
+    terrestrial_both = "terrestrial_both"
     wet = "wet"
-    terrestrial = "terrestrial"
     full = "full"
+    full_nodes = "full_nodes"
+
+
+class VerificationStatus(str, Enum):
+    draft = "draft"
+    under_verification = "under_verification"
+    verified = "verified"
+
+
+class RfsStatus(str, Enum):
+    """Ready for Service — whether a CableSystem/CableSegment is already live
+    (in_service, the default — everything in the dataset today is) or a
+    future build that hasn't been commissioned yet (planned, paired with an
+    rfs_quarter). Used as a route-search constraint via RouteRequest's
+    service_date: see app/rfs.py for how the pair resolves to a date and
+    graph.build_graph for where not-yet-live segments are dropped."""
+    in_service = "in_service"
+    planned = "planned"
+
+
+class EolStatus(str, Enum):
+    """End of Life — whether a CableSystem/CableSegment is staying in the
+    network (active, the default — everything in the dataset today is) or is
+    scheduled for decommissioning (eol, paired with an eol_quarter). The exact
+    mirror of RfsStatus: RFS excludes cable that is not built YET, EOL excludes
+    cable that will be RETIRED by the requested service date. See app/rfs.py for
+    how the pair resolves to a date and graph.build_graph for where both
+    not-yet-live and already-retired segments are dropped."""
+    active = "active"
+    eol = "eol"
+
+
+class BackboneCapabilities(BaseModel):
+    ipt:  Optional[list[str]] = None
+    epl:  Optional[list[str]] = None
+    evpl: Optional[list[str]] = None
+
+
+class UnderlayCapabilities(BaseModel):
+    gid:   Optional[list[str]] = None
+    ipvpn: Optional[list[str]] = None
+
+
+class ColocationCapabilities(BaseModel):
+    # Constrained, not a bare int: the five categories are a closed set with
+    # named meanings (see COLO_LABELS in the frontend's ProductCoverageMatrix),
+    # and an unbounded int let the API accept "Cat 99", which then rendered
+    # against an undefined label. The frontend type has always said 1-5; this
+    # makes the backend agree rather than trusting the client to.
+    category: int = Field(ge=1, le=5)
+
+
+class NodeCapabilities(BaseModel):
+    backbone:   Optional[BackboneCapabilities]   = None
+    underlay:   Optional[UnderlayCapabilities]   = None
+    colocation: Optional[ColocationCapabilities] = None
 
 
 class Node(BaseModel):
     id: str
     name: str
-    lat: float
-    lng: float
+    # Review finding #11: constrain fields whose domain is fixed, so bad input is
+    # rejected at the API boundary (422) instead of silently poisoning the map /
+    # the routing graph. lat/lng are WGS-84 degrees, so the valid range is fixed.
+    lat: float = Field(ge=-90,  le=90)
+    lng: float = Field(ge=-180, le=180)
     type: NodeType
     country: str
+    owner: str = "Telstra"
+    trading_name: Optional[str] = None
+    city: Optional[str] = None
+    street_address: Optional[str] = None
+    description: Optional[str] = None
+    capabilities: Optional[NodeCapabilities] = None
+    verification_status: VerificationStatus = VerificationStatus.draft
+    last_verified_date: Optional[str] = None
+    on_net: Optional[str] = None  # 'on_net' | 'off_net'
+
+
+# "YYYY-QN" — e.g. "2027-Q3". Quarter-precision, not a specific day, since RFS
+# and EOL dates are planning-level estimates that shift; matches the shape used
+# whenever the frontend renders/edits it (see frontend/src/types/index.ts).
+# One constant for both lifecycle dates on purpose — they are the same shape and
+# must stay the same shape, so there is nothing for them to drift apart on.
+_QUARTER_PATTERN = r"^\d{4}-Q[1-4]$"
+
+
+def _check_rfs_quarter(status: "RfsStatus", quarter: Optional[str]) -> None:
+    """Shared cross-field rule for rfs_status/rfs_quarter on CableSystem and
+    CableSegment: a quarter is required once something is 'planned' (that's
+    the whole point of recording it), and cleared once it's 'in_service' so
+    a system/segment can't carry a stale future date after it goes live."""
+    if status == RfsStatus.planned and not quarter:
+        raise ValueError("rfs_quarter is required when rfs_status is 'planned'")
+    if status == RfsStatus.in_service and quarter:
+        raise ValueError("rfs_quarter must be empty when rfs_status is 'in_service'")
+
+
+def _check_eol_quarter(status: "EolStatus", quarter: Optional[str]) -> None:
+    """The exact mirror of _check_rfs_quarter, for eol_status/eol_quarter: a
+    quarter is required once something is 'eol' (that's the whole point of
+    recording it), and cleared once it is back to 'active' so a system/segment
+    can't carry a stale retirement date after a decommission is called off."""
+    if status == EolStatus.eol and not quarter:
+        raise ValueError("eol_quarter is required when eol_status is 'eol'")
+    if status == EolStatus.active and quarter:
+        raise ValueError("eol_quarter must be empty when eol_status is 'active'")
 
 
 class CableSystem(BaseModel):
     id: str
     name: str
     description: str
+    margin: Optional[float] = None
+    # Ready for Service — see RfsStatus. Constrains route search whenever the
+    # request carries a service_date (app/rfs.py).
+    rfs_status: RfsStatus = RfsStatus.in_service
+    rfs_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
+    # End of Life — see EolStatus. The other end of the same constraint: RFS
+    # says when this system starts carrying traffic, EOL when it stops.
+    eol_status: EolStatus = EolStatus.active
+    eol_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
+
+    @model_validator(mode="after")
+    def _rfs_consistent(self):
+        _check_rfs_quarter(self.rfs_status, self.rfs_quarter)
+        return self
+
+    @model_validator(mode="after")
+    def _eol_consistent(self):
+        _check_eol_quarter(self.eol_status, self.eol_quarter)
+        return self
 
 
 class CableSegment(BaseModel):
@@ -48,15 +173,91 @@ class CableSegment(BaseModel):
     start_node_id: str
     end_node_id: str
     type: SegmentType
-    length_km: float
-    reliability: float        # 0-1, annualised availability
-    cost_weight: float        # relative cost units
+    # Review finding #11: physical/derived quantities can never be negative, and
+    # reliability is a probability. gt=0 (not ge=0) on reliability because a
+    # zero-availability segment would make end_to_end_reliability collapse to 0
+    # for every route through it — that is a data error, not a valid segment.
+    length_km: float   = Field(ge=0)
+    reliability: float = Field(gt=0, le=1)   # 0-1, annualised availability
+    cost_weight: float = Field(ge=0)         # relative cost units
     ownership: Ownership
+    latency: Optional[float] = Field(default=None, ge=0)
+    waypoints: Optional[list[list[float]]] = None
+    verification_status: VerificationStatus = VerificationStatus.draft
+    last_verified_date: Optional[str] = None
+    # Ready for Service — see RfsStatus. Constrains route search whenever the
+    # request carries a service_date (app/rfs.py).
+    rfs_status: RfsStatus = RfsStatus.in_service
+    rfs_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
+    # End of Life — see EolStatus. The other end of the same constraint: RFS
+    # says when this segment starts carrying traffic, EOL when it stops.
+    eol_status: EolStatus = EolStatus.active
+    eol_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
+
+    @model_validator(mode="after")
+    def _rfs_consistent(self):
+        _check_rfs_quarter(self.rfs_status, self.rfs_quarter)
+        return self
+
+    @model_validator(mode="after")
+    def _eol_consistent(self):
+        _check_eol_quarter(self.eol_status, self.eol_quarter)
+        return self
+
+
+class DisallowedPair(BaseModel):
+    system_a: str
+    system_b: str
+    reason: str = "Pair is not allowed"
+
+
+class AllowedPair(BaseModel):
+    system_a: str
+    system_b: str
+    reason: str = "Only this pair is allowed at this node"
+
+
+class AllowedHandoffSegment(BaseModel):
+    segment_id: str
+    reason: str = "Segment is allowed to terminate at this node"
 
 
 class InterconnectRule(BaseModel):
     node_id: str
-    disallowed_pairs: list[list[str]]  # pairs of system_ids that cannot interconnect
+    # Blacklist: these system pairs are always rejected at this node
+    disallowed_pairs: list[DisallowedPair] = []
+    # Whitelist: for any system named here, ONLY the listed transitions are
+    # permitted. Systems not mentioned in allowed_pairs are unaffected.
+    allowed_pairs: list[AllowedPair] = []
+    # No handoff: this node cannot be the circuit endpoint (destination)
+    no_handoff: bool = False
+    # Restricted handoff: if non-empty, only these segments may terminate here
+    allowed_handoff_segments: list[AllowedHandoffSegment] = []
+
+
+class InterconnectRuleUpdate(BaseModel):
+    disallowed_pairs: Optional[list[DisallowedPair]] = None
+    allowed_pairs: Optional[list[AllowedPair]] = None
+    no_handoff: Optional[bool] = None
+    allowed_handoff_segments: Optional[list[AllowedHandoffSegment]] = None
+
+
+class SegmentCapacity(BaseModel):
+    segment_id: str
+    # Review finding #11: capacity is in Tbps — never negative, and you cannot
+    # have more capacity free than the segment physically has.
+    total_capacity_t: float     = Field(ge=0)
+    available_capacity_t: float = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _available_within_total(self):
+        """Cross-field check: available capacity cannot exceed total capacity."""
+        if self.available_capacity_t > self.total_capacity_t:
+            raise ValueError(
+                f"available_capacity_t ({self.available_capacity_t}) cannot exceed "
+                f"total_capacity_t ({self.total_capacity_t})"
+            )
+        return self
 
 
 class RouteRequest(BaseModel):
@@ -65,7 +266,37 @@ class RouteRequest(BaseModel):
     must_include_nodes: list[str] = []
     must_avoid_nodes: list[str] = []
     must_avoid_segments: list[str] = []
+    must_include_segments: list[str] = []
+    must_include_systems: list[str] = []
+    must_avoid_systems: list[str] = []
+    must_include_countries: list[str] = []
+    must_avoid_countries: list[str] = []
     diversity: DiversityType = DiversityType.none
+    # Review finding #11: a hop cap below 1 can never match any route, so treat it
+    # as a client bug (422) rather than silently returning zero routes. None means
+    # "no cap" and stays allowed.
+    max_wet_hops: Optional[int]         = Field(default=None, ge=1)
+    max_terrestrial_hops: Optional[int] = Field(default=None, ge=1)
+    optimise_for: Optional[str] = None
+    # Ready-For-Service constraint: an ISO "YYYY-MM-DD" date meaning "only route
+    # over what is actually in service on this day". The frontend sends today's
+    # date by default, so the common case is "what can I sell right now".
+    # None (the default) means NO filtering at all, so API clients that never
+    # send the field — and every existing test — behave exactly as before.
+    # Resolution rules live in app/rfs.py; the filter is applied in
+    # graph.build_graph so unavailable segments never enter the search graph.
+    service_date: Optional[str] = None
+
+    @field_validator("service_date")
+    @classmethod
+    def _service_date_is_iso(cls, v: Optional[str]) -> Optional[str]:
+        # Reject a malformed date at the API boundary (422) instead of silently
+        # ignoring it and quoting planned cable as if it were live.
+        # Imported inside the function: app/rfs.py imports this module, so a
+        # module-level import here would be a cycle.
+        from .rfs import parse_service_date
+        parse_service_date(v)
+        return v
 
 
 class RouteSegmentDetail(BaseModel):
@@ -78,6 +309,7 @@ class RouteSegmentDetail(BaseModel):
     reliability: float
     cost_weight: float
     ownership: Ownership
+    latency: Optional[float] = None
 
 
 class Route(BaseModel):
@@ -86,6 +318,7 @@ class Route(BaseModel):
     segments: list[RouteSegmentDetail]
     total_cost: float
     total_length_km: float
+    total_latency: float = 0.0
     end_to_end_reliability: float
     diversity_group: int = 1
 
@@ -94,3 +327,284 @@ class RouteResponse(BaseModel):
     routes: list[Route]
     primary_routes: list[Route]
     diverse_routes: list[Route]
+    total_found: int = 0
+
+
+# ── Partial-update models (PATCH/PUT) ─────────────────────────────────────────
+
+class NodeUpdate(BaseModel):
+    name: Optional[str] = None
+    # Review finding #11: mirror the Node constraints here — a PUT must not be a
+    # back door around the validation the POST enforces.
+    lat: Optional[float] = Field(default=None, ge=-90,  le=90)
+    lng: Optional[float] = Field(default=None, ge=-180, le=180)
+    type: Optional[NodeType] = None
+    country: Optional[str] = None
+    owner: Optional[str] = None
+    trading_name: Optional[str] = None
+    city: Optional[str] = None
+    street_address: Optional[str] = None
+    description: Optional[str] = None
+    capabilities: Optional[NodeCapabilities] = None
+    verification_status: Optional[VerificationStatus] = None
+    last_verified_date: Optional[str] = None
+    on_net: Optional[str] = None  # 'on_net' | 'off_net'
+
+class CableSegmentUpdate(BaseModel):
+    name: Optional[str] = None
+    system_id: Optional[str] = None
+    start_node_id: Optional[str] = None
+    end_node_id: Optional[str] = None
+    type: Optional[SegmentType] = None
+    # Review finding #11: same constraints as CableSegment (see above).
+    length_km: Optional[float]   = Field(default=None, ge=0)
+    reliability: Optional[float] = Field(default=None, gt=0, le=1)
+    cost_weight: Optional[float] = Field(default=None, ge=0)
+    ownership: Optional[Ownership] = None
+    latency: Optional[float] = Field(default=None, ge=0)
+    waypoints: Optional[list[list[float]]] = None
+    verification_status: Optional[VerificationStatus] = None
+    last_verified_date: Optional[str] = None
+    rfs_status: Optional[RfsStatus] = None
+    rfs_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
+    eol_status: Optional[EolStatus] = None
+    eol_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
+
+class CableSystemUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    margin: Optional[float] = None
+    rfs_status: Optional[RfsStatus] = None
+    rfs_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
+    eol_status: Optional[EolStatus] = None
+    eol_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
+
+class SegmentCapacityUpdate(BaseModel):
+    # Review finding #11: same non-negativity constraints as SegmentCapacity.
+    total_capacity_t: Optional[float]     = Field(default=None, ge=0)
+    available_capacity_t: Optional[float] = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def _available_within_total(self):
+        """Cross-field check, only enforceable when BOTH fields are supplied.
+
+        This is a PARTIAL update model, so when only one field is sent we cannot
+        compare against the other without loading the stored row. The router
+        merges via model_copy(), which does not re-validate in Pydantic v2, so a
+        single-field update that inverts the invariant is not caught here — see
+        review finding #11; tightening that needs a re-validate in capacity.py.
+        """
+        if (
+            self.total_capacity_t is not None
+            and self.available_capacity_t is not None
+            and self.available_capacity_t > self.total_capacity_t
+        ):
+            raise ValueError(
+                f"available_capacity_t ({self.available_capacity_t}) cannot exceed "
+                f"total_capacity_t ({self.total_capacity_t})"
+            )
+        return self
+
+
+class SegmentOutage(BaseModel):
+    """A time-bound event on a cable segment — either a live fault ("outage")
+    or a future scheduled work window ("planned_event"). Both share this one
+    model/table (see data_loader.py's module docstring: JSONB documents, so
+    adding fields needs no migration and old rows without them parse fine via
+    the Optional/default values below), distinguished purely by `event_type`.
+
+    Field usage differs by event_type:
+      - fault_date: doubles as "date this record was raised/logged" for BOTH
+        types (the fault report date for an outage, the notification/raised
+        date for a planned event).
+      - repair_start / estimated_repair_date: the OUTAGE repair window. Only
+        populated when event_type == "outage".
+      - planned_start / planned_end: the PLANNED EVENT maintenance window.
+        Only populated when event_type == "planned_event".
+    A given row only populates the pair matching its own event_type — the
+    other pair stays null.
+    """
+    segment_id: str
+    fault_id: str
+    fault_date: str
+    repair_start: Optional[str] = None
+    estimated_repair_date: Optional[str] = None
+    description: str
+    event_type: str = "outage"   # "outage" (a current live fault) | "planned_event" (a future scheduled work window)
+    planned_start: Optional[str] = None   # Planned Events only: window start date (YYYY-MM-DD)
+    planned_end: Optional[str] = None     # Planned Events only: window end date (YYYY-MM-DD)
+
+
+class SolutionNote(BaseModel):
+    id: str
+    node_id: Optional[str] = None
+    segment_id: Optional[str] = None
+    category_id: str
+    title: str
+    text: str
+    severity: str = "info"  # 'info' | 'warning' | 'critical'
+    created_at: Optional[str] = None
+
+
+class SolutionNoteUpdate(BaseModel):
+    node_id: Optional[str] = None
+    segment_id: Optional[str] = None
+    category_id: Optional[str] = None
+    title: Optional[str] = None
+    text: Optional[str] = None
+    severity: Optional[str] = None
+
+
+class NoteCategory(BaseModel):
+    id: str
+    label: str
+    applies_to: str  # 'node' | 'segment'
+    order: int = 0
+
+
+class NoteCategoryUpdate(BaseModel):
+    label: Optional[str] = None
+    applies_to: Optional[str] = None
+    order: Optional[int] = None
+
+
+class SegmentOutageUpdate(BaseModel):
+    """Partial update for SegmentOutage — see that model's docstring for which
+    field pair (repair_* vs planned_*) applies to which event_type."""
+    fault_id: Optional[str] = None
+    fault_date: Optional[str] = None
+    repair_start: Optional[str] = None
+    estimated_repair_date: Optional[str] = None
+    description: Optional[str] = None
+    event_type: Optional[str] = None
+    planned_start: Optional[str] = None
+    planned_end: Optional[str] = None
+
+
+# ── Interface Types (reference table) ────────────────────────────────────────
+
+class InterfaceType(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+
+
+# ── Technical Enrichment Lookups ──────────────────────────────────────────────
+
+class TechLookupItem(BaseModel):
+    id: str
+    label: str
+    order: int = 0
+    description: Optional[str] = None
+
+class TechLookupItemUpdate(BaseModel):
+    label: Optional[str] = None
+    order: Optional[int] = None
+    description: Optional[str] = None
+
+
+class InterfaceTypeUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+# ── Customer Solution Projects ────────────────────────────────────────────────
+
+class SldConfig(BaseModel):
+    show_latency: bool = True
+    show_segment_latency: bool = True
+    show_distance: bool = True
+    show_ownership: bool = True
+    show_reliability: bool = False
+    show_rtd: bool = True
+
+
+class EndpointConfig(BaseModel):
+    customer_site_name: Optional[str] = None
+    customer_site_address: Optional[str] = None
+    access_type: Optional[str] = None          # "X-Connect" | "Local Loop" | "Direct"
+    cc_supplier: Optional[str] = None
+    cc_arranged_by: Optional[str] = None       # "Customer" | "Telstra"
+    ll_supplier: Optional[str] = None
+    ll_arranged_by: Optional[str] = None       # "Customer" | "Service Provider"
+    interface_id: Optional[str] = None         # FK → InterfaceType
+    bandwidth: Optional[str] = None
+    protection: Optional[str] = None
+
+
+class ProjectCircuit(BaseModel):
+    circuit_id: str
+    label: Optional[str] = None
+    order: int = 0
+    route_snapshot: dict
+    protect_route_snapshot: Optional[dict] = None
+    search_label: str = ""
+    pin_color: str = "#94e2d5"
+    circuit_description: Optional[str] = None
+    service_type: Optional[str] = None
+    bandwidth: Optional[str] = None
+    protection: Optional[str] = None
+    frame_size: Optional[str] = None
+    l1_settings: Optional[str] = None
+    a_end: EndpointConfig = EndpointConfig()
+    z_end: EndpointConfig = EndpointConfig()
+    sld_config_override: Optional[dict] = None
+
+
+class Project(BaseModel):
+    id: str
+    name: str
+    account_manager: Optional[str] = None
+    solution_architect: Optional[str] = None
+    opportunity_id: Optional[str] = None
+    opportunity_name: Optional[str] = None
+    description: Optional[str] = None
+    date_prepared: Optional[str] = None
+    visibility: str = "confidential"
+    sld_config: SldConfig = SldConfig()
+    circuits: list[ProjectCircuit] = []
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = None
+    account_manager: Optional[str] = None
+    solution_architect: Optional[str] = None
+    opportunity_id: Optional[str] = None
+    opportunity_name: Optional[str] = None
+    description: Optional[str] = None
+    date_prepared: Optional[str] = None
+    visibility: Optional[str] = None
+    sld_config: Optional[SldConfig] = None
+
+
+# ── NLP route parsing ─────────────────────────────────────────────────────────
+
+class NlpParseRequest(BaseModel):
+    # Review findings #11 / #19: /api/nlp/parse is an unauthenticated POST that
+    # spends real LLM API budget, so the free-text field must be capped. 2000
+    # chars is far more than any genuine route query needs, and stops the
+    # endpoint being used to push arbitrarily large prompts upstream.
+    text: str = Field(max_length=2000)
+
+
+class NlpParseResponse(BaseModel):
+    start_node_id: Optional[str] = None
+    end_node_id: Optional[str] = None
+    must_include_nodes: list[str] = []
+    must_avoid_nodes: list[str] = []
+    must_include_segments: list[str] = []
+    must_avoid_segments: list[str] = []
+    must_include_systems: list[str] = []
+    must_avoid_systems: list[str] = []
+    must_include_countries: list[str] = []
+    must_avoid_countries: list[str] = []
+    diversity: str = "none"
+    max_wet_hops: Optional[int] = None
+    max_terrestrial_hops: Optional[int] = None
+    optimise_for: Optional[str] = None
+    sort_mode: Optional[str] = None
+    explanation: str = ""
+    confidence: str = "low"
+    ambiguities: list[str] = []

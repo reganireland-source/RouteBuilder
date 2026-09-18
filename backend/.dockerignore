@@ -1,0 +1,18 @@
+# Backstop for docker:S6470 — the Dockerfile copies only app/ and data/, but
+# this keeps anything sensitive or irrelevant out of the build context entirely.
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+tests
+.env
+.env.*
+!.env.example
+*.log
+*.pem
+*.key
+*.crt
+.git
+.DS_Store

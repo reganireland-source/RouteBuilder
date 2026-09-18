@@ -1,0 +1,298 @@
+/**
+ * HazardStatusPanel — the small card that says what the hazard layer is actually
+ * showing you.
+ *
+ * This exists because of the one way this feature can mislead badly: an empty
+ * map is indistinguishable from a working map with nothing on it. Neither feed
+ * covers everywhere — bushfire.io serves Australia, North America and Europe
+ * only, and USGS is worldwide but earthquakes only — so a clear map over Tokyo
+ * means "no earthquake this week", NOT "nothing is wrong in Japan". If a source
+ * is down or unconfigured it means even less than that.
+ *
+ * So the panel always states three things: how many hazards are loaded, how many
+ * touch our own network, and what each source can and cannot speak for. It is
+ * deliberately plain text rather than a status light, because "green" would
+ * imply an all-clear this data cannot support.
+ *
+ * CONTRAST IS NOT COSMETIC HERE. The coverage lines and the "an empty map is
+ * not an all-clear" caveat are the honesty mechanism of the whole feature — if
+ * they are not read, the layer overstates what it knows. They were originally
+ * set in `textFaintest`, which measures 1.9:1 against the panel background in
+ * dark and dusk and 2.1:1 in light, against the 4.5:1 WCAG AA needs at this
+ * size; on a real screen, photographed, they were simply not legible. They now
+ * use `textMuted` (5.1-7.9:1 across the three themes) at 11px. The de-emphasis
+ * is carried by size, indentation and italics instead of by fading the text to
+ * the edge of visibility.
+ *
+ * Mounted from: Map.tsx, alongside HazardLayer, whenever the layer is on.
+ */
+import { useState } from 'react'
+import type { HazardAssetView, HazardFeed, HazardOwnerView } from '../types'
+import { useTheme } from '../theme'
+
+interface Props {
+  feed: HazardFeed | null
+  loading: boolean
+  error: string | null
+  onRefresh: () => void
+  /** How much of our own network the map is drawing. */
+  assetView: HazardAssetView
+  onAssetViewChange: (next: HazardAssetView) => void
+  /** Which in-range assets get highlighted. Only meaningful while assetView is 'inRange'. */
+  ownerView: HazardOwnerView
+  onOwnerViewChange: (next: HazardOwnerView) => void
+  /** Narrow viewport — the panel shrinks and starts collapsed. */
+  narrow?: boolean
+  /** The top-right Controls menu is open. Both live in the same corner, so the
+   *  panel gets out of its way — see CONTROLS_CLEARANCE. */
+  controlsOpen?: boolean
+}
+
+/**
+ * How far the panel slides left to clear the desktop Controls menu.
+ *
+ * The menu button sits at right:12 and its dropdown is 240 wide, so together
+ * they own the first 252px in from the right edge; +10 leaves a visible gap
+ * rather than butting the two panels together.
+ *
+ * This is measured against the VIEWPORT, which is why the panel is positioned
+ * `fixed` rather than `absolute`. The map is flush to the top and right edges at
+ * every width (verified from 390px to 2560px), so fixed puts the resting panel
+ * in exactly the same place absolute did — but it also lets the panel slide left
+ * over the results column instead of being clipped by the map's own bounds. The
+ * map is only 287px wide at a 1280px window and 507px at 1500px, so an
+ * absolutely-positioned slide had nowhere near enough room: it clipped by 237px
+ * and 17px respectively.
+ */
+const CONTROLS_CLEARANCE = 262
+
+/**
+ * The floating card's own box. Module-level so the two Controls-menu rules
+ * below stay readable next to each other rather than as more branches inside an
+ * already long component.
+ *
+ * On a phone there is nowhere to slide TO: the drawer is 220px wide and the
+ * panel 210px, which cannot sit side by side in 390px. So a narrow viewport
+ * fades the panel out for as long as the drawer is open instead of moving it,
+ * and it comes straight back when the drawer closes.
+ */
+function panelShell(
+  { t, narrow, controlsOpen, warn }:
+  { t: ReturnType<typeof useTheme>; narrow: boolean; controlsOpen: boolean; warn: boolean },
+): React.CSSProperties {
+  const slideAside = controlsOpen && !narrow
+  const hideBehindDrawer = controlsOpen && narrow
+  return {
+    position: 'fixed',
+    top: narrow ? 100 : 62,
+    right: slideAside ? CONTROLS_CLEARANCE : 12,
+    opacity: hideBehindDrawer ? 0 : 1,
+    pointerEvents: hideBehindDrawer ? 'none' : 'auto',
+    transition: 'right 220ms cubic-bezier(.4, 0, .2, 1), opacity 160ms ease',
+    zIndex: 1000,
+    width: narrow ? 210 : 260,
+    background: t.bgPanel,
+    border: `1px solid ${warn ? t.orange : t.border}`,
+    borderRadius: 8,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.35)',
+    fontFamily: 'system-ui, sans-serif',
+    overflow: 'hidden',
+  }
+}
+
+/** The three ways to draw the network underneath the hazards. */
+const ASSET_VIEWS: { value: HazardAssetView; label: string; hint: string }[] = [
+  { value: 'all',     label: 'All',      hint: 'Draw the whole network as normal, with hazards on top.' },
+  { value: 'inRange', label: 'In range', hint: 'Highlight only the nodes and cables within range of a hazard, and fade the rest.' },
+  { value: 'none',    label: 'Hidden',   hint: 'Hide the network entirely and show only the hazards.' },
+]
+
+/** Which of the in-range assets to highlight. Only bites under "In range" — but
+ *  it stays on screen when it doesn't, greyed out, so the option is discoverable
+ *  rather than appearing and disappearing. */
+const OWNER_VIEWS: { value: HazardOwnerView; label: string; hint: string }[] = [
+  { value: 'onNet', label: 'On-Net', hint: 'Highlight only our own nodes and cables. Off-net assets fade back like anything else out of range.' },
+  { value: 'all',   label: 'All',    hint: 'Highlight every asset in range, including off-net sites and third-party capacity.' },
+]
+
+/**
+ * One row of mutually-exclusive buttons. Module-level (not a closure inside
+ * HazardStatusPanel) because a component defined during render remounts its
+ * children on every keystroke — and because the lint rule
+ * react-hooks/static-components refuses it outright.
+ *
+ * `disabled` greys the row out but keeps it rendered, which is the convention
+ * RefDataModal already uses. The label stays at full `textMuted` strength while
+ * the buttons drop to `textFaint`: the point of leaving a dead control on screen
+ * is that you can still read what it is, so fading the word that names it would
+ * defeat the exercise. `textFaint` measures 3.5-4.1:1, which is the readable
+ * "inactive" band — deliberately not `textFaintest`, which at 1.9-2.2:1 is the
+ * one that turned out to be illegible on a real screen.
+ */
+function SegmentedControl<T extends string>(
+  { label, options, value, onChange, t, disabled = false, disabledHint }: {
+    label: string
+    options: { value: T; label: string; hint: string }[]
+    value: T
+    onChange: (next: T) => void
+    t: ReturnType<typeof useTheme>
+    disabled?: boolean
+    /** Why it is dead, shown on hover over the whole row. */
+    disabledHint?: string
+  },
+) {
+  return (
+    <div style={{ marginBottom: 8 }} title={disabled ? disabledHint : undefined}>
+      <div style={{
+        fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+        color: t.textMuted, marginBottom: 4,
+      }}>
+        {label}
+      </div>
+      <div style={{
+        display: 'flex', border: `1px solid ${t.border}`, borderRadius: 5, overflow: 'hidden',
+        opacity: disabled ? 0.55 : 1,
+      }}>
+        {options.map((o, i) => {
+          const active = value === o.value
+          let labelColor = t.textMuted
+          if (disabled) labelColor = t.textFaint
+          else if (active) labelColor = t.orange
+          return (
+            <button
+              key={o.value}
+              onClick={() => onChange(o.value)}
+              disabled={disabled}
+              title={disabled ? disabledHint : o.hint}
+              aria-pressed={active}
+              style={{
+                flex: 1, padding: '4px 2px', fontSize: 10, fontFamily: 'inherit',
+                fontWeight: active ? 700 : 500,
+                border: 'none',
+                borderRight: i === options.length - 1 ? 'none' : `1px solid ${t.border}`,
+                background: active && !disabled ? t.orange + '2a' : 'transparent',
+                color: labelColor,
+                cursor: disabled ? 'default' : 'pointer',
+              }}
+            >
+              {o.label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export function HazardStatusPanel({ feed, loading, error, onRefresh, assetView, onAssetViewChange, ownerView, onOwnerViewChange, narrow = false, controlsOpen = false }: Props) {
+  const t = useTheme()
+  const [open, setOpen] = useState(!narrow)
+
+  const relevant = feed ? feed.hazards.filter(h => h.affected.length > 0).length : 0
+  const total = feed?.hazards.length ?? 0
+
+  const shell = panelShell({ t, narrow, controlsOpen, warn: !!feed?.degraded || !!error })
+
+  return (
+    <div style={shell}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 7, width: '100%',
+          padding: '7px 10px', background: 'transparent', border: 'none',
+          cursor: 'pointer', textAlign: 'left', color: t.text,
+        }}
+      >
+        <span style={{ fontSize: 13, lineHeight: 1 }}>⚠️</span>
+        <span style={{ fontSize: 11, fontWeight: 700, flex: 1 }}>
+          {loading && !feed ? 'Loading hazards…' : `${relevant} near network`}
+        </span>
+        <span style={{ fontSize: 10, color: t.textFaint }}>{open ? '▾' : '▸'}</span>
+      </button>
+
+      {open && (
+        <div style={{ padding: '0 10px 10px', fontSize: 11, color: t.textMuted, lineHeight: 1.55 }}>
+          {error && (
+            <div style={{ color: t.red, marginBottom: 6 }}>
+              Could not load the hazard feed. {error}
+            </div>
+          )}
+
+          {feed && (
+            <>
+              <div style={{ marginBottom: 6 }}>
+                <strong style={{ color: t.text }}>{total}</strong> active,{' '}
+                <strong style={{ color: relevant ? t.orange : t.text }}>{relevant}</strong> within range of a node or cable.
+              </div>
+
+              {/* Asset view — what of OUR network is drawn beneath the hazards. */}
+              <SegmentedControl
+                label="Network assets"
+                options={ASSET_VIEWS}
+                value={assetView}
+                onChange={onAssetViewChange}
+                t={t}
+              />
+
+              {/* Owner filter — narrows WHICH in-range assets are highlighted.
+                  Only meaningful under "In range" (under "All" nothing is singled
+                  out, under "Hidden" nothing is drawn), but it stays on screen
+                  greyed out rather than unmounting: a control that vanishes reads
+                  as a missing feature, and a browser holding an old "All" choice
+                  would otherwise never show this row at all. */}
+              <SegmentedControl
+                label="Highlight"
+                options={OWNER_VIEWS}
+                value={ownerView}
+                onChange={onOwnerViewChange}
+                t={t}
+                disabled={assetView !== 'inRange'}
+                disabledHint={'Only applies to the "In range" view — switch Network assets to In range to use it.'}
+              />
+
+              {feed.sources.map(s => (
+                <div key={s.source} style={{ marginBottom: 5 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ color: s.ok ? t.green : t.orange, fontSize: 9 }}>{s.ok ? '●' : '○'}</span>
+                    <span style={{ color: t.text, fontWeight: 600 }}>{s.label}</span>
+                    {s.ok && <span style={{ color: t.textMuted }}>· {s.count}</span>}
+                  </div>
+                  <div style={{ color: s.ok ? t.textMuted : t.orange, marginLeft: 14 }}>
+                    {s.error ?? s.coverage}
+                  </div>
+                </div>
+              ))}
+
+              {/* Stated every time, not only when something is wrong. The gap in
+                  coverage is a permanent property of these feeds, not an incident. */}
+              <div style={{
+                marginTop: 7, paddingTop: 6, borderTop: `1px solid ${t.border}`,
+                color: t.textMuted, fontStyle: 'italic',
+              }}>
+                An empty map is not an all-clear — it means these sources report nothing here.
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 7 }}>
+                <button
+                  onClick={onRefresh}
+                  disabled={loading}
+                  style={{
+                    padding: '4px 9px', borderRadius: 4, fontSize: 11, fontFamily: 'inherit',
+                    border: `1px solid ${t.border}`, background: 'transparent',
+                    color: loading ? t.textFaint : t.textMuted,
+                    cursor: loading ? 'default' : 'pointer',
+                  }}
+                >
+                  {loading ? 'Refreshing…' : 'Refresh'}
+                </button>
+                <span style={{ color: t.textMuted }}>
+                  {feed.fetched_at.slice(11, 16)} UTC
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
