@@ -1,10 +1,16 @@
 """
-Deciding which segment an uploaded cable path belongs to.
+Scoring how well a cable path's geometry and naming fit a candidate segment.
 
-The bulk importer takes a folder of KMZ files — some one path, some a whole
-system split across many placemarks — and has to work out what each path is.
-This module does the working out; it never writes anything, and the API never
-acts on it without a human approving the result.
+Originally the whole engine behind a scored bulk-import review table; that
+table is gone (see api/kml.py's module docstring and kml/flatten.py — a
+branching cable like AJC defeats a graph-anchored auto-split, which is what
+replaced it with a human-driven chop tool). `rank_candidates` and its helpers
+are kept here as a library: nothing in this codebase calls them today, but
+the scoring itself — geometry outweighs names, described below — is still
+the right way to answer "which segment does this path look like," and is
+cheap to keep for a future "guess the system" hint rather than being deleted
+and rewritten if that need comes back. AUTO_ACCEPT_GEOMETRY/AMBIGUOUS_MARGIN
+remain meaningful thresholds even without a table gating on them.
 
 GEOMETRY OUTWEIGHS NAMES, and that ordering is the whole design. A filename is a
 claim ("AJC-GUM-TYO.kmz"); endpoint positions are evidence. Files get renamed,
@@ -20,19 +26,18 @@ the two disagree, geometry wins and the name becomes a tiebreak.
     name      0..30   tokens shared between the file/placemark/folder names and
                       the segment's id, name and system.
 
-A path with no geometric fit scores at most 30 however well its name matches,
-which keeps it below the auto-accept threshold and forces a human to look.
+A path with no geometric fit scores at most 30 however well its name matches.
 
-WHAT THIS DELIBERATELY DOES NOT DO: pick. `propose` returns ranked candidates
-with the numbers behind them, and the caller decides. Where two cables run
-between the same pair of landing stations — which is common, that is what
+WHAT THIS DELIBERATELY DOES NOT DO: pick. `rank_candidates` returns ranked
+candidates with the numbers behind them; the caller decides. Where two cables
+run between the same pair of landing stations — which is common, that is what
 diversity means — the top two scores will be close together, and that is
 information, not a problem to be hidden by returning only the winner.
 """
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 from ..hazards.proximity import haversine_km
@@ -161,40 +166,6 @@ class Candidate:
     already_linked: bool = False
 
 
-@dataclass
-class PathProposal:
-    """One cable path from one uploaded file, and what it might be."""
-    file_id: str
-    filename: str
-    #: Index of this path within the file — how commit finds it again.
-    path_index: int
-    path_name: str
-    folder: Optional[str]
-    point_count: int
-    candidates: list[Candidate] = field(default_factory=list)
-
-    @property
-    def best(self) -> Optional[Candidate]:
-        return self.candidates[0] if self.candidates else None
-
-    @property
-    def ambiguous(self) -> bool:
-        """Two candidates close enough that the top one is not clearly right."""
-        if len(self.candidates) < 2:
-            return False
-        return (self.candidates[0].score - self.candidates[1].score) < AMBIGUOUS_MARGIN
-
-    @property
-    def auto_acceptable(self) -> bool:
-        """Safe to accept without opening the row.
-
-        Geometry alone, plus the requirement that nothing else came close. The
-        filename is not part of this test — see AUTO_ACCEPT_GEOMETRY.
-        """
-        b = self.best
-        return b is not None and b.geometry_score >= AUTO_ACCEPT_GEOMETRY and not self.ambiguous
-
-
 def segment_tokens_for(segment: dict, nodes_by_id: dict[str, dict]) -> set[str]:
     """Everything about a segment a filename might plausibly mention."""
     a = nodes_by_id.get(segment.get("start_node_id") or "")
@@ -266,18 +237,3 @@ def rank_candidates(
     return scored[:MAX_CANDIDATES]
 
 
-def resolve_conflicts(proposals: list[PathProposal]) -> dict[str, list[int]]:
-    """
-    Which segments more than one path in this batch wants, keyed by segment id.
-
-    A whole-system KMZ dropped in twice, or a trunk file plus its per-segment
-    exports, will have several paths claiming the same segment. Committing all
-    of them would silently stack versions, with whichever happened to be last
-    becoming the active route. Surfaced so the reviewer chooses.
-    """
-    wants: dict[str, list[int]] = {}
-    for i, p in enumerate(proposals):
-        b = p.best
-        if b:
-            wants.setdefault(b.segment_id, []).append(i)
-    return {sid: idxs for sid, idxs in wants.items() if len(idxs) > 1}

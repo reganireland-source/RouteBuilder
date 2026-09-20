@@ -68,6 +68,7 @@ import type { ManualState, NextHopCandidate } from './RouteManual'
 import { useSegmentHover } from '../context/SegmentHoverContext'
 import { normalizeLng, geoLines, NODE_STYLE, NODE_TYPE_LABEL } from '../mapGeometry'
 import { EditorMapLayer } from './EditorMapLayer'
+import { KmlChopMapLayer, type KmlChopMapLayerProps } from './KmlChopMapLayer'
 import { LivingWorldLayer } from './LivingWorldLayer'
 import { HazardLayer, severityColor } from './HazardLayer'
 import { worstSeverityByAsset } from '../context/HazardContext'
@@ -199,7 +200,16 @@ interface Props {
   onEditorWaypointDelete?: (segmentId: string, index: number) => void
   onEditorPickEndpoint?: (nodeId: string) => void
   onEditorPickEmptySpace?: (lat: number, lng: number) => void
+  /** Whatever KmlChopImport.tsx's chop session currently needs drawn — the
+   *  whole KmlChopMapLayer prop set in one object, or null when no chop
+   *  session is open. See KmlChopMapLayer.tsx and KmlChopImport.tsx's own
+   *  module docstring for why this is a single bundled prop rather than the
+   *  ~15 separate ones Network Editor's own interactivity needed: this mode
+   *  has no node/segment CRUD of its own to thread through, only chains and
+   *  cuts that one component already owns end to end. */
+  kmlChop?: KmlChopMapLayerProps | null
 }
+
 
 function MapResizer({ panelWidth }: { panelWidth?: number }) {
   const map = useMap()
@@ -469,7 +479,7 @@ function NodeTypeLegend({ narrow }: { narrow: boolean }) {
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, controlsOpen = false, kmlPaths = EMPTY_KML_PATHS, kmlMode = false, kmlPreview = EMPTY_PREVIEW, kmlPreviewKey = 0, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, controlsOpen = false, kmlPaths = EMPTY_KML_PATHS, kmlMode = false, kmlPreview = EMPTY_PREVIEW, kmlPreviewKey = 0, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace, kmlChop = null }: Props) {
   const t = useTheme()
   const narrowViewport = useNarrowViewport()
   const { hoveredSegmentId } = useSegmentHover()
@@ -1225,6 +1235,9 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
           onPickEmptySpace={onEditorPickEmptySpace ?? (() => {})}
         />
       )}
+
+      {/* ── KML chop session — see KmlChopMapLayer.tsx / KmlChopImport.tsx ── */}
+      {kmlChop && <KmlChopMapLayer {...kmlChop} />}
     </MapContainer>
     </div>
   )

@@ -923,53 +923,67 @@ export interface KmlUploadResult {
   paths_in_file: number
 }
 
-/** One segment a bulk-uploaded path might belong to, with the working shown. */
-export interface KmlCandidate {
+/**
+ * One place suggest_cuts() (backend/app/kml/flatten.py) thinks a declared
+ * segment's own two endpoints sit along a Chain — a hint, never a gate. See
+ * KmlChopImport.tsx, which seeds its editable cut/assignment state from these
+ * on a fresh flatten() but never re-applies them afterward.
+ */
+export interface KmlSuggestedCut {
   segment_id: string
-  segment_name: string
-  system_id: string
-  /** 0-100. Geometry contributes up to 70, the filename up to 30. */
-  score: number
-  geometry_score: number
-  name_score: number
-  a_end_gap_km: number
-  z_end_gap_km: number
-  reversed: boolean
-  /** This segment already has a surveyed route; accepting makes a new version. */
-  already_linked: boolean
+  start_idx: number
+  end_idx: number
+  a_gap_km: number
+  z_gap_km: number
 }
 
-/** One cable path found in one uploaded file, and what it might be. */
-export interface KmlProposal {
-  file_id: string
-  filename: string
-  /** Which path within the file — a whole-system KMZ yields several. */
-  path_index: number
-  /** Set when this row is one SLICE of a longer trace: a single LineString
-   *  running Singapore→Mumbai→Dubai→London is cut at the nodes it passes and
-   *  each piece reviewed separately. null when the path is matched whole. */
-  piece_index: number | null
-  piece_count: number | null
-  piece_start_node: string | null
-  piece_end_node: string | null
-  /** How many of the file's LineStrings were reassembled into this path. 1 means
-   *  it arrived whole; 50 means an exporter had chopped one cable into fifty
-   *  runs and the importer put it back together. */
-  fragment_count: number
-  /** Simplified geometry for drawing this proposal on the real map before
-   *  anything is attached. For a split file, seeing the pieces in place is the
-   *  only way to judge whether the cuts landed where the cable actually joins. */
-  preview_path: [number, number][]
-  path_name: string
-  folder: string | null
+/**
+ * One re-chopped ordering of an import's own points, from POST
+ * /api/kml/flatten — see backend/app/kml/flatten.py's module docstring for
+ * why this exists instead of trusting the file's own placemark boundaries.
+ * `coords` is FULL resolution: one import at a time is small enough that
+ * simplifying it, unlike the whole-network /api/kml/paths payload, buys
+ * nothing and would cost precision when clicking to place a cut.
+ */
+export interface KmlChain {
+  index: number
+  coords: [number, number][]
   point_count: number
-  paths_in_file: number
-  /** The runner-up scored within a hair of the winner — parallel cables between
-   *  the same two stations look identical to geometry, so a human must choose. */
-  ambiguous: boolean
-  /** Strong geometry AND nothing else close. Safe to accept without opening. */
-  auto_acceptable: boolean
-  candidates: KmlCandidate[]
+  /** How many of the import's original LineStrings joined into this chain —
+   *  1 means it arrived whole. */
+  fragment_count: number
+  /** Interior vertices where the re-chopping walk turned sharply enough to
+   *  be worth a second look — a bad fragment join, or a real branch a linear
+   *  chain cannot represent. Not an error, a flag. */
+  kink_indices: number[]
+  suggested_cuts: KmlSuggestedCut[]
+}
+
+/** POST /api/kml/flatten — parsed/fetched and re-chopped, nothing written yet. */
+export interface KmlFlattenResponse {
+  file_ids: string[]
+  source: KmlSource
+  /** Only set when the source was a submarinecablemap.com sync. */
+  cable_name: string | null
+  rejected: { filename: string; reason: string }[]
+  chains: KmlChain[]
+}
+
+/** POST /api/kml/commit-chop — what actually landed. */
+export interface KmlChopCommitResponse {
+  linked: {
+    segment_id: string
+    chain_index: number
+    link_id: string
+    version: number
+    length_km: number | null
+    stored_length_km: number
+    point_count: number
+    needs_review: boolean
+    source: KmlSource
+  }[]
+  failed: { chain_index: number | null; segment_id: string | null; reason: string }[]
+  summary: { linked: number; failed: number }
 }
 
 /**
@@ -984,40 +998,6 @@ export interface KmlPreviewLine {
    *  marker so the cut itself is visible, not just the pieces either side. */
   cutAt?: [number, number]
   cutLabel?: string
-}
-
-/** POST /api/kml/bulk/propose — parsed and scored, nothing written yet. */
-export interface KmlProposeResponse {
-  proposals: KmlProposal[]
-  /** Files that could not be read, with the reason. One bad file in a folder of
-   *  300 must not cost the other 299, so these are reported, not thrown. */
-  rejected: { filename: string; reason: string }[]
-  /** Segment id -> indices of the proposals competing for it. */
-  conflicts: Record<string, number[]>
-  summary: {
-    files_read: number
-    files_rejected: number
-    paths_found: number
-    auto_acceptable: number
-    ambiguous: number
-    no_candidate: number
-  }
-}
-
-/** POST /api/kml/bulk/commit — what actually landed. */
-export interface KmlCommitResponse {
-  linked: {
-    segment_id: string
-    link_id: string
-    version: number
-    length_km: number | null
-    stored_length_km: number
-    point_count: number
-    needs_review: boolean
-    source: KmlSource
-  }[]
-  failed: { file_id: string; segment_id: string; path_index: number; reason: string }[]
-  summary: { linked: number; failed: number }
 }
 
 /** One segment that has a route on file — not necessarily surveyed, see `source`. */
@@ -1085,13 +1065,6 @@ export interface ScmCable {
 /** GET /api/kml/scm/cables?q= */
 export interface ScmCablesResponse {
   cables: ScmCable[]
-}
-
-/** POST /api/kml/scm/propose — same shape as bulk propose, plus which cable
- *  it came from. */
-export interface ScmProposeResponse extends KmlProposeResponse {
-  cable_id: string
-  cable_name: string
 }
 
 /** GET /api/kml/unused-files — blobs left behind by abandoned reviews. */

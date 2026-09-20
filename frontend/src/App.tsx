@@ -13,9 +13,9 @@ import { editorReducer, initialEditorState, applyPendingChanges, pendingAffected
 import { saveAll } from './state/networkEditorSave'
 import { NodeInfoPanel } from './components/NodeInfoPanel'
 import { SegmentInfoPanel } from './components/SegmentInfoPanel'
-// Lazy: the review table and its matcher types are only ever opened by an
+// Lazy: the chop tool and its matcher types are only ever opened by an
 // admin importing files, so it has no business in the initial bundle.
-const KmlBulkImport = lazy(() => import('./components/KmlBulkImport').then(m => ({ default: m.KmlBulkImport })))
+const KmlChopImport = lazy(() => import('./components/KmlChopImport').then(m => ({ default: m.KmlChopImport })))
 const KmlLibrary = lazy(() => import('./components/KmlLibrary').then(m => ({ default: m.KmlLibrary })))
 import { NodeFinder } from './components/NodeFinder'
 import { CityPairPanel } from './components/CityPairPanel'
@@ -36,6 +36,7 @@ import { ThemeContext, darkTheme, duskTheme, lightTheme, useTheme, type Theme, t
 import { useHazards } from './hooks/useHazards'
 import { HazardProvider } from './context/HazardContext'
 import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem, Hazard, HazardAssetView, HazardOwnerView, KmlPathInfo, KmlPreviewLine} from './types'
+import type { KmlChopMapLayerProps } from './components/KmlChopMapLayer'
 import { ProjectsModal } from './components/ProjectsModal'
 import { RouteManualLeft, RouteManualMiddle, computeCandidates, assembleRoute } from './components/RouteManual'
 import type { NextHopCandidate } from './components/RouteManual'
@@ -562,6 +563,10 @@ export default function App() {
   // cuts can be checked against it, and never stored. `key` is bumped per
   // request so re-previewing the same path still re-fits the map.
   const [kmlPreview, setKmlPreview] = useState<{ lines: KmlPreviewLine[]; key: number }>({ lines: [], key: 0 })
+  // Whatever KmlChopImport's chop session currently wants drawn on the map —
+  // see KmlChopMapLayer.tsx. null whenever the panel isn't open or hasn't
+  // flattened an import yet.
+  const [kmlChopMapProps, setKmlChopMapProps] = useState<KmlChopMapLayerProps | null>(null)
   const [selectedSegment, setSelectedSegment] = useState<{ segment: CableSegment; x: number; y: number } | null>(null) // segment whose info card is open
   // Fly-to request from a node-code lookup. `key` increments every time so
   // asking for the same node twice still flies.
@@ -2046,6 +2051,7 @@ export default function App() {
               kmlMode={kmlMode}
               kmlPreview={kmlPreview.lines}
               kmlPreviewKey={kmlPreview.key}
+              kmlChop={kmlChopMapProps}
               searchPin={searchPin ?? undefined}
               nearestNodeIds={nearestNodeIds}
               hideNonActive={hideNonActive}
@@ -2102,12 +2108,13 @@ export default function App() {
 
       {kmlImportOpen && (
         <Suspense fallback={null}>
-          <KmlBulkImport
+          <KmlChopImport
             segments={segments}
             systems={systems}
-            onClose={() => { setKmlImportOpen(false); setKmlPreview({ lines: [], key: 0 }) }}
+            nodes={nodes}
+            onClose={() => { setKmlImportOpen(false); setKmlChopMapProps(null) }}
             onDataChange={handleDataChange}
-            onPreview={lines => setKmlPreview(p => ({ lines, key: p.key + 1 }))}
+            onMapPropsChange={setKmlChopMapProps}
           />
         </Suspense>
       )}

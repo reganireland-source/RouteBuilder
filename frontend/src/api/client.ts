@@ -37,7 +37,7 @@
  * requests). Request/response shapes are the interfaces in ../types.
  */
 
-import type { AppConfig, CableNode, KmlCommitResponse, KmlFullPath, KmlLibrary, KmlPathsResponse, KmlProposeResponse, KmlSource, KmlUnusedFiles, KmlUploadResult, KmlVersion, ScmCablesResponse, ScmProposeResponse, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, HazardFeed, NlpParseResponse, NoteCategory, OutageEventType, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
+import type { AppConfig, CableNode, KmlChopCommitResponse, KmlFlattenResponse, KmlFullPath, KmlLibrary, KmlPathsResponse, KmlSource, KmlUnusedFiles, KmlUploadResult, KmlVersion, ScmCablesResponse, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, HazardFeed, NlpParseResponse, NoteCategory, OutageEventType, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
 
 // Backend origin baked in at build time. Empty string = same-origin (dev proxy).
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
@@ -358,36 +358,36 @@ export const api = {
     if (placemark) form.append('placemark', placemark)
     return uploadForm<KmlUploadResult>('/api/kml/upload', form)
   },
-  /** Parse and score a batch. Writes NOTHING — the review screen decides. Sent
-   *  in batches so progress is visible and one failure does not lose the lot.
-   *  `systemHint` is an optional cable-system id the importer believes this
-   *  batch belongs to — see matcher.rank_candidates' docstring for exactly
-   *  what it does and does not change. */
-  proposeKmlBatch: (files: File[], systemHint?: string) => {
-    const form = new FormData()
-    for (const f of files) form.append('files', f)
-    if (systemHint) form.append('system_hint', systemHint)
-    return uploadForm<KmlProposeResponse>('/api/kml/bulk/propose', form)
-  },
-  /** Attach the approved matches. Each becomes a new version on its segment.
-   *  `source` records where the geometry came from ('upload' by default). */
-  commitKmlBatch: (accepted: { file_id: string; path_index: number; segment_id: string; piece_index?: number | null; source?: KmlSource }[]) =>
-    post<KmlCommitResponse>('/api/kml/bulk/commit', { accepted }),
   /** Search submarinecablemap.com's cable list for the sync picker. */
   searchScmCables: (q: string) => {
     const query = q ? `?q=${encodeURIComponent(q)}` : ''
     return get<ScmCablesResponse>(`/api/kml/scm/cables${query}`)
   },
-  /** Fetch one cable's geometry from submarinecablemap.com and score it
-   *  against every segment — the "sync" alternative to a file upload. Writes a
-   *  file but no segment_kml links; review and commit through commitKmlBatch,
-   *  as with a real upload. */
-  proposeScmSync: (cableId: string, systemHint?: string) => {
+  /** Parse a batch (or fetch a sync) and re-chop it into our own chains —
+   *  see backend/app/kml/flatten.py. Writes NOTHING; the chop tool decides.
+   *  Exactly one of `files`/`cableId` is given, matching the two import
+   *  sources KmlChopImport offers. */
+  flattenKmlImport: (
+    source: { files: File[] } | { cableId: string },
+    systemId: string, segmentIds: string[],
+  ) => {
     const form = new FormData()
-    form.append('cable_id', cableId)
-    if (systemHint) form.append('system_hint', systemHint)
-    return uploadForm<ScmProposeResponse>('/api/kml/scm/propose', form)
+    if ('files' in source) {
+      for (const f of source.files) form.append('files', f)
+    } else {
+      form.append('cable_id', source.cableId)
+    }
+    form.append('system_id', systemId)
+    for (const sid of segmentIds) form.append('segment_ids', sid)
+    return uploadForm<KmlFlattenResponse>('/api/kml/flatten', form)
   },
+  /** Attach the human-chopped stretches. Each becomes a new version on its
+   *  segment. `source` is recorded on every link this creates. */
+  commitKmlChop: (
+    fileIds: string[], source: KmlSource,
+    cuts: { chain_index: number; start_idx: number; end_idx: number; segment_id: string }[],
+  ) =>
+    post<KmlChopCommitResponse>('/api/kml/commit-chop', { file_ids: fileIds, source, cuts }),
   activateKml:    (linkId: string) => post<{ segment_id: string }>(`/api/kml/activate/${enc(linkId)}`, {}),
   deleteKml:      (linkId: string) => del(`/api/kml/link/${enc(linkId)}`),
   kmlDownloadUrl: (linkId: string) => `${BASE_URL}/api/kml/download/${enc(linkId)}`,

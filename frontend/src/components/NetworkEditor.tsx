@@ -22,15 +22,16 @@
  * Mounted from: App.tsx, only when `mode === 'networkeditor' && isAdmin`.
  */
 import { useState } from 'react'
-import type { CableNode, CableSegment, CableSystem, CountryHighlight, SegmentCapacity, SelectedSystem, NodeType, SegmentType, Ownership } from '../types'
+import type { CableNode, CableSegment, CableSystem, CountryHighlight, SegmentCapacity, SelectedSystem, NodeType } from '../types'
 import type { EditorState, EditorAction, EditorSubMode } from '../state/editorState'
 import { emptySegmentDraft } from '../state/editorState'
 import { useTheme } from '../theme'
 import { CountryViewer } from './CountryViewer'
 import { SystemViewer } from './SystemViewer'
 import { ConfirmDialog } from './ConfirmDialog'
-import { nodeLabel } from '../utils/nodeLabel'
-import { pathLengthKm, suggestSegmentDefaults, generateSegmentId, generateSegmentName, generateNodeId } from '../utils/editorGeo'
+import { generateNodeId } from '../utils/editorGeo'
+import { LabeledInput, LabeledSelect, actionBtn } from './formFields'
+import { NewSegmentForm } from './NewSegmentForm'
 
 interface Props {
   nodes: CableNode[]
@@ -59,14 +60,6 @@ const NODE_TYPE_OPTS: { value: NodeType; label: string }[] = [
   { value: 'secondary_pop', label: 'Secondary PoP' },
   { value: 'extension_pop', label: 'Extension PoP' },
   { value: 'off_net', label: 'Off-Net Node' },
-]
-
-const OWNERSHIP_OPTS: { value: Ownership; label: string }[] = [
-  { value: 'owned', label: 'Owned' },
-  { value: 'consortium', label: 'Consortium' },
-  { value: 'iru', label: 'IRU' },
-  { value: 'integrated_lit_lease', label: 'Integrated Lit Lease' },
-  { value: 'offnet_resell', label: 'Offnet Resell' },
 ]
 
 export function NetworkEditor({
@@ -181,63 +174,6 @@ export function NetworkEditor({
       </div>
     </div>
   )
-}
-
-// ── Shared tiny form primitives (same visual language as RefDataModal) ───────
-
-function useFieldStyles() {
-  const t = useTheme()
-  return {
-    input: {
-      background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 3,
-      color: t.text, fontSize: 12, padding: '4px 7px', width: '100%',
-      boxSizing: 'border-box' as const, fontFamily: 'inherit',
-    },
-    label: { fontSize: 10, color: t.textFaint, textTransform: 'uppercase' as const, letterSpacing: '0.05em' },
-  }
-}
-
-function LabeledInput({ label, value, onChange, placeholder, invalid }: {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string; invalid?: boolean
-}) {
-  const t = useTheme()
-  const s = useFieldStyles()
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
-      <label style={s.label}>{label}</label>
-      <input
-        style={{ ...s.input, border: `1px solid ${invalid ? t.red : t.border}` }}
-        value={value} placeholder={placeholder} autoComplete="off"
-        onChange={e => onChange(e.target.value)}
-      />
-    </div>
-  )
-}
-
-function LabeledSelect<T extends string>({ label, value, onChange, options }: {
-  label: string; value: T; onChange: (v: T) => void; options: { value: T; label: string }[]
-}) {
-  const s = useFieldStyles()
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
-      <label style={s.label}>{label}</label>
-      <select style={s.input} value={value} onChange={e => onChange(e.target.value as T)}>
-        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-    </div>
-  )
-}
-
-function actionBtn(t: ReturnType<typeof useTheme>, kind: 'primary' | 'danger' | 'ghost', disabled = false) {
-  const bg = kind === 'primary' ? t.green : kind === 'danger' ? t.red : 'transparent'
-  return {
-    flex: 1, padding: '8px 10px', borderRadius: 5, fontSize: 12, fontWeight: 700,
-    cursor: disabled ? 'default' : 'pointer', fontFamily: 'inherit',
-    border: kind === 'ghost' ? `1px solid ${t.border}` : 'none',
-    background: disabled ? t.textFaintest : bg,
-    color: kind === 'ghost' ? t.textMuted : kind === 'primary' ? '#0b1f14' : '#fff',
-    opacity: disabled ? 0.6 : 1,
-  } as const
 }
 
 /** Typed lat/lng precision override for the node currently selected on the
@@ -401,150 +337,6 @@ function NewNodeForm({ at, nodes, onCancel, onCreate }: {
           style={actionBtn(t, 'primary', !valid)}
         >Add node</button>
         <button onClick={onCancel} style={actionBtn(t, 'ghost')}>Cancel</button>
-      </div>
-    </div>
-  )
-}
-
-function NewSegmentForm({ startNode, endNode, systems, segments, onCancel, onCreate }: {
-  startNode: CableNode; endNode: CableNode; systems: CableSystem[]; segments: CableSegment[]
-  onCancel: () => void; onCreate: (segment: CableSegment, capacity: SegmentCapacity) => void
-}) {
-  const t = useTheme()
-  const nonTerrestrialSystems = systems.filter(s => s.id !== 'TERRESTRIAL')
-  const suggestedLength = Math.round(pathLengthKm([startNode.lat, startNode.lng], [endNode.lat, endNode.lng]))
-
-  const [type, setType] = useState<SegmentType>('wet')
-  const [systemId, setSystemId] = useState(() => nonTerrestrialSystems[0]?.id ?? systems[0]?.id ?? '')
-  const [ownership, setOwnership] = useState<Ownership>('owned')
-  const [lengthKm, setLengthKm] = useState(String(suggestedLength))
-  const defaults = suggestSegmentDefaults(parseFloat(lengthKm) || 0, type)
-  const [latency, setLatency] = useState(String(defaults.latency))
-  const [costWeight, setCostWeight] = useState(String(defaults.cost_weight))
-  const [reliability, setReliability] = useState(String(defaults.reliability))
-  const [rfsStatus, setRfsStatus] = useState<'in_service' | 'planned'>('in_service')
-  const [rfsQuarter, setRfsQuarter] = useState('')
-  const [totalCap, setTotalCap] = useState('')
-  const [availCap, setAvailCap] = useState('')
-
-  const effectiveSystemId = type === 'terrestrial' ? 'TERRESTRIAL' : systemId
-  const [id, setId] = useState(() => generateSegmentId('wet', nonTerrestrialSystems[0]?.id ?? '', startNode, endNode, segments))
-  const [name, setName] = useState(() => generateSegmentName('wet', nonTerrestrialSystems[0], startNode, endNode))
-
-  /** Re-suggest id/name/metrics when the inputs they derive from change —
-   *  the user can still overwrite any of them afterwards. */
-  function retype(next: SegmentType) {
-    setType(next)
-    const sysId = next === 'terrestrial' ? 'TERRESTRIAL' : systemId
-    setId(generateSegmentId(next, sysId, startNode, endNode, segments))
-    setName(generateSegmentName(next, systems.find(s => s.id === sysId), startNode, endNode))
-    const d = suggestSegmentDefaults(parseFloat(lengthKm) || 0, next)
-    setLatency(String(d.latency)); setCostWeight(String(d.cost_weight)); setReliability(String(d.reliability))
-  }
-  function resystem(next: string) {
-    setSystemId(next)
-    if (type !== 'terrestrial') {
-      setId(generateSegmentId(type, next, startNode, endNode, segments))
-      setName(generateSegmentName(type, systems.find(s => s.id === next), startNode, endNode))
-    }
-  }
-  function relength(next: string) {
-    setLengthKm(next)
-    const d = suggestSegmentDefaults(parseFloat(next) || 0, type)
-    setLatency(String(d.latency)); setCostWeight(String(d.cost_weight))
-  }
-
-  const idTaken = segments.some(s => s.id.toUpperCase() === id.trim().toUpperCase())
-  const quarterValid = rfsStatus !== 'planned' || /^\d{4}-Q[1-4]$/.test(rfsQuarter)
-  const totalNum = parseFloat(totalCap)
-  const availNum = parseFloat(availCap)
-  const capValid = !Number.isNaN(totalNum) && !Number.isNaN(availNum) && totalNum >= 0 && availNum >= 0 && availNum <= totalNum
-  const relNum = parseFloat(reliability)
-  const valid = id.trim() !== '' && !idTaken && name.trim() !== '' && effectiveSystemId !== ''
-    && !Number.isNaN(parseFloat(lengthKm)) && relNum > 0 && relNum <= 1 && quarterValid && capValid
-
-  return (
-    <div style={{ padding: 10, borderRadius: 6, border: `1px solid ${t.green}55`, background: t.green + '0d', display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: t.text }}>
-        New segment
-        <div style={{ fontSize: 11, fontWeight: 400, color: t.textMuted, marginTop: 2 }}>
-          {nodeLabel(startNode)} → {nodeLabel(endNode)}
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 6 }}>
-        <LabeledSelect label="Type" value={type} onChange={retype} options={[{ value: 'wet' as SegmentType, label: 'Wet' }, { value: 'terrestrial' as SegmentType, label: 'Terrestrial' }]} />
-        {type === 'wet' ? (
-          <LabeledSelect label="System" value={systemId} onChange={resystem} options={nonTerrestrialSystems.map(s => ({ value: s.id, label: `${s.id} — ${s.name}` }))} />
-        ) : (
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>System</label>
-            <div style={{ fontSize: 12, color: t.textMuted, padding: '4px 0' }}>TERRESTRIAL</div>
-          </div>
-        )}
-      </div>
-
-      <div style={{ display: 'flex', gap: 6 }}>
-        <LabeledInput label="ID" value={id} onChange={setId} invalid={idTaken || id.trim() === ''} />
-        <LabeledSelect label="Ownership" value={ownership} onChange={setOwnership} options={OWNERSHIP_OPTS} />
-      </div>
-      <LabeledInput label="Name" value={name} onChange={setName} invalid={name.trim() === ''} />
-
-      <div style={{ display: 'flex', gap: 6 }}>
-        <LabeledInput label="Length (km)" value={lengthKm} onChange={relength} />
-        <LabeledInput label="Latency (ms)" value={latency} onChange={setLatency} />
-      </div>
-      <div style={{ display: 'flex', gap: 6 }}>
-        <LabeledInput label="Cost weight" value={costWeight} onChange={setCostWeight} />
-        <LabeledInput label="Reliability" value={reliability} onChange={setReliability} invalid={!(relNum > 0 && relNum <= 1)} />
-      </div>
-
-      <div style={{ display: 'flex', gap: 6 }}>
-        <LabeledSelect
-          label="Ready for Service" value={rfsStatus}
-          onChange={(v) => { setRfsStatus(v); if (v === 'in_service') setRfsQuarter('') }}
-          options={[{ value: 'in_service' as const, label: 'In Service' }, { value: 'planned' as const, label: 'Planned' }]}
-        />
-        {rfsStatus === 'planned' && (
-          <LabeledInput label="RFS Quarter" value={rfsQuarter} onChange={setRfsQuarter} placeholder="2027-Q3" invalid={!quarterValid} />
-        )}
-      </div>
-
-      <div style={{ display: 'flex', gap: 6 }}>
-        <LabeledInput label="Total capacity (T)" value={totalCap} onChange={setTotalCap} placeholder="2" invalid={totalCap !== '' && Number.isNaN(totalNum)} />
-        <LabeledInput label="Available (T)" value={availCap} onChange={setAvailCap} placeholder="2" invalid={availCap !== '' && (Number.isNaN(availNum) || availNum > totalNum)} />
-      </div>
-      {!capValid && (totalCap !== '' || availCap !== '') && (
-        <div style={{ fontSize: 11, color: t.red }}>Both capacities are required; available cannot exceed total.</div>
-      )}
-      {idTaken && <div style={{ fontSize: 11, color: t.red }}>That segment id is already taken.</div>}
-
-      <div style={{ display: 'flex', gap: 6 }}>
-        <button
-          disabled={!valid}
-          onClick={() => {
-            const segId = id.trim().toUpperCase()
-            onCreate(
-              {
-                id: segId, name: name.trim(), system_id: effectiveSystemId,
-                start_node_id: startNode.id, end_node_id: endNode.id, type,
-                length_km: parseFloat(lengthKm), reliability: relNum,
-                cost_weight: parseFloat(costWeight) || 1, ownership,
-                latency: parseFloat(latency) || 0,
-                verification_status: 'draft',
-                rfs_status: rfsStatus,
-                rfs_quarter: rfsStatus === 'planned' ? rfsQuarter : null,
-              },
-              { segment_id: segId, total_capacity_t: totalNum, available_capacity_t: availNum },
-            )
-          }}
-          style={actionBtn(t, 'primary', !valid)}
-        >Add segment</button>
-        <button onClick={onCancel} style={actionBtn(t, 'ghost')}>Cancel</button>
-      </div>
-      <div style={{ fontSize: 10, color: t.textFaintest }}>
-        Suggested length is the great-circle distance between the two nodes; latency and cost
-        are derived from it. Adjust anything before adding — nothing is saved until Save All.
       </div>
     </div>
   )

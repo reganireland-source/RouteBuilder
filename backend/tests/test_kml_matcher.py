@@ -1,12 +1,12 @@
 """
-Matching an uploaded cable path to the segment it belongs to.
+Scoring how well a cable path's geometry and naming fit a candidate segment.
 
 THE ONE PROPERTY THAT MUST HOLD is that auto-accept never fires on a wrong
 answer. Everything else here is about how much work it saves; that is about
-whether the feature can be trusted at all, because a bulk import that silently
-attaches one cable's surveyed route to another produces a map that looks
-perfectly plausible and is wrong. `test_auto_accept_is_never_wrong_*` run the
-matcher over a large sample of the real network and assert zero.
+whether the feature can be trusted at all, because attaching one cable's
+surveyed route to another produces a map that looks perfectly plausible and is
+wrong. `test_auto_accept_is_never_wrong_*` run the matcher over a large sample
+of the real network and assert zero.
 
 Measured while choosing the rule, over 120 real segments:
 
@@ -22,9 +22,22 @@ the geometry had already answered. Both are equally safe; only one is useful.
 THE HARD CASE IS PARALLEL CABLES. Two systems landing at the same pair of
 stations — which is what diversity means, so it is common, not exotic — are
 geometrically indistinguishable. The matcher does not guess between them: their
-scores come out within AMBIGUOUS_MARGIN and the row is flagged for a human
-whatever the top score is. Real examples from the dataset: EQ_US_LA01/LA02, and
-SCC-N-SYD-FJI against TABUA-FJI-SYD.
+scores come out within AMBIGUOUS_MARGIN, whatever the top score is. Real
+examples from the dataset: EQ_US_LA01/LA02, and SCC-N-SYD-FJI against
+TABUA-FJI-SYD.
+
+NOTE ON PathProposal/resolve_conflicts: these tests used to build a
+`PathProposal` wrapper around `rank_candidates`' output, because a scored
+review-table UI (`bulk_propose`/`bulk_commit`) needed `.auto_acceptable`/
+`.ambiguous` as row properties and `resolve_conflicts` to catch two files in
+one batch claiming the same segment. That table is gone (see
+app/kml/flatten.py and api/kml.py's module docstrings — a branching cable
+defeated its graph-anchored auto-split, and it was replaced by a human-driven
+chop tool). `rank_candidates` itself is unchanged and still the right way to
+score a path against a segment, so the auto-accept/ambiguity SAFETY tests are
+kept, just computed with small local helpers instead of the retired
+`PathProposal` class; the batch-conflict tests, which were purely about the
+retired table, are not.
 
 Run with:  pytest backend/tests/test_kml_matcher.py -v
 """
@@ -36,13 +49,13 @@ from pathlib import Path
 import pytest
 
 from app.kml.matcher import (
+    AMBIGUOUS_MARGIN,
     AUTO_ACCEPT_GEOMETRY,
     MAX_ENDPOINT_KM,
-    PathProposal,
+    Candidate,
     endpoint_score,
     name_score,
     rank_candidates,
-    resolve_conflicts,
     segment_tokens_for,
     tokenise,
 )
@@ -74,13 +87,25 @@ def synth_path(segment, by_id, n: int = 300):
     return out
 
 
-def proposal_for(coords, tokens, network) -> PathProposal:
+def candidates_for(coords, tokens, network, system_hint=None) -> list[Candidate]:
     segments, by_id, seg_tokens = network
-    return PathProposal(
-        file_id="f", filename="x.kmz", path_index=0, path_name="", folder=None,
-        point_count=len(coords),
-        candidates=rank_candidates(coords, tokens, segments, by_id, seg_tokens),
-    )
+    return rank_candidates(coords, tokens, segments, by_id, seg_tokens, system_hint=system_hint)
+
+
+def _ambiguous(candidates: list[Candidate]) -> bool:
+    """Two candidates close enough that the top one is not clearly right —
+    what PathProposal.ambiguous used to compute from the same data."""
+    if len(candidates) < 2:
+        return False
+    return (candidates[0].score - candidates[1].score) < AMBIGUOUS_MARGIN
+
+
+def _auto_acceptable(candidates: list[Candidate]) -> bool:
+    """Geometry alone, plus nothing else close — what
+    PathProposal.auto_acceptable used to compute from the same data."""
+    if not candidates:
+        return False
+    return candidates[0].geometry_score >= AUTO_ACCEPT_GEOMETRY and not _ambiguous(candidates)
 
 
 # ── The property that matters ────────────────────────────────────────────────
@@ -90,9 +115,9 @@ def test_auto_accept_is_never_wrong_with_good_filenames(network):
     sample = random.Random(5).sample(segments, 120)
     wrong = []
     for seg in sample:
-        p = proposal_for(synth_path(seg, by_id), tokenise(f"{seg['id']}.kmz", seg["name"]), network)
-        if p.auto_acceptable and p.best.segment_id != seg["id"]:
-            wrong.append((seg["id"], p.best.segment_id, p.best.score))
+        c = candidates_for(synth_path(seg, by_id), tokenise(f"{seg['id']}.kmz", seg["name"]), network)
+        if _auto_acceptable(c) and c[0].segment_id != seg["id"]:
+            wrong.append((seg["id"], c[0].segment_id, c[0].score))
     assert wrong == [], f"auto-accepted the wrong segment: {wrong[:5]}"
 
 
@@ -102,9 +127,9 @@ def test_auto_accept_is_never_wrong_with_useless_filenames(network):
     sample = random.Random(11).sample(segments, 120)
     wrong = []
     for seg in sample:
-        p = proposal_for(synth_path(seg, by_id), tokenise("route_final_v3.kmz"), network)
-        if p.auto_acceptable and p.best.segment_id != seg["id"]:
-            wrong.append((seg["id"], p.best.segment_id, p.best.score))
+        c = candidates_for(synth_path(seg, by_id), tokenise("route_final_v3.kmz"), network)
+        if _auto_acceptable(c) and c[0].segment_id != seg["id"]:
+            wrong.append((seg["id"], c[0].segment_id, c[0].score))
     assert wrong == [], f"auto-accepted the wrong segment: {wrong[:5]}"
 
 
@@ -114,7 +139,7 @@ def test_auto_accept_still_does_useful_work(network):
     sample = random.Random(5).sample(segments, 120)
     accepted = sum(
         1 for seg in sample
-        if proposal_for(synth_path(seg, by_id), tokenise(f"{seg['id']}.kmz", seg["name"]), network).auto_acceptable
+        if _auto_acceptable(candidates_for(synth_path(seg, by_id), tokenise(f"{seg['id']}.kmz", seg["name"]), network))
     )
     assert accepted >= 60, f"only {accepted}/120 auto-accepted — the rule has gone too conservative"
 
@@ -124,7 +149,7 @@ def test_the_right_segment_is_ranked_first_when_the_file_is_named_for_it(network
     sample = random.Random(5).sample(segments, 60)
     misses = [
         seg["id"] for seg in sample
-        if proposal_for(synth_path(seg, by_id), tokenise(f"{seg['id']}.kmz", seg["name"]), network).best.segment_id != seg["id"]
+        if candidates_for(synth_path(seg, by_id), tokenise(f"{seg['id']}.kmz", seg["name"]), network)[0].segment_id != seg["id"]
     ]
     assert misses == [], f"top candidate was wrong for {misses}"
 
@@ -137,9 +162,9 @@ def test_a_filename_cannot_override_the_geometry(network):
     segments, by_id, _ = network
     truth = next(s for s in segments if s["id"] == "PPC1-GUM-HAW")
     liar = "APG-TUC-TYO"
-    p = proposal_for(synth_path(truth, by_id), tokenise(f"{liar}.kmz"), network)
-    assert p.best.segment_id != liar
-    assert p.best.geometry_score > p.best.name_score
+    c = candidates_for(synth_path(truth, by_id), tokenise(f"{liar}.kmz"), network)
+    assert c[0].segment_id != liar
+    assert c[0].geometry_score > c[0].name_score
 
 
 def test_a_perfect_name_with_no_geometry_cannot_reach_auto_accept(network):
@@ -147,8 +172,8 @@ def test_a_perfect_name_with_no_geometry_cannot_reach_auto_accept(network):
     segments, _, _ = network
     seg = segments[0]
     somewhere_else = [[-40.0, 10.0], [-41.0, 11.0]]      # South Atlantic
-    p = proposal_for(somewhere_else, tokenise(f"{seg['id']}.kmz", seg["name"]), network)
-    assert not p.auto_acceptable
+    c = candidates_for(somewhere_else, tokenise(f"{seg['id']}.kmz", seg["name"]), network)
+    assert not _auto_acceptable(c)
 
 
 # ── Ambiguity ────────────────────────────────────────────────────────────────
@@ -160,16 +185,14 @@ def test_parallel_cables_between_the_same_stations_are_flagged_not_guessed(netwo
     twin = next((s for s in segments if s["id"] == "EQ_US_LA02"), None)
     if not seg or not twin:
         pytest.skip("dataset no longer contains the EQ_US_LA parallel pair")
-    p = proposal_for(synth_path(seg, by_id), tokenise("route_final_v3.kmz"), network)
-    assert p.ambiguous
-    assert not p.auto_acceptable
+    c = candidates_for(synth_path(seg, by_id), tokenise("route_final_v3.kmz"), network)
+    assert _ambiguous(c)
+    assert not _auto_acceptable(c)
 
 
-def test_a_single_candidate_is_not_ambiguous(network):
-    p = PathProposal(file_id="f", filename="x", path_index=0, path_name="", folder=None,
-                     point_count=2, candidates=[])
-    assert not p.ambiguous
-    assert not p.auto_acceptable
+def test_a_single_candidate_is_not_ambiguous():
+    assert not _ambiguous([])
+    assert not _auto_acceptable([])
 
 
 # ── system_hint: boost, not filter ──────────────────────────────────────────
@@ -193,25 +216,22 @@ def test_five_parallel_cables_are_ambiguous_without_a_hint(network):
     if len(by_system) < 5:
         pytest.skip("dataset no longer carries all five HAW1<->LAX1 systems")
     seg = by_system["UNITY"]
-    p = proposal_for(synth_path(seg, by_id), tokenise("route.kmz"), network)
-    assert p.ambiguous
-    assert not p.auto_acceptable
+    c = candidates_for(synth_path(seg, by_id), tokenise("route.kmz"), network)
+    assert _ambiguous(c)
+    assert not _auto_acceptable(c)
 
 
 def test_a_correct_hint_resolves_the_ambiguity(network):
-    segments, by_id, seg_tokens = network
+    segments, by_id, _ = network
     by_system = _haw_lax_segments(segments)
     if len(by_system) < 5:
         pytest.skip("dataset no longer carries all five HAW1<->LAX1 systems")
     seg = by_system["UNITY"]
     coords = synth_path(seg, by_id)
-    tokens = tokenise("route.kmz")
-    candidates = rank_candidates(coords, tokens, segments, by_id, seg_tokens, system_hint="UNITY")
-    assert candidates[0].segment_id == seg["id"]
-    p = PathProposal(file_id="f", filename="x", path_index=0, path_name="", folder=None,
-                     point_count=len(coords), candidates=candidates)
-    assert not p.ambiguous
-    assert p.auto_acceptable
+    c = candidates_for(coords, tokenise("route.kmz"), network, system_hint="UNITY")
+    assert c[0].segment_id == seg["id"]
+    assert not _ambiguous(c)
+    assert _auto_acceptable(c)
 
 
 def test_a_wrong_hint_can_shift_the_ranking_but_never_the_geometry_score(network):
@@ -219,7 +239,7 @@ def test_a_wrong_hint_can_shift_the_ranking_but_never_the_geometry_score(network
     point is that geometry alone cannot tell them apart — but it must never
     change what the geometry itself says, and it must never manufacture a fit
     where the geometry does not have one."""
-    segments, by_id, seg_tokens = network
+    segments, by_id, _ = network
     by_system = _haw_lax_segments(segments)
     if len(by_system) < 5:
         pytest.skip("dataset no longer carries all five HAW1<->LAX1 systems")
@@ -227,8 +247,8 @@ def test_a_wrong_hint_can_shift_the_ranking_but_never_the_geometry_score(network
     coords = synth_path(seg, by_id)
     tokens = tokenise("route.kmz")
 
-    unhinted = rank_candidates(coords, tokens, segments, by_id, seg_tokens)
-    hinted = rank_candidates(coords, tokens, segments, by_id, seg_tokens, system_hint="TABUA")
+    unhinted = candidates_for(coords, tokens, network)
+    hinted = candidates_for(coords, tokens, network, system_hint="TABUA")
 
     geo_before = {c.segment_id: c.geometry_score for c in unhinted}
     geo_after = {c.segment_id: c.geometry_score for c in hinted}
@@ -242,22 +262,18 @@ def test_a_hint_cannot_pull_a_geometrically_unrelated_segment_above_auto_accept(
     all — not one of the look-alikes, something geographically elsewhere —
     must not be able to reach auto-accept. NAME_WEIGHT is the ceiling a hint
     can add, and AUTO_ACCEPT_GEOMETRY gates on geometry_score alone."""
-    segments, by_id, seg_tokens = network
+    segments, by_id, _ = network
     truth = next(s for s in segments if s["id"] == "PPC1-GUM-HAW")
     elsewhere_system = next(
         s["system_id"] for s in segments
         if s["system_id"] not in (truth["system_id"],) and {s["start_node_id"], s["end_node_id"]} != {truth["start_node_id"], truth["end_node_id"]}
     )
     coords = synth_path(truth, by_id)
-    candidates = rank_candidates(
-        coords, tokenise("route.kmz"), segments, by_id, seg_tokens, system_hint=elsewhere_system,
-    )
+    candidates = candidates_for(coords, tokenise("route.kmz"), network, system_hint=elsewhere_system)
     hinted_wrong = next((c for c in candidates if c.system_id == elsewhere_system), None)
     if hinted_wrong is not None:
         assert hinted_wrong.geometry_score < AUTO_ACCEPT_GEOMETRY
-        p = PathProposal(file_id="f", filename="x", path_index=0, path_name="", folder=None,
-                         point_count=len(coords), candidates=candidates)
-        assert p.best.segment_id != hinted_wrong.segment_id or not p.auto_acceptable
+        assert candidates[0].segment_id != hinted_wrong.segment_id or not _auto_acceptable(candidates)
 
 
 # ── Endpoint scoring ─────────────────────────────────────────────────────────
@@ -308,31 +324,6 @@ def test_tokenise_drops_bare_numbers_that_match_everything():
 def test_name_score_is_zero_when_nothing_is_known():
     assert name_score(set(), {"ajc"}) == 0.0
     assert name_score({"ajc"}, set()) == 0.0
-
-
-# ── Conflicts within one batch ───────────────────────────────────────────────
-
-def test_two_paths_claiming_the_same_segment_are_reported(network):
-    """A trunk file plus its per-segment exports would otherwise stack versions
-    silently, with whichever landed last becoming the drawn route."""
-    segments, by_id, _ = network
-    seg = segments[0]
-    coords = synth_path(seg, by_id)
-    toks = tokenise(f"{seg['id']}.kmz")
-    a = proposal_for(coords, toks, network)
-    b = proposal_for(coords, toks, network)
-    conflicts = resolve_conflicts([a, b])
-    assert a.best.segment_id in conflicts
-    assert conflicts[a.best.segment_id] == [0, 1]
-
-
-def test_distinct_segments_do_not_conflict(network):
-    segments, by_id, _ = network
-    p1 = proposal_for(synth_path(segments[0], by_id), tokenise(segments[0]["id"]), network)
-    p2 = proposal_for(synth_path(segments[5], by_id), tokenise(segments[5]["id"]), network)
-    if p1.best.segment_id == p2.best.segment_id:
-        pytest.skip("the two sampled segments are geometrically identical")
-    assert resolve_conflicts([p1, p2]) == {}
 
 
 def test_constants_are_internally_consistent():
