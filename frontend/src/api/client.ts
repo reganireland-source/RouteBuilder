@@ -21,14 +21,18 @@
  *    response body matters (e.g. removing a circuit returns the updated
  *    Project). `uploadFile` posts multipart/form-data for bulk CSV import.
  *
- *  - Admin token injection: AuthContext calls setAdminToken() after the user
- *    unlocks admin mode (verified against POST /api/auth/verify). From then
- *    on every mutating request (POST/PUT/DELETE/upload) carries an
- *    `X-Admin-Token` header, which the backend requires for write endpoints.
- *    Plain GETs are public and never send the header. The token itself is a
- *    module-level variable here; AuthContext also mirrors it into
- *    sessionStorage ('rb_admin_token') so admin mode survives a page refresh
- *    within the same browser tab.
+ *  - Auth header injection (see authHeaders()), one of two shapes depending
+ *    on VITE_AUTH_MODE:
+ *      admin_key (default) — AuthContext calls setAdminToken() after the
+ *      user unlocks admin mode (verified against POST /api/auth/verify).
+ *      From then on every mutating request carries an `X-Admin-Token`
+ *      header; plain GETs stay public and send nothing. The token is a
+ *      module-level variable here; AuthContext also mirrors it into
+ *      sessionStorage ('rb_admin_token') so admin mode survives a refresh.
+ *      okta — AuthContext calls setOktaAccessTokenSource() once, registering
+ *      a getter into okta-auth-js's own token store. EVERY request,
+ *      including GETs, carries an `Authorization: Bearer <token>` header,
+ *      because okta mode gates the whole app, not just writes.
  *
  * The `api` object itself is a flat catalogue of typed endpoint wrappers,
  * grouped by resource (nodes, segments, systems, capacity, outages, config,
@@ -54,13 +58,31 @@ if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
 // Admin token — set by AuthContext when user unlocks admin mode
 // (verified against POST /api/auth/verify) or re-hydrated by AuthContext from
 // sessionStorage on page load. clearAdminToken() is called on admin logout.
+// Only meaningful in admin_key mode (VITE_AUTH_MODE unset/"admin_key").
 let _adminToken = ''
 /** Store the verified admin token; all subsequent write requests will send it. */
 export function setAdminToken(t: string) { _adminToken = t }
 /** Forget the admin token (admin logout); write requests become anonymous again. */
 export function clearAdminToken() { _adminToken = '' }
-/** Header fragment merged into every mutating request: X-Admin-Token when unlocked, nothing otherwise. */
-function adminHeaders(): Record<string, string> {
+
+// Okta access token SOURCE — a function, not a value, registered once by
+// AuthContext when VITE_AUTH_MODE=okta. A function rather than a plain
+// setter (contrast setAdminToken above) because okta-auth-js's TokenManager
+// renews the access token on its own schedule in the background; reading it
+// fresh on every single request via this indirection is what keeps every
+// request using a current token without this module ever needing to know
+// about renewal, or importing @okta/okta-auth-js itself (which would pull
+// the Okta SDK into the bundle's critical path even for admin_key deploys).
+let _getOktaAccessToken: (() => string | null) | null = null
+export function setOktaAccessTokenSource(fn: () => string | null) { _getOktaAccessToken = fn }
+
+/** Header fragment merged into EVERY request (see get() below — unlike the
+ *  admin-key model, okta mode gates reads too, not just writes): the Okta
+ *  bearer token when running in okta mode, X-Admin-Token when unlocked in
+ *  admin_key mode, nothing in either mode's default/logged-out state. */
+function authHeaders(): Record<string, string> {
+  const oktaToken = _getOktaAccessToken?.()
+  if (oktaToken) return { Authorization: `Bearer ${oktaToken}` }
   return _adminToken ? { 'X-Admin-Token': _adminToken } : {}
 }
 
@@ -78,9 +100,12 @@ function adminHeaders(): Record<string, string> {
  */
 const enc = encodeURIComponent
 
-/** GET a JSON resource. Public (no admin header). Throws Error with the HTTP status on failure. */
+/** GET a JSON resource. Carries the same auth header every other verb does
+ *  (see authHeaders()) — a no-op in admin_key mode's default state (GETs
+ *  were always public there), but REQUIRED in okta mode, where the whole
+ *  app is gated, not just writes. Throws Error with the HTTP status on failure. */
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`)
+  const res = await fetch(`${BASE_URL}${path}`, { headers: authHeaders() })
   if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`)
   return res.json()
 }
@@ -94,7 +119,7 @@ async function get<T>(path: string): Promise<T> {
  */
 async function post<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', ...adminHeaders() }, body: JSON.stringify(body),
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body),
   })
   if (!res.ok) {
     let detail = ''
@@ -107,7 +132,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 /** PUT a JSON body (update). Admin header + FastAPI `detail` extraction, as for post(). */
 async function put<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json', ...adminHeaders() }, body: JSON.stringify(body),
+    method: 'PUT', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body),
   })
   if (!res.ok) {
     let detail = ''
@@ -119,7 +144,7 @@ async function put<T>(path: string, body: unknown): Promise<T> {
 
 /** DELETE with no response body expected. Admin header + FastAPI `detail` extraction. */
 async function del(path: string): Promise<void> {
-  const res = await fetch(`${BASE_URL}${path}`, { method: 'DELETE', headers: adminHeaders() })
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'DELETE', headers: authHeaders() })
   if (!res.ok) {
     let detail = ''
     try { detail = (await res.json()).detail ?? '' } catch { /* ignore */ }
@@ -133,7 +158,7 @@ async function del(path: string): Promise<void> {
  * whole updated Project document).
  */
 async function delJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, { method: 'DELETE', headers: adminHeaders() })
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'DELETE', headers: authHeaders() })
   if (!res.ok) {
     let detail = ''
     try { detail = (await res.json()).detail ?? '' } catch { /* ignore */ }
@@ -150,7 +175,7 @@ async function delJson<T>(path: string): Promise<T> {
  */
 async function delJsonWithBody<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
-    method: 'DELETE', headers: { 'Content-Type': 'application/json', ...adminHeaders() }, body: JSON.stringify(body),
+    method: 'DELETE', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(body),
   })
   if (!res.ok) {
     let detail = ''
@@ -164,7 +189,7 @@ async function delJsonWithBody<T>(path: string, body: unknown): Promise<T> {
 /** POST a prepared FormData. Like uploadFile but for requests carrying extra
  *  fields alongside the file (KML upload sends segment_id and placemark too). */
 async function uploadForm<T>(path: string, form: FormData): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers: adminHeaders(), body: form })
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers: authHeaders(), body: form })
   if (!res.ok) {
     let detail: unknown = ''
     try { detail = (await res.json()).detail ?? '' } catch { /* ignore */ }
@@ -183,7 +208,7 @@ async function uploadForm<T>(path: string, form: FormData): Promise<T> {
 async function uploadFile<T>(path: string, file: File): Promise<T> {
   const form = new FormData()
   form.append('file', file)
-  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers: adminHeaders(), body: form })
+  const res = await fetch(`${BASE_URL}${path}`, { method: 'POST', headers: authHeaders(), body: form })
   if (!res.ok) {
     let detail = ''
     try { detail = (await res.json()).detail ?? '' } catch { /* ignore */ }
@@ -207,7 +232,7 @@ async function parseOutagesStream(text: string, files: File[], eventType: Outage
   if (text) form.append('text', text)
   for (const f of files) form.append('files', f)
   form.append('event_type', eventType)
-  const res = await fetch(`${BASE_URL}/api/outages/parse`, { method: 'POST', headers: adminHeaders(), body: form })
+  const res = await fetch(`${BASE_URL}/api/outages/parse`, { method: 'POST', headers: authHeaders(), body: form })
   if (!res.ok || !res.body) {
     let detail = ''
     try { detail = (await res.json()).detail ?? '' } catch { /* ignore */ }

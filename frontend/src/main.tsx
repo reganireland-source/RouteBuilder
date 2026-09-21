@@ -2,9 +2,11 @@
  * main.tsx — application entry point (loaded by index.html via Vite).
  *
  * Mounts the React tree into the #root element under StrictMode. The tree is wrapped in
- * AuthProvider (session/auth context) and PasswordGate, which blocks rendering of the
- * main App until the user has entered the shared access password. App itself contains
- * the entire RouteBuilder UI (map, route search sidebar, admin modals, etc.).
+ * AuthProvider (session/auth context) and AuthGate, which blocks rendering of the main
+ * App until the visitor is let in — by the shared access password (PasswordGate) or a
+ * real Okta sign-in (OktaGate), chosen by VITE_AUTH_MODE; see components/AuthGate.tsx.
+ * App itself contains the entire RouteBuilder UI (map, route search sidebar, admin
+ * modals, etc.).
  */
 import React from 'react'
 import ReactDOM from 'react-dom/client'
@@ -16,18 +18,18 @@ import ReactDOM from 'react-dom/client'
 // dependency, so it cannot drift underneath us.
 import 'leaflet/dist/leaflet.css'
 import App from './App'
-import { PasswordGate } from './components/PasswordGate'
+import { AuthGate } from './components/AuthGate'
 import { AuthProvider } from './context/AuthContext'
 import { SegmentHoverProvider } from './context/SegmentHoverContext'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <AuthProvider>
-      <PasswordGate>
+      <AuthGate>
         <SegmentHoverProvider>
           <App />
         </SegmentHoverProvider>
-      </PasswordGate>
+      </AuthGate>
     </AuthProvider>
   </React.StrictMode>
 )

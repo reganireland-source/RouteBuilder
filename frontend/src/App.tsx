@@ -2525,14 +2525,53 @@ export default function App() {
  * after which editing (in RefDataModal etc.) is enabled and it shows "Admin mode".
  */
 function AdminBar() {
-  const { isAdmin, authRequired, unlock, lock } = useAuth()
+  const { authRequired, mode } = useAuth()
+  if (!authRequired) return null
+  // Split into two fully separate components rather than one branching on
+  // `mode` internally: each mode's UI is only ever relevant on its own, and
+  // keeping them apart means neither adds to the other's own cognitive-
+  // complexity budget.
+  return mode === 'okta' ? <OktaAdminBar /> : <AdminKeyBar />
+}
+
+/** okta mode's AdminBar: authRequired is always true (OktaGate already
+ *  required a session before App ever mounted), so this always shows — who
+ *  is signed in and whether their Okta groups grant admin, with a Sign out
+ *  button. There is no "Unlock" flow: isAdmin is decided entirely by Okta
+ *  group membership, not by anything typed into this app. */
+function OktaAdminBar() {
+  const { isAdmin, userLabel, lock } = useAuth()
+  const t = useTheme()
+  return (
+    <div style={{ padding: '6px 12px', borderTop: `1px solid ${t.border}`, background: isAdmin ? `${t.green}11` : `${t.orange}11`, flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 13 }}>{isAdmin ? '🔓' : '🔒'}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: isAdmin ? t.green : t.orange, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            {isAdmin ? 'Admin mode' : 'Read-only'}
+          </div>
+          {userLabel && (
+            <div style={{ fontSize: 10, color: t.textFaint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userLabel}</div>
+          )}
+        </div>
+        <button onClick={lock} style={{ fontSize: 10, padding: '3px 8px', borderRadius: 4, border: `1px solid ${t.border}`, background: 'transparent', color: t.textFaint, cursor: 'pointer' }}>Sign out</button>
+      </div>
+      {!isAdmin && (
+        <div style={{ fontSize: 10, color: t.textFaint, marginTop: 3 }}>Ask your Okta administrator to add you to the admin group for editing access.</div>
+      )}
+    </div>
+  )
+}
+
+/** admin_key mode's AdminBar — unchanged behaviour from before AUTH_MODE
+ *  existed: shows "Read-only" until the user enters the admin passphrase. */
+function AdminKeyBar() {
+  const { isAdmin, unlock, lock } = useAuth()
   const t = useTheme()
   const [showUnlock, setShowUnlock] = useState(false)
   const [key, setKey] = useState('')
   const [err, setErr] = useState(false)
   const [busy, setBusy] = useState(false)
-
-  if (!authRequired) return null
 
   async function attempt() {
     setBusy(true); setErr(false)
