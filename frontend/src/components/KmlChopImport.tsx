@@ -33,7 +33,7 @@ import { Typeahead } from './formFields'
 import { NewSegmentForm } from './NewSegmentForm'
 import type { KmlChopState } from '../hooks/useKmlChopState'
 import {
-  NEW_SEGMENT, colorForStretch, dedupeById, nearestNode, stretchKey, stretchLengthKm, stretchesFor,
+  NEW_SEGMENT, dedupeById, nearestNode, stretchKey, stretchLengthKm, stretchesFor,
 } from '../hooks/useKmlChopState'
 
 const cell: React.CSSProperties = { padding: '6px 8px', fontSize: 11, verticalAlign: 'top' }
@@ -424,7 +424,7 @@ export function KmlChopTablePanel({ state }: { state: KmlChopState }) {
                 <StretchRow
                   key={key}
                   chain={chain} start={stretch.start} end={stretch.end}
-                  color={colorForStretch(chain.index, i)}
+                  color={s.colorForStretch(chain.index, stretch.start)}
                   assignedIds={assignedIds} options={options} multiStretch={s.multiStretch}
                   creating={s.creatingKey === key}
                   onAdd={id => s.addAssignment(chain.index, stretch.start, id)}

@@ -12,10 +12,11 @@
  * right-clicked to remove.
  *
  * COLOUR IS OWNED BY THE CALLER. This layer only draws; which colour a given
- * stretch gets (a declared segment's own colour, or grey-dashed for
- * unassigned) is computed by KmlChopImport from its own assignment state, via
- * `colorForStretch` — keeping "what does a colour mean" in one place rather
- * than duplicated between the table and the map.
+ * stretch gets — an identity colour, never one tied to its segment
+ * assignment, and never reused by any other stretch currently on screen —
+ * is computed by useKmlChopState.ts's buildStretchColors and handed down as
+ * `colorForStretch`, so "what does a colour mean" lives in one place rather
+ * than being duplicated between the table and the map.
  *
  * kink_indices (backend/app/kml/flatten.py: a re-chopping walk that likely
  * reversed onto the wrong side of a fragment, or hit a real Y-branch a linear
@@ -43,12 +44,13 @@ export interface KmlChopMapLayerProps {
    *  (never includes a chain's own 0 or point_count-1 — those boundaries are
    *  implicit, not user-placed cuts). */
   cutsByChain: Record<number, number[]>
-  /** The colour to draw the stretch at position `indexInChain` (0-based,
-   *  in on-chain order) within `chainIndex` — an identity colour assigned
-   *  the moment the stretch exists, before any segment matching, never one
-   *  that reshuffles all of a chain's other stretches when this one is
-   *  added or removed. */
-  colorForStretch: (chainIndex: number, indexInChain: number) => string
+  /** The colour to draw the stretch starting at `start` within `chainIndex`
+   *  — a colour assigned the moment the stretch exists, before any segment
+   *  matching, and never reused by any other stretch currently on screen
+   *  (see useKmlChopState.ts's buildStretchColors). Recomputed from scratch
+   *  whenever the chain or cut set changes anywhere, so a stretch's own
+   *  colour can shift even when it itself was not the one chopped. */
+  colorForStretch: (chainIndex: number, start: number) => string
   onAddCut: (chainIndex: number, vertexIndex: number) => void
   onMoveCut: (chainIndex: number, oldIndex: number, newIndex: number) => void
   onRemoveCut: (chainIndex: number, index: number) => void
@@ -193,7 +195,7 @@ export function KmlChopMapLayer({ chains, cutsByChain, colorForStretch, onAddCut
                   positions={positions.slice(start, end + 1)}
                   interactive={false}
                   pathOptions={{
-                    color: colorForStretch(chain.index, i), weight: 4, opacity: 0.9,
+                    color: colorForStretch(chain.index, start), weight: 4, opacity: 0.9,
                     lineCap: 'round', lineJoin: 'round',
                     pane: PANE_NAME, renderer: L.svg({ pane: PANE_NAME }),
                   }}

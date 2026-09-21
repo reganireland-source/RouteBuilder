@@ -29,7 +29,7 @@
  * api.createSegment/createCapacity, and Commit at the end attaches whatever
  * is currently assigned.
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   CableNode, CableSegment, CableSystem, KmlChain, KmlChopCommitResponse,
   KmlFlattenResponse, ScmCable, SegmentCapacity,
@@ -106,25 +106,43 @@ export function dedupeById<T extends { id: string }>(items: T[]): T[] {
   return out
 }
 
-/** A colour per stretch, so chains and stretches are visually
- *  distinguishable on the map and in the table the moment they exist —
- *  before any matching has happened, not after (never per assignment).
- *
- *  Indexed by POSITION WITHIN THE CHAIN's current stretch list, not a hash
- *  of identity: an earlier version hashed (chainIndex, start) so a
- *  stretch's colour stayed fixed as cuts elsewhere came and went, but
- *  measured against a real chopped-up chain that hash collided constantly
- *  — a 6-hue palette and the birthday paradox mean even 4-5 stretches in
- *  ONE chain frequently produced two indistinguishable pairs, which is a
- *  worse problem than the one the hash was solving. A stretch's colour can
- *  now shift when an earlier cut in the SAME chain is added or removed —
- *  the trade the reviewer actually wants, since it is happening while they
- *  watch and "fresh colours after a chop" is the whole point — but two
- *  stretches in one chain are never the same colour unless that chain has
- *  more stretches than the palette has hues. */
-const IDENTITY_COLORS = ['#f472b6', '#facc15', '#4ade80', '#22d3ee', '#c084fc', '#fb923c']
-export function colorForStretch(chainIndex: number, indexInChain: number): string {
-  return IDENTITY_COLORS[(chainIndex + indexInChain) % IDENTITY_COLORS.length]
+/** Golden-angle hue spacing: the Nth colour is N * 137.508° around the hue
+ *  wheel. A fixed palette (tried first, then a 6-colour one indexed by
+ *  position within a chain) always runs out — once an import has more
+ *  stretches than the palette has entries, two of them share a colour by
+ *  the pigeonhole principle, full stop, regardless of how they're indexed.
+ *  The golden angle is the standard fix: it has no small rational
+ *  approximation, so consecutive multiples never land near each other and
+ *  neither does any other pair for a very long time — it is how you
+ *  generate "as many distinct colours as I turn out to need" without
+ *  knowing the count in advance or ever repeating one. */
+const GOLDEN_ANGLE_DEG = 137.508
+function colorForIndex(i: number): string {
+  const hue = (i * GOLDEN_ANGLE_DEG) % 360
+  return `hsl(${hue.toFixed(1)}, 85%, 65%)`
+}
+
+/** Every CURRENTLY EXISTING stretch, across every chain, gets its own
+ *  never-repeated colour — assigned by walking all chains in order and
+ *  handing out the next golden-angle hue to each stretch in turn, so
+ *  colour is a colour-per-slot rather than a colour-per-identity: it is
+ *  recomputed from scratch whenever the chain or cut set changes (a fresh
+ *  flatten, or a chop added/removed anywhere), which is the only way "no
+ *  two colours are ever reused" can hold for whatever is on screen right
+ *  now — an identity-stable scheme (hash or hold-position) always leaves
+ *  a chance of reuse once enough stretches exist, however the hues are
+ *  chosen. A stretch's own colour can therefore shift when an unrelated
+ *  chain gets chopped; that is the trade this makes, not an oversight. */
+function buildStretchColors(chains: KmlChain[], cutsByChain: CutsByChain): Map<string, string> {
+  const colors = new Map<string, string>()
+  let i = 0
+  for (const chain of chains) {
+    for (const { start } of stretchesFor(chain, cutsByChain[chain.index] ?? [])) {
+      colors.set(stretchKey(chain.index, start), colorForIndex(i))
+      i++
+    }
+  }
+  return colors
 }
 
 /** The cut boundaries and assignments a fresh flatten (or a from-scratch
@@ -323,6 +341,15 @@ export function useKmlChopState({ segments, systems, nodes, onDataChange, onMapP
     return new Set([...counts.entries()].filter(([, n]) => n > 1).map(([id]) => id))
   }, [assignments])
 
+  const stretchColors = useMemo(
+    () => (flat ? buildStretchColors(flat.chains, cutsByChain) : new Map<string, string>()),
+    [flat, cutsByChain],
+  )
+  const colorForStretch = useCallback(
+    (chainIndex: number, start: number) => stretchColors.get(stretchKey(chainIndex, start)) ?? '#888888',
+    [stretchColors],
+  )
+
   useEffect(() => {
     onMapPropsChange(flat ? {
       chains: flat.chains, cutsByChain, colorForStretch,
@@ -331,7 +358,9 @@ export function useKmlChopState({ segments, systems, nodes, onDataChange, onMapP
     return () => onMapPropsChange(null)
     // Only re-derive when the data driving the map actually changes — the
     // callbacks are fresh every render and would otherwise force this effect
-    // (and the parent's re-render it triggers) every time.
+    // (and the parent's re-render it triggers) every time. colorForStretch
+    // is stable across renders where stretchColors itself hasn't changed
+    // (same dependency, so it moves in lockstep), so it's safe to leave out.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flat, cutsByChain, fitKey])
 
@@ -390,7 +419,7 @@ export function useKmlChopState({ segments, systems, nodes, onDataChange, onMapP
     scmCables, scmQuery, setScmQuery, scmSelectedId, setScmSelectedId,
     systemId, chooseSystem, declaredIds, toggleDeclared, systemSegments,
     busy, error, canFlatten, runFlatten: () => void runFlatten(),
-    flat, cutsByChain, assignments, creatingKey, setCreatingKey,
+    flat, cutsByChain, assignments, creatingKey, setCreatingKey, colorForStretch,
     addAssignment, removeAssignment, removeCut,
     createSegmentFor: (chainIndex: number, start: number, seg: CableSegment, cap: SegmentCapacity) =>
       void createSegmentFor(chainIndex, start, seg, cap),
