@@ -31,7 +31,7 @@ import type { CableNode, CableSegment, CableSystem, KmlChain, SegmentCapacity } 
 import { useTheme, type Theme } from '../theme'
 import { Typeahead } from './formFields'
 import { NewSegmentForm } from './NewSegmentForm'
-import type { KmlChopState } from '../hooks/useKmlChopState'
+import type { CommitProgress, CommitRowStatus, KmlChopState } from '../hooks/useKmlChopState'
 import {
   NEW_SEGMENT, dedupeById, nearestNode, stretchKey, stretchLengthKm, stretchesFor,
 } from '../hooks/useKmlChopState'
@@ -392,6 +392,58 @@ export function KmlChopSourcePanel({ state, onClose }: { state: KmlChopState; on
   )
 }
 
+const COMMIT_ICON: Record<CommitRowStatus['status'], string> = {
+  pending: '⋯', committing: '🔄', success: '✓', fail: '✗',
+}
+function commitStatusColor(t: Theme, status: CommitRowStatus['status']): string {
+  if (status === 'success') return t.green
+  if (status === 'fail') return t.red
+  if (status === 'committing') return t.blue
+  return t.textFaint
+}
+
+/** One segment's live line in the commit list — icon, id, and whatever
+ *  detail its current status has: nothing yet for pending/committing, the
+ *  landed version/length for success, the reason for fail. */
+function CommitProgressRow({ segmentId, row, t }: { segmentId: string; row: CommitRowStatus; t: Theme }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <span style={{ color: commitStatusColor(t, row.status), width: 14, textAlign: 'center' }}>{COMMIT_ICON[row.status]}</span>
+      <span style={{ color: t.text, fontWeight: 600 }}>{segmentId}</span>
+      {row.status === 'committing' && <span style={{ color: t.blue }}>committing…</span>}
+      {row.status === 'success' && row.linked && (
+        <span style={{ color: t.textFaint }}>
+          v{row.linked.version} · {row.linked.length_km != null ? `${row.linked.length_km.toLocaleString()} km` : '—'}
+          {row.linked.stretches_joined > 1 && ` · joined from ${row.linked.stretches_joined} stretches`}
+          {row.linked.needs_review && <span style={{ color: t.orange }}> · needs review</span>}
+        </span>
+      )}
+      {row.status === 'fail' && <span style={{ color: t.red }}>{row.reason}</span>}
+    </div>
+  )
+}
+
+/** The live commit list — one line per segment, updated in place as commit()
+ *  works through them one at a time, plus a running success/fail/remaining
+ *  count above so the overall state is visible without reading every row. */
+function CommitProgressList({ progress, t }: { progress: CommitProgress; t: Theme }) {
+  const entries = Object.entries(progress)
+  if (entries.length === 0) return null
+  const success = entries.filter(([, r]) => r.status === 'success').length
+  const fail = entries.filter(([, r]) => r.status === 'fail').length
+  const remaining = entries.length - success - fail
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11 }}>
+      <div>
+        {success > 0 && <span style={{ color: t.green, fontWeight: 700 }}>{success} attached</span>}
+        {fail > 0 && <span style={{ color: t.red, fontWeight: 700, marginLeft: success ? 8 : 0 }}>{fail} failed</span>}
+        {remaining > 0 && <span style={{ color: t.textMuted, marginLeft: success || fail ? 8 : 0 }}>{remaining} remaining</span>}
+      </div>
+      {entries.map(([segmentId, row]) => <CommitProgressRow key={segmentId} segmentId={segmentId} row={row} t={t} />)}
+    </div>
+  )
+}
+
 /** The middle-column panel: the stretch table, Commit, and the result. */
 export function KmlChopTablePanel({ state }: { state: KmlChopState }) {
   const t = useTheme()
@@ -462,14 +514,7 @@ export function KmlChopTablePanel({ state }: { state: KmlChopState }) {
         >Commit {s.assignedCount} route{s.assignedCount === 1 ? '' : 's'}</button>
       </div>
 
-      {s.result && (
-        <div style={{ fontSize: 11 }}>
-          <span style={{ color: t.green, fontWeight: 700 }}>Attached {s.result.summary.linked} route{s.result.summary.linked === 1 ? '' : 's'}.</span>
-          {s.result.failed.map((f, i) => (
-            <div key={i} style={{ color: t.red }}>{f.segment_id ?? '?'}: {f.reason}</div>
-          ))}
-        </div>
-      )}
+      <CommitProgressList progress={s.commitProgress} t={t} />
     </div>
   )
 }

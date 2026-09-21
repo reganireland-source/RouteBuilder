@@ -56,6 +56,22 @@ export const NEW_SEGMENT = '__new__'
 export type Assignments = Record<string, string[]>
 export type CutsByChain = Record<number, number[]>
 
+/** One segment's live status during commit() — a segment at a time, not the
+ *  whole batch at once, so the reviewer sees each one land (or fail)
+ *  instead of staring at a disabled button until everything finishes. See
+ *  commit()'s own comment for why one HTTP call per segment, not one for
+ *  the whole batch, is what makes this possible without a backend change. */
+export interface CommitRowStatus {
+  status: 'pending' | 'committing' | 'success' | 'fail'
+  linked?: KmlChopCommitResponse['linked'][number]
+  reason?: string
+}
+/** Keyed by segment_id, in the order commit() started them — a plain
+ *  object rather than a Map because JS preserves string-key insertion
+ *  order, which is all the ordering this needs, and an object is what
+ *  Object.keys()/.entries() the render loop below expects. */
+export type CommitProgress = Record<string, CommitRowStatus>
+
 export function stretchKey(chainIndex: number, start: number): string {
   return `${chainIndex}:${start}`
 }
@@ -167,6 +183,32 @@ function initialCutsAndAssignments(chains: KmlChain[]): { cuts: CutsByChain; ass
   return { cuts, assigns }
 }
 
+interface Cut { chain_index: number; start_idx: number; end_idx: number; segment_id: string }
+
+/** Every currently-assigned cut, grouped by segment_id — commit() below
+ *  sends one request per group instead of one for the whole batch, so a
+ *  reviewer sees each segment land (or fail) as it happens rather than
+ *  staring at a disabled button until the entire commit finishes. Pulled
+ *  out as its own function for the same reason initialCutsAndAssignments
+ *  is: keeps its nested loop off commit()'s own cognitive-complexity
+ *  budget. A stretch with more than one assigned id (the Y-branch case)
+ *  contributes one cut to each of its segments' groups. */
+function groupCutsBySegment(chains: KmlChain[], cutsByChain: CutsByChain, assignments: Assignments): Map<string, Cut[]> {
+  const bySegment = new Map<string, Cut[]>()
+  for (const chain of chains) {
+    for (const s of stretchesFor(chain, cutsByChain[chain.index] ?? [])) {
+      const segIds = assignments[stretchKey(chain.index, s.start)] ?? []
+      for (const segId of segIds) {
+        if (!segId || segId === NEW_SEGMENT) continue
+        const cut: Cut = { chain_index: chain.index, start_idx: s.start, end_idx: s.end, segment_id: segId }
+        const list = bySegment.get(segId)
+        if (list) list.push(cut); else bySegment.set(segId, [cut])
+      }
+    }
+  }
+  return bySegment
+}
+
 interface Options {
   segments: CableSegment[]
   systems: CableSystem[]
@@ -196,7 +238,7 @@ export function useKmlChopState({ segments, systems, nodes, onDataChange, onMapP
   const [sessionSegments, setSessionSegments] = useState<CableSegment[]>([])
   const [creatingKey, setCreatingKey] = useState<string | null>(null)
   const [fitKey, setFitKey] = useState(0)
-  const [result, setResult] = useState<KmlChopCommitResponse | null>(null)
+  const [commitProgress, setCommitProgress] = useState<CommitProgress>({})
 
   useEffect(() => {
     if (sourceMode !== 'sync' || scmFetchStarted.current) return
@@ -215,7 +257,7 @@ export function useKmlChopState({ segments, systems, nodes, onDataChange, onMapP
   const canFlatten = sourceMode === 'upload' ? pendingFiles.length > 0 : scmSelectedId !== null
 
   async function runFlatten() {
-    setBusy(true); setError(null); setResult(null)
+    setBusy(true); setError(null); setCommitProgress({})
     try {
       const source = sourceMode === 'upload' ? { files: pendingFiles } : { cableId: scmSelectedId! }
       // Passed through even when unset (both are optional on the backend
@@ -380,33 +422,40 @@ export function useKmlChopState({ segments, systems, nodes, onDataChange, onMapP
     }
   }
 
+  // One request per segment, awaited in sequence rather than fired all at
+  // once with Promise.all — a reviewer watching a real-time list wants to
+  // see each one actually land in order, not a batch of spinners that
+  // resolve in whatever order the network happens to return them.
   async function commit() {
     if (!flat) return
+    const bySegment = groupCutsBySegment(flat.chains, cutsByChain, assignments)
+    if (bySegment.size === 0) return
+
     setBusy(true); setError(null)
-    try {
-      const cuts: { chain_index: number; start_idx: number; end_idx: number; segment_id: string }[] = []
-      for (const chain of flat.chains) {
-        for (const s of stretchesFor(chain, cutsByChain[chain.index] ?? [])) {
-          const segIds = assignments[stretchKey(chain.index, s.start)] ?? []
-          // A stretch with more than one id here is the deliberate
-          // unmodelled-branch case — one cut per (stretch, segment) pair,
-          // each attaching the identical coordinate range independently.
-          for (const segId of segIds) {
-            if (segId && segId !== NEW_SEGMENT) cuts.push({ chain_index: chain.index, start_idx: s.start, end_idx: s.end, segment_id: segId })
-          }
+    const initial: CommitProgress = {}
+    for (const segId of bySegment.keys()) initial[segId] = { status: 'pending' }
+    setCommitProgress(initial)
+
+    for (const [segId, cuts] of bySegment) {
+      setCommitProgress(prev => ({ ...prev, [segId]: { status: 'committing' } }))
+      try {
+        const res = await api.commitKmlChop(flat.file_ids, flat.source, cuts)
+        const linkedRow = res.linked[0]
+        if (linkedRow) {
+          setCommitProgress(prev => ({ ...prev, [segId]: { status: 'success', linked: linkedRow } }))
+          onDataChange?.()
+        } else {
+          setCommitProgress(prev => ({ ...prev, [segId]: { status: 'fail', reason: res.failed[0]?.reason ?? 'Unknown error' } }))
         }
+      } catch (e) {
+        setCommitProgress(prev => ({ ...prev, [segId]: { status: 'fail', reason: e instanceof Error ? e.message : String(e) } }))
       }
-      setResult(await api.commitKmlChop(flat.file_ids, flat.source, cuts))
-      onDataChange?.()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(false)
     }
+    setBusy(false)
   }
 
   function startOver() {
-    setFlat(null); setCutsByChain({}); setAssignments({}); setResult(null)
+    setFlat(null); setCutsByChain({}); setAssignments({}); setCommitProgress({})
     setSystemId(''); setDeclaredIds(new Set())
   }
 
@@ -423,7 +472,7 @@ export function useKmlChopState({ segments, systems, nodes, onDataChange, onMapP
     addAssignment, removeAssignment, removeCut,
     createSegmentFor: (chainIndex: number, start: number, seg: CableSegment, cap: SegmentCapacity) =>
       void createSegmentFor(chainIndex, start, seg, cap),
-    multiStretch, assignedCount, commit: () => void commit(), result, startOver,
+    multiStretch, assignedCount, commit: () => void commit(), commitProgress, startOver,
   }
 }
 
