@@ -969,11 +969,16 @@ export interface KmlFlattenResponse {
   chains: KmlChain[]
 }
 
-/** POST /api/kml/commit-chop — what actually landed. */
+/** POST /api/kml/commit-chop — what actually landed. One row per SEGMENT,
+ *  not per cut: cuts sharing a segment_id (a real gap or an unmodelled
+ *  branch with no shared branching-unit node) are joined nose-to-tail into
+ *  one geometry server-side before storing, never linked as competing
+ *  versions — see commit-chop's own docstring. */
 export interface KmlChopCommitResponse {
   linked: {
     segment_id: string
-    chain_index: number
+    chain_indices: number[]
+    stretches_joined: number
     link_id: string
     version: number
     length_km: number | null

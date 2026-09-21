@@ -43,6 +43,7 @@ from app.kml.flatten import (
     MAX_JUMP_KM,
     MIN_JUMP_KM,
     flatten_to_chains,
+    join_stretches_for_segment,
     suggest_cuts,
 )
 from app.kml.parser import KmlPath
@@ -188,6 +189,77 @@ def test_jump_threshold_is_clamped_between_its_floor_and_ceiling():
     assert len(chains) == 2  # never joined, however the threshold computed
     assert MIN_JUMP_KM > 0
     assert MAX_JUMP_KM > MIN_JUMP_KM
+
+
+# ── join_stretches_for_segment — the mirror of a Y-branch ────────────────────
+# One stretch assigned to several segments (task #27, tested via KmlChopImport's
+# assignment state, not here) is a real branch with no shared segment geometry.
+# This is the OTHER direction: several stretches assigned to the SAME segment,
+# because a genuine gap in the survey — or a branch that likewise has no
+# branching-unit node on this side — left one segment's real route split
+# across pieces with nothing joining them automatically.
+
+def test_a_single_stretch_is_returned_untouched():
+    s = [[0.0, 0.0], [0.0, 1.0], [0.0, 2.0]]
+    assert join_stretches_for_segment([s], a_node=(0.0, 0.0)) == s
+
+
+def test_two_stretches_are_ordered_by_proximity_to_the_a_node():
+    # far_piece is listed FIRST in the input but sits farther from a_node, so
+    # it must land LAST in the result — order is decided by geometry, not by
+    # input position.
+    far_piece = [[0.0, 2.0], [0.0, 3.0]]
+    near_piece = [[0.0, 0.0], [0.0, 1.0]]
+    joined = join_stretches_for_segment([far_piece, near_piece], a_node=(0.0, 0.0))
+    assert joined[0] == [0.0, 0.0]
+    assert joined[-1] == [0.0, 3.0]
+
+
+def test_a_stretch_drawn_backwards_is_flipped_to_run_toward_a():
+    # Its OWN end (not start) is what actually sits nearest the A node, so it
+    # must be reversed — same reasoning as flatten_to_chains' own fragments.
+    backwards = [[0.0, 1.0], [0.0, 0.0]]
+    onward = [[0.0, 1.0], [0.0, 2.0]]
+    joined = join_stretches_for_segment([backwards, onward], a_node=(0.0, 0.0))
+    assert joined[0] == [0.0, 0.0]
+    assert joined[-1] == [0.0, 2.0]
+
+
+def test_stretches_that_exactly_touch_are_deduped_at_the_join():
+    a = [[0.0, 0.0], [0.0, 1.0]]
+    b = [[0.0, 1.0], [0.0, 2.0]]
+    joined = join_stretches_for_segment([a, b], a_node=(0.0, 0.0))
+    assert joined == [[0.0, 0.0], [0.0, 1.0], [0.0, 2.0]]
+
+
+def test_a_real_gap_between_stretches_is_left_alone_not_bridged():
+    # No point is invented to close the gap — only order and orientation are
+    # decided here; how far apart the join really is remains build_geometry's
+    # (and the reviewer's) concern.
+    a = [[0.0, 0.0], [0.0, 1.0]]
+    b = [[0.0, 5.0], [0.0, 6.0]]
+    joined = join_stretches_for_segment([a, b], a_node=(0.0, 0.0))
+    assert joined == [[0.0, 0.0], [0.0, 1.0], [0.0, 5.0], [0.0, 6.0]]
+
+
+def test_no_point_is_lost_or_duplicated_across_three_stretches():
+    a = [[0.0, 0.0], [0.0, 1.0]]
+    b = [[0.0, 2.0], [0.0, 3.0]]
+    c = [[0.0, 4.0], [0.0, 5.0]]
+    joined = join_stretches_for_segment([b, c, a], a_node=(0.0, 0.0))
+    assert joined[0] == [0.0, 0.0]
+    assert joined[-1] == [0.0, 5.0]
+    assert len(joined) == 6  # none of the 6 source points vanished or repeated
+
+
+def test_missing_a_node_still_produces_a_valid_join():
+    # No node lookup succeeded (e.g. a data problem elsewhere) — falls back to
+    # an arbitrary seed rather than raising, since ordering is still possible.
+    a = [[0.0, 0.0], [0.0, 1.0]]
+    b = [[0.0, 1.0], [0.0, 2.0]]
+    joined = join_stretches_for_segment([a, b], a_node=None)
+    assert len(joined) == 3
+    assert {tuple(p) for p in joined} == {(0.0, 0.0), (0.0, 1.0), (0.0, 2.0)}
 
 
 # ── suggest_cuts ──────────────────────────────────────────────────────────────

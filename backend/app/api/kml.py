@@ -62,7 +62,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 
 from ..data_loader import load_nodes, load_segments
 from ..kml import store, submarinecablemap
-from ..kml.flatten import flatten_to_chains, suggest_cuts
+from ..kml.flatten import flatten_to_chains, join_stretches_for_segment, suggest_cuts
 from ..kml.geometry import DISPLAY_POINT_BUDGET, build_geometry
 from ..kml.joiner import merge_fragments
 from ..kml.parser import KmlParseError, parse_kml, parse_upload
@@ -594,6 +594,21 @@ def commit_chop(payload: dict):
     coordinate range attached separately; nothing about this endpoint treats
     a point range as owned by only one segment.
 
+    The MIRROR case also happens: the SAME segment_id on two or more cuts,
+    from different stretches or different chains entirely — a genuine gap in
+    the survey data, or a branch that likewise has no shared branching-unit
+    node on this side. Calling store.link_segment() once per cut here would
+    be wrong: each call creates a new version and only the last one stays
+    active, so the earlier stretch would silently vanish rather than the two
+    becoming one segment's real route. So cuts are grouped by segment_id
+    FIRST; a segment with only one stretch behaves exactly as before, and one
+    with several gets them ordered and oriented into a single path by
+    join_stretches_for_segment() (nearest-endpoint proximity, walking out
+    from whichever stretch sits closest to the segment's A node) before the
+    one store.link_segment() call that segment gets. Each returned `linked`
+    row therefore corresponds to a SEGMENT, not a cut — see `chain_indices`
+    and `stretches_joined`.
+
     Auth: admin.
     """
     file_ids = payload.get("file_ids") or []
@@ -616,7 +631,10 @@ def commit_chop(payload: dict):
     segments = {s.id: s for s in load_segments()}
     nodes = load_nodes()
 
-    linked: list[dict] = []
+    # Resolve and validate every cut first, grouping its coordinates under
+    # its segment_id — a bad chain/range/segment fails independently, same
+    # as before, without touching the group its segment_id belongs to.
+    by_segment: dict[str, list[tuple[int, list[list[float]]]]] = {}
     failed: list[dict] = []
     for cut in cuts:
         chain_index = cut.get("chain_index")
@@ -630,11 +648,22 @@ def commit_chop(payload: dict):
             if not isinstance(start_idx, int) or not isinstance(end_idx, int) \
                     or not (0 <= start_idx < end_idx < chain.point_count):
                 raise ValueError(f"Invalid point range {start_idx}-{end_idx} for chain {chain_index}")
-            segment = segments.get(segment_id)
-            if segment is None:
+            if segment_id not in segments:
                 raise ValueError(f"Unknown segment {segment_id!r}")
+            by_segment.setdefault(segment_id, []).append((chain_index, chain.coords[start_idx:end_idx + 1]))
+        except ValueError as exc:
+            failed.append({"chain_index": chain_index, "segment_id": segment_id, "reason": str(exc)})
 
-            coords = chain.coords[start_idx:end_idx + 1]
+    linked: list[dict] = []
+    for segment_id, entries in by_segment.items():
+        segment = segments[segment_id]
+        chain_indices = [ci for ci, _coords in entries]
+        try:
+            stretches = [coords for _ci, coords in entries]
+            coords = (
+                stretches[0] if len(stretches) == 1
+                else join_stretches_for_segment(stretches, _node_latlng(nodes, segment.start_node_id))
+            )
             geometry = build_geometry(
                 coords,
                 _node_latlng(nodes, segment.start_node_id),
@@ -646,7 +675,8 @@ def commit_chop(payload: dict):
             )
             linked.append({
                 "segment_id": segment_id,
-                "chain_index": chain_index,
+                "chain_indices": chain_indices,
+                "stretches_joined": len(stretches),
                 "link_id": row["id"],
                 "version": row["version"],
                 "length_km": row["length_km"],
@@ -656,7 +686,8 @@ def commit_chop(payload: dict):
                 "source": source,
             })
         except ValueError as exc:
-            failed.append({"chain_index": chain_index, "segment_id": segment_id, "reason": str(exc)})
+            failed.append({"chain_index": chain_indices[0] if chain_indices else None,
+                            "segment_id": segment_id, "reason": str(exc)})
 
     log.info("KML commit-chop: %d linked, %d failed", len(linked), len(failed))
     return {"linked": linked, "failed": failed,

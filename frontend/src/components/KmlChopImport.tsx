@@ -115,18 +115,21 @@ function NewSegmentInline({
   )
 }
 
-/** One assigned segment's removable chip. Orange border/text when it's also
- *  claimed by some OTHER stretch (a real conflict — unlike two entries for
- *  the SAME stretch, which is the deliberate unmodelled-branch case and
- *  gets no warning at all). */
-function AssignmentChip({ label, conflict, onRemove, t }: { label: string; conflict: boolean; onRemove: () => void; t: Theme }) {
+/** One assigned segment's removable chip. Orange border/text when this
+ *  segment is ALSO claimed by some OTHER stretch — not an error (a real gap
+ *  or an unmodelled branch legitimately splits one segment's route across
+ *  several stretches, joined nose-to-tail server-side on commit), just
+ *  worth a glance before committing since it is the less common case.
+ *  Two entries for the SAME stretch (the Y-branch case) gets no warning
+ *  at all — that one really is the ordinary shape of the feature. */
+function AssignmentChip({ label, multiStretch, onRemove, t }: { label: string; multiStretch: boolean; onRemove: () => void; t: Theme }) {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 6px 2px 8px',
       borderRadius: 999, fontSize: 10, fontFamily: 'inherit',
-      border: `1px solid ${conflict ? t.orange : t.border}`,
-      background: conflict ? t.orange + '18' : t.bgDeep,
-      color: conflict ? t.orange : t.text,
+      border: `1px solid ${multiStretch ? t.orange : t.border}`,
+      background: multiStretch ? t.orange + '18' : t.bgDeep,
+      color: multiStretch ? t.orange : t.text,
     }}>
       {label}
       <button
@@ -145,11 +148,11 @@ function AssignmentChip({ label, conflict, onRemove, t }: { label: string; confl
  *  useKmlChopState.ts) needs the SAME stretch attached to a second segment
  *  too, not a replacement. */
 function StretchRow({
-  chain, start, end, color, assignedIds, options, conflicted, creating,
+  chain, start, end, color, assignedIds, options, multiStretch, creating,
   onAdd, onRemove, onStartNew, onRemoveCut, nodes, segments, systems, onCreated, onCancelNew, busy, t,
 }: {
   chain: KmlChain; start: number; end: number; color: string
-  assignedIds: string[]; options: { id: string; label: string }[]; conflicted: Set<string>; creating: boolean
+  assignedIds: string[]; options: { id: string; label: string }[]; multiStretch: Set<string>; creating: boolean
   onAdd: (segmentId: string) => void
   onRemove: (segmentId: string) => void
   onStartNew: () => void
@@ -184,7 +187,7 @@ function StretchRow({
             {assignedIds.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                 {assignedIds.map(id => (
-                  <AssignmentChip key={id} label={labelFor(id)} conflict={conflicted.has(id)} onRemove={() => onRemove(id)} t={t} />
+                  <AssignmentChip key={id} label={labelFor(id)} multiStretch={multiStretch.has(id)} onRemove={() => onRemove(id)} t={t} />
                 ))}
               </div>
             )}
@@ -202,8 +205,10 @@ function StretchRow({
             </select>
           </div>
         )}
-        {assignedIds.some(id => conflicted.has(id)) && !creating && (
-          <div style={{ fontSize: 10, color: t.orange, marginTop: 2 }}>another stretch also claims this segment</div>
+        {assignedIds.some(id => multiStretch.has(id)) && !creating && (
+          <div style={{ fontSize: 10, color: t.orange, marginTop: 2 }}>
+            this segment also comes from another stretch — they'll be joined nose-to-tail on commit
+          </div>
         )}
       </td>
       <td style={cell}>
@@ -420,7 +425,7 @@ export function KmlChopTablePanel({ state }: { state: KmlChopState }) {
                   key={key}
                   chain={chain} start={stretch.start} end={stretch.end}
                   color={colorForStretch(chain.index, stretch.start)}
-                  assignedIds={assignedIds} options={options} conflicted={s.conflicted}
+                  assignedIds={assignedIds} options={options} multiStretch={s.multiStretch}
                   creating={s.creatingKey === key}
                   onAdd={id => s.addAssignment(chain.index, stretch.start, id)}
                   onRemove={id => s.removeAssignment(chain.index, stretch.start, id)}
@@ -438,8 +443,10 @@ export function KmlChopTablePanel({ state }: { state: KmlChopState }) {
       </table>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {s.conflicted.size > 0 && (
-          <span style={{ fontSize: 11, color: t.orange }}>{s.conflicted.size} segment{s.conflicted.size === 1 ? '' : 's'} claimed twice</span>
+        {s.multiStretch.size > 0 && (
+          <span style={{ fontSize: 11, color: t.orange }}>
+            {s.multiStretch.size} segment{s.multiStretch.size === 1 ? '' : 's'} built from multiple stretches — will be joined nose-to-tail
+          </span>
         )}
         <div style={{ flex: 1 }} />
         <button

@@ -37,12 +37,18 @@ hundreds of km off — a clean, close-to-bimodal split a threshold can actually
 use, and the same shape of test joiner.py's fixed JOIN_TOLERANCE_KM already
 relies on, just adaptive here instead of fixed at 1km.
 
-TWO PIECES:
+THREE PIECES:
 
-    flatten_to_chains()  reassemble fragments into one or more chains by END
-                          proximity, never reordering a fragment's own points
-    suggest_cuts()       for a chain, guess where a DECLARED segment's own two
-                          endpoints sit along it — a hint, never a gate
+    flatten_to_chains()        reassemble fragments into one or more chains by
+                                END proximity, never reordering a fragment's
+                                own points
+    suggest_cuts()              for a chain, guess where a DECLARED segment's
+                                own two endpoints sit along it — a hint, never
+                                a gate
+    join_stretches_for_segment() the mirror image: given several stretches a
+                                reviewer already assigned to the SAME segment
+                                (a real but unmodelled gap or branch), order
+                                and orient them into one path
 
 NEITHER FUNCTION TOUCHES THE NETWORK GRAPH THE WAY splitter.py's
 _build_chain() DOES. That function's whole safety argument is "only cut where
@@ -225,6 +231,51 @@ def _nearest_matching_end(
         if d_end < best_d:
             best_piece, best_which, best_d = i, 1, d_end
     return (best_piece, best_which, best_d) if best_piece is not None else None
+
+
+def join_stretches_for_segment(
+    stretches: list[list[list[float]]],
+    a_node: Optional[tuple[float, float]],
+) -> list[list[float]]:
+    """
+    Concatenate 2+ already-chopped stretches into ONE path for a single
+    segment — the mirror image of the Y-branch case (one stretch, several
+    segments): here a genuine gap in the survey data, or a branch that is not
+    modelled with a branching-unit node, means a network segment's real
+    geometry only exists as several separate stretches (of one chain, or of
+    different chains entirely) with nothing joining them automatically.
+    /commit-chop groups cuts by segment_id and calls this whenever a segment
+    gets more than one; ONE call still returns its single stretch untouched,
+    so callers do not need to special-case the common case.
+
+    Orders and ORIENTS each stretch by nearest-endpoint proximity, walking
+    outward from whichever stretch has an end closest to the segment's A
+    node — the same greedy growth flatten_to_chains() itself uses to join
+    raw fragments, reused here one level up, across coarser pieces the
+    reviewer already chopped and assigned by hand rather than raw parsed
+    fragments. Unlike joiner.py's merge_fragments, there is no tolerance
+    check: these stretches were not necessarily touching in the source data
+    — if they were, they would already be one chain — so nothing here claims
+    they share a vertex. It only orders and orients them; build_geometry's
+    own endpoint-gap reporting on the result says how far apart the join
+    really is, same as it would for any single uploaded file.
+    """
+    if len(stretches) == 1:
+        return [list(c) for c in stretches[0]]
+
+    remaining = set(range(len(stretches)))
+    seed_point = list(a_node) if a_node is not None else list(stretches[0][0])
+    piece_i, which, _d = _nearest_matching_end(stretches, remaining, seed_point)
+    coords = list(reversed(stretches[piece_i])) if which == 1 else list(stretches[piece_i])
+    remaining.discard(piece_i)
+
+    while remaining:
+        piece_i, which, _d = _nearest_matching_end(stretches, remaining, coords[-1])
+        piece = stretches[piece_i]
+        coords.extend(list(reversed(piece)) if which == 1 else list(piece))
+        remaining.discard(piece_i)
+
+    return _dedupe_consecutive([list(c) for c in coords])
 
 
 def flatten_to_chains(paths: list[KmlPath]) -> list[Chain]:

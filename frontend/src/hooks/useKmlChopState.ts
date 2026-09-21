@@ -303,9 +303,15 @@ export function useKmlChopState({ segments, systems, nodes, onDataChange, onMapP
     setAssignments(prev => ({ ...prev, [key]: (prev[key] ?? []).filter(id => id !== segmentId) }))
   }
 
-  // Flags a segment id claimed by more than one STRETCH (not more than one
-  // slot within the same stretch — that's the deliberate Y-branch case).
-  const conflicted = useMemo(() => {
+  // Segment ids claimed by more than one STRETCH (not more than one slot
+  // within the same stretch — that's the Y-branch case, task #27, and gets
+  // no flag at all). This is the mirror: one segment built from several
+  // stretches, because a real gap or an unmodelled branch left it with no
+  // single continuous chain either. NOT an error — commit() below sends one
+  // cut per (stretch, segment) pair and the backend joins them nose-to-tail
+  // into one geometry — but worth a heads-up before committing, since it is
+  // less common than a straight one-stretch-one-segment assignment.
+  const multiStretch = useMemo(() => {
     const counts = new Map<string, number>()
     for (const ids of Object.values(assignments)) for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1)
     return new Set([...counts.entries()].filter(([, n]) => n > 1).map(([id]) => id))
@@ -382,7 +388,7 @@ export function useKmlChopState({ segments, systems, nodes, onDataChange, onMapP
     addAssignment, removeAssignment, removeCut,
     createSegmentFor: (chainIndex: number, start: number, seg: CableSegment, cap: SegmentCapacity) =>
       void createSegmentFor(chainIndex, start, seg, cap),
-    conflicted, assignedCount, commit: () => void commit(), result, startOver,
+    multiStretch, assignedCount, commit: () => void commit(), result, startOver,
   }
 }
 
