@@ -348,6 +348,8 @@ export const api = {
   /** Blobs no version points at — abandoned reviews leave these behind. */
   getKmlUnusedFiles: () => get<KmlUnusedFiles>('/api/kml/unused-files'),
   deleteKmlUnusedFile: (fileId: string) => del(`/api/kml/unused-files/${enc(fileId)}`),
+  /** Clear every unused blob in one call, not one at a time. */
+  clearKmlUnusedFiles: () => delJson<{ deleted: string[]; count: number }>('/api/kml/unused-files'),
   /** Attach one KMZ/KML to one segment. Always creates a new version. A file
    *  holding several paths returns 409 with the candidates rather than guessing
    *  — guessing would attach a neighbouring cable and look entirely plausible. */

@@ -40,6 +40,7 @@ import type {
 import { useTheme, type Theme } from '../theme'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../api/client'
+import { ConfirmDialog } from './ConfirmDialog'
 import { PREVIEW_COLORS } from './KmlPreviewLayer'
 
 interface Props {
@@ -276,6 +277,7 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
   const [versions, setVersions] = useState<Record<string, KmlVersion[]>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [confirmClearAll, setConfirmClearAll] = useState(false)
 
   // Applying a fetched result is one function, used by the mount effect and by
   // every action that changes something. The error is cleared on actual success
@@ -339,6 +341,11 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
+  }
+
+  async function clearAllUnused() {
+    setConfirmClearAll(false)
+    await act(() => api.clearKmlUnusedFiles())
   }
 
   const q = filter.trim().toLowerCase()
@@ -478,11 +485,18 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
 
           {tab === 'unused' && (
             <div style={{ padding: 14 }}>
-              <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 8, lineHeight: 1.6 }}>
-                Files uploaded during a review but never attached to a segment. An import stores every file it
-                reads so the approval step only has to send an index rather than the bytes again, so abandoning a
-                review — or approving three of fifty paths — leaves the rest here.
-                {unused && unused.count > 0 && <> Currently <strong style={{ color: t.text }}>{bytes(unused.total_bytes)}</strong>.</>}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 8 }}>
+                <div style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6, flex: 1 }}>
+                  Files uploaded during a review but never attached to a segment. An import stores every file it
+                  reads so the approval step only has to send an index rather than the bytes again, so abandoning a
+                  review — or approving three of fifty paths — leaves the rest here.
+                  {unused && unused.count > 0 && <> Currently <strong style={{ color: t.text }}>{bytes(unused.total_bytes)}</strong>.</>}
+                </div>
+                {isAdmin && (unused?.count ?? 0) > 0 && (
+                  <button onClick={() => setConfirmClearAll(true)} disabled={busy} style={{ ...smallButton(t, 'danger'), whiteSpace: 'nowrap' }}>
+                    Clear all ({unused?.count})
+                  </button>
+                )}
               </div>
               {(unused?.count ?? 0) === 0 ? (
                 <div style={{ fontSize: 12, color: t.textMuted }}>Nothing unused.</div>
@@ -502,6 +516,17 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
                 ))
               )}
             </div>
+          )}
+
+          {confirmClearAll && (
+            <ConfirmDialog
+              title="Clear all unused files?"
+              body={`This permanently deletes ${unused?.count ?? 0} unattached file${unused?.count === 1 ? '' : 's'} (${bytes(unused?.total_bytes ?? 0)}). Anything still attached to a segment version is untouched.`}
+              confirmLabel="Clear all"
+              danger
+              onConfirm={() => void clearAllUnused()}
+              onCancel={() => setConfirmClearAll(false)}
+            />
           )}
         </div>
       </div>

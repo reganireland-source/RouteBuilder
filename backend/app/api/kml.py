@@ -34,6 +34,7 @@ Endpoints:
   GET    /api/kml/download/{link_id}       the original file, byte for byte
   GET    /api/kml/unused-files             blobs no version points at
   DELETE /api/kml/unused-files/{file_id}   remove one unreferenced blob
+  DELETE /api/kml/unused-files             remove EVERY unreferenced blob at once
 
 MULTI-SEGMENT IMPORTS. `POST /api/kml/upload` is the one-to-one path — one
 file, one segment, and if the file holds several paths the caller must name
@@ -701,3 +702,25 @@ def delete_unused_file(file_id: str):
             detail="That file is still attached to a segment version, or no longer exists.",
         )
     return {"deleted": file_id}
+
+
+@router.delete("/unused-files")
+def delete_all_unused_files():
+    """
+    DELETE /api/kml/unused-files — clear EVERY currently-unreferenced blob in
+    one call, not one at a time.
+
+    These pile up faster since the Chop Import tool (/flatten) stores a
+    file's bytes on every plot whether or not the reviewer ever commits it —
+    trying three imports to see which one looks right on the map leaves two
+    behind, same as the old propose/commit review did. Re-derives the list
+    itself rather than trusting one the caller might be holding stale, and
+    calls the SAME per-file store.delete_file() the single-file endpoint
+    uses, so a file a commit-chop call links in the middle of this request
+    is skipped rather than deleted out from under it.
+
+    Auth: admin.
+    """
+    deleted = [f["id"] for f in store.unreferenced_files() if store.delete_file(f["id"])]
+    log.info("KML unused-files bulk delete: %d removed", len(deleted))
+    return {"deleted": deleted, "count": len(deleted)}
