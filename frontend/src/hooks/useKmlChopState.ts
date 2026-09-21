@@ -148,13 +148,20 @@ function colorForIndex(i: number): string {
  *  now — an identity-stable scheme (hash or hold-position) always leaves
  *  a chance of reuse once enough stretches exist, however the hues are
  *  chosen. A stretch's own colour can therefore shift when an unrelated
- *  chain gets chopped; that is the trade this makes, not an oversight. */
-function buildStretchColors(chains: KmlChain[], cutsByChain: CutsByChain): Map<string, string> {
+ *  chain gets chopped; that is the trade this makes, not an oversight.
+ *
+ *  `overrides` (stretchKey → index) lets a reviewer manually reassign one
+ *  stretch's colour — clicking its swatch (see useCycleStretchColor below)
+ *  — when the golden angle still happens to land two of them close enough
+ *  to be hard to tell apart by eye at a given hue/count. An override wins
+ *  over the natural walk order for that one stretch only. */
+function buildStretchColors(chains: KmlChain[], cutsByChain: CutsByChain, overrides: Record<string, number>): Map<string, string> {
   const colors = new Map<string, string>()
   let i = 0
   for (const chain of chains) {
     for (const { start } of stretchesFor(chain, cutsByChain[chain.index] ?? [])) {
-      colors.set(stretchKey(chain.index, start), colorForIndex(i))
+      const key = stretchKey(chain.index, start)
+      colors.set(key, colorForIndex(overrides[key] ?? i))
       i++
     }
   }
@@ -239,6 +246,13 @@ export function useKmlChopState({ segments, systems, nodes, onDataChange, onMapP
   const [creatingKey, setCreatingKey] = useState<string | null>(null)
   const [fitKey, setFitKey] = useState(0)
   const [commitProgress, setCommitProgress] = useState<CommitProgress>({})
+  const [colorOverrides, setColorOverrides] = useState<Record<string, number>>({})
+  // Manual colour picks draw from a range well past any realistic natural
+  // walk index (see buildStretchColors), so a click can never coincide with
+  // another stretch's colour just because the import happened to have that
+  // many stretches. A ref, not state: it only needs to hand out the next
+  // number, never trigger a render itself — colorOverrides already does that.
+  const nextOverrideIndex = useRef(100000)
 
   useEffect(() => {
     if (sourceMode !== 'sync' || scmFetchStarted.current) return
@@ -257,7 +271,7 @@ export function useKmlChopState({ segments, systems, nodes, onDataChange, onMapP
   const canFlatten = sourceMode === 'upload' ? pendingFiles.length > 0 : scmSelectedId !== null
 
   async function runFlatten() {
-    setBusy(true); setError(null); setCommitProgress({})
+    setBusy(true); setError(null); setCommitProgress({}); setColorOverrides({})
     try {
       const source = sourceMode === 'upload' ? { files: pendingFiles } : { cableId: scmSelectedId! }
       // Passed through even when unset (both are optional on the backend
@@ -384,13 +398,23 @@ export function useKmlChopState({ segments, systems, nodes, onDataChange, onMapP
   }, [assignments])
 
   const stretchColors = useMemo(
-    () => (flat ? buildStretchColors(flat.chains, cutsByChain) : new Map<string, string>()),
-    [flat, cutsByChain],
+    () => (flat ? buildStretchColors(flat.chains, cutsByChain, colorOverrides) : new Map<string, string>()),
+    [flat, cutsByChain, colorOverrides],
   )
   const colorForStretch = useCallback(
     (chainIndex: number, start: number) => stretchColors.get(stretchKey(chainIndex, start)) ?? '#888888',
     [stretchColors],
   )
+  /** Click a stretch's swatch to move it to the next never-used colour —
+   *  for the case the golden angle still lands two stretches close enough
+   *  to be hard to tell apart at a glance. Each click hands out a fresh
+   *  index, so repeated clicking keeps cycling somewhere new rather than
+   *  bouncing between two alternates. */
+  const cycleStretchColor = useCallback((chainIndex: number, start: number) => {
+    const key = stretchKey(chainIndex, start)
+    const index = nextOverrideIndex.current++
+    setColorOverrides(prev => ({ ...prev, [key]: index }))
+  }, [])
 
   useEffect(() => {
     onMapPropsChange(flat ? {
@@ -455,7 +479,7 @@ export function useKmlChopState({ segments, systems, nodes, onDataChange, onMapP
   }
 
   function startOver() {
-    setFlat(null); setCutsByChain({}); setAssignments({}); setCommitProgress({})
+    setFlat(null); setCutsByChain({}); setAssignments({}); setCommitProgress({}); setColorOverrides({})
     setSystemId(''); setDeclaredIds(new Set())
   }
 
@@ -468,7 +492,7 @@ export function useKmlChopState({ segments, systems, nodes, onDataChange, onMapP
     scmCables, scmQuery, setScmQuery, scmSelectedId, setScmSelectedId,
     systemId, chooseSystem, declaredIds, toggleDeclared, systemSegments,
     busy, error, canFlatten, runFlatten: () => void runFlatten(),
-    flat, cutsByChain, assignments, creatingKey, setCreatingKey, colorForStretch,
+    flat, cutsByChain, assignments, creatingKey, setCreatingKey, colorForStretch, cycleStretchColor,
     addAssignment, removeAssignment, removeCut,
     createSegmentFor: (chainIndex: number, start: number, seg: CableSegment, cap: SegmentCapacity) =>
       void createSegmentFor(chainIndex, start, seg, cap),

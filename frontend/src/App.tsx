@@ -2093,7 +2093,15 @@ export default function App() {
               kmlMode={kmlMode}
               kmlPreview={kmlPreview.lines}
               kmlPreviewKey={kmlPreview.key}
-              kmlChop={kmlChopMapProps}
+              // Gated on kmlImportOpen, not just passed straight through: the
+              // state hook itself stays mounted for the app's whole lifetime
+              // (see its own comment on why) and only clears its map props
+              // when `flat` itself is reset, so simply closing the panel
+              // without starting over left the last flattened import's
+              // colour-coded chains highlighted on the map indefinitely —
+              // reported as "the map still looks like it's in KML Import
+              // mode" even though the panel had genuinely closed.
+              kmlChop={kmlImportOpen ? kmlChopMapProps : null}
               searchPin={searchPin ?? undefined}
               nearestNodeIds={nearestNodeIds}
               hideNonActive={hideNonActive}

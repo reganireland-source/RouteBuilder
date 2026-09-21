@@ -39,9 +39,23 @@ import {
 const cell: React.CSSProperties = { padding: '6px 8px', fontSize: 11, verticalAlign: 'top' }
 
 /** A small colour swatch matching the stretch's map colour, so a table row
- *  can be matched to its line on the map at a glance. */
-function Swatch({ color }: { color: string }) {
-  return <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: color, flexShrink: 0 }} />
+ *  can be matched to its line on the map at a glance. Clickable: the golden
+ *  angle spread keeps any two colours apart on average, but at a given hue
+ *  and count two can still land close enough to be hard to tell apart by
+ *  eye — a click hands this one stretch a fresh, still-unique colour
+ *  (useKmlChopState's cycleStretchColor) rather than the one it landed on. */
+function Swatch({ color, onClick }: { color: string; onClick?: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={!onClick}
+      title={onClick ? 'Click to try a different colour' : undefined}
+      style={{
+        display: 'inline-block', width: 14, height: 14, borderRadius: 3, background: color, flexShrink: 0,
+        border: 'none', padding: 0, cursor: onClick ? 'pointer' : 'default',
+      }}
+    />
+  )
 }
 
 /** The inline "no segment covers this stretch" flow: snap both ends to the
@@ -148,10 +162,10 @@ function AssignmentChip({ label, multiStretch, onRemove, t }: { label: string; m
  *  useKmlChopState.ts) needs the SAME stretch attached to a second segment
  *  too, not a replacement. */
 function StretchRow({
-  chain, start, end, color, assignedIds, options, multiStretch, creating,
+  chain, start, end, color, onCycleColor, assignedIds, options, multiStretch, creating,
   onAdd, onRemove, onStartNew, onRemoveCut, nodes, segments, systems, onCreated, onCancelNew, busy, t,
 }: {
-  chain: KmlChain; start: number; end: number; color: string
+  chain: KmlChain; start: number; end: number; color: string; onCycleColor: () => void
   assignedIds: string[]; options: { id: string; label: string }[]; multiStretch: Set<string>; creating: boolean
   onAdd: (segmentId: string) => void
   onRemove: (segmentId: string) => void
@@ -168,7 +182,7 @@ function StretchRow({
   const addOptions = options.filter(o => !assignedIds.includes(o.id))
   return (
     <tr style={{ borderBottom: `1px solid ${t.border}` }}>
-      <td style={cell}><Swatch color={color} /></td>
+      <td style={cell}><Swatch color={color} onClick={onCycleColor} /></td>
       <td style={cell}>{chain.index}</td>
       <td style={cell}>
         <div style={{ color: t.text }}>{pts.toLocaleString()} pts · {km} km</div>
@@ -477,6 +491,7 @@ export function KmlChopTablePanel({ state }: { state: KmlChopState }) {
                   key={key}
                   chain={chain} start={stretch.start} end={stretch.end}
                   color={s.colorForStretch(chain.index, stretch.start)}
+                  onCycleColor={() => s.cycleStretchColor(chain.index, stretch.start)}
                   assignedIds={assignedIds} options={options} multiStretch={s.multiStretch}
                   creating={s.creatingKey === key}
                   onAdd={id => s.addAssignment(chain.index, stretch.start, id)}
