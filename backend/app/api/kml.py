@@ -425,26 +425,31 @@ def _load_parsed_from_files(file_ids: list[str]) -> tuple[list, list]:
 async def flatten_import(
     files: list[UploadFile] = File(default=[]),
     cable_id: str = Form(None),
-    system_id: str = Form(...),
-    segment_ids: list[str] = Form(...),
+    system_id: str = Form(default=""),
+    segment_ids: list[str] = Form(default=[]),
 ):
     """
-    POST /api/kml/flatten — parse or fetch one import, reassemble it into OUR
-    OWN chains (see flatten.py's module docstring for why the file's own
-    placemark/fragment boundaries are not trusted), and suggest where the
-    declared segments' own endpoints sit along each one.
+    POST /api/kml/flatten — parse or fetch one import and reassemble it into
+    OUR OWN chains (see flatten.py's module docstring for why the file's own
+    placemark/fragment boundaries are not trusted).
 
     Exactly one of `files` (a KMZ/KML batch — one IMPORT ACTION, however many
     files it is split across) or `cable_id` (a submarinecablemap.com sync)
-    must be given. `system_id`/`segment_ids` are the system and segments the
-    caller has already told us this import covers — suggest_cuts() uses them,
-    it never widens the search to the whole network.
+    must be given. `system_id`/`segment_ids` are BOTH OPTIONAL: a reviewer
+    usually cannot say which segments an import covers until they have seen
+    its shape on the map, so this endpoint never requires that answer up
+    front — it flattens on geometry alone and returns empty `suggested_cuts`
+    when nothing was declared yet. Once the reviewer picks (or changes) the
+    system, call POST /api/kml/suggest-cuts separately rather than re-calling
+    this one — it re-derives the identical chains from `file_ids` without
+    re-fetching or re-uploading anything.
 
     Writes NO segment_kml links, but DOES store the file bytes (content-
     addressed, so re-flattening the same import costs nothing extra) — that
-    is what lets POST /api/kml/commit-chop re-derive the identical chains
-    later from `file_ids` alone, the same "never trust client-carried
-    geometry" principle the old bulk/commit endpoint already followed.
+    is what lets POST /api/kml/commit-chop (and /suggest-cuts) re-derive the
+    identical chains later from `file_ids` alone, the same "never trust
+    client-carried geometry" principle the old bulk/commit endpoint already
+    followed.
 
     Auth: admin (admin_write_guard covers POST).
     """
@@ -512,6 +517,51 @@ async def flatten_import(
     }
 
 
+@router.post("/suggest-cuts")
+def suggest_cuts_for_import(payload: dict):
+    """
+    POST /api/kml/suggest-cuts — re-suggest cuts once the reviewer has picked
+    (or changed) which system/segments an already-flattened import covers,
+    without re-fetching or re-uploading anything.
+
+    Body: {"file_ids": [...], "system_id": str, "segment_ids": [...]}
+
+    Re-derives the SAME chains POST /api/kml/flatten returned — deterministic
+    from `file_ids` alone — and returns just their `suggested_cuts`; the
+    reviewer already has every chain's coordinates from the original flatten
+    response, so there is no reason to resend them. Declaring a DIFFERENT
+    system later (the reviewer looked at the shape and changed their mind)
+    is exactly what this endpoint is for: call it again with the new
+    system_id/segment_ids and re-merge the result.
+
+    Auth: admin (admin_write_guard covers POST).
+    """
+    file_ids = payload.get("file_ids") or []
+    system_id = payload.get("system_id") or ""
+    segment_ids = payload.get("segment_ids") or []
+    if not file_ids:
+        raise HTTPException(status_code=422, detail="'file_ids' must be a non-empty list")
+    if not system_id or not segment_ids:
+        return {"chains": []}
+
+    try:
+        paths, _points = _load_parsed_from_files(file_ids)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    chains = flatten_to_chains(paths)
+
+    all_segments = {s.id: s.model_dump() for s in load_segments()}
+    declared = [all_segments[sid] for sid in segment_ids if sid in all_segments]
+    nodes_by_id = {n.id: n.model_dump() for n in load_nodes()}
+
+    return {
+        "chains": [
+            {"index": i, "suggested_cuts": [vars(cut) for cut in suggest_cuts(c, declared, nodes_by_id)]}
+            for i, c in enumerate(chains)
+        ],
+    }
+
+
 @router.post("/commit-chop")
 def commit_chop(payload: dict):
     """
@@ -534,6 +584,14 @@ def commit_chop(payload: dict):
     downloading gets you A source file for that route, not necessarily every
     byte that contributed to it, in the rare case a stretch really does cross
     a file boundary.
+
+    Two cuts may legitimately share the same (chain_index, start_idx,
+    end_idx) with different segment_ids — a real but unmodelled branch
+    point, where two whole segments are each defined end-to-end through the
+    same physical trunk rather than meeting at a shared branching-unit node.
+    Each is just its own independent entry here and gets the identical
+    coordinate range attached separately; nothing about this endpoint treats
+    a point range as owned by only one segment.
 
     Auth: admin.
     """

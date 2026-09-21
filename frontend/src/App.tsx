@@ -15,7 +15,8 @@ import { NodeInfoPanel } from './components/NodeInfoPanel'
 import { SegmentInfoPanel } from './components/SegmentInfoPanel'
 // Lazy: the chop tool and its matcher types are only ever opened by an
 // admin importing files, so it has no business in the initial bundle.
-const KmlChopImport = lazy(() => import('./components/KmlChopImport').then(m => ({ default: m.KmlChopImport })))
+const KmlChopSourcePanel = lazy(() => import('./components/KmlChopImport').then(m => ({ default: m.KmlChopSourcePanel })))
+const KmlChopTablePanel = lazy(() => import('./components/KmlChopImport').then(m => ({ default: m.KmlChopTablePanel })))
 const KmlLibrary = lazy(() => import('./components/KmlLibrary').then(m => ({ default: m.KmlLibrary })))
 import { NodeFinder } from './components/NodeFinder'
 import { CityPairPanel } from './components/CityPairPanel'
@@ -34,6 +35,7 @@ import { useSegmentHover } from './context/SegmentHoverContext'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, useTheme, type Theme, type ThemeMode } from './theme'
 import { useHazards } from './hooks/useHazards'
+import { useKmlChopState } from './hooks/useKmlChopState'
 import { HazardProvider } from './context/HazardContext'
 import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem, Hazard, HazardAssetView, HazardOwnerView, KmlPathInfo, KmlPreviewLine} from './types'
 import type { KmlChopMapLayerProps } from './components/KmlChopMapLayer'
@@ -563,10 +565,14 @@ export default function App() {
   // cuts can be checked against it, and never stored. `key` is bumped per
   // request so re-previewing the same path still re-fits the map.
   const [kmlPreview, setKmlPreview] = useState<{ lines: KmlPreviewLine[]; key: number }>({ lines: [], key: 0 })
-  // Whatever KmlChopImport's chop session currently wants drawn on the map —
-  // see KmlChopMapLayer.tsx. null whenever the panel isn't open or hasn't
-  // flattened an import yet.
+  // Whatever the Chop Import session currently wants drawn on the map — see
+  // KmlChopMapLayer.tsx. null whenever nothing has been flattened yet.
   const [kmlChopMapProps, setKmlChopMapProps] = useState<KmlChopMapLayerProps | null>(null)
+  // All of Chop Import's state, called unconditionally here (React's rules of
+  // hooks) since its two panels are mounted in different columns below — see
+  // useKmlChopState.ts's own docstring for why. Cheap to call even when the
+  // panel is closed: it does no work until a source is actually chosen.
+  const kmlChop = useKmlChopState({ segments, systems, nodes, onDataChange: handleDataChange, onMapPropsChange: setKmlChopMapProps })
   const [selectedSegment, setSelectedSegment] = useState<{ segment: CableSegment; x: number; y: number } | null>(null) // segment whose info card is open
   // Fly-to request from a node-code lookup. `key` increments every time so
   // asking for the same node twice still flies.
@@ -1760,6 +1766,17 @@ export default function App() {
           {/* Left-panel body: swaps its contents based on the active mode.
               Each `mode === '...'` block below mounts that mode's control panel. */}
           <div style={{ flex: 1, overflowY: mode === 'routemanual' ? 'hidden' : 'auto', display: 'flex', flexDirection: 'column', padding: mode === 'routemanual' ? 0 : '16px' }}>
+            {/* Chop Import overlays whichever mode is underneath, the same
+                way it did as a bottom-docked panel before — it does not
+                change `mode` itself, just what these two columns show while
+                it is open, so returning to it later is exactly "reopen the
+                menu item", not "switch modes". */}
+            {kmlImportOpen ? (
+              <Suspense fallback={null}>
+                <KmlChopSourcePanel state={kmlChop} onClose={() => setKmlImportOpen(false)} />
+              </Suspense>
+            ) : (
+            <>
             {mode === 'routebuilder' && (
               <>
                 {NlpChat && (
@@ -1829,6 +1846,8 @@ export default function App() {
                 onGoToNode={handleGoToNode}
               />
             )}
+            </>
+            )}
           </div>
           <AdminBar />
           <HealthBar dataLoaded={nodes.length > 0} mapsProvider={config.maps_provider} />
@@ -1867,9 +1886,9 @@ export default function App() {
             display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
           }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: theme.textMuted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              {mode === 'networkeditor' ? 'Network Editor' : 'Routes'}
+              {middlePanelLabel(kmlImportOpen, mode)}
             </span>
-            {mode !== 'networkeditor' && hasResults && response && (
+            {!kmlImportOpen && mode !== 'networkeditor' && hasResults && response && (
               <span style={{ fontSize: 11, color: theme.textFaint }}>
                 <span style={{ color: theme.text, fontWeight: 600 }}>
                   {response.total_found || (response.primary_routes.length + response.diverse_routes.length)}
@@ -1877,9 +1896,9 @@ export default function App() {
                 {searchDuration !== null && <span> · {searchDuration < 1 ? `${(searchDuration * 1000).toFixed(0)}ms` : `${searchDuration.toFixed(2)}s`}</span>}
               </span>
             )}
-            {mode !== 'networkeditor' && hasPins    && <span style={{ fontSize: 11, color: theme.textFaintest }}>· {pinnedCircuitCount} pinned</span>}
-            {mode !== 'networkeditor' && loading    && <span style={{ fontSize: 11, color: theme.blue }}>Searching…</span>}
-            {mode !== 'networkeditor' && (
+            {!kmlImportOpen && mode !== 'networkeditor' && hasPins    && <span style={{ fontSize: 11, color: theme.textFaintest }}>· {pinnedCircuitCount} pinned</span>}
+            {!kmlImportOpen && mode !== 'networkeditor' && loading    && <span style={{ fontSize: 11, color: theme.blue }}>Searching…</span>}
+            {!kmlImportOpen && mode !== 'networkeditor' && (
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
                 {hasPins    && <button onClick={() => { setSldVersion(''); setSldVersionPrompt(true) }} title="Export SLD" style={clearBtnStyle(theme)}>⬡ SLD</button>}
                 {hasResults && <button onClick={clearSearch} style={clearBtnStyle(theme)}>Clear Search</button>}
@@ -1889,7 +1908,12 @@ export default function App() {
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
-            {mode === 'networkeditor' ? (
+            {kmlImportOpen && (
+              <Suspense fallback={null}>
+                <KmlChopTablePanel state={kmlChop} />
+              </Suspense>
+            )}
+            {!kmlImportOpen && (mode === 'networkeditor' ? (
               <EditorPendingPanel
                 state={editorState} dispatch={dispatchEditor}
                 nodes={editorDisplay.nodes} segments={editorDisplay.segments}
@@ -1959,7 +1983,7 @@ export default function App() {
               onOpenRefDataForNote={(kind, id) => { setRefDataNoteFocus({ kind, id }); setRefDataOpen(true) }}
             />
               </>
-            )}
+            ))}
           </div>
         </div>
 
@@ -2104,19 +2128,6 @@ export default function App() {
           onClose={() => setSelectedNode(null)}
           onDataChange={handleDataChange}
         />
-      )}
-
-      {kmlImportOpen && (
-        <Suspense fallback={null}>
-          <KmlChopImport
-            segments={segments}
-            systems={systems}
-            nodes={nodes}
-            onClose={() => { setKmlImportOpen(false); setKmlChopMapProps(null) }}
-            onDataChange={handleDataChange}
-            onMapPropsChange={setKmlChopMapProps}
-          />
-        </Suspense>
       )}
 
       {kmlLibraryOpen && (
@@ -2536,6 +2547,16 @@ function AdminBar() {
       {err && <div style={{ fontSize: 10, color: t.red, marginTop: 3 }}>Incorrect passphrase</div>}
     </div>
   )
+}
+
+/** The middle column's header label — Chop Import overlays whichever mode is
+ *  underneath (see the left-panel body's own comment), so it takes priority
+ *  over Network Editor's own label the same way. An if-chain rather than a
+ *  nested ternary, which this file's lint config refuses. */
+function middlePanelLabel(kmlImportOpen: boolean, mode: AppMode): string {
+  if (kmlImportOpen) return 'Chop Import'
+  if (mode === 'networkeditor') return 'Network Editor'
+  return 'Routes'
 }
 
 /** Shared style for the small "Clear Search / Clear All / SLD" text buttons in

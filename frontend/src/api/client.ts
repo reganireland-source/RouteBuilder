@@ -37,7 +37,7 @@
  * requests). Request/response shapes are the interfaces in ../types.
  */
 
-import type { AppConfig, CableNode, KmlChopCommitResponse, KmlFlattenResponse, KmlFullPath, KmlLibrary, KmlPathsResponse, KmlSource, KmlUnusedFiles, KmlUploadResult, KmlVersion, ScmCablesResponse, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, HazardFeed, NlpParseResponse, NoteCategory, OutageEventType, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
+import type { AppConfig, CableNode, KmlChain, KmlChopCommitResponse, KmlFlattenResponse, KmlFullPath, KmlLibrary, KmlPathsResponse, KmlSource, KmlUnusedFiles, KmlUploadResult, KmlVersion, ScmCablesResponse, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, HazardFeed, NlpParseResponse, NoteCategory, OutageEventType, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
 
 // Backend origin baked in at build time. Empty string = same-origin (dev proxy).
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
@@ -366,10 +366,13 @@ export const api = {
   /** Parse a batch (or fetch a sync) and re-chop it into our own chains —
    *  see backend/app/kml/flatten.py. Writes NOTHING; the chop tool decides.
    *  Exactly one of `files`/`cableId` is given, matching the two import
-   *  sources KmlChopImport offers. */
+   *  sources KmlChopImport offers. `system`/`segmentIds` are optional — a
+   *  reviewer usually cannot say what an import covers until they have seen
+   *  its shape, so this plots on geometry alone when they are omitted; call
+   *  suggestKmlCuts once the reviewer has an answer instead of re-flattening. */
   flattenKmlImport: (
     source: { files: File[] } | { cableId: string },
-    systemId: string, segmentIds: string[],
+    systemId?: string, segmentIds?: string[],
   ) => {
     const form = new FormData()
     if ('files' in source) {
@@ -377,10 +380,17 @@ export const api = {
     } else {
       form.append('cable_id', source.cableId)
     }
-    form.append('system_id', systemId)
-    for (const sid of segmentIds) form.append('segment_ids', sid)
+    if (systemId) form.append('system_id', systemId)
+    for (const sid of segmentIds ?? []) form.append('segment_ids', sid)
     return uploadForm<KmlFlattenResponse>('/api/kml/flatten', form)
   },
+  /** Re-suggest cuts for an already-flattened import once the reviewer has
+   *  picked (or changed) which system/segments it covers — re-derives the
+   *  same chains from `fileIds` alone, no re-fetching or re-uploading. */
+  suggestKmlCuts: (fileIds: string[], systemId: string, segmentIds: string[]) =>
+    post<{ chains: { index: number; suggested_cuts: KmlChain['suggested_cuts'] }[] }>(
+      '/api/kml/suggest-cuts', { file_ids: fileIds, system_id: systemId, segment_ids: segmentIds },
+    ),
   /** Attach the human-chopped stretches. Each becomes a new version on its
    *  segment. `source` is recorded on every link this creates. */
   commitKmlChop: (
