@@ -310,9 +310,14 @@ function cityPoints(nodes: CableNode[], cityId: string): [number, number][] {
     .map((n): [number, number] => [n.lat, n.lng])
 }
 
-/** One segment's full path: its start node, its waypoints, then its end node.
- *  Endpoints that can't be resolved are simply skipped. */
-function segmentPoints(seg: CableSegment, nodes: CableNode[]): [number, number][] {
+/** One segment's full path, for fitting the map to it: the surveyed KML
+ *  route when one is passed in (KML Mode on and a survey exists for this
+ *  segment), otherwise its start node, waypoints, then end node. A cable
+ *  with a real detour can run well outside its own straight-line/waypoint
+ *  bounds, so fitting to the wrong geometry can crop the very route about
+ *  to be spotlighted (see handleAssetSelect's 'segment' case) out of view. */
+function segmentPoints(seg: CableSegment, nodes: CableNode[], kmlDisplayPath?: [number, number][]): [number, number][] {
+  if (kmlDisplayPath && kmlDisplayPath.length > 0) return kmlDisplayPath
   const start = nodes.find(n => n.id === seg.start_node_id)
   const end = nodes.find(n => n.id === seg.end_node_id)
   return [
@@ -320,6 +325,19 @@ function segmentPoints(seg: CableSegment, nodes: CableNode[]): [number, number][
     ...(seg.waypoints ?? []),
     ...(end ? [[end.lat, end.lng] as [number, number]] : []),
   ]
+}
+
+/** Asset Search's 'segment' hit fits to (and, via setHoveredSegmentId,
+ *  spotlights) the surveyed KML route when KML Mode is on and one exists
+ *  for this segment, the straight/waypoint path otherwise — matching what
+ *  the main map already draws for that segment's own line. Kept separate
+ *  from handleAssetSelect's switch so this lookup doesn't push that
+ *  function over its own cognitive-complexity budget. */
+function segmentSpotlightPoints(
+  seg: CableSegment, nodes: CableNode[], kmlMode: boolean, kmlPaths: Record<string, KmlPathInfo>,
+): [number, number][] {
+  const kml = kmlMode ? kmlPaths[seg.id] : undefined
+  return segmentPoints(seg, nodes, kml?.display_path)
 }
 
 /** Every endpoint of every segment belonging to one cable system — the extent
@@ -653,7 +671,7 @@ export default function App() {
       case 'segment': {
         const seg = segments.find(s => s.id === hit.id)
         if (!seg) break
-        const b = boundsOf(segmentPoints(seg, nodes))
+        const b = boundsOf(segmentSpotlightPoints(seg, nodes, kmlMode, kmlPaths))
         if (b) fitTo(b)
         // Reuse the Segment Breakdown's spotlight so the found cable is
         // unmistakable on a map full of other cables.

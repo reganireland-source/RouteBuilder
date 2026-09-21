@@ -1182,10 +1182,17 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
 
       {/*
         Segment spotlight — draws a warm pulsing halo under whichever segment the
-        cursor is over in a route's Segment Breakdown panel (RouteList.tsx), via
-        the shared SegmentHoverContext. Drawn last so it sits above every other
-        overlay; non-interactive so it never steals clicks/hover from the real
-        segment line underneath.
+        cursor is over in a route's Segment Breakdown panel (RouteList.tsx), or
+        that Asset Search just selected, via the shared SegmentHoverContext.
+        Drawn last so it sits above every other overlay; non-interactive so it
+        never steals clicks/hover from the real segment line underneath.
+
+        Traces the SAME geometry as the real line beneath it — the surveyed KML
+        route when KML Mode is on and one exists, the waypoint spline otherwise
+        (matching the main segment-render loop above) — never the straight/
+        waypoint path regardless of mode. A halo that outlines a different line
+        than the one it sits under would visibly drift off it wherever the two
+        diverge, defeating the entire point of a spotlight.
       */}
       {hoveredSegmentId && (() => {
         const seg = segmentsById[hoveredSegmentId]
@@ -1193,7 +1200,8 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         const start = nodesById[seg.start_node_id]
         const end = nodesById[seg.end_node_id]
         if (!start || !end) return null
-        const lines = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined)
+        const kml = kmlMode ? kmlPaths[seg.id] : undefined
+        const lines = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined, kml?.display_path)
         return lines.map((positions, i) => (
           <Polyline
             key={`glow-${seg.id}-${i}`}
