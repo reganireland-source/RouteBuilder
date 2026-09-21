@@ -351,6 +351,30 @@ def delete_link(link_id: str) -> Optional[str]:
     return segment_id
 
 
+def delete_all_for_segment(segment_id: str) -> int:
+    """
+    Remove EVERY version for one segment — "delete this KML entirely," as
+    opposed to delete_link()'s one-version-at-a-time undo. Unlike
+    delete_link, there is no fallback-to-newest-remaining step: there is
+    nothing left to fall back to, by design — the segment reverts to
+    drawing from its waypoints, same as one that was never surveyed.
+
+    Returns how many versions were removed (0 if the segment had none).
+    """
+    if _use_db():
+        with get_conn() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM segment_kml WHERE segment_id = %s", (segment_id,))
+            return cur.rowcount
+
+    index = _read_index()
+    before = len(index["links"])
+    index["links"] = [l for l in index["links"] if l["segment_id"] != segment_id]
+    removed = before - len(index["links"])
+    if removed:
+        _write_index(index)
+    return removed
+
+
 def coverage() -> dict[str, int]:
     """How much of the network has geometry — the honest headline for the UI."""
     links = active_links()

@@ -113,15 +113,28 @@ function day(iso: string | null): string {
   return iso ? iso.slice(0, 10) : '—'
 }
 
+/** Segment ids for the bulk-delete confirm dialog — every one for a small
+ *  selection, truncated for a large one so the dialog stays readable rather
+ *  than turning into a scrollable wall of ids. */
+function listSelected(ids: Set<string>, max = 8): string {
+  const all = [...ids]
+  if (all.length <= max) return all.join(', ')
+  return `${all.slice(0, max).join(', ')}, +${all.length - max} more`
+}
+
 /** One linked segment, expandable into its full version history. */
-function LinkedRow({ row, t, expanded, versions, busy, isAdmin, onToggle, onPreview, onActivate, onDelete }: {
+function LinkedRow({
+  row, t, expanded, versions, busy, isAdmin, selected, onToggle, onToggleSelect, onPreview, onActivate, onDelete,
+}: {
   row: KmlLibraryLinked
   t: Theme
   expanded: boolean
   versions: KmlVersion[] | undefined
   busy: boolean
   isAdmin: boolean
+  selected: boolean
   onToggle: () => void
+  onToggleSelect: () => void
   onPreview: () => void
   onActivate: (linkId: string) => void
   onDelete: (linkId: string) => void
@@ -132,7 +145,12 @@ function LinkedRow({ row, t, expanded, versions, busy, isAdmin, onToggle, onPrev
 
   return (
     <>
-      <tr style={{ borderBottom: `1px solid ${t.border}` }}>
+      <tr style={{ borderBottom: `1px solid ${t.border}`, background: selected ? t.blue + '0c' : 'transparent' }}>
+        {isAdmin && (
+          <td style={cell}>
+            <input type="checkbox" checked={selected} onChange={onToggleSelect} title="Select for bulk delete" />
+          </td>
+        )}
         <td style={cell}>
           <button onClick={onToggle} style={{ ...smallButton(t), width: 22 }} title="Version history">
             {expanded ? '▾' : '▸'}
@@ -179,7 +197,7 @@ function LinkedRow({ row, t, expanded, versions, busy, isAdmin, onToggle, onPrev
       </tr>
       {expanded && (
         <tr style={{ borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
-          <td colSpan={10} style={{ padding: '8px 14px' }}>
+          <td colSpan={isAdmin ? 11 : 10} style={{ padding: '8px 14px' }}>
             {versions === undefined ? (
               <div style={{ fontSize: 11, color: t.textFaint }}>Loading history…</div>
             ) : (
@@ -278,6 +296,8 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmClearAll, setConfirmClearAll] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
 
   // Applying a fetched result is one function, used by the mount effect and by
   // every action that changes something. The error is cleared on actual success
@@ -287,6 +307,7 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
     setData(lib)
     setUnused(un)
     setVersions({})            // stale after any change
+    setSelected(new Set())     // a deleted/renamed segment can't stay selected
     setError(null)
   }, [])
 
@@ -348,11 +369,28 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
     await act(() => api.clearKmlUnusedFiles())
   }
 
+  function toggleSelect(segmentId: string) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(segmentId)) next.delete(segmentId); else next.add(segmentId)
+      return next
+    })
+  }
+
+  async function deleteSelected() {
+    setConfirmBulkDelete(false)
+    await act(() => api.deleteSegmentsKml([...selected]))
+  }
+
   const q = filter.trim().toLowerCase()
   const match = (a: string, b: string, c: string) =>
     !q || a.toLowerCase().includes(q) || b.toLowerCase().includes(q) || c.toLowerCase().includes(q)
 
   const linked = (data?.linked ?? []).filter(r => match(r.segment_id, r.name, r.system_id))
+  const allVisibleSelected = linked.length > 0 && linked.every(r => selected.has(r.segment_id))
+  function toggleSelectAllVisible() {
+    setSelected(allVisibleSelected ? new Set() : new Set(linked.map(r => r.segment_id)))
+  }
   const gaps = (data?.gaps ?? []).filter(r => match(r.segment_id, r.name, r.system_id))
   const s = data?.summary
 
@@ -397,6 +435,11 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
           <button onClick={() => setTab('orphans')} style={tabButton(tab === 'orphans', t)}>Orphans {s ? `(${s.orphans})` : ''}</button>
           <button onClick={() => setTab('unused')} style={tabButton(tab === 'unused', t)}>Unused files {unused ? `(${unused.count})` : ''}</button>
           <div style={{ flex: 1 }} />
+          {tab === 'linked' && isAdmin && selected.size > 0 && (
+            <button onClick={() => setConfirmBulkDelete(true)} disabled={busy} style={smallButton(t, 'danger')}>
+              Delete {selected.size} selected
+            </button>
+          )}
           {(tab === 'linked' || tab === 'gaps') && (
             <input
               value={filter}
@@ -419,6 +462,11 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
+                  {isAdmin && (
+                    <th style={{ ...headCell(t), width: 22 }}>
+                      <input type="checkbox" checked={allVisibleSelected} onChange={toggleSelectAllVisible} title="Select all" />
+                    </th>
+                  )}
                   <th style={{ ...headCell(t), width: 34 }} />
                   <th style={headCell(t)}>Segment</th>
                   <th style={headCell(t)}>System</th>
@@ -440,7 +488,9 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
                     versions={versions[row.segment_id]}
                     busy={busy}
                     isAdmin={isAdmin}
+                    selected={selected.has(row.segment_id)}
                     onToggle={() => void toggle(row.segment_id)}
+                    onToggleSelect={() => toggleSelect(row.segment_id)}
                     onPreview={() => void preview(row.segment_id)}
                     onActivate={id => void act(() => api.activateKml(id))}
                     onDelete={id => void act(() => api.deleteKml(id))}
@@ -526,6 +576,23 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
               danger
               onConfirm={() => void clearAllUnused()}
               onCancel={() => setConfirmClearAll(false)}
+            />
+          )}
+
+          {confirmBulkDelete && (
+            <ConfirmDialog
+              title={`Delete all KML for ${selected.size} segment${selected.size === 1 ? '' : 's'}?`}
+              body={
+                <>
+                  This permanently removes EVERY version, not just the active one, for:{' '}
+                  <strong style={{ color: t.text }}>{listSelected(selected)}</strong>.
+                  {' '}Each reverts to being drawn from its waypoints (or a straight line) until re-imported.
+                </>
+              }
+              confirmLabel="Delete all"
+              danger
+              onConfirm={() => void deleteSelected()}
+              onCancel={() => setConfirmBulkDelete(false)}
             />
           )}
         </div>

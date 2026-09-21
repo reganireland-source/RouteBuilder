@@ -142,6 +142,25 @@ async function delJson<T>(path: string): Promise<T> {
   return res.json()
 }
 
+/**
+ * DELETE that sends a JSON body and parses a JSON response — for the rare
+ * bulk-delete endpoint where the thing to remove is a list, not one id in
+ * the URL (e.g. deleting several segments' KML at once). Same shape as
+ * post(), just with the DELETE method.
+ */
+async function delJsonWithBody<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: 'DELETE', headers: { 'Content-Type': 'application/json', ...adminHeaders() }, body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    let detail = ''
+    try { detail = (await res.json()).detail ?? '' } catch { /* ignore */ }
+    const suffix = detail ? `: ${detail}` : ''
+    throw new Error(`DELETE ${path} failed: ${res.status}${suffix}`)
+  }
+  return res.json()
+}
+
 /** POST a prepared FormData. Like uploadFile but for requests carrying extra
  *  fields alongside the file (KML upload sends segment_id and placemark too). */
 async function uploadForm<T>(path: string, form: FormData): Promise<T> {
@@ -402,6 +421,12 @@ export const api = {
     post<KmlChopCommitResponse>('/api/kml/commit-chop', { file_ids: fileIds, source, cuts }),
   activateKml:    (linkId: string) => post<{ segment_id: string }>(`/api/kml/activate/${enc(linkId)}`, {}),
   deleteKml:      (linkId: string) => del(`/api/kml/link/${enc(linkId)}`),
+  /** Remove EVERY version for each of several segments in one call — a
+   *  segment with no KML on file is simply a no-op, not an error. */
+  deleteSegmentsKml: (segmentIds: string[]) =>
+    delJsonWithBody<{ removed: Record<string, number>; segments_cleared: number; versions_deleted: number }>(
+      '/api/kml/segments', { segment_ids: segmentIds },
+    ),
   kmlDownloadUrl: (linkId: string) => `${BASE_URL}/api/kml/download/${enc(linkId)}`,
   createSolutionNote:   (data: SolutionNote)                                 => post<SolutionNote>('/api/solution-notes', data),
   updateSolutionNote:   (id: string, data: Partial<SolutionNote>)            => put<SolutionNote>(`/api/solution-notes/${enc(id)}`, data),

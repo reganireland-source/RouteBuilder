@@ -31,6 +31,7 @@ Endpoints:
   POST   /api/kml/commit-chop              attach the human-chopped stretches
   POST   /api/kml/activate/{link_id}       roll back to a stored version
   DELETE /api/kml/link/{link_id}           remove one version
+  DELETE /api/kml/segments                 remove EVERY version for each of several segments
   GET    /api/kml/download/{link_id}       the original file, byte for byte
   GET    /api/kml/unused-files             blobs no version points at
   DELETE /api/kml/unused-files/{file_id}   remove one unreferenced blob
@@ -333,6 +334,36 @@ def delete_version(link_id: str):
     if segment_id is None:
         raise HTTPException(status_code=404, detail="No such KML version")
     return {"segment_id": segment_id, "deleted": link_id}
+
+
+@router.delete("/segments")
+def delete_segments_kml(payload: dict):
+    """
+    DELETE /api/kml/segments — remove EVERY version for each given segment in
+    one call: "delete this KML entirely" for a batch of segments, as opposed
+    to delete_link()'s one-version-at-a-time undo. The segments themselves
+    are untouched — only their geometry — so each one reverts to drawing
+    from its waypoints (or a straight line) and reappears in the Library's
+    Gaps tab, exactly as if it had never been surveyed.
+
+    Body: {"segment_ids": [...]}. An id with no KML on file is simply a
+    no-op (0 removed), not an error — the caller does not have to check the
+    Library first to know which of its selection actually have anything.
+
+    Auth: admin.
+    """
+    segment_ids = payload.get("segment_ids") or []
+    if not isinstance(segment_ids, list) or not segment_ids:
+        raise HTTPException(status_code=422, detail="'segment_ids' must be a non-empty list")
+
+    removed: dict[str, int] = {}
+    for segment_id in segment_ids:
+        removed[segment_id] = store.delete_all_for_segment(segment_id)
+
+    versions_deleted = sum(removed.values())
+    segments_cleared = sum(1 for n in removed.values() if n > 0)
+    log.info("KML bulk segment delete: %d segments, %d versions", segments_cleared, versions_deleted)
+    return {"removed": removed, "segments_cleared": segments_cleared, "versions_deleted": versions_deleted}
 
 
 @router.get("/download/{link_id}")
