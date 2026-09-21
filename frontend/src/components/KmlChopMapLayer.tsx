@@ -43,11 +43,12 @@ export interface KmlChopMapLayerProps {
    *  (never includes a chain's own 0 or point_count-1 — those boundaries are
    *  implicit, not user-placed cuts). */
   cutsByChain: Record<number, number[]>
-  /** The colour to draw the stretch starting at `stretchStartIdx` within
-   *  `chainIndex` — grey-dashed for an unassigned stretch, a declared
-   *  segment's own colour otherwise. Computed by the caller from its
-   *  assignment state. */
-  colorForStretch: (chainIndex: number, stretchStartIdx: number) => string
+  /** The colour to draw the stretch at position `indexInChain` (0-based,
+   *  in on-chain order) within `chainIndex` — an identity colour assigned
+   *  the moment the stretch exists, before any segment matching, never one
+   *  that reshuffles all of a chain's other stretches when this one is
+   *  added or removed. */
+  colorForStretch: (chainIndex: number, indexInChain: number) => string
   onAddCut: (chainIndex: number, vertexIndex: number) => void
   onMoveCut: (chainIndex: number, oldIndex: number, newIndex: number) => void
   onRemoveCut: (chainIndex: number, index: number) => void
@@ -192,7 +193,7 @@ export function KmlChopMapLayer({ chains, cutsByChain, colorForStretch, onAddCut
                   positions={positions.slice(start, end + 1)}
                   interactive={false}
                   pathOptions={{
-                    color: colorForStretch(chain.index, start), weight: 4, opacity: 0.9,
+                    color: colorForStretch(chain.index, i), weight: 4, opacity: 0.9,
                     lineCap: 'round', lineJoin: 'round',
                     pane: PANE_NAME, renderer: L.svg({ pane: PANE_NAME }),
                   }}

@@ -106,19 +106,25 @@ export function dedupeById<T extends { id: string }>(items: T[]): T[] {
   return out
 }
 
-/** A stable colour per stretch IDENTITY (never per assignment), so chains
- *  and stretches are visually distinguishable on the map and in the table
- *  the moment they exist — before any matching has happened, not after.
- *  A hash rather than a positional index: a positional palette would
- *  reshuffle every stretch's colour whenever an earlier cut is added or
- *  removed, which is far more disorienting than two stretches occasionally
- *  sharing one of the six hues. */
+/** A colour per stretch, so chains and stretches are visually
+ *  distinguishable on the map and in the table the moment they exist —
+ *  before any matching has happened, not after (never per assignment).
+ *
+ *  Indexed by POSITION WITHIN THE CHAIN's current stretch list, not a hash
+ *  of identity: an earlier version hashed (chainIndex, start) so a
+ *  stretch's colour stayed fixed as cuts elsewhere came and went, but
+ *  measured against a real chopped-up chain that hash collided constantly
+ *  — a 6-hue palette and the birthday paradox mean even 4-5 stretches in
+ *  ONE chain frequently produced two indistinguishable pairs, which is a
+ *  worse problem than the one the hash was solving. A stretch's colour can
+ *  now shift when an earlier cut in the SAME chain is added or removed —
+ *  the trade the reviewer actually wants, since it is happening while they
+ *  watch and "fresh colours after a chop" is the whole point — but two
+ *  stretches in one chain are never the same colour unless that chain has
+ *  more stretches than the palette has hues. */
 const IDENTITY_COLORS = ['#f472b6', '#facc15', '#4ade80', '#22d3ee', '#c084fc', '#fb923c']
-export function colorForStretch(chainIndex: number, start: number): string {
-  const key = stretchKey(chainIndex, start)
-  let h = 0
-  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0
-  return IDENTITY_COLORS[h % IDENTITY_COLORS.length]
+export function colorForStretch(chainIndex: number, indexInChain: number): string {
+  return IDENTITY_COLORS[(chainIndex + indexInChain) % IDENTITY_COLORS.length]
 }
 
 /** The cut boundaries and assignments a fresh flatten (or a from-scratch

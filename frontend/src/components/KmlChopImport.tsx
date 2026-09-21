@@ -424,7 +424,7 @@ export function KmlChopTablePanel({ state }: { state: KmlChopState }) {
                 <StretchRow
                   key={key}
                   chain={chain} start={stretch.start} end={stretch.end}
-                  color={colorForStretch(chain.index, stretch.start)}
+                  color={colorForStretch(chain.index, i)}
                   assignedIds={assignedIds} options={options} multiStretch={s.multiStretch}
                   creating={s.creatingKey === key}
                   onAdd={id => s.addAssignment(chain.index, stretch.start, id)}
