@@ -737,7 +737,8 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         const start = nodesById[seg.start_node_id]
         const end = nodesById[seg.end_node_id]
         if (!start || !end) return []
-        const lines = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined)
+        const kml = kmlMode ? kmlPaths[seg.id] : undefined
+        const lines = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined, kml?.display_path)
         return lines.map((positions, i) => (
           <Polyline
             key={`route-glow-${seg.id}-${i}`}

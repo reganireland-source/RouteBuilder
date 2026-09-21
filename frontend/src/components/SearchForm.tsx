@@ -44,6 +44,10 @@ interface Props {
   prefilledOrigin?: string
   prefilledDest?: string
   prefill?: Partial<RouteRequest>
+  /** Same global KML Mode the Control menu toggles — not a second, separate
+   *  flag — so switching it here or there stays in sync everywhere it's used. */
+  kmlMode: boolean
+  onToggleKmlMode: () => void
 }
 
 const COUNTRY_NAMES: Record<string, string> = {
@@ -1050,7 +1054,33 @@ function AdvancedConstraintsModal({
  * pushed from map clicks (prefilledOrigin/Dest) and full prefills from the NLP
  * assistant (prefill).
  */
-export function SearchForm({ nodes, segments, systems = [], onSearch, loading, prefilledOrigin = '', prefilledDest = '', prefill }: Props) {
+/** The Route Builder panel's own switch for the same global KML Mode the
+ *  Control menu toggles (kept out of SearchForm's own body since that
+ *  function is already over the cognitive-complexity budget). */
+function KmlModeToggle({ kmlMode, onToggle }: { kmlMode: boolean; onToggle: () => void }) {
+  const t = useTheme()
+  const title = kmlMode
+    ? 'KML Mode is on — routes trace real surveyed KMZ geometry where a segment has it, straight lines elsewhere. Click to turn off.'
+    : 'KML Mode is off — routes are drawn as straight lines/waypoints only. Click to use surveyed KMZ geometry where available.'
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onToggle}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        alignSelf: 'flex-start',
+        padding: '4px 10px', borderRadius: 12,
+        border: `1px solid ${kmlMode ? t.blue : t.border}`,
+        background: kmlMode ? t.blue + '18' : t.bgDeep,
+        color: kmlMode ? t.blue : t.textMuted,
+        cursor: 'pointer', fontSize: 11, fontWeight: 600,
+      }}
+    >🛰 KML Mode {kmlMode ? 'ON' : 'OFF'}</button>
+  )
+}
+
+export function SearchForm({ nodes, segments, systems = [], onSearch, loading, prefilledOrigin = '', prefilledDest = '', prefill, kmlMode, onToggleKmlMode }: Props) {
   const t = useTheme()
   const [startNode, setStartNode] = useState(prefilledOrigin)
   const [endNode, setEndNode] = useState(prefilledDest)
@@ -1185,6 +1215,8 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <KmlModeToggle kmlMode={kmlMode} onToggle={onToggleKmlMode} />
+
       <div style={{ position: 'relative' }}>
         <label style={labelStyle}>Origin</label>
         <NodeCombobox nodes={nodes} value={startNode} onChange={setStartNode} placeholder="Search city, code, country, owner…" />

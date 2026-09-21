@@ -978,6 +978,7 @@ export function MobileLayout({
                 onSearch={onSearch} loading={loading}
                 prefilledOrigin={prefilledOrigin} prefilledDest={prefilledDest}
                 prefill={searchPrefill}
+                kmlMode={kmlMode} onToggleKmlMode={onToggleKmlMode}
               />
 
               {error && (
