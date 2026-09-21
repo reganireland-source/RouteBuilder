@@ -61,6 +61,17 @@ export function getOktaAuth(): OktaAuth {
     redirectUri: `${window.location.origin}/callback`,
     scopes: ['openid', 'profile', 'email'],
     pkce: true,
+    // Tokens in sessionStorage only, not the SDK's own default preference
+    // order (localStorage first). Both are equally readable by any script
+    // running on the page — this is not an XSS defence — but sessionStorage
+    // clears when the tab closes instead of persisting indefinitely, which
+    // shrinks how long a token would remain usable if it WAS ever
+    // exfiltrated, and matches this being an internal tool where "sign in
+    // again in a new tab" costs nothing. A true XSS-proof story (tokens
+    // never reachable from JS at all) needs httpOnly cookies from a
+    // same-origin backend-for-frontend, which is a bigger architectural
+    // change than this app's separate SPA + API split supports today.
+    storageManager: { token: { storageTypes: ['sessionStorage'] } },
   })
   return _oktaAuth
 }

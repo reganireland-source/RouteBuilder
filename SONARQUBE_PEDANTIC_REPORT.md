@@ -374,5 +374,9 @@ docker run --rm --network host \
 
 - `SECURITY_REVIEW.md` — separate security review (dependency CVEs, auth model,
   injection surface, accepted risks incl. the client-side password gate).
+- `docs/okta-security-scan.md` — the same style of pedantic scan, scoped to
+  the Okta SSO feature added after this repo-wide scan was last run, using
+  substitute tooling (this sandbox's Docker daemon could not run the setup
+  in §7) — includes a real dependency CVE finding and fix (PyJWT).
 - `sonar-reports/` — raw API exports: `facets.json`, `defects.json`,
   `blockers.json`, `criticals.json`, `measures.json`, `profiles.json`.

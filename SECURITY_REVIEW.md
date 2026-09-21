@@ -138,3 +138,10 @@ infrastructure-level control that the hosting environment should provide.
 - `bandit -r backend/app` → 0 medium/high severity findings
 - `pytest backend/tests` → 29 passed
 - Live checks against the hardened app: unauthenticated `POST /api/nodes` → **403**; wrong token → **403**; valid token → **200**; 300-char feature-request title → **422**; response carries `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`.
+
+**Okta SSO feature (added later):** `docs/okta-security-scan.md` re-ran this
+same evidence set (`pip-audit`, `bandit`, plus `ruff`/`mypy`/`eslint-plugin-sonarjs`
+and a manual OIDC-specific review) against just the new auth code —
+385 backend tests passing, zero vulnerabilities after bumping `PyJWT` off a
+version with six disclosed CVEs (found and fixed as part of that scan, not
+left outstanding).
