@@ -10,18 +10,22 @@
  *    verbatim, not reimplemented) — picking a result zooms/selects it via
  *    whatever onAssetSelect the host passes (App.tsx's handleAssetSelect),
  *    exactly like the left-panel search does. It is deliberately independent
- *    of the badges below: typing a name finds one specific thing regardless
- *    of what's filtered, the badges dim/highlight the whole map.
+ *    of the filters below: typing a name finds one specific thing regardless
+ *    of what's filtered, the filters dim/highlight the whole map.
  *
- * 2. A faceted set of clickable badges across every asset field worth
- *    slicing the network by — see utils/assetFilters.ts for the actual
- *    matching logic (kept there, pure, so it's independently testable and
- *    Map.tsx could theoretically reuse it without this UI). Categories AND
- *    together, badges within one category OR together, an empty category
- *    imposes no constraint. The result is reported upward as an
- *    AssetFilterMatch (two id sets + an `active` flag) via onFilterChange;
- *    this component does not touch the map itself — Map.tsx dims whatever
- *    isn't in those sets, the same way it already dims for Country Viewer.
+ * 2. A faceted set of filters across every asset field worth slicing the
+ *    network by — see utils/assetFilters.ts for the actual matching logic
+ *    (kept there, pure, so it's independently testable and Map.tsx could
+ *    theoretically reuse it without this UI). Each category is its OWN
+ *    collapsed dropdown (a button that opens a small checklist), not a wall
+ *    of always-visible badges — a category with 70 countries in it would
+ *    otherwise dominate the whole panel. Only one category dropdown is open
+ *    at a time. Categories AND together, choices within one category OR
+ *    together, an empty category imposes no constraint. The result is
+ *    reported upward as an AssetFilterMatch (two id sets + an `active` flag)
+ *    via onFilterChange; this component does not touch the map itself —
+ *    Map.tsx dims whatever isn't in those sets, the same way it already dims
+ *    for Country Viewer.
  *
  * Selections persist to localStorage (rb.assetFilter), matching every other
  * map toggle in this app. Mounted once per render (App.tsx's desktop layout
@@ -39,22 +43,30 @@ import {
 } from '../utils/assetFilters'
 import { NODE_TYPE_LABEL } from '../mapGeometry'
 import { useTheme } from '../theme'
-import type { Theme } from '../theme'
 import { AssetSearch } from './AssetSearch'
 
 const STORAGE_KEY = 'rb.assetFilter'
 
+const KIND_OPTS: AssetKindFilter[] = ['node', 'segment']
+const KIND_LABEL: Record<AssetKindFilter, string> = { node: 'PoPs', segment: 'Segments' }
+
+const ON_NET_OPTS: OnNet[] = ['on_net', 'off_net']
+const ON_NET_LABEL: Record<OnNet, string> = { on_net: 'On-Net', off_net: 'Off-Net' }
+
 const NODE_TYPE_OPTS: NodeType[] = [
   'landing_station', 'primary_pop', 'secondary_pop', 'extension_pop', 'branching_unit', 'off_net',
 ]
-const OWNERSHIP_OPTS: [Ownership, string][] = [
-  ['owned', 'Owned'],
-  ['consortium', 'Consortium'],
-  ['iru', 'IRU'],
-  ['integrated_lit_lease', 'Integrated Lit Lease'],
-  ['offnet_resell', 'Offnet Resell'],
-]
-/** Preset thresholds for the "available capacity below X%" badge — a slider
+
+const OWNERSHIP_OPTS: Ownership[] = ['owned', 'consortium', 'iru', 'integrated_lit_lease', 'offnet_resell']
+const OWNERSHIP_LABEL: Record<Ownership, string> = {
+  owned: 'Owned',
+  consortium: 'Consortium',
+  iru: 'IRU',
+  integrated_lit_lease: 'Integrated Lit Lease',
+  offnet_resell: 'Offnet Resell',
+}
+
+/** Preset thresholds for the "available capacity below X%" filter — a slider
  *  would invite a value with no round-number meaning to anyone reading the
  *  map over your shoulder; these four cover the range planners actually ask. */
 const CAPACITY_PRESETS = [10, 20, 30, 50]
@@ -80,6 +92,9 @@ const COUNTRY_NAMES: Record<string, string> = {
   TZ: 'Tanzania', UA: 'Ukraine', US: 'United States', VN: 'Vietnam',
   VU: 'Vanuatu', YE: 'Yemen', ZA: 'South Africa',
 }
+
+/** Which category dropdown (if any) is currently open. Only one at a time. */
+type Category = 'kinds' | 'onNet' | 'nodeTypes' | 'ownerships' | 'facilityOwners' | 'countries'
 
 interface StoredSelection {
   kinds: AssetKindFilter[]
@@ -130,38 +145,86 @@ function toggleInSet<V>(set: Set<V>, value: V): Set<V> {
   return next
 }
 
-function Badge({ label, active, color, onClick }: {
-  label: string; active: boolean; color: string; onClick: () => void
+/**
+ * One filter category, collapsed to a button ("PoP Type (2) ▾") that opens a
+ * small checklist. This is the whole point of this rewrite: a category with
+ * dozens of options (Country, Facility Owner) never sits permanently on
+ * screen — only the categories the user actually opens do, one at a time.
+ */
+function FilterDropdown<V extends string>({ label, options, optionLabel, selected, onToggle, isOpen, onOpenChange, searchable = false }: {
+  label: string
+  options: V[]
+  optionLabel: (v: V) => string
+  selected: Set<V>
+  onToggle: (v: V) => void
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+  searchable?: boolean
 }) {
   const t = useTheme()
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 12,
-        border: `1px solid ${active ? color : t.border}`,
-        background: active ? color + '22' : 'transparent',
-        color: active ? color : t.textMuted,
-        cursor: 'pointer', whiteSpace: 'nowrap',
-      }}
-    >{label}</button>
-  )
-}
+  const [query, setQuery] = useState('')
+  const count = selected.size
+  const shown = searchable && query.trim()
+    ? options.filter(o => optionLabel(o).toLowerCase().includes(query.trim().toLowerCase()))
+    : options
 
-function FilterGroup({ t, label, scroll = false, children }: {
-  t: Theme; label: string; scroll?: boolean; children: React.ReactNode
-}) {
   return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{
-        fontSize: 10, fontWeight: 700, color: t.textFaint,
-        textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5,
-      }}>{label}</div>
-      <div style={{
-        display: 'flex', flexWrap: 'wrap', gap: 5,
-        ...(scroll ? { maxHeight: 140, overflowY: 'auto' as const, paddingRight: 2 } : {}),
-      }}>{children}</div>
+    <div style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => onOpenChange(!isOpen)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 5,
+          padding: '5px 9px', borderRadius: 6,
+          border: `1px solid ${count > 0 || isOpen ? t.blue : t.border}`,
+          background: count > 0 ? t.blue + '18' : t.bgDeep,
+          color: count > 0 || isOpen ? t.blue : t.textMuted,
+          cursor: 'pointer', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+        }}
+      >
+        {label}{count > 0 ? ` (${count})` : ''}
+        <span style={{ fontSize: 9, lineHeight: 1 }}>▾</span>
+      </button>
+
+      {isOpen && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 20,
+          minWidth: 190, maxHeight: 260, overflowY: 'auto',
+          background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 8,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)', padding: 6,
+        }}>
+          {searchable && (
+            // Opened deliberately by a click, so autofocus here isn't a
+            // surprise page-load steal — typing to narrow the list is the point.
+            <input
+              autoFocus
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Filter…"
+              style={{
+                width: '100%', boxSizing: 'border-box', marginBottom: 6,
+                padding: '4px 7px', borderRadius: 4, fontSize: 12,
+                border: `1px solid ${t.border}`, background: t.bgInput, color: t.text,
+              }}
+            />
+          )}
+          {shown.length === 0 && (
+            <div style={{ fontSize: 11, color: t.textFaint, padding: '4px 6px' }}>No matches</div>
+          )}
+          {shown.map(v => (
+            <label
+              key={v}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7, padding: '4px 6px',
+                borderRadius: 4, cursor: 'pointer', fontSize: 12, color: t.text,
+              }}
+            >
+              <input type="checkbox" checked={selected.has(v)} onChange={() => onToggle(v)} />
+              {optionLabel(v)}
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -184,16 +247,19 @@ interface Props {
 export function AssetFilterBar({ nodes, segments, systems, capacity, onNetOwnership, onAssetSelect, onFilterChange }: Props) {
   const t = useTheme()
   const [open, setOpen] = useState(false)
+  const [openCategory, setOpenCategory] = useState<Category | null>(null)
   const [sel, setSel] = useState<AssetFilterSelection>(loadSelection)
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { saveSelection(sel) }, [sel])
 
-  // Click-outside closes, matching AssetSearch/Controls menu convention.
+  // Click-outside closes the whole panel (and whatever category was open in
+  // it), matching AssetSearch/Controls menu convention.
   useEffect(() => {
     function onDown(e: MouseEvent) {
       if (containerRef.current?.contains(e.target as Node)) return
       setOpen(false)
+      setOpenCategory(null)
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
@@ -226,14 +292,15 @@ export function AssetFilterBar({ nodes, segments, systems, capacity, onNetOwners
   function toggleOwnership(v: Ownership)    { setSel(s => ({ ...s, ownerships: toggleInSet(s.ownerships, v) })) }
   function toggleFacilityOwner(v: string)   { setSel(s => ({ ...s, facilityOwners: toggleInSet(s.facilityOwners, v) })) }
   function toggleCountry(v: string)         { setSel(s => ({ ...s, countries: toggleInSet(s.countries, v) })) }
-  function toggleCapacity(v: number)        { setSel(s => ({ ...s, capacityBelowPct: s.capacityBelowPct === v ? null : v })) }
-  function clearAll()                       { setSel(emptyAssetFilterSelection()) }
+  function clearAll()                       { setSel(emptyAssetFilterSelection()); setOpenCategory(null) }
+
+  function openOnly(cat: Category, isOpen: boolean) { setOpenCategory(isOpen ? cat : null) }
 
   return (
     <div ref={containerRef} style={{ position: 'absolute', top: 12, left: 64, zIndex: 1090 }}>
       <button
         type="button"
-        onClick={() => setOpen(o => !o)}
+        onClick={() => { setOpen(o => !o); setOpenCategory(null) }}
         style={{
           display: 'flex', alignItems: 'center', gap: 7,
           padding: '7px 14px', borderRadius: 10,
@@ -256,7 +323,7 @@ export function AssetFilterBar({ nodes, segments, systems, capacity, onNetOwners
 
       {open && (
         <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', left: 0, width: 320, maxHeight: '75vh', overflowY: 'auto',
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0, width: 360,
           background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 10,
           boxShadow: '0 12px 36px rgba(0,0,0,0.45)', padding: 12,
         }}>
@@ -264,56 +331,68 @@ export function AssetFilterBar({ nodes, segments, systems, capacity, onNetOwners
             <AssetSearch nodes={nodes} segments={segments} systems={systems} onSelect={hit => { onAssetSelect(hit); setOpen(false) }} />
           </div>
 
-          <FilterGroup t={t} label="Show">
-            <Badge label="PoPs" active={sel.kinds.has('node')} color={t.blue} onClick={() => toggleKind('node')} />
-            <Badge label="Segments" active={sel.kinds.has('segment')} color={t.blue} onClick={() => toggleKind('segment')} />
-          </FilterGroup>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <FilterDropdown
+              label="Show" options={KIND_OPTS} optionLabel={v => KIND_LABEL[v]}
+              selected={sel.kinds} onToggle={toggleKind}
+              isOpen={openCategory === 'kinds'} onOpenChange={o => openOnly('kinds', o)}
+            />
+            <FilterDropdown
+              label="On-Net" options={ON_NET_OPTS} optionLabel={v => ON_NET_LABEL[v]}
+              selected={sel.onNet} onToggle={toggleOnNet}
+              isOpen={openCategory === 'onNet'} onOpenChange={o => openOnly('onNet', o)}
+            />
+            <FilterDropdown
+              label="PoP Type" options={NODE_TYPE_OPTS} optionLabel={v => NODE_TYPE_LABEL[v] ?? v}
+              selected={sel.nodeTypes} onToggle={toggleNodeType}
+              isOpen={openCategory === 'nodeTypes'} onOpenChange={o => openOnly('nodeTypes', o)}
+            />
+            <FilterDropdown
+              label="Ownership" options={OWNERSHIP_OPTS} optionLabel={v => OWNERSHIP_LABEL[v]}
+              selected={sel.ownerships} onToggle={toggleOwnership}
+              isOpen={openCategory === 'ownerships'} onOpenChange={o => openOnly('ownerships', o)}
+            />
+            {facilityOwners.length > 0 && (
+              <FilterDropdown
+                label="Facility Owner" options={facilityOwners} optionLabel={v => v} searchable
+                selected={sel.facilityOwners} onToggle={toggleFacilityOwner}
+                isOpen={openCategory === 'facilityOwners'} onOpenChange={o => openOnly('facilityOwners', o)}
+              />
+            )}
+            {countries.length > 0 && (
+              <FilterDropdown
+                label="Country" options={countries} optionLabel={v => COUNTRY_NAMES[v] ?? v} searchable
+                selected={sel.countries} onToggle={toggleCountry}
+                isOpen={openCategory === 'countries'} onOpenChange={o => openOnly('countries', o)}
+              />
+            )}
 
-          <FilterGroup t={t} label="On-Net / Off-Net">
-            <Badge label="On-Net" active={sel.onNet.has('on_net')} color={t.green} onClick={() => toggleOnNet('on_net')} />
-            <Badge label="Off-Net" active={sel.onNet.has('off_net')} color={t.orange} onClick={() => toggleOnNet('off_net')} />
-          </FilterGroup>
-
-          <FilterGroup t={t} label="PoP Type">
-            {NODE_TYPE_OPTS.map(nt => (
-              <Badge key={nt} label={NODE_TYPE_LABEL[nt] ?? nt} active={sel.nodeTypes.has(nt)} color={t.blue} onClick={() => toggleNodeType(nt)} />
-            ))}
-          </FilterGroup>
-
-          <FilterGroup t={t} label="Ownership">
-            {OWNERSHIP_OPTS.map(([v, label]) => (
-              <Badge key={v} label={label} active={sel.ownerships.has(v)} color={t.pink} onClick={() => toggleOwnership(v)} />
-            ))}
-          </FilterGroup>
-
-          <FilterGroup t={t} label="Capacity">
-            {CAPACITY_PRESETS.map(p => (
-              <Badge key={p} label={`<${p}% free`} active={sel.capacityBelowPct === p} color={t.red} onClick={() => toggleCapacity(p)} />
-            ))}
-          </FilterGroup>
-
-          {facilityOwners.length > 0 && (
-            <FilterGroup t={t} label="Facility Owner" scroll>
-              {facilityOwners.map(o => (
-                <Badge key={o} label={o} active={sel.facilityOwners.has(o)} color={t.blue} onClick={() => toggleFacilityOwner(o)} />
+            {/* Single-value threshold: a literal native <select>, not a
+                checklist — there is only ever one active choice. */}
+            <select
+              value={sel.capacityBelowPct ?? ''}
+              onChange={e => setSel(s => ({ ...s, capacityBelowPct: e.target.value === '' ? null : Number(e.target.value) }))}
+              style={{
+                padding: '5px 8px', borderRadius: 6,
+                border: `1px solid ${sel.capacityBelowPct !== null ? t.blue : t.border}`,
+                background: sel.capacityBelowPct !== null ? t.blue + '18' : t.bgDeep,
+                color: sel.capacityBelowPct !== null ? t.blue : t.textMuted,
+                cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
+              }}
+            >
+              <option value="">Capacity: Any</option>
+              {CAPACITY_PRESETS.map(p => (
+                <option key={p} value={p}>{`< ${p}% free`}</option>
               ))}
-            </FilterGroup>
-          )}
-
-          {countries.length > 0 && (
-            <FilterGroup t={t} label="Country" scroll>
-              {countries.map(c => (
-                <Badge key={c} label={COUNTRY_NAMES[c] ?? c} active={sel.countries.has(c)} color={t.blue} onClick={() => toggleCountry(c)} />
-              ))}
-            </FilterGroup>
-          )}
+            </select>
+          </div>
 
           {activeCount > 0 && (
             <button
               type="button"
               onClick={clearAll}
               style={{
-                marginTop: 2, width: '100%', padding: '7px', borderRadius: 6,
+                marginTop: 10, width: '100%', padding: '7px', borderRadius: 6,
                 border: `1px solid ${t.border}`, background: 'transparent',
                 color: t.textMuted, fontSize: 11, fontWeight: 700, cursor: 'pointer',
               }}
