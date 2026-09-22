@@ -240,6 +240,72 @@ function FilterDropdown<V extends string>({ label, hint, options, optionLabel, s
   )
 }
 
+/** The trigger button, split out from AssetFilterBar itself so the compact/
+ *  full-size branching lives in its own small function rather than adding to
+ *  AssetFilterBar's already-substantial cognitive complexity. */
+function FilterTrigger({ compact, open, activeCount, onClick }: {
+  compact: boolean
+  open: boolean
+  activeCount: number
+  onClick: () => void
+}) {
+  const t = useTheme()
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label="Asset filter"
+        className="rb-btn-motion"
+        style={{
+          position: 'relative', width: 30, height: 30, borderRadius: 4,
+          border: `1px solid ${open || activeCount > 0 ? t.blue : t.border}`,
+          background: activeCount > 0 ? t.blue + '18' : t.bgInput,
+          color: open || activeCount > 0 ? t.blue : t.textMuted,
+          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        <svg width={14} height={14} viewBox="0 0 14 14" fill="none">
+          <path d="M1 2h12l-4.5 5.5v3.5l-3 1.5v-5z" stroke="currentColor" strokeWidth={1.3} strokeLinejoin="round" />
+        </svg>
+        {activeCount > 0 && (
+          <span style={{
+            position: 'absolute', top: -5, right: -5,
+            minWidth: 14, height: 14, padding: '0 3px', boxSizing: 'border-box',
+            borderRadius: 7, background: t.blue, color: t.bgDeep,
+            fontSize: 9, fontWeight: 700, lineHeight: '14px', textAlign: 'center',
+          }}>{activeCount}</span>
+        )}
+      </button>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rb-btn-motion"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 7,
+        padding: '7px 14px', borderRadius: 10,
+        border: `1px solid ${open || activeCount > 0 ? t.blue : t.border}`,
+        background: open ? t.blue + '22' : t.bgPanel,
+        color: open || activeCount > 0 ? t.blue : t.textMuted,
+        cursor: 'pointer', fontSize: 12, fontWeight: 700,
+        boxShadow: '0 2px 10px rgba(0,0,0,0.35)',
+      }}
+    >
+      <span style={{ fontSize: 14, lineHeight: 1 }}>▾</span>
+      Asset Filter
+      {activeCount > 0 && (
+        <span style={{
+          fontSize: 10, fontWeight: 700, lineHeight: 1,
+          background: t.blue + '33', color: t.blue, borderRadius: 10, padding: '2px 6px',
+        }}>{activeCount}</span>
+      )}
+    </button>
+  )
+}
+
 interface Props {
   nodes: CableNode[]
   segments: CableSegment[]
@@ -253,9 +319,17 @@ interface Props {
   /** Fired whenever the computed match changes (selection edit, or the
    *  underlying nodes/segments/capacity data itself changing). */
   onFilterChange: (match: AssetFilterMatch) => void
+  /** Phone header mode, matching AssetSearch/ServiceDateSelector's own
+   *  `compact` convention: collapses the trigger to a 30x30 icon (with a
+   *  small badge instead of an inline count) and clamps the opened panel's
+   *  width to the viewport instead of a fixed 360px. Anchoring stays
+   *  left-aligned to the trigger either way — MobileLayout docks the compact
+   *  trigger near the phone's left edge, where a left-anchored panel has
+   *  room to open rightward. */
+  compact?: boolean
 }
 
-export function AssetFilterBar({ nodes, segments, systems, capacity, onNetOwnership, onAssetSelect, onFilterChange }: Props) {
+export function AssetFilterBar({ nodes, segments, systems, capacity, onNetOwnership, onAssetSelect, onFilterChange, compact = false }: Props) {
   const t = useTheme()
   const [open, setOpen] = useState(false)
   const [openCategory, setOpenCategory] = useState<Category | null>(null)
@@ -308,36 +382,20 @@ export function AssetFilterBar({ nodes, segments, systems, capacity, onNetOwners
   function openOnly(cat: Category, isOpen: boolean) { setOpenCategory(isOpen ? cat : null) }
 
   return (
-    <div ref={containerRef} style={{ position: 'absolute', top: 12, left: 64, zIndex: 1090 }}>
+    <div ref={containerRef} style={{ position: 'relative' }}>
       <Tooltip label="Dim assets that don't match your filters below — the search box zooms to one specific asset instead, independent of them">
-        <button
-          type="button"
+        <FilterTrigger
+          compact={compact}
+          open={open}
+          activeCount={activeCount}
           onClick={() => { setOpen(o => !o); setOpenCategory(null) }}
-          className="rb-btn-motion"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 7,
-            padding: '7px 14px', borderRadius: 10,
-            border: `1px solid ${open || activeCount > 0 ? t.blue : t.border}`,
-            background: open ? t.blue + '22' : t.bgPanel,
-            color: open || activeCount > 0 ? t.blue : t.textMuted,
-            cursor: 'pointer', fontSize: 12, fontWeight: 700,
-            boxShadow: '0 2px 10px rgba(0,0,0,0.35)',
-          }}
-        >
-          <span style={{ fontSize: 14, lineHeight: 1 }}>▾</span>
-          Asset Filter
-          {activeCount > 0 && (
-            <span style={{
-              fontSize: 10, fontWeight: 700, lineHeight: 1,
-              background: t.blue + '33', color: t.blue, borderRadius: 10, padding: '2px 6px',
-            }}>{activeCount}</span>
-          )}
-        </button>
+        />
       </Tooltip>
 
       {open && (
         <div className="rb-anim-dropdown" style={{
-          position: 'absolute', top: 'calc(100% + 6px)', left: 0, width: 360,
+          position: 'absolute', top: 'calc(100% + 6px)', left: 0,
+          width: compact ? 'min(88vw, 360px)' : 360,
           background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 10,
           boxShadow: '0 12px 36px rgba(0,0,0,0.45)', padding: 12,
         }}>

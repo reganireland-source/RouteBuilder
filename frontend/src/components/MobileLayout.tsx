@@ -811,12 +811,18 @@ export function MobileLayout({
         </div>
       )}
 
-      {/* ── Asset Filter — same bar as desktop, tucked under the header row
-             since the top bar itself has no room left (branding, search,
-             service date and Controls already fill it edge to edge). ── */}
+      {/* ── Asset Filter — collapsed to an icon (matching AssetSearch's own
+             compact convention) and docked below Leaflet's zoom control,
+             its own row: the header (branding, search, service date,
+             Controls) already fills edge to edge, and the legend row spans
+             almost the full width beside it, so there is no shared row with
+             free space for a fifth element — a row of its own avoids fighting
+             either one for width. Zoom control measures 60-124px tall on a
+             phone viewport; 132 clears it with an 8px gap. ── */}
       {onAssetSelect && onAssetFilterChange && (
-        <div style={{ position: 'absolute', top: 58, left: 14, zIndex: 100 }}>
+        <div style={{ position: 'absolute', top: 132, left: 8, zIndex: 1090 }}>
           <AssetFilterBar
+            compact
             nodes={nodes}
             segments={visibleSegments ?? segments}
             systems={systems}

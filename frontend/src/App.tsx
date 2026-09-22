@@ -2039,16 +2039,21 @@ export default function App() {
           </div>
 
           {/* Asset Filter — every mode, always available, so it sits directly
-              on the map rather than behind a mode-specific panel. */}
-          <AssetFilterBar
-            nodes={nodes}
-            segments={visibleSegments}
-            systems={systems}
-            capacity={capacity}
-            onNetOwnership={config.on_net_ownership}
-            onAssetSelect={handleAssetSelect}
-            onFilterChange={setAssetFilterMatch}
-          />
+              on the map rather than behind a mode-specific panel. AssetFilterBar
+              itself is unpositioned; the host always supplies the one wrapping
+              div that places it, so desktop and mobile can never stack two
+              absolute offsets on top of each other (see MobileLayout.tsx). */}
+          <div style={{ position: 'absolute', top: 12, left: 64, zIndex: 1090 }}>
+            <AssetFilterBar
+              nodes={nodes}
+              segments={visibleSegments}
+              systems={systems}
+              capacity={capacity}
+              onNetOwnership={config.on_net_ownership}
+              onAssetSelect={handleAssetSelect}
+              onFilterChange={setAssetFilterMatch}
+            />
+          </div>
 
           {nodes.length > 0 ? (
             <NetworkMap
