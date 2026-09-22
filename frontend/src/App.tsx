@@ -10,6 +10,7 @@ import { CountryViewer } from './components/CountryViewer'
 import { NetworkEditor } from './components/NetworkEditor'
 import { EditorPendingPanel } from './components/EditorPendingPanel'
 import { editorReducer, initialEditorState, applyPendingChanges, pendingAffectedIds } from './state/editorState'
+import type { EditorState } from './state/editorState'
 import { saveAll } from './state/networkEditorSave'
 import { NodeInfoPanel } from './components/NodeInfoPanel'
 import { SegmentInfoPanel } from './components/SegmentInfoPanel'
@@ -43,7 +44,7 @@ import type { AppConfig, AppMode, AssetFilterMatch, CableNode, CableSegment, Cab
 import type { KmlChopMapLayerProps } from './components/KmlChopMapLayer'
 import { ProjectsModal } from './components/ProjectsModal'
 import { RouteManualLeft, RouteManualMiddle, computeCandidates, assembleRoute } from './components/RouteManual'
-import type { NextHopCandidate } from './components/RouteManual'
+import type { NextHopCandidate, ManualState } from './components/RouteManual'
 import { OutagePanel } from './components/OutagePanel'
 import { CountryNodeDiagram } from './components/CountryNodeDiagram'
 
@@ -381,6 +382,22 @@ function useIsMobile() {
     return () => window.removeEventListener('resize', handler)
   }, [])
   return isMobile
+}
+
+/**
+ * Pushes `desired` into `setValue` whenever `signature` changes, then leaves
+ * `value` alone until the next signature change — so a later manual call to
+ * `setValue` sticks instead of being fought on every render. Adjusts state
+ * directly during render (React's documented pattern for resetting state on
+ * a computed change) rather than in a useEffect, which would cost an extra
+ * cascading render for the same result.
+ */
+function useAutoSync<T>(signature: string, desired: T, value: T, setValue: (v: T) => void) {
+  const [lastSignature, setLastSignature] = useState<string | null>(null)
+  if (signature !== lastSignature) {
+    setLastSignature(signature)
+    if (value !== desired) setValue(desired)
+  }
 }
 
 /** Banner at the top of the middle (routes) panel showing whether we're in
@@ -1273,6 +1290,15 @@ export default function App() {
     }
     return count
   })()
+
+  const middleHasContent = middlePanelHasContent({
+    mode, kmlImportOpen, editorState, manualState, manualResults, hasResults, hasPins, loading,
+  })
+  // Auto-open the middle panel when that content appears, auto-collapse when
+  // it's gone — but only on that transition (content flips, or the mode
+  // itself changes), so a manual ‹/› toggle in between isn't fought on every
+  // render; it sticks until the next real state change.
+  useAutoSync(`${mode}:${middleHasContent}`, middleHasContent, middleOpen, setMiddleOpen)
 
   // ── Mobile layout ────────────────────────────────────────────────────────
   // On narrow screens the entire three-panel desktop UI is replaced by a single
@@ -2676,6 +2702,28 @@ function middlePanelLabel(kmlImportOpen: boolean, mode: AppMode): string {
   if (kmlImportOpen) return 'Chop Import'
   if (mode === 'networkeditor') return 'Network Editor'
   return 'Routes'
+}
+
+/** What the middle panel actually has to show for the given mode right now —
+ *  mirrors the render branches it drives (KmlChopTablePanel / EditorPendingPanel
+ *  / RouteManualMiddle+RouteList / RouteList). A mode's own empty-state message
+ *  ("Configure a route request…", "Pending changes will appear here…") doesn't
+ *  count — that message IS the wasted-space case this flag exists to catch. */
+function middlePanelHasContent(args: {
+  mode: AppMode
+  kmlImportOpen: boolean
+  editorState: EditorState
+  manualState: ManualState | null
+  manualResults: Route[]
+  hasResults: boolean
+  hasPins: boolean
+  loading: boolean
+}): boolean {
+  const { mode, kmlImportOpen, editorState, manualState, manualResults, hasResults, hasPins, loading } = args
+  if (kmlImportOpen) return true
+  if (mode === 'networkeditor') return editorState.pending.length > 0 || Object.keys(editorState.saveProgress).length > 0
+  if (mode === 'routemanual') return manualState !== null || manualResults.length > 0 || hasPins
+  return hasResults || hasPins || loading
 }
 
 /** Shared style for the small "Clear Search / Clear All / SLD" text buttons in
