@@ -13,8 +13,9 @@
  * a short hover-intent delay (350ms) before showing, so it never flickers on
  * a pointer just passing through, and an instant hide on mouseleave, so it's
  * never in the way of the next click. No arrow, no heavy chrome — a small
- * dark pill that fades and rises 2px into place (rb-anim-rise, see
- * index.html's motion-system comment).
+ * dark pill that fades into place (rb-anim-fade, see index.html's
+ * motion-system comment — not rb-anim-rise, which also animates
+ * `transform` and would fight this component's own positioning transform).
  *
  * Positioned via a portal + getBoundingClientRect, the same pattern
  * RouteList.tsx's "Segment Breakdown" hover popup already uses, rather than
@@ -37,26 +38,68 @@ interface Props {
   side?: 'top' | 'bottom'
 }
 
+/** Where the tooltip pill is anchored horizontally: `left`/`right` are CSS
+ *  positioning properties (mutually exclusive, only one is ever set), not a
+ *  transform. That distinction matters here specifically: a `position:fixed`
+ *  box's shrink-to-fit WIDTH is resolved from its layout position — `left`
+ *  alone, near the viewport's right edge, leaves the browser thinking it
+ *  only has a few px to grow into, and wraps the text into a column one
+ *  word wide, since a `transform` is a purely visual, POST-layout shift
+ *  that plays no part in that width calculation. Anchoring via `right`
+ *  instead gives the box a real leftward budget to size itself against.
+ *  `center` is the one case that still uses a transform (translateX(-50%))
+ *  — safe there because the alignment decision below only picks `center`
+ *  when there's confirmed room on both sides already. */
+interface TooltipPos { top: number; side: 'top' | 'bottom'; left?: number; right?: number; centerX?: number }
+
+/** The hard cap on how wide a tooltip pill is ever allowed to render
+ *  (matches the CSS `maxWidth` below) — the fallback used for the alignment
+ *  decision when a label is long enough to actually hit it and wrap. */
+const MAX_TOOLTIP_WIDTH = 280
+
+/** Estimate how wide THIS label will render, from its own character count —
+ *  there's no rendered node to measure yet when the alignment decision is
+ *  made, so this has to be a guess, but a per-label one is far closer than
+ *  one constant across a "×" close button and a full sentence-length hint.
+ *  ~6.3px/char is a reasonable average for this pill's 11px/600-weight
+ *  Inter text; the +16 covers the pill's own horizontal padding. Erring
+ *  wide (never narrow) is the safe direction — the failure mode of a too-
+ *  wide estimate is switching to left/right-align a little earlier than it
+ *  strictly needed to, not clipping off the viewport edge. */
+function estimateTooltipWidth(label: string): number {
+  return Math.min(MAX_TOOLTIP_WIDTH, label.length * 6.3 + 16)
+}
+
 export function Tooltip({ label, children, side = 'top' }: Props) {
   const t = useTheme()
-  const [pos, setPos] = useState<{ x: number; y: number; side: 'top' | 'bottom' } | null>(null)
+  const [pos, setPos] = useState<TooltipPos | null>(null)
   const wrapRef = useRef<HTMLSpanElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function show() {
     timerRef.current = setTimeout(() => {
-      const el = wrapRef.current
+      // wrapRef itself is `display: contents` (see below) — it generates no
+      // box of its own, so its OWN getBoundingClientRect() is always a zero
+      // rect at (0,0). The actual rendered child is what needs measuring.
+      const el = wrapRef.current?.firstElementChild as HTMLElement | null
       if (!el) return
       const rect = el.getBoundingClientRect()
       // A tooltip that prefers "top" but has no room above (the trigger is
       // near the viewport's own top edge — e.g. the Controls button) flips
       // to below instead of rendering half off-screen.
       const actualSide: 'top' | 'bottom' = side === 'top' && rect.top < 40 ? 'bottom' : side
-      setPos({
-        x: rect.left + rect.width / 2,
-        y: actualSide === 'top' ? rect.top - 8 : rect.bottom + 8,
-        side: actualSide,
-      })
+      const top = actualSide === 'top' ? rect.top - 8 : rect.bottom + 8
+      const center = rect.left + rect.width / 2
+      const estWidth = estimateTooltipWidth(label)
+      // See TooltipPos's own comment on why this picks left/right (real CSS
+      // positioning, real layout width) over a transform-based shift.
+      if (center + estWidth / 2 > window.innerWidth - 8) {
+        setPos({ top, side: actualSide, right: window.innerWidth - rect.right })
+      } else if (center - estWidth / 2 < 8) {
+        setPos({ top, side: actualSide, left: rect.left })
+      } else {
+        setPos({ top, side: actualSide, centerX: center })
+      }
     }, SHOW_DELAY_MS)
   }
 
@@ -72,16 +115,29 @@ export function Tooltip({ label, children, side = 'top' }: Props) {
       onMouseLeave={hide}
       onFocus={show}
       onBlur={hide}
-      style={{ display: 'inline-flex', minWidth: 0 }}
+      // `contents`: the wrapper takes no part in layout at all — its child
+      // renders exactly as if this span weren't there — while still keeping
+      // the DOM node these event handlers are attached to. That's what lets
+      // Tooltip wrap ANYTHING (a 100%-width menu row, an inline icon button
+      // in a flex row, ...) without fighting that element's own sizing.
+      style={{ display: 'contents' }}
     >
       {children}
       {pos && createPortal(
         <div
           role="tooltip"
-          className="rb-anim-rise"
+          // Plain opacity fade (rb-anim-fade), not rb-anim-rise: a CSS
+          // animation owns the ENTIRE `transform` property for its whole
+          // duration, not just the sub-part it sets, so a rise animation's
+          // own translateY would silently clobber the positioning
+          // translate below rather than combine with it.
+          className="rb-anim-fade"
           style={{
-            position: 'fixed', left: pos.x, top: pos.y,
-            transform: `translate(-50%, ${pos.side === 'top' ? '-100%' : '0'})`,
+            position: 'fixed', top: pos.top,
+            ...(pos.left !== undefined ? { left: pos.left } : {}),
+            ...(pos.right !== undefined ? { right: pos.right } : {}),
+            ...(pos.centerX !== undefined ? { left: pos.centerX } : {}),
+            transform: `translate(${pos.centerX !== undefined ? '-50%' : '0'}, ${pos.side === 'top' ? '-100%' : '0'})`,
             // Above ConfirmDialog's own 12500 (documented there as
             // "deliberately the highest in the app") — a tooltip has to sit
             // above whatever it's attached to, including a confirm prompt,
@@ -90,8 +146,11 @@ export function Tooltip({ label, children, side = 'top' }: Props) {
             zIndex: 12600, pointerEvents: 'none',
             background: t.bgDeep, color: t.text,
             border: `1px solid ${t.border}`, borderRadius: 5,
-            padding: '4px 8px', fontSize: 11, fontWeight: 600,
-            whiteSpace: 'nowrap', boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
+            padding: '4px 8px', fontSize: 11, fontWeight: 600, lineHeight: 1.4,
+            // `normal`, not `nowrap`: a maxWidth cap only actually caps
+            // anything if long text is allowed to wrap onto a second line
+            // instead of overflowing straight past the box.
+            maxWidth: MAX_TOOLTIP_WIDTH, whiteSpace: 'normal', boxShadow: '0 4px 14px rgba(0,0,0,0.35)',
           }}
         >
           {label}

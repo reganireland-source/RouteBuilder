@@ -24,6 +24,7 @@ import { HealthBar } from './components/HealthBar'
 import { MobileLayout } from './components/MobileLayout'
 import { AssetSearch } from './components/AssetSearch'
 import { AssetFilterBar } from './components/AssetFilterBar'
+import { Tooltip } from './components/Tooltip'
 import { parseCityId, type AssetHit } from './utils/assetSearch'
 import { ServiceDateSelector } from './components/ServiceDateSelector'
 import { FutureNetworkBanner } from './components/FutureNetworkBanner'
@@ -1539,6 +1540,7 @@ export default function App() {
             <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 1000 }}>
               <button
                 onClick={() => setCtrlMenuOpen(o => !o)}
+                className="rb-btn-motion"
                 style={{
                   display: 'flex', alignItems: 'center', gap: 7,
                   padding: '7px 14px', borderRadius: 10,
@@ -1568,7 +1570,7 @@ export default function App() {
                     onClick={() => setCtrlMenuOpen(false)}
                     style={{ position: 'fixed', inset: 0, zIndex: -1, border: 'none', background: 'transparent', padding: 0, cursor: 'default' }}
                   />
-                  <div style={{
+                  <div className="rb-anim-dropdown" style={{
                     position: 'absolute', top: 42, right: 0,
                     width: 240,
                     background: theme.bgPanel,
@@ -1577,44 +1579,31 @@ export default function App() {
                     boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
                     overflow: 'hidden',
                   }}>
-                    {/* Toggles */}
+                    {/* Display — how the existing network is drawn/filtered */}
+                    <ControlsSectionLabel theme={theme}>Display</ControlsSectionLabel>
+                    {[
+                      { label: 'Hide Inactive',    icon: hideNonActive      ? '◉' : '◎', active: hideNonActive,      color: theme.blue, onClick: () => setHideNonActive(v => !v), hint: 'Dim segments and nodes not on a shown route or highlighted system' },
+                      { label: 'Seg Labels',       icon: showSegmentLabels  ? '◉' : '◎', active: showSegmentLabels,  color: theme.blue, onClick: () => setShowSegmentLabels(v => !v) },
+                      { label: 'Node Labels',      icon: showNodeLabels     ? '◉' : '◎', active: showNodeLabels,     color: theme.blue, onClick: () => setShowNodeLabels(v => !v) },
+                      { label: 'Subsea Only',      icon: '🌊', active: subseaOnly,   color: theme.blue, onClick: () => { setSubseaOnly(v => !v);   if (!subseaOnly)   setBackhaulOnly(false) }, hint: 'Show only submarine cable segments' },
+                      { label: 'Backhaul Only',    icon: '🗺',  active: backhaulOnly, color: theme.blue, onClick: () => { setBackhaulOnly(v => !v); if (!backhaulOnly) setSubseaOnly(false)  }, hint: 'Show only terrestrial backhaul segments' },
+                    ].map((item, i) => <ControlsRow key={item.label} theme={theme} index={i} item={item} />)}
+
+                    {/* Overlays — additional data layers drawn on top */}
+                    <ControlsSectionLabel theme={theme}>Overlays</ControlsSectionLabel>
                     {[
                       { label: 'Show All Outages', icon: '🚢', active: showAllOutages, color: theme.red,  onClick: () => setShowAllOutages(v => !v) },
                       { label: 'Show Planned Events', icon: '🗓️', active: showPlannedEvents, color: theme.orange, onClick: () => setShowPlannedEvents(v => !v) },
-                      { label: 'Hide Inactive',    icon: hideNonActive      ? '◉' : '◎', active: hideNonActive,      color: theme.blue, onClick: () => setHideNonActive(v => !v) },
-                      { label: 'Seg Labels',       icon: showSegmentLabels  ? '◉' : '◎', active: showSegmentLabels,  color: theme.blue, onClick: () => setShowSegmentLabels(v => !v) },
-                      { label: 'Node Labels',      icon: showNodeLabels     ? '◉' : '◎', active: showNodeLabels,     color: theme.blue, onClick: () => setShowNodeLabels(v => !v) },
-                      { label: 'Subsea Only',      icon: '🌊', active: subseaOnly,   color: theme.blue, onClick: () => { setSubseaOnly(v => !v);   if (!subseaOnly)   setBackhaulOnly(false) } },
-                      { label: 'Backhaul Only',    icon: '🗺',  active: backhaulOnly, color: theme.blue, onClick: () => { setBackhaulOnly(v => !v); if (!backhaulOnly) setSubseaOnly(false)  } },
-                      { label: 'Living World',     icon: '🐋', active: livingWorld,  color: theme.green, onClick: toggleLivingWorld },
-                      { label: 'Network Hazards',  icon: '⚠️', active: hazardsOn,    color: theme.orange, onClick: toggleHazards },
+                      { label: 'Living World',     icon: '🐋', active: livingWorld,  color: theme.green, onClick: toggleLivingWorld, hint: 'Decorative ocean wildlife — purely visual, no effect on the data' },
+                      { label: 'Network Hazards',  icon: '⚠️', active: hazardsOn,    color: theme.orange, onClick: toggleHazards, hint: 'Live disaster feed (bushfire, earthquake) matched against the network' },
                       // Coverage in the label: "KML Mode ON" alone would not
                       // say whether that means 3 cables or 300, and the whole
                       // point of the mode is knowing which lines are real.
-                      { label: `KML Mode  ${Object.keys(kmlPaths).length}/${segments.length}`, icon: '🛰', active: kmlMode, color: theme.blue, onClick: toggleKmlMode },
-                    ].map(item => (
-                      <button
-                        key={item.label}
-                        onClick={item.onClick}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 12,
-                          width: '100%', padding: '12px 16px',
-                          background: item.active ? item.color + '18' : 'transparent',
-                          border: 'none', borderBottom: `1px solid ${theme.border}`,
-                          cursor: 'pointer', textAlign: 'left',
-                        }}
-                      >
-                        <span style={{ fontSize: 16, width: 22, textAlign: 'center' }}>{item.icon}</span>
-                        <span style={{ fontSize: 13, color: item.active ? item.color : theme.text, fontWeight: item.active ? 600 : 400, flex: 1 }}>
-                          {item.label}
-                        </span>
-                        {item.active && (
-                          <span style={{ fontSize: 10, fontWeight: 700, color: item.color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>On</span>
-                        )}
-                      </button>
-                    ))}
+                      { label: `KML Mode  ${Object.keys(kmlPaths).length}/${segments.length}`, icon: '🛰', active: kmlMode, color: theme.blue, onClick: toggleKmlMode, hint: 'Draw the real surveyed cable path where one is on file, instead of the straight-line guess' },
+                    ].map((item, i) => <ControlsRow key={item.label} theme={theme} index={i + 5} item={item} />)}
 
-                    {/* Actions */}
+                    {/* Tools — opens a separate panel or modal */}
+                    <ControlsSectionLabel theme={theme}>Tools</ControlsSectionLabel>
                     {[
                       { label: 'Capacity',  icon: '📊', onClick: () => { setCapDashOpen(true);   setCtrlMenuOpen(false) } },
                       { label: 'Projects',  icon: '📁', onClick: () => { setProjectsOpen(true);  setCtrlMenuOpen(false) } },
@@ -1629,41 +1618,15 @@ export default function App() {
                       // inside it are still admin-only.
                       { label: 'KML Library', icon: '📚', onClick: () => { setKmlLibraryOpen(true); setCtrlMenuOpen(false) } },
                       ...(isAdmin ? [{ label: 'KML Import', icon: '🛰', onClick: () => { setKmlImportOpen(true); setCtrlMenuOpen(false) } }] : []),
-                    ].map(item => (
-                      <button
-                        key={item.label}
-                        onClick={item.onClick}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 12,
-                          width: '100%', padding: '12px 16px',
-                          background: 'transparent',
-                          border: 'none', borderBottom: `1px solid ${theme.border}`,
-                          cursor: 'pointer', textAlign: 'left',
-                        }}
-                      >
-                        <span style={{ fontSize: 16, width: 22, textAlign: 'center' }}>{item.icon}</span>
-                        <span style={{ fontSize: 13, color: theme.text, flex: 1 }}>{item.label}</span>
-                        <span style={{ fontSize: 14, color: theme.textFaintest }}>›</span>
-                      </button>
-                    ))}
+                    ].map((item, i) => <ControlsRow key={item.label} theme={theme} index={i + 10} item={item} />)}
 
-                    {/* Theme */}
-                    <button
-                      onClick={cycleTheme}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 12,
-                        width: '100%', padding: '12px 16px',
-                        background: 'transparent', border: 'none',
-                        cursor: 'pointer', textAlign: 'left',
-                      }}
-                    >
-                      <span style={{ fontSize: 16, width: 22, textAlign: 'center' }}>
-                        {themeToggleIcon(themeMode)}
-                      </span>
-                      <span style={{ fontSize: 13, color: theme.text, flex: 1 }}>
-                        {themeToggleLabel(themeMode)}
-                      </span>
-                    </button>
+                    {/* Appearance */}
+                    <ControlsSectionLabel theme={theme}>Appearance</ControlsSectionLabel>
+                    <ControlsRow
+                      theme={theme}
+                      index={16}
+                      item={{ label: themeToggleLabel(themeMode), icon: themeToggleIcon(themeMode), onClick: cycleTheme }}
+                    />
                   </div>
                 </>
               )}
@@ -2537,6 +2500,63 @@ export default function App() {
      </HazardProvider>
     </ThemeContext.Provider>
   )
+}
+
+/** A small uppercase divider label above one group of Controls-menu rows —
+ *  "Display" / "Overlays" / "Tools" — so a flat list of otherwise
+ *  identically-styled rows (toggles sitting right next to "open a panel"
+ *  actions) reads as the three genuinely different kinds of thing they are,
+ *  rather than one undifferentiated stack. */
+function ControlsSectionLabel({ theme, children }: { theme: Theme; children: string }) {
+  return (
+    <div style={{
+      padding: '10px 16px 4px', fontSize: 10, fontWeight: 700, color: theme.textFaintest,
+      textTransform: 'uppercase', letterSpacing: '0.08em',
+    }}>{children}</div>
+  )
+}
+
+/** One row in the Controls menu — a toggle (has `active`/`color`) or a
+ *  plain action (opens a panel, just `onClick`). `index` drives a small
+ *  stagger on the entrance animation so the menu's rows settle in one after
+ *  another rather than all snapping in at once — cheap to add here since
+ *  every row already goes through this one function, and it's what turns
+ *  "the menu appeared" into "the menu is unfolding", which is the kind of
+ *  small motion the whole point of this pass was to add. `hint`, when
+ *  given, upgrades the row from just a label to a Tooltip explaining what
+ *  it actually does — added only where the label alone leaves a real
+ *  question (what does "Backhaul Only" hide, exactly?), not on every row. */
+function ControlsRow({ theme, index, item }: {
+  theme: Theme
+  index: number
+  item: { label: string; icon: string; onClick: () => void; active?: boolean; color?: string; hint?: string }
+}) {
+  const row = (
+    <button
+      onClick={item.onClick}
+      className="rb-anim-rise rb-btn-motion"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12,
+        width: '100%', padding: '12px 16px',
+        background: item.active ? item.color + '18' : 'transparent',
+        border: 'none', borderBottom: `1px solid ${theme.border}`,
+        cursor: 'pointer', textAlign: 'left',
+        animationDelay: `${Math.min(index, 12) * 12}ms`,
+      }}
+    >
+      <span style={{ fontSize: 16, width: 22, textAlign: 'center' }}>{item.icon}</span>
+      <span style={{ fontSize: 13, color: item.active ? item.color : theme.text, fontWeight: item.active ? 600 : 400, flex: 1 }}>
+        {item.label}
+      </span>
+      {item.active !== undefined && item.active && (
+        <span style={{ fontSize: 10, fontWeight: 700, color: item.color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>On</span>
+      )}
+      {item.active === undefined && (
+        <span style={{ fontSize: 14, color: theme.textFaintest }}>›</span>
+      )}
+    </button>
+  )
+  return item.hint ? <Tooltip label={item.hint}>{row}</Tooltip> : row
 }
 
 /**
