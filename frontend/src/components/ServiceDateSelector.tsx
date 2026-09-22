@@ -75,6 +75,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Theme } from '../theme'
 import { useTheme } from '../theme'
+import { Tooltip } from './Tooltip'
 import type { ServiceDateChoice } from '../utils/serviceDate'
 import {
   CURRENT_CHOICE,
@@ -531,47 +532,49 @@ function SegmentedTrigger({
   const t = useTheme()
   return (
     <>
-      <button
-        type="button"
-        onClick={onCurrent}
-        aria-pressed={!future}
-        title="Today’s live network"
-        style={{
-          height: 26, padding: '0 10px', border: 'none', cursor: 'pointer',
-          background: future ? 'transparent' : t.bgActiveSort,
-          color: future ? t.textFaint : t.text,
-          fontSize: 11, fontWeight: 700, lineHeight: 1,
-        }}
-      >
-        Current
-      </button>
+      <Tooltip label="Today’s live network">
+        <button
+          type="button"
+          onClick={onCurrent}
+          aria-pressed={!future}
+          style={{
+            height: 26, padding: '0 10px', border: 'none', cursor: 'pointer',
+            background: future ? 'transparent' : t.bgActiveSort,
+            color: future ? t.textFaint : t.text,
+            fontSize: 11, fontWeight: 700, lineHeight: 1,
+          }}
+        >
+          Current
+        </button>
+      </Tooltip>
       <span
         aria-hidden="true"
         style={{ width: 1, alignSelf: 'stretch', background: t.border, flexShrink: 0 }}
       />
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={onToggle}
-        onKeyDown={onKeyDown}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={listId}
-        aria-activedescendant={activeDescendant}
-        title="Show the network as it will be at a future quarter"
-        style={{
-          display: 'flex', alignItems: 'center', gap: 5,
-          height: 26, padding: '0 10px', border: 'none', cursor: 'pointer',
-          background: future ? t.orange + '22' : 'transparent',
-          color: future ? t.orange : t.textMuted,
-          fontSize: 11, fontWeight: 700, lineHeight: 1, maxWidth: 170,
-        }}
-      >
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {future ? describeChoice(value) : 'Planned'}
-        </span>
-        <span aria-hidden="true" style={{ fontSize: 8, opacity: 0.8 }}>▾</span>
-      </button>
+      <Tooltip label="Show the network as it will be at a future quarter">
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={onToggle}
+          onKeyDown={onKeyDown}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-activedescendant={activeDescendant}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            height: 26, padding: '0 10px', border: 'none', cursor: 'pointer',
+            background: future ? t.orange + '22' : 'transparent',
+            color: future ? t.orange : t.textMuted,
+            fontSize: 11, fontWeight: 700, lineHeight: 1, maxWidth: 170,
+          }}
+        >
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {future ? describeChoice(value) : 'Planned'}
+          </span>
+          <span aria-hidden="true" style={{ fontSize: 8, opacity: 0.8 }}>▾</span>
+        </button>
+      </Tooltip>
     </>
   )
 }

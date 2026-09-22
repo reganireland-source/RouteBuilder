@@ -35,6 +35,7 @@ import {
 } from './utils/serviceDate'
 import { normalizeLng } from './mapGeometry'
 import { useSegmentHover } from './context/SegmentHoverContext'
+import { useTooltipSettings } from './context/TooltipSettingsContext'
 import { api } from './api/client'
 import { ThemeContext, darkTheme, duskTheme, lightTheme, useTheme, type Theme, type ThemeMode } from './theme'
 import { useHazards } from './hooks/useHazards'
@@ -514,6 +515,7 @@ export default function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('dusk')
   const theme = themeFor(themeMode)
   function cycleTheme() { setThemeMode(m => nextThemeMode(m)) }
+  const { tooltipsEnabled, setTooltipsEnabled } = useTooltipSettings()
 
   // Bridges the active theme to plain CSS custom properties on <html>, for the
   // handful of browser-native surfaces React inline styles can't reach —
@@ -1619,7 +1621,13 @@ export default function App() {
                     border: `1px solid ${theme.border}`,
                     borderRadius: 12,
                     boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                    overflow: 'hidden',
+                    // Scrolls internally instead of running off the bottom of
+                    // a short viewport — this menu's row count (5 sections'
+                    // worth) got close enough to a typical 900px-tall window
+                    // that one more row (Tooltips) tipped it over the edge.
+                    // 60px clears the trigger button's own top offset (12)
+                    // plus a margin so the panel never touches the viewport edge.
+                    maxHeight: 'calc(100vh - 60px)', overflowY: 'auto',
                   }}>
                     {/* Display — how the existing network is drawn/filtered */}
                     <ControlsSectionLabel theme={theme}>Display</ControlsSectionLabel>
@@ -1669,6 +1677,15 @@ export default function App() {
                       index={16}
                       item={{ label: themeToggleLabel(themeMode), icon: themeToggleIcon(themeMode), onClick: cycleTheme }}
                     />
+                    <ControlsRow
+                      theme={theme}
+                      index={17}
+                      item={{
+                        label: 'Tooltips', icon: tooltipsEnabled ? '◉' : '◎', active: tooltipsEnabled, color: theme.blue,
+                        onClick: () => setTooltipsEnabled(!tooltipsEnabled),
+                        hint: 'Hover hints on icon-only controls. On by default.',
+                      }}
+                    />
                   </div>
                 </>
               )}
@@ -1684,28 +1701,30 @@ export default function App() {
         }}>
           <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${theme.border}` }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 2 }}>
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => setGuideOpen(true)}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setGuideOpen(true) } }}
-                style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', flex: 1, minWidth: 0 }}
-                title="Open platform guide"
-              >
-                <img src="/favicon.svg" alt="" style={{ width: 28, height: 28, flexShrink: 0 }} />
-                <h1 style={{ fontSize: 18, fontWeight: 700, color: theme.text }}>RouteBuilder</h1>
-              </div>
-              <a
-                href="/suite.html"
-                title="Back to the RouteSuite portal"
-                style={{
-                  fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textDecoration: 'none',
-                  padding: '3px 8px', borderRadius: 4, whiteSpace: 'nowrap', flexShrink: 0,
-                  border: `1px solid ${theme.border}`, color: theme.textMuted, background: 'transparent',
-                }}
-              >
-                RouteSuite ↗
-              </a>
+              <Tooltip label="Open platform guide">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setGuideOpen(true)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setGuideOpen(true) } }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', flex: 1, minWidth: 0 }}
+                >
+                  <img src="/favicon.svg" alt="" style={{ width: 28, height: 28, flexShrink: 0 }} />
+                  <h1 style={{ fontSize: 18, fontWeight: 700, color: theme.text }}>RouteBuilder</h1>
+                </div>
+              </Tooltip>
+              <Tooltip label="Back to the RouteSuite portal">
+                <a
+                  href="/suite.html"
+                  style={{
+                    fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textDecoration: 'none',
+                    padding: '3px 8px', borderRadius: 4, whiteSpace: 'nowrap', flexShrink: 0,
+                    border: `1px solid ${theme.border}`, color: theme.textMuted, background: 'transparent',
+                  }}
+                >
+                  RouteSuite ↗
+                </a>
+              </Tooltip>
             </div>
             <p style={{ fontSize: 11, color: theme.textFaint }}>International Telco · Subsea Circuit Design</p>
           </div>
@@ -1753,14 +1772,18 @@ export default function App() {
                     NetworkExplorer
                   </button>
                   {isAdmin && (
-                    <button className="rb-btn-motion" style={topTabStyle(mode === 'networkeditor')} onClick={() => safeSwitchMode('networkeditor')} title="Admin-only: move nodes, edit segment paths, create segments directly on the map">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
-                      Network Editor
-                    </button>
+                    <Tooltip label="Admin-only: move nodes, edit segment paths, create segments directly on the map">
+                      <button className="rb-btn-motion" style={topTabStyle(mode === 'networkeditor')} onClick={() => safeSwitchMode('networkeditor')}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                        Network Editor
+                      </button>
+                    </Tooltip>
                   )}
-                  <button style={{ ...topTabStyle(false), flex: 'none', padding: '9px 10px' }} onClick={() => setGuideOpen(true)} title="Open guide">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                  </button>
+                  <Tooltip label="Open guide">
+                    <button style={{ ...topTabStyle(false), flex: 'none', padding: '9px 10px' }} onClick={() => setGuideOpen(true)}>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    </button>
+                  </Tooltip>
                 </div>
                 {/* Sub-tabs — Network Editor has no sub-tabs here; it owns its own
                     interaction-mode strip (Move/Waypoints/Create/Delete) inside its
@@ -1885,21 +1908,22 @@ export default function App() {
         </div>
 
         {/* Left panel collapse toggle */}
-        <button
-          onClick={() => setLeftOpen(v => !v)}
-          title={leftOpen ? 'Hide search panel' : 'Show search panel'}
-          className="rb-btn-motion"
-          style={{
-            flexShrink: 0, alignSelf: 'center',
-            zIndex: 500, background: theme.bgPanel,
-            border: `1px solid ${theme.border}`, borderLeft: 'none',
-            borderRadius: '0 6px 6px 0',
-            color: theme.textFaint, cursor: 'pointer',
-            padding: '10px 5px', fontSize: 13, fontWeight: 700, lineHeight: 1,
-            display: 'flex', alignItems: 'center',
-            boxShadow: '2px 0 6px rgba(0,0,0,0.2)',
-          }}
-        >{leftOpen ? '‹' : '›'}</button>
+        <Tooltip label={leftOpen ? 'Hide search panel' : 'Show search panel'}>
+          <button
+            onClick={() => setLeftOpen(v => !v)}
+            className="rb-btn-motion"
+            style={{
+              flexShrink: 0, alignSelf: 'center',
+              zIndex: 500, background: theme.bgPanel,
+              border: `1px solid ${theme.border}`, borderLeft: 'none',
+              borderRadius: '0 6px 6px 0',
+              color: theme.textFaint, cursor: 'pointer',
+              padding: '10px 5px', fontSize: 13, fontWeight: 700, lineHeight: 1,
+              display: 'flex', alignItems: 'center',
+              boxShadow: '2px 0 6px rgba(0,0,0,0.2)',
+            }}
+          >{leftOpen ? '‹' : '›'}</button>
+        </Tooltip>
 
         {/* Middle panel */}
         <div style={{
@@ -2020,21 +2044,22 @@ export default function App() {
         </div>
 
         {/* Middle panel collapse toggle */}
-        <button
-          onClick={() => setMiddleOpen(v => !v)}
-          title={middleOpen ? 'Hide routes panel' : 'Show routes panel'}
-          className="rb-btn-motion"
-          style={{
-            flexShrink: 0, alignSelf: 'center',
-            zIndex: 500, background: theme.bgDeep,
-            border: `1px solid ${theme.border}`, borderLeft: 'none',
-            borderRadius: '0 6px 6px 0',
-            color: theme.textFaint, cursor: 'pointer',
-            padding: '10px 5px', fontSize: 13, fontWeight: 700, lineHeight: 1,
-            display: 'flex', alignItems: 'center',
-            boxShadow: '2px 0 6px rgba(0,0,0,0.2)',
-          }}
-        >{middleOpen ? '‹' : '›'}</button>
+        <Tooltip label={middleOpen ? 'Hide routes panel' : 'Show routes panel'}>
+          <button
+            onClick={() => setMiddleOpen(v => !v)}
+            className="rb-btn-motion"
+            style={{
+              flexShrink: 0, alignSelf: 'center',
+              zIndex: 500, background: theme.bgDeep,
+              border: `1px solid ${theme.border}`, borderLeft: 'none',
+              borderRadius: '0 6px 6px 0',
+              color: theme.textFaint, cursor: 'pointer',
+              padding: '10px 5px', fontSize: 13, fontWeight: 700, lineHeight: 1,
+              display: 'flex', alignItems: 'center',
+              boxShadow: '2px 0 6px rgba(0,0,0,0.2)',
+            }}
+          >{middleOpen ? '‹' : '›'}</button>
+        </Tooltip>
 
         {/* Map */}
         <div style={{ flex: 1, position: 'relative' }}>

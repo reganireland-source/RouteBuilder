@@ -21,13 +21,16 @@ import App from './App'
 import { AuthGate } from './components/AuthGate'
 import { AuthProvider } from './context/AuthContext'
 import { SegmentHoverProvider } from './context/SegmentHoverContext'
+import { TooltipSettingsProvider } from './context/TooltipSettingsContext'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <AuthProvider>
       <AuthGate>
         <SegmentHoverProvider>
-          <App />
+          <TooltipSettingsProvider>
+            <App />
+          </TooltipSettingsProvider>
         </SegmentHoverProvider>
       </AuthGate>
     </AuthProvider>

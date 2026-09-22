@@ -10,12 +10,18 @@
  * currently have no hint at all despite being icon-only.
  *
  * Deliberately restrained, per the brief this was built against ("subtle"):
- * a short hover-intent delay (350ms) before showing, so it never flickers on
- * a pointer just passing through, and an instant hide on mouseleave, so it's
- * never in the way of the next click. No arrow, no heavy chrome — a small
- * dark pill that fades into place (rb-anim-fade, see index.html's
+ * a hover-intent delay (600ms — slower than a typical 300-350ms tooltip on
+ * purpose, so it never fires on a pointer just passing through or briefly
+ * resting mid-move) before showing, and an instant hide on mouseleave, so
+ * it's never in the way of the next click. No arrow, no heavy chrome — a
+ * small dark pill that fades into place (rb-anim-fade, see index.html's
  * motion-system comment — not rb-anim-rise, which also animates
  * `transform` and would fight this component's own positioning transform).
+ *
+ * Globally switchable off via the Controls menu (Appearance → Tooltips,
+ * on by default) — see context/TooltipSettingsContext.tsx. `show()` simply
+ * no-ops while disabled rather than every call site checking the setting
+ * itself.
  *
  * Positioned via a portal + getBoundingClientRect, the same pattern
  * RouteList.tsx's "Segment Breakdown" hover popup already uses, rather than
@@ -27,8 +33,9 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useTheme } from '../theme'
+import { useTooltipSettings } from '../context/TooltipSettingsContext'
 
-const SHOW_DELAY_MS = 350
+const SHOW_DELAY_MS = 600
 
 interface Props {
   label: string
@@ -72,11 +79,13 @@ function estimateTooltipWidth(label: string): number {
 
 export function Tooltip({ label, children, side = 'top' }: Props) {
   const t = useTheme()
+  const { tooltipsEnabled } = useTooltipSettings()
   const [pos, setPos] = useState<TooltipPos | null>(null)
   const wrapRef = useRef<HTMLSpanElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function show() {
+    if (!tooltipsEnabled) return
     timerRef.current = setTimeout(() => {
       // wrapRef itself is `display: contents` (see below) — it generates no
       // box of its own, so its OWN getBoundingClientRect() is always a zero

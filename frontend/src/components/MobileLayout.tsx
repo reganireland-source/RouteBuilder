@@ -55,6 +55,7 @@ import { CURRENT_CHOICE, type ServiceDateChoice } from '../utils/serviceDate'
 import { HealthBar } from './HealthBar'
 import { useTheme } from '../theme'
 import type { ThemeMode } from '../theme'
+import { useTooltipSettings } from '../context/TooltipSettingsContext'
 import type {
   AppConfig, AppMode, AssetFilterMatch, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule,
   NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage,
@@ -255,6 +256,7 @@ function MobileControlsDrawer({
   onOpenRefData: () => void
   cycleTheme: () => void
 }) {
+  const { tooltipsEnabled, setTooltipsEnabled } = useTooltipSettings()
   return (
     <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 200 }}>
 
@@ -443,6 +445,26 @@ function MobileControlsDrawer({
               <span style={{ fontSize: 13, color: t.text }}>
                 {nextThemeLabel(themeMode)}
               </span>
+            </button>
+
+            {/* Tooltips toggle — on by default */}
+            <button
+              onClick={() => { setTooltipsEnabled(!tooltipsEnabled); setOpen(false) }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                width: '100%', padding: '13px 16px',
+                background: tooltipsEnabled ? t.blue + '18' : 'transparent',
+                border: 'none', borderTop: `1px solid ${t.border}`,
+                cursor: 'pointer', textAlign: 'left',
+              }}
+            >
+              <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>{tooltipsEnabled ? '◉' : '◎'}</span>
+              <span style={{ fontSize: 13, color: tooltipsEnabled ? t.blue : t.text, fontWeight: tooltipsEnabled ? 600 : 400 }}>
+                Tooltips
+              </span>
+              {tooltipsEnabled && (
+                <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: t.blue, textTransform: 'uppercase', letterSpacing: '0.05em' }}>On</span>
+              )}
             </button>
           </div>
         </>
