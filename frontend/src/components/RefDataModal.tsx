@@ -128,11 +128,11 @@ function VerifPrompt({ onChoice, onDismiss, theme }: {
   }
 
   return (
-    <div style={{
+    <div className="rb-anim-fade" style={{
       position: 'fixed', inset: 0, zIndex: 11000,
       background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
-      <div style={{
+      <div className="rb-anim-pop" style={{
         background: theme.bgCard, border: `1px solid ${theme.border}`, borderRadius: 12,
         padding: 28, width: 'min(94vw,380px)', boxShadow: '0 16px 48px rgba(0,0,0,0.5)',
       }}>
@@ -2677,8 +2677,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div role="presentation" style={modalBg} onClick={onClose}>
-      <div role="presentation" style={modalBox} onClick={e => e.stopPropagation()}>
+    <div role="presentation" className="rb-anim-fade" style={modalBg} onClick={onClose}>
+      <div role="presentation" className="rb-anim-pop" style={modalBox} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>

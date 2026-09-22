@@ -207,12 +207,14 @@ export function NodeFullView({
         role="presentation"
         onClick={backdropClose(onClose)}
         style={backdropStyle(phone, zIndex)}
+        className="rb-anim-fade"
       >
         <div
           role="dialog"
           aria-modal="true"
           aria-label={node ? `Node ${nodeLabel(node)}` : 'Node'}
           style={dialogStyle(t, phone)}
+          className="rb-anim-pop"
         >
           <FullViewHeader
             t={t}

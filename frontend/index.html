@@ -58,6 +58,65 @@
       @media (max-width: 768px) {
         input, select, textarea { font-size: 16px !important; }
       }
+
+      /* ── Motion system ──────────────────────────────────────────────────
+         Shared entrance keyframes + utility classes for modals, dropdowns
+         and menus, so every popover in the app enters the same way instead
+         of each component inventing its own. Kept here (the one genuinely
+         global stylesheet — see main.tsx's own comment on why there's no
+         separate index.css) rather than as scoped per-component <style>
+         tags, unlike the existing bespoke animations (route glow, sea-sweep,
+         Living World bob) which stay where they are — those are one-off
+         effects tied to a single component, not shared chrome.
+
+         Curve: cubic-bezier(0.16, 1, 0.3, 1) ("ease-out-expo") on the
+         pop/dropdown entrances — a fast initial move that settles gently,
+         which reads as snappier and more "alive" than a linear or standard
+         ease-out over the same duration. Durations are short (120-180ms)
+         on purpose: these fire on every menu/modal open, so anything
+         slower would make frequently-used chrome feel sluggish rather than
+         polished. */
+      @keyframes rb-fade-in { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes rb-pop-in {
+        from { opacity: 0; transform: scale(0.96) translateY(2px); }
+        to   { opacity: 1; transform: scale(1) translateY(0); }
+      }
+      @keyframes rb-dropdown-in {
+        from { opacity: 0; transform: translateY(-6px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes rb-rise-in {
+        from { opacity: 0; transform: translateY(6px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+
+      .rb-anim-fade { animation: rb-fade-in 0.15s ease both; }
+      .rb-anim-pop { animation: rb-pop-in 0.16s cubic-bezier(0.16, 1, 0.3, 1) both; }
+      .rb-anim-dropdown { animation: rb-dropdown-in 0.14s cubic-bezier(0.16, 1, 0.3, 1) both; transform-origin: top; }
+      .rb-anim-rise { animation: rb-rise-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+      /* A tiny, consistent hover/press feel for chrome buttons — lift 1px on
+         hover, settle back down on press, rather than sitting dead still
+         until the click registers. Opt-in per element (.rb-btn-motion),
+         not a global `button` rule, so it never fights an existing
+         component's own hover styling. */
+      .rb-btn-motion { transition: transform 0.15s ease, opacity 0.15s ease; }
+      .rb-btn-motion:hover { transform: translateY(-1px); }
+      .rb-btn-motion:active { transform: translateY(0) scale(0.97); }
+
+      /* Respect the OS-level motion preference: every animation above
+         collapses to an instant, static state — same end result, no
+         movement. Matches the one place this codebase already did this
+         (LivingWorldLayer's bob animation). */
+      @media (prefers-reduced-motion: reduce) {
+        .rb-anim-fade, .rb-anim-pop, .rb-anim-dropdown, .rb-anim-rise {
+          animation: none !important;
+        }
+        .rb-btn-motion, .rb-btn-motion:hover, .rb-btn-motion:active {
+          transition: none !important;
+          transform: none !important;
+        }
+      }
     </style>
   </head>
   <body>

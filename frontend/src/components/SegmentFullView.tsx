@@ -184,12 +184,14 @@ export function SegmentFullView({
         role="presentation"
         onClick={backdropClose(onClose)}
         style={backdropStyle(phone, zIndex)}
+        className="rb-anim-fade"
       >
         <div
           role="dialog"
           aria-modal="true"
           aria-label={segment ? `Segment ${segment.name || segment.id}` : 'Segment'}
           style={dialogStyle(t, phone)}
+          className="rb-anim-pop"
         >
           <SegmentHeader
             t={t}

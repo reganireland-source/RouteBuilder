@@ -209,12 +209,13 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
       // parser (including into the textarea) would close the whole Ref Data modal.
       onClick={e => e.stopPropagation()}
       onMouseDown={e => e.stopPropagation()}
+      className="rb-anim-fade"
       style={{
         position: 'fixed', inset: 0, zIndex: 12000, background: 'rgba(0,0,0,0.55)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
       }}>
       <style>{'@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }'}</style>
-      <div style={{
+      <div className="rb-anim-pop" style={{
         width: 'min(1100px, 96vw)', maxHeight: '92vh', background: t.bgPanel,
         border: `1px solid ${t.border}`, borderRadius: 10, display: 'flex', flexDirection: 'column',
         overflow: 'hidden',
@@ -446,8 +447,8 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
           CURRENT mode, so switching Outages/Planned Events never confuses
           which record type gets wiped and replaced. */}
       {confirming && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 12100, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ width: 'min(440px, 92vw)', background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 10, padding: 20 }}>
+        <div className="rb-anim-fade" style={{ position: 'fixed', inset: 0, zIndex: 12100, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div className="rb-anim-pop" style={{ width: 'min(440px, 92vw)', background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 10, padding: 20 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 8 }}>Replace all {modeLabel}s?</div>
             <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.6, marginBottom: 18 }}>
               This will <strong style={{ color: modeColor }}>permanently delete all {existingCount} existing {modeLabel}{existingCount === 1 ? '' : 's'}</strong> and replace them with the <strong style={{ color: t.text }}>{validCount}</strong> reviewed row{validCount === 1 ? '' : 's'}. This cannot be undone. Existing {otherModeLabelCap}s are untouched.

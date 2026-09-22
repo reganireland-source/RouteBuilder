@@ -7,10 +7,15 @@
  * language as App.tsx's "Discard route?" dialog, portalled to document.body
  * so it sits above the map and every panel.
  *
- * Its z-index (12500) is deliberately the highest in the app — higher than
- * RefDataModal (11000) and OutageParserModal (12100) — because a confirm is
- * always asked *on behalf of* whatever is already on top, so it must never be
- * covered by it (it silently was, until a Tech-Enrichment delete surfaced it).
+ * Its z-index (12500) is deliberately the highest static layer in the app —
+ * higher than RefDataModal (11000) and OutageParserModal (12100) — because a
+ * confirm is always asked *on behalf of* whatever is already on top, so it
+ * must never be covered by it (it silently was, until a Tech-Enrichment
+ * delete surfaced it). The one narrow exception is Tooltip.tsx (12600):
+ * a tooltip has to be able to sit above whatever it's attached to, including
+ * a confirm prompt's own buttons, and it's transient/pointer-events:none, so
+ * it can never trap focus or block this dialog's own interaction the way a
+ * competing static layer would.
  *
  * Behaviour parity with the native dialog: Enter confirms, Escape cancels,
  * and the confirm button takes focus on mount so it's keyboard-driveable.
@@ -54,6 +59,7 @@ export function ConfirmDialog({ title, body, confirmLabel = 'Confirm', cancelLab
     <div
       role="presentation"
       onClick={onCancel}
+      className="rb-anim-fade"
       style={{
         position: 'fixed', inset: 0, zIndex: 12500,
         background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -64,6 +70,7 @@ export function ConfirmDialog({ title, body, confirmLabel = 'Confirm', cancelLab
         role="dialog"
         aria-modal="true"
         onClick={e => e.stopPropagation()}
+        className="rb-anim-pop"
         style={{
           background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 12,
           padding: '24px 22px', width: '100%', maxWidth: 420, boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
