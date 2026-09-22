@@ -1330,6 +1330,7 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
       <button
         type="submit"
         disabled={loading || !startNode || !endNode}
+        className="rb-btn-motion"
         style={{
           padding: '8px 16px', borderRadius: 4, border: 'none',
           fontWeight: 600, fontSize: 14,

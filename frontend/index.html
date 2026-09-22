@@ -59,6 +59,25 @@
         input, select, textarea { font-size: 16px !important; }
       }
 
+      /* Every Leaflet vector layer (CircleMarker, Polyline) gets this class
+         on its rendered SVG element — smoothing opacity/fill/stroke-width
+         changes here, once, covers node spotlight/selection and segment
+         highlight/dim across the whole map without touching Map.tsx's own
+         per-marker styling logic at all. Kept short (0.18s) so it reads as
+         responsive to a click, not as lag.
+         NOT `r` (radius): Leaflet's SVG renderer draws every CircleMarker as
+         a <path> arc (`d="M... A r,r 0..."`), never an actual SVG <circle>,
+         so there is no `r` attribute here for a transition to apply to —
+         confirmed by inspecting the rendered DOM, not assumed. A size
+         change redraws the path's `d` outright, which CSS cannot smoothly
+         interpolate between two different arcs. */
+      .leaflet-interactive {
+        transition: opacity 0.18s ease, fill-opacity 0.18s ease, stroke-opacity 0.18s ease, stroke-width 0.18s ease;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .leaflet-interactive { transition: none !important; }
+      }
+
       /* ── Motion system ──────────────────────────────────────────────────
          Shared entrance keyframes + utility classes for modals, dropdowns
          and menus, so every popover in the app enters the same way instead
