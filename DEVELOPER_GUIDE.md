@@ -200,9 +200,10 @@ Security-relevant environment variables are catalogued in
 (client-side gate), `VITE_GMAPS_API_KEY` (browser maps key, referrer-locked).
 
 **Auth mode**: `AUTH_MODE` (backend) / `VITE_AUTH_MODE` (frontend build) pick
-between the default shared-secret model above and Okta SSO, which gates the
-whole app (not just writes) behind your organisation's own Okta tenant —
-see `docs/okta-setup.md` for the full IT setup checklist and env var list.
+between the default shared-secret model above, Okta SSO, and Microsoft
+Entra ID SSO — either gates the whole app (not just writes) behind your
+organisation's own tenant. See `docs/okta-setup.md` / `docs/entra-setup.md`
+for the full IT setup checklist and env var list for each.
 
 **Note:** `VITE_*` variables are baked into the frontend bundle at **build
 time** — set them in Vercel, and redeploy for changes to take effect.
@@ -216,9 +217,11 @@ time** — set them in Vercel, and redeploy for changes to take effect.
 - **SQL**: values always parameterized; any dynamic identifier must pass the
   `_safe_ident()` allowlist in `data_loader.py`.
 - **Auth**: never per-endpoint checks — the guard in `main.py` (`auth_guard`)
-  covers every POST/PUT/DELETE/PATCH centrally (and, in Okta mode, every GET
-  too). Okta-specific verification logic lives in `app/auth/okta.py`, never
-  inline in `main.py` or in individual routers.
+  covers every POST/PUT/DELETE/PATCH centrally (and, in Okta/Entra mode,
+  every GET too). The generic OIDC JWT/JWKS verification shared by both SSO
+  providers lives in `app/auth/oidc.py`; each provider's own settings
+  loading lives in `app/auth/okta.py` / `app/auth/entra.py`. Never inline in
+  `main.py` or in individual routers.
 - **Migrations**: append-only, numbered, idempotent-safe (`_once`).
 - **Frontend styling**: inline style objects with theme tokens from
   `theme.ts` (`useTheme()`); no CSS framework.

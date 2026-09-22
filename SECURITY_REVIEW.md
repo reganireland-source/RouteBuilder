@@ -103,7 +103,7 @@ infrastructure-level control that the hosting environment should provide.
 
 | # | Item | Risk | Recommendation |
 |---|---|---|---|
-| R1 | **Client-side app password (default mode only).** The frontend password gate (`VITE_APP_PASSWORD`) is compiled into the JS bundle — it deters casual access only. In the default `admin_key` auth mode, all GET/read API endpoints are unauthenticated by design; write endpoints require `ADMIN_KEY`. | Anyone who discovers the API URL can read network reference data and solution projects. Customer PII has already been stripped from the data model (names removed; only technical/site data and opportunity IDs remain). | **Now available natively**: set `AUTH_MODE=okta` / `VITE_AUTH_MODE=okta` to gate the entire app (reads included) behind your organisation's own Okta tenant — see `docs/okta-setup.md`. This supersedes the external-gateway recommendation for orgs already on Okta; an external SSO/zero-trust gateway (Azure AD App Proxy, Cloudflare Access) remains a valid alternative for orgs that are not. |
+| R1 | **Client-side app password (default mode only).** The frontend password gate (`VITE_APP_PASSWORD`) is compiled into the JS bundle — it deters casual access only. In the default `admin_key` auth mode, all GET/read API endpoints are unauthenticated by design; write endpoints require `ADMIN_KEY`. | Anyone who discovers the API URL can read network reference data and solution projects. Customer PII has already been stripped from the data model (names removed; only technical/site data and opportunity IDs remain). | **Now available natively**: set `AUTH_MODE=okta` / `VITE_AUTH_MODE=okta` (see `docs/okta-setup.md`) or `AUTH_MODE=entra` / `VITE_AUTH_MODE=entra` (see `docs/entra-setup.md`) to gate the entire app (reads included) behind your organisation's own Okta or Microsoft Entra ID tenant — pick whichever your organisation already runs. This supersedes the external-gateway recommendation for orgs on either; an external SSO/zero-trust gateway (Azure AD App Proxy, Cloudflare Access) remains a valid alternative for orgs on neither. |
 | R2 | **CORS default is `*`.** | Cross-origin reads of the (unauthenticated) API. | Set `ALLOWED_ORIGINS=https://<frontend-domain>` in the deployment environment. The app logs a startup warning if unset. |
 | R3 | **`ADMIN_KEY` must be set in production.** Without it all writes are open (dev mode). | Full data mutation by anonymous users. | Already set in the current Railway deployment; ensure it is set (and rotated periodically) in enterprise hosting. |
 | R4 | **Vite/esbuild dev-server advisories** (`npm audit`: 2 findings, both affect the *development server only*). Production is a static build — the dev server never runs in production. | None in production; source-read risk on a developer's machine while `npm run dev` is active. | Upgrade to Vite 8 during the next planned frontend maintenance window (major-version migration). |
@@ -119,8 +119,9 @@ infrastructure-level control that the hosting environment should provide.
 | Variable | Where | Purpose |
 |---|---|---|
 | `ADMIN_KEY` | backend | Required token for all write (POST/PUT/DELETE/PATCH) endpoints — `admin_key` auth mode only |
-| `AUTH_MODE` | backend | `admin_key` (default) or `okta`. See `docs/okta-setup.md`. |
+| `AUTH_MODE` | backend | `admin_key` (default), `okta` or `entra`. See `docs/okta-setup.md` / `docs/entra-setup.md`. |
 | `OKTA_ISSUER` / `OKTA_CLIENT_ID` / `OKTA_AUDIENCE` / `OKTA_ADMIN_GROUP` | backend | Okta auth mode config — required when `AUTH_MODE=okta`. Not secrets: a public OIDC client (SPA + PKCE) holds no client_secret. |
+| `ENTRA_TENANT_ID` / `ENTRA_CLIENT_ID` / `ENTRA_AUDIENCE` / `ENTRA_ADMIN_ROLE` | backend | Entra ID auth mode config — required when `AUTH_MODE=entra`. Not secrets, same reasoning as the Okta variables above. |
 | `ALLOWED_ORIGINS` | backend | Comma-separated CORS allowlist; **set in production** |
 | `RATE_LIMIT_PER_MINUTE` | backend | Per-IP limit for open POST endpoints (default 120) |
 | `MAX_BODY_BYTES` | backend | Request body cap (default 10 MB) |
@@ -128,6 +129,7 @@ infrastructure-level control that the hosting environment should provide.
 | `ANTHROPIC_API_KEY` / `NLP_ENABLED` | backend | Optional NLP feature; endpoint absent unless enabled |
 | `VITE_APP_PASSWORD` | frontend build | Client-side access gate (obfuscation only — see R1); `admin_key` auth mode only |
 | `VITE_AUTH_MODE` / `VITE_OKTA_ISSUER` / `VITE_OKTA_CLIENT_ID` / `VITE_OKTA_ADMIN_GROUP` | frontend build | Must mirror the backend's `AUTH_MODE`/`OKTA_*` — see `docs/okta-setup.md` |
+| `VITE_ENTRA_TENANT_ID` / `VITE_ENTRA_CLIENT_ID` / `VITE_ENTRA_ADMIN_ROLE` / `VITE_ENTRA_SCOPE` | frontend build | Must mirror the backend's `AUTH_MODE`/`ENTRA_*` — see `docs/entra-setup.md` |
 | `VITE_GMAPS_API_KEY` | frontend build | Public browser key, referrer-restricted |
 
 ---
@@ -145,3 +147,10 @@ and a manual OIDC-specific review) against just the new auth code —
 385 backend tests passing, zero vulnerabilities after bumping `PyJWT` off a
 version with six disclosed CVEs (found and fixed as part of that scan, not
 left outstanding).
+
+**Entra ID SSO feature (added later still):** `docs/entra-security-scan.md`
+re-ran the same evidence set again against the Entra ID addition — the
+backend verification code is shared with Okta's (see `app/auth/oidc.py`,
+already covered above), so this scan's own scope is the new
+`@azure/msal-browser` frontend dependency and the Entra-specific settings
+loading in `app/auth/entra.py`.
