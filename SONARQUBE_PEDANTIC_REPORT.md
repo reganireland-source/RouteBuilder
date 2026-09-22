@@ -378,5 +378,9 @@ docker run --rm --network host \
   the Okta SSO feature added after this repo-wide scan was last run, using
   substitute tooling (this sandbox's Docker daemon could not run the setup
   in §7) — includes a real dependency CVE finding and fix (PyJWT).
+- `docs/entra-security-scan.md` — the same style of pedantic scan again,
+  scoped to the Microsoft Entra ID SSO addition (a second SSO provider
+  alongside Okta, sharing the same backend JWT verification code) — no
+  dependency CVE or hardening gap found this time.
 - `sonar-reports/` — raw API exports: `facets.json`, `defects.json`,
   `blockers.json`, `criticals.json`, `measures.json`, `profiles.json`.

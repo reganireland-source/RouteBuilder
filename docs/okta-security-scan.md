@@ -245,3 +245,8 @@ covered in §0.
   auth mode.
 - `docs/okta-setup.md` — the IT-facing setup checklist this scan is
   clearing the way for.
+- `docs/entra-security-scan.md` — the equivalent review for Microsoft Entra
+  ID, added later as a second SSO provider alongside Okta (not a
+  replacement) — reuses this scan's tooling rationale (§1) and PyJWT
+  dependency findings (§3) rather than repeating them, since the backend
+  JWT/JWKS verification is shared code.
