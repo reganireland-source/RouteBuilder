@@ -1575,6 +1575,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     { title: 'KML/KMZ Survey Import & Library',category: 'Data Management',           desc: 'Upload a carrier survey to replace a segment\'s waypoint-drawn guess with its real route, versioned with one-click rollback. KML Mode draws the surveyed path in place of the straight line; the Library tracks coverage with bulk delete and multi-select.' },
     { title: 'Flatten-and-Chop KML Import',   category: 'Data Management',           desc: 'For branching or messy cable files whose own placemark boundaries don\'t match where the network splits: flattens every point into one line by geometric proximity, plots it immediately, then chops it by clicking along it. Handles one physical run covering two segments and one segment built from two separate pieces.' },
     { title: 'Okta SSO (OIDC + PKCE)',        category: 'Security & Access',         desc: 'A second, complete authentication model selectable by one environment variable alongside the default shared admin key. Individual per-user sign-in via Okta\'s own hosted login; write access decided by Okta group membership, not a password anyone could leak. See docs/okta-setup.md.' },
+    { title: 'Entra ID SSO (OIDC + PKCE)',    category: 'Security & Access',         desc: 'A third authentication model, alongside Okta and the default shared admin key — pick whichever your organisation already runs. Individual per-user sign-in via Microsoft Entra ID\'s own hosted login; write access decided by an Entra App Role, not a password anyone could leak. See docs/entra-setup.md.' },
     { title: 'Customer Solution Projects',    category: 'Customer Solutions & SLD',  desc: 'Full project management for customer solutions — circuits, enrichment, SLD export in one workflow.' },
     { title: 'A-End/Z-End Circuit Enrichment',category: 'Customer Solutions & SLD', desc: 'Per-endpoint technical detail including access type, supplier, interface and protection scheme.' },
     { title: 'Quick SLD Export',              category: 'Reporting & Export',        desc: 'Instant branded straight-line diagram from any pinned routes — choose version label (Proposal / Draft / Final) then export as PDF or DrawIO / Visio XML.' },
@@ -1905,7 +1906,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           {[
             { icon: '🗄', name: 'PostgreSQL', tier: 'Required', color: '#3b82f6', desc: 'Primary data store. Falls back to JSON files if DATABASE_URL is absent (dev only — not suitable for production multi-user use).' },
             { icon: '🤖', name: 'LLM API (Claude / GPT)', tier: 'Optional', color: '#8b5cf6', desc: 'Powers TSABuddy natural language search. Set NLP_ENABLED=true + one API key. Application is fully functional without it.' },
-            { icon: '🔑', name: 'Microsoft Entra ID / Okta', tier: 'Recommended', color: '#f59e0b', desc: 'SSO / OIDC. Not yet wired in — implementation guide below. Today\'s auth is a single shared admin key (ADMIN_KEY): fail-closed, viewer vs admin, no per-user identity. Add SSO before production launch for individual accountability.' },
+            { icon: '🔑', name: 'Okta / Microsoft Entra ID', tier: 'Recommended', color: '#f59e0b', desc: 'SSO / OIDC. Both built and selectable via AUTH_MODE — see the integration guide below. The default remains a single shared admin key (ADMIN_KEY): fail-closed, viewer vs admin, no per-user identity. Turn on either SSO mode before production launch for individual accountability.' },
             { icon: '📦', name: 'CDN / Static Hosting', tier: 'Required', color: '#10b981', desc: 'Frontend build artefacts are static files. Serve via Vercel, S3+CloudFront, or Nginx. No server-side rendering required.' },
           ].map(svc => (
             <div key={svc.name} style={{ background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 10, padding: '16px 18px' }}>
@@ -1940,8 +1941,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               ['✅', 'Dependencies patched — fastapi/starlette/pydantic upgraded, pip-audit clean, zero known CVEs'],
               ['✅', 'SonarQube max-pedantic scan (1,566 rules — 283 more than the tool\'s own default profile): Security A, Reliability A, 0 bugs, 0 vulnerabilities'],
               ['✅', 'Okta SSO (OIDC + PKCE) built and selectable via one env var, alongside the default API-key auth — see Auth Integration below and docs/okta-setup.md'],
-              ['⚠️', 'Okta SSO verified by unit test against a synthetic Okta-shaped token, not yet against a live Okta org — that first real login is IT\'s own step (docs/okta-setup.md §5)'],
-              ['⚠️', 'Entra ID (Azure AD) not yet wired — same OIDC pattern as Okta, would follow the same shape of work'],
+              ['✅', 'Entra ID SSO (OIDC + PKCE) built as a third selectable mode, sharing its backend JWT verification with Okta — see Auth Integration below and docs/entra-setup.md'],
+              ['⚠️', 'Both SSO modes verified by unit test against synthetic provider-shaped tokens, not yet against a live Okta org or Entra tenant — that first real login is IT\'s own step (docs/okta-setup.md §5 / docs/entra-setup.md §6)'],
               ['⚠️', 'Structured per-request access logging is in place (correlation ID, method/path/status/duration); a full before/after change-audit trail is not yet built'],
               ['⚠️', 'API keys in environment variables — adequate at current scale; a secrets manager is the target-state upgrade'],
               ['✅', 'HTTPS enforced on Railway / Vercel'],
@@ -2027,10 +2028,11 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       <div style={{ marginBottom: 32 }}>
         <div style={sectionLabel as React.CSSProperties}>Authentication Integration Guide</div>
         <div style={{ background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 10, padding: '18px 20px', marginBottom: 12, fontSize: 11, color: t.textMuted, lineHeight: 1.7 }}>
-          RouteBuilder supports two auth models today, switched by one environment variable and never mixed:
-          the default shared API key (<code>ADMIN_KEY</code>) below, or real per-user Okta sign-in (<code>AUTH_MODE=okta</code>) —
-          already built, not a recipe to follow. Entra ID/Azure AD is the one identity provider not yet wired;
-          its card below is still the forward-looking recipe the Okta card used to be.
+          RouteBuilder supports three auth models today, switched by one environment variable and never mixed:
+          the default shared API key (<code>ADMIN_KEY</code>), real per-user Okta sign-in (<code>AUTH_MODE=okta</code>), or
+          real per-user Microsoft Entra ID sign-in (<code>AUTH_MODE=entra</code>) — all three already built, not a
+          recipe to follow. Pick whichever identity provider your organisation already runs; only one is ever
+          active per deployment.
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <div style={{ background: '#0f2018', border: '1px solid #a6e3a166', borderRadius: 10, padding: '18px 20px' }}>
@@ -2050,20 +2052,17 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             ))}
           </div>
           <div style={{ background: t.bgCard, border: '1px solid #0078d444', borderRadius: 10, padding: '18px 20px' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 14 }}>🔷 Microsoft Entra ID (Azure AD) — not yet built</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 4 }}>🔷 Microsoft Entra ID — built, not a recipe</div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#0078d4', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 }}>✅ Available now via AUTH_MODE=entra</div>
             {[
-              'Register app in Azure Portal → App registrations → New registration',
-              'Set Redirect URI: https://your-app.com/auth/callback',
-              'Copy Application (client) ID + Directory (tenant) ID',
-              'Add frontend env: VITE_AZURE_CLIENT_ID, VITE_AZURE_TENANT_ID',
-              'Install: npm install @azure/msal-browser @azure/msal-react',
-              'Wrap <App> in <MsalProvider> with PublicClientApplication config',
-              'Use useMsalAuthentication() hook on protected routes',
-              'Backend: validate JWT against https://login.microsoftonline.com/{tenant}/discovery/keys',
-              'Same shape of work as Okta\'s integration (app/auth/okta.py, main.py\'s auth_guard) — that code is the reference pattern to follow, not a from-scratch design',
+              'Standard OIDC Authorization Code + PKCE — no client secret ever exists (Entra app registration platform: Single-page application)',
+              'Backend independently verifies every request\'s token against Microsoft\'s own published signing keys — the SAME verification code Okta uses (app/auth/oidc.py), algorithm pinned, never trusts the frontend\'s word for who\'s signed in',
+              'Write access decided by an Entra App Role (ENTRA_ADMIN_ROLE), fails closed if unset — never defaults to "everyone is admin". Uses App Roles rather than raw group membership on purpose: avoids Entra\'s 200-group "overage" limit, where a user in that many groups gets no usable groups claim at all',
+              'Unit tests for the shared verifier plus Entra-specific settings loading, plus a pedantic security scan (docs/entra-security-scan.md) — the one thing not yet done is a real login against a live Entra tenant, deliberately left to IT rather than pasting org credentials into a build session',
+              'What IT actually does: docs/entra-setup.md — register one app, expose an API scope, create an App Role, paste a handful of non-secret values into 2 places, redeploy. No code.',
             ].map((step, i) => (
               <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8, fontSize: 11, color: t.textMuted, lineHeight: 1.5 }}>
-                <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#0078d422', color: '#0078d4', fontSize: 10, fontWeight: 700, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#0078d422', color: '#0078d4', fontSize: 10, fontWeight: 700, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
                 <span>{step}</span>
               </div>
             ))}
@@ -2088,8 +2087,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
                 ['A.5 Policies', 'Information security policy', '⚠️ Partial', 'Add data classification policy covering RouteBuilder'],
                 ['A.6 Org Controls', 'Roles and responsibilities', '⚠️ Partial', 'Define Owner, Admin, Editor, Viewer roles in RBAC'],
                 ['A.8 Asset Mgmt', 'Inventory of assets', '✅ Done', 'SBOM captured in this guide — register in asset register'],
-                ['A.9 Access Control', 'User access management', '⚠️ Partial', 'Okta SSO built (AUTH_MODE=okta) — individually-attributed sign-in and group-based write access are available; turning it on for real users is docs/okta-setup.md, IT\'s own step'],
-                ['A.9 Access Control', 'Privileged access', '⚠️ Partial', 'Okta mode ties write access to a named person via their Okta group, not a shared secret — a per-change audit trail (who changed what, when) is still not built'],
+                ['A.9 Access Control', 'User access management', '⚠️ Partial', 'Okta and Entra ID SSO both built (AUTH_MODE=okta/entra) — individually-attributed sign-in and group/role-based write access are available; turning either on for real users is docs/okta-setup.md or docs/entra-setup.md, IT\'s own step'],
+                ['A.9 Access Control', 'Privileged access', '⚠️ Partial', 'Okta/Entra mode ties write access to a named person via their Okta group or Entra App Role, not a shared secret — a per-change audit trail (who changed what, when) is still not built'],
                 ['A.10 Cryptography', 'Encryption in transit', '✅ Done', 'HTTPS enforced on all current hosting tiers'],
                 ['A.10 Cryptography', 'Encryption at rest', '⚠️ Partial', 'Enable RDS/Postgres encrypted storage (AWS option)'],
                 ['A.12 Operations', 'Monitoring & logging', '❌ Missing', 'Implement structured API logging + alerting'],
@@ -2117,8 +2116,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         <div style={sectionLabel as React.CSSProperties}>6-Step Productionisation Roadmap</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
           {[
-            { step: '01', title: 'Auth & Access Control', time: 'Okta: hours, not weeks', color: '#f38ba8',
-              items: ['Okta OIDC integration already built — set AUTH_MODE=okta, follow docs/okta-setup.md (create one Okta app, add a groups claim, paste 6 values)', 'Viewer / Admin roles live today via Okta group membership; a third Editor tier would be new work', 'API endpoints already gated by auth_guard on every request in okta mode, not just writes', 'Entra ID would still need the from-scratch integration this roadmap originally described'] },
+            { step: '01', title: 'Auth & Access Control', time: 'Okta or Entra: hours, not weeks', color: '#f38ba8',
+              items: ['Okta AND Entra ID OIDC integrations already built — set AUTH_MODE=okta or AUTH_MODE=entra and follow the matching setup doc (docs/okta-setup.md / docs/entra-setup.md); pick whichever your org already runs', 'Viewer / Admin roles live today via Okta group membership or an Entra App Role; a third Editor tier would be new work', 'API endpoints already gated by auth_guard on every request in either SSO mode, not just writes', 'Both share the same backend JWT verification code (app/auth/oidc.py) — adding a third provider later would follow the same shape of work again'] },
             { step: '02', title: 'Hosting & Infrastructure', time: '1–2 weeks', color: '#f9e2af',
               items: ['Select hosting tier (Railway / AWS / On-prem)', 'Configure PostgreSQL with automated backups', 'Set up CI/CD pipeline (GitHub Actions)', 'Lock environment variables in secrets manager'] },
             { step: '03', title: 'Security Hardening', time: '1 week', color: '#fab387',
