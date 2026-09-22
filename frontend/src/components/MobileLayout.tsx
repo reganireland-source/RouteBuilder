@@ -47,6 +47,7 @@ import { OutagePanel } from './OutagePanel'
 import { NodeFullView } from './NodeFullView'
 import { SegmentFullView } from './SegmentFullView'
 import { AssetSearch } from './AssetSearch'
+import { AssetFilterBar } from './AssetFilterBar'
 import type { AssetHit } from '../utils/assetSearch'
 import { ServiceDateSelector } from './ServiceDateSelector'
 import { FutureNetworkBanner } from './FutureNetworkBanner'
@@ -55,7 +56,7 @@ import { HealthBar } from './HealthBar'
 import { useTheme } from '../theme'
 import type { ThemeMode } from '../theme'
 import type {
-  AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule,
+  AppConfig, AppMode, AssetFilterMatch, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule,
   NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage,
   SelectedSystem, DiversityType, HazardFeed, HazardAssetView, HazardOwnerView, KmlPathInfo,
 } from '../types'
@@ -190,6 +191,11 @@ export interface MobileLayoutProps {
   onManualDiscard?:              () => void
   countryHighlight?:             CountryHighlight | null
   onCountrySelect?:              (h: CountryHighlight | null) => void
+  /** Top-of-map Asset Filter bar — see AssetFilterBar.tsx. Same contract as
+   *  the desktop layout: App.tsx owns the computed match, this just mounts
+   *  the bar and passes the result on to NetworkMap. */
+  assetFilterMatch?:             AssetFilterMatch | null
+  onAssetFilterChange?:          (match: AssetFilterMatch) => void
 }
 
 /** The icon on the theme-cycle row — it advertises what you get NEXT, not now. */
@@ -625,6 +631,7 @@ export function MobileLayout({
   manualState, manualCandidates = [], manualResults = [], onManualNodeClick,
   onManualPickHop, onManualUndo, onManualFinish, onManualDiscard,
   countryHighlight, onCountrySelect,
+  assetFilterMatch, onAssetFilterChange,
   hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false,
   subseaOnly = false, backhaulOnly = false,
 }: MobileLayoutProps & {
@@ -739,6 +746,7 @@ export function MobileLayout({
             subseaOnly={subseaOnly}
             backhaulOnly={backhaulOnly}
             countryHighlight={countryHighlight}
+            assetFilter={assetFilterMatch}
             outages={outages}
             manualState={manualState}
             manualCandidates={manualCandidates}
@@ -799,6 +807,23 @@ export function MobileLayout({
             systems={systems}
             onSelect={hit => { doSnap('peek'); onAssetSelect(hit) }}
             compact
+          />
+        </div>
+      )}
+
+      {/* ── Asset Filter — same bar as desktop, tucked under the header row
+             since the top bar itself has no room left (branding, search,
+             service date and Controls already fill it edge to edge). ── */}
+      {onAssetSelect && onAssetFilterChange && (
+        <div style={{ position: 'absolute', top: 58, left: 14, zIndex: 100 }}>
+          <AssetFilterBar
+            nodes={nodes}
+            segments={visibleSegments ?? segments}
+            systems={systems}
+            capacity={capacity}
+            onNetOwnership={config.on_net_ownership}
+            onAssetSelect={hit => { doSnap('peek'); onAssetSelect(hit) }}
+            onFilterChange={onAssetFilterChange}
           />
         </div>
       )}

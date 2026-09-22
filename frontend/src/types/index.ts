@@ -505,6 +505,20 @@ export interface CountryHighlight {
   boundsLL: [[number, number], [number, number]]
 }
 
+/**
+ * Client-side only: the outcome of the top-of-map Asset Filter bar's active
+ * badge selection — which nodes/segments currently pass every selected
+ * filter category. `active` is false whenever no badge is selected at all,
+ * which Map.tsx reads as "don't dim anything" rather than "match nothing".
+ * Built by AssetFilterBar, held in App.tsx (and threaded through to
+ * MobileLayout), same shape/lifecycle as CountryHighlight above.
+ */
+export interface AssetFilterMatch {
+  active: boolean
+  nodeIds: Set<string>
+  segmentIds: Set<string>
+}
+
 // ── Interface Types ───────────────────────────────────────────────────────────
 
 /**

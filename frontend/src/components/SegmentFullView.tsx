@@ -60,7 +60,7 @@ import { useTheme } from '../theme'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../api/client'
 import { nodeLabel } from '../utils/nodeLabel'
-import { pathLengthKm } from '../utils/editorGeo'
+import { pathLengthKm, suggestSegmentDefaults } from '../utils/editorGeo'
 import { NODE_TYPE_LABEL } from '../mapGeometry'
 import {
   effectiveRfsDate, effectiveEolDate, isSegmentUsableOn, formatQuarter, todayIso,
@@ -69,6 +69,7 @@ import { SegmentPathDiagram } from './SegmentPathDiagram'
 import { EntityNotesPanel } from './EntityNotesPanel'
 import { HazardsNearbyCard } from './HazardsNearbyCard'
 import { SegmentKmlCard } from './SegmentKmlCard'
+import { ConfirmDialog } from './ConfirmDialog'
 import { useHazardsFor } from '../context/HazardContext'
 import { NodeFullView } from './NodeFullView'
 import {
@@ -414,7 +415,7 @@ function SegmentBody({
   )
   const geometryCard = (
     <Card key="geometry" t={t} title="Path Geometry" grow>
-      <PathGeometry t={t} segment={segment} start={start} end={end} />
+      <PathGeometry t={t} segment={segment} start={start} end={end} kmlInfo={kmlPaths?.[segment.id]} onUpdated={onDataChange} />
     </Card>
   )
   const metricsCard = (
@@ -564,10 +565,17 @@ function EndpointRow({ t, role, node, fallbackId, onOpen }: {
  * The waypoint list, plus the stored-vs-drawn length cross-check. `length_km`
  * is a stored figure; in a hand-maintained dataset it drifts from the path the
  * waypoints describe, and nothing else in the app would ever tell you.
+ *
+ * When a surveyed KMZ is linked, its length (measured along the FULL path,
+ * not the simplified one used for the overview map — see `KmlPathInfo`) is
+ * the real cable, so it outranks the waypoint spline as the "drawn path" an
+ * admin can pull the stored length from.
  */
-function PathGeometry({ t, segment, start, end }: {
+function PathGeometry({ t, segment, start, end, kmlInfo, onUpdated }: {
   t: T; segment: CableSegment; start?: CableNode; end?: CableNode
+  kmlInfo?: KmlPathInfo; onUpdated?: () => void
 }) {
+  const { isAdmin } = useAuth()
   const waypoints = segment.waypoints ?? []
   const drawn = start && end
     ? pathLengthKm([start.lat, start.lng], [end.lat, end.lng], waypoints)
@@ -575,14 +583,51 @@ function PathGeometry({ t, segment, start, end }: {
   const direct = start && end
     ? pathLengthKm([start.lat, start.lng], [end.lat, end.lng])
     : null
+  const surveyed = kmlInfo?.length_km ?? null
+
+  // What "update stored length" applies: the surveyed KMZ length when there
+  // is one, the drawn waypoint path otherwise.
+  let bestSource: 'kml' | 'waypoints' | null = null
+  if (surveyed !== null) bestSource = 'kml'
+  else if (drawn !== null) bestSource = 'waypoints'
+  const bestLength = surveyed ?? drawn
+
   // Guard the ratio against a zero stored length as well as a missing endpoint.
-  const drift = drawn !== null && segment.length_km > 0
-    ? Math.abs(drawn - segment.length_km) / segment.length_km
+  const drift = bestLength !== null && segment.length_km > 0
+    ? Math.abs(bestLength - segment.length_km) / segment.length_km
     : null
+
+  const [recalcLatency, setRecalcLatency] = useState(true)
+  const [confirming, setConfirming] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
+  const newLatency = bestLength !== null ? suggestSegmentDefaults(bestLength, segment.type).latency : null
+
+  async function applyUpdate() {
+    if (bestLength === null || saving) return
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await api.updateSegment(segment.id, {
+        length_km: Math.round(bestLength * 100) / 100,
+        ...(recalcLatency && newLatency !== null ? { latency: newLatency } : {}),
+      })
+      setConfirming(false)
+      onUpdated?.()
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div>
       <TextRow t={t} label="Stored length" value={`${segment.length_km.toLocaleString()} km`} />
+      {surveyed !== null && (
+        <TextRow t={t} label="Surveyed (KMZ)" value={`${Math.round(surveyed).toLocaleString()} km`} />
+      )}
       {drawn !== null && (
         <Row t={t} label="Drawn path">
           <span style={{ color: t.text }}>
@@ -590,7 +635,7 @@ function PathGeometry({ t, segment, start, end }: {
             {drift !== null && drift > LENGTH_TOLERANCE && (
               <>
                 {' '}
-                <Pill color={t.orange} title="The stored length and the path the waypoints describe differ by more than 10%. One of the two is probably stale.">
+                <Pill color={t.orange} title="The stored length and the best-known path (the surveyed KMZ when one is linked, otherwise the drawn waypoints) differ by more than 10%. One of the two is probably stale.">
                   {`${(drift * 100).toFixed(0)}% off`}
                 </Pill>
               </>
@@ -621,6 +666,37 @@ function PathGeometry({ t, segment, start, end }: {
             </div>
           ))}
         </div>
+      )}
+
+      {isAdmin && bestLength !== null && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${t.border}` }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: t.textMuted, marginBottom: 8, cursor: 'pointer' }}>
+            <input type="checkbox" checked={recalcLatency} onChange={e => setRecalcLatency(e.target.checked)} />
+            Also recalculate latency{newLatency !== null ? ` (→ ${newLatency} ms)` : ''}
+          </label>
+          <button type="button" onClick={() => setConfirming(true)} style={iconBtn(t, t.blue)}>
+            ⟳ Update stored length {bestSource === 'kml' ? 'from surveyed KMZ' : 'from drawn path'}
+          </button>
+          {saveError && <div style={{ color: t.red, fontSize: 11, marginTop: 6 }}>{saveError}</div>}
+        </div>
+      )}
+
+      {confirming && bestLength !== null && (
+        <ConfirmDialog
+          title="Update stored length?"
+          body={
+            <>
+              Stored length will change from <strong>{segment.length_km.toLocaleString()} km</strong> to{' '}
+              <strong>{Math.round(bestLength).toLocaleString()} km</strong>, based on the {bestSource === 'kml' ? 'surveyed KMZ path' : 'drawn waypoint path'}.
+              {recalcLatency && newLatency !== null && (
+                <> Latency will also change from <strong>{segment.latency} ms</strong> to <strong>{newLatency} ms</strong>.</>
+              )}
+            </>
+          }
+          confirmLabel={saving ? 'Saving…' : 'Update'}
+          onConfirm={() => void applyUpdate()}
+          onCancel={() => setConfirming(false)}
+        />
       )}
     </div>
   )

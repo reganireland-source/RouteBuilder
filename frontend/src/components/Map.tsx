@@ -61,7 +61,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import * as L from 'leaflet'
 import 'leaflet.gridlayer.googlemutant'
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet'
-import type { CableNode, CableSegment, CountryHighlight, HazardAssetView, HazardFeed, HazardOwnerView, HazardSeverity, KmlPathInfo, KmlPreviewLine, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
+import type { AssetFilterMatch, CableNode, CableSegment, CountryHighlight, HazardAssetView, HazardFeed, HazardOwnerView, HazardSeverity, KmlPathInfo, KmlPreviewLine, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
 import { isNodeOnNet, isSegmentOnNet } from '../utils/onNet'
 import { useTheme } from '../theme'
 import type { ManualState, NextHopCandidate } from './RouteManual'
@@ -174,6 +174,10 @@ interface Props {
   showPlannedEvents?: boolean
   outages?: SegmentOutage[]
   countryHighlight?: CountryHighlight | null
+  /** The top-of-map Asset Filter bar's current selection, already resolved to
+   *  matching id sets (see AssetFilterBar.tsx / utils/assetFilters.ts).
+   *  Undefined/inactive means "don't dim anything for this". */
+  assetFilter?: AssetFilterMatch | null
   subseaOnly?: boolean
   backhaulOnly?: boolean
   panelWidth?: number
@@ -479,7 +483,7 @@ function NodeTypeLegend({ narrow }: { narrow: boolean }) {
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, controlsOpen = false, kmlPaths = EMPTY_KML_PATHS, kmlMode = false, kmlPreview = EMPTY_PREVIEW, kmlPreviewKey = 0, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace, kmlChop = null }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, controlsOpen = false, kmlPaths = EMPTY_KML_PATHS, kmlMode = false, kmlPreview = EMPTY_PREVIEW, kmlPreviewKey = 0, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, assetFilter, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace, kmlChop = null }: Props) {
   const t = useTheme()
   const narrowViewport = useNarrowViewport()
   const { hoveredSegmentId } = useSegmentHover()
@@ -895,6 +899,12 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
           }
         }
 
+        // ── Asset Filter ── same idiom as the hazard lens above: dim rather
+        // than remove, so a filtered-out segment still gives spatial context.
+        if (assetFilter?.active && !assetFilter.segmentIds.has(seg.id)) {
+          pathOptions = { ...pathOptions, opacity: Math.min(pathOptions.opacity, 0.05) }
+        }
+
         // ── Selection ── the card names one cable; this is what says WHICH.
         // Applied last so it wins over the whole ladder above: if you clicked
         // it, you want to see it, whatever mode the map is in.
@@ -1038,6 +1048,12 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
             fillOpacity = Math.min(fillOpacity, 0.07)
             nodeOpacity = Math.min(nodeOpacity, 0.07)
           }
+        }
+
+        // ── Asset Filter ── see the matching block in the segment loop.
+        if (assetFilter?.active && !assetFilter.nodeIds.has(node.id)) {
+          fillOpacity = Math.min(fillOpacity, 0.08)
+          nodeOpacity = Math.min(nodeOpacity, 0.08)
         }
 
         return (

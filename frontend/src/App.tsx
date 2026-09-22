@@ -23,6 +23,7 @@ import { CityPairPanel } from './components/CityPairPanel'
 import { HealthBar } from './components/HealthBar'
 import { MobileLayout } from './components/MobileLayout'
 import { AssetSearch } from './components/AssetSearch'
+import { AssetFilterBar } from './components/AssetFilterBar'
 import { parseCityId, type AssetHit } from './utils/assetSearch'
 import { ServiceDateSelector } from './components/ServiceDateSelector'
 import { FutureNetworkBanner } from './components/FutureNetworkBanner'
@@ -37,7 +38,7 @@ import { ThemeContext, darkTheme, duskTheme, lightTheme, useTheme, type Theme, t
 import { useHazards } from './hooks/useHazards'
 import { useKmlChopState } from './hooks/useKmlChopState'
 import { HazardProvider } from './context/HazardContext'
-import type { AppConfig, AppMode, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem, Hazard, HazardAssetView, HazardOwnerView, KmlPathInfo, KmlPreviewLine} from './types'
+import type { AppConfig, AppMode, AssetFilterMatch, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem, Hazard, HazardAssetView, HazardOwnerView, KmlPathInfo, KmlPreviewLine} from './types'
 import type { KmlChopMapLayerProps } from './components/KmlChopMapLayer'
 import { ProjectsModal } from './components/ProjectsModal'
 import { RouteManualLeft, RouteManualMiddle, computeCandidates, assembleRoute } from './components/RouteManual'
@@ -737,6 +738,11 @@ export default function App() {
   // data: this is the SIMPLIFIED path for every segment (~1MB network-wide),
   // never the full resolution, which is fetched per segment on demand.
   const [kmlPaths, setKmlPaths]                     = useState<Record<string, KmlPathInfo>>({})
+  // Top-of-map Asset Filter bar's current match, computed in AssetFilterBar
+  // itself (it already has nodes/segments/capacity) and reported up here so
+  // both the desktop map and MobileLayout's can dim by it. null/inactive
+  // means "don't dim anything for this" — same contract as countryHighlight.
+  const [assetFilterMatch, setAssetFilterMatch]     = useState<AssetFilterMatch | null>(null)
   const hazards = useHazards(hazardsOn)
   // Stable identity while the layer is off, so HazardProvider's memo never churns.
   const hazardList = hazards.feed?.hazards ?? EMPTY_HAZARDS
@@ -1317,6 +1323,8 @@ export default function App() {
           onCloseRefData={() => setRefDataOpen(false)}
           onDataChange={handleDataChange}
           config={config}
+          assetFilterMatch={assetFilterMatch}
+          onAssetFilterChange={setAssetFilterMatch}
           switchMode={switchMode}
           onOpenGuide={() => setGuideOpen(true)}
           clearSearch={clearSearch}
@@ -2065,6 +2073,18 @@ export default function App() {
             </div>
           </div>
 
+          {/* Asset Filter — every mode, always available, so it sits directly
+              on the map rather than behind a mode-specific panel. */}
+          <AssetFilterBar
+            nodes={nodes}
+            segments={visibleSegments}
+            systems={systems}
+            capacity={capacity}
+            onNetOwnership={config.on_net_ownership}
+            onAssetSelect={handleAssetSelect}
+            onFilterChange={setAssetFilterMatch}
+          />
+
           {nodes.length > 0 ? (
             <NetworkMap
               nodes={editorDisplay.nodes} segments={editorDisplay.segments} selectedRoutes={selectedRoutes}
@@ -2112,6 +2132,7 @@ export default function App() {
               subseaOnly={subseaOnly}
               backhaulOnly={backhaulOnly}
               countryHighlight={countryHighlight}
+              assetFilter={assetFilterMatch}
               panelWidth={(leftOpen ? 440 : 0) + (middleOpen ? 520 : 0)}
               manualState={mode === 'routemanual' ? manualState : null}
               manualCandidates={mode === 'routemanual' ? manualCandidates : []}
