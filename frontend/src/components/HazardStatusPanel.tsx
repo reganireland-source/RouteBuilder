@@ -125,9 +125,11 @@ const OWNER_VIEWS: { value: HazardOwnerView; label: string; hint: string }[] = [
  * RefDataModal already uses. The label stays at full `textMuted` strength while
  * the buttons drop to `textFaint`: the point of leaving a dead control on screen
  * is that you can still read what it is, so fading the word that names it would
- * defeat the exercise. `textFaint` measures 3.5-4.1:1, which is the readable
- * "inactive" band — deliberately not `textFaintest`, which at 1.9-2.2:1 is the
- * one that turned out to be illegible on a real screen.
+ * defeat the exercise. `textFaint` is the readable "inactive" band, now tuned
+ * to clear 4.5:1 WCAG AA in every theme (it and `textFaintest` were both
+ * illegible on a real screen at their old values, down to ~1.9:1 — see
+ * theme.ts's docblock on the two tokens) — deliberately not `textFaintest`,
+ * which stays one step fainter for genuinely dead controls.
  */
 function SegmentedControl<T extends string>(
   { label, options, value, onChange, t, disabled = false, disabledHint }: {

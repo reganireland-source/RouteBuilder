@@ -515,6 +515,22 @@ export default function App() {
   const theme = themeFor(themeMode)
   function cycleTheme() { setThemeMode(m => nextThemeMode(m)) }
 
+  // Bridges the active theme to plain CSS custom properties on <html>, for the
+  // handful of browser-native surfaces React inline styles can't reach —
+  // :focus-visible, ::selection, and the scrollbar pseudo-elements in
+  // index.html's global stylesheet. `color-scheme` lets the browser's own
+  // remaining chrome (native form controls, the scrollbar fallback on
+  // browsers without ::-webkit-scrollbar/scrollbar-color support) pick a
+  // matching light/dark rendering instead of always assuming light.
+  useEffect(() => {
+    const root = document.documentElement.style
+    root.setProperty('--rb-accent', theme.blue)
+    root.setProperty('--rb-bg-deep', theme.bgDeep)
+    root.setProperty('--rb-border-subtle', theme.borderSubtle)
+    root.setProperty('--rb-text-faintest', theme.textFaintest)
+    document.documentElement.style.colorScheme = themeMode === 'light' ? 'light' : 'dark'
+  }, [theme, themeMode])
+
   // Persist the Living World choice. Wrapped because storage throws in a
   // private window and a decorative toggle must never take the app down.
   function changeHazardAssetView(next: HazardAssetView) {

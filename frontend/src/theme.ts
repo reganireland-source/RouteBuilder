@@ -44,7 +44,20 @@ export interface Theme {
   borderSubtle: string
   text: string
   textMuted: string
+  /** Tuned to ≥4.5:1 (WCAG AA for normal text) against bgBase/bgPanel/
+   *  bgCardSelected in every theme — this is used for real, meant-to-be-read
+   *  copy (field labels, hints, secondary metadata) across ~300 call sites,
+   *  not a decorative fade. See HazardStatusPanel.tsx's docblock for the
+   *  concrete case (an "honesty" caveat) that first found the old value
+   *  (down to ~3.2:1 in dark/dusk) illegible on a real screen. Keep future
+   *  edits to this token ≥4.5:1; use textFaintest for genuinely non-critical
+   *  or disabled-control text instead of dimming this one further. */
   textFaint: string
+  /** The one step below textFaint — also ≥4.5:1, not a "safe to fade below
+   *  AA" tier. Reserve it for disabled-but-still-nameable controls (see
+   *  HazardStatusPanel's SegmentedControl) and the least urgent metadata,
+   *  never for content whose whole job is to be read (that's textFaint or
+   *  textMuted). */
   textFaintest: string
   blue: string
   green: string
@@ -75,8 +88,8 @@ export const darkTheme: Theme = {
   borderSubtle:    '#45475a',
   text:            '#cdd6f4',
   textMuted:       '#a6adc8',
-  textFaint:       '#6c7086',
-  textFaintest:    '#45475a',
+  textFaint:       '#8e92a4',
+  textFaintest:    '#82859f',
   blue:            '#89b4fa',
   green:           '#a6e3a1',
   red:             '#f38ba8',
@@ -102,8 +115,8 @@ export const lightTheme: Theme = {
   borderSubtle:    '#ccd0da',
   text:            '#4c4f69',
   textMuted:       '#5c5f77',
-  textFaint:       '#6c6f85',
-  textFaintest:    '#9ca0b0',
+  textFaint:       '#616377',
+  textFaintest:    '#63687d',
   blue:            '#1e66f5',
   green:           '#40a02b',
   red:             '#d20f39',
@@ -129,8 +142,8 @@ export const duskTheme: Theme = {
   borderSubtle:    '#4a4f72',
   text:            '#cdd6f4',
   textMuted:       '#a0a8c8',
-  textFaint:       '#70788c',
-  textFaintest:    '#505870',
+  textFaint:       '#9a9fae',
+  textFaintest:    '#8992ab',
   blue:            '#5b9cf6',
   green:           '#34c77a',
   red:             '#dc2626',

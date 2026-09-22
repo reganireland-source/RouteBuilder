@@ -22,6 +22,49 @@
       html, body, #root { height: 100%; width: 100%; }
       .sort-bar { scrollbar-width: none; -ms-overflow-style: none; }
       .sort-bar::-webkit-scrollbar { display: none; }
+
+      /* ── Browser-native surfaces ─────────────────────────────────────────
+         The parts of the page React's inline styles can't reach — focus
+         rings, text selection, and scrollbars — otherwise render with
+         unthemed browser defaults, which look broken against this app's
+         dark chrome (an unstyled focus ring in particular is nearly
+         invisible on the dark/dusk themes' backgrounds, a real keyboard-
+         accessibility gap, not just a cosmetic one). --rb-* custom
+         properties are kept in sync with the active theme by App.tsx (see
+         its comment on the effect that sets them), so these stay correct
+         across all three themes and the fallback values below only apply
+         before the first paint sets them.
+
+         `!important` on the outline is deliberate and narrowly scoped: ~26
+         inputs/buttons across the app set `outline: 'none'` inline (to drop
+         the default browser ring) with no compensating focus treatment —
+         confirmed by inspection, not assumed — so without it these controls
+         would have zero visible focus indicator at all when tabbed to.
+         Inline styles otherwise always win over a stylesheet rule, and
+         fixing this at 26 call sites individually is far more error-prone
+         than the one global override. Outline never affects layout, so this
+         cannot fight any other inline style, `!important` or not. */
+      :focus-visible {
+        outline: 2px solid var(--rb-accent, #5b9cf6) !important;
+        outline-offset: 2px !important;
+        border-radius: 2px;
+      }
+      ::selection {
+        background: var(--rb-accent, #5b9cf6);
+        color: #0b1220;
+      }
+      html {
+        scrollbar-color: var(--rb-border-subtle, #4a4f72) var(--rb-bg-deep, #161828);
+      }
+      ::-webkit-scrollbar { width: 10px; height: 10px; }
+      ::-webkit-scrollbar-track { background: var(--rb-bg-deep, #161828); }
+      ::-webkit-scrollbar-thumb {
+        background: var(--rb-border-subtle, #4a4f72);
+        border-radius: 6px;
+        border: 2px solid var(--rb-bg-deep, #161828);
+      }
+      ::-webkit-scrollbar-thumb:hover { background: var(--rb-text-faintest, #505870); }
+      ::-webkit-scrollbar-corner { background: var(--rb-bg-deep, #161828); }
       .seg-label {
         background: rgba(0,0,0,0.55) !important;
         border: none !important;
