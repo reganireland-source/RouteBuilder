@@ -24,11 +24,11 @@
  * something actually tries to use Okta.
  */
 import { OktaAuth } from '@okta/okta-auth-js'
+import { AUTH_MODE } from './mode'
 
-/** True when this build is running in Okta mode. Read once at module load —
- *  VITE_* vars are baked in at BUILD time, not runtime, so this can never
- *  change during the life of a loaded page. */
-export const OKTA_MODE = (import.meta.env.VITE_AUTH_MODE as string | undefined) === 'okta'
+/** True when this build is running in Okta mode. Derived from the shared
+ *  AUTH_MODE (see auth/mode.ts) rather than re-reading VITE_AUTH_MODE here. */
+export const OKTA_MODE = AUTH_MODE === 'okta'
 
 /** The Okta group whose members get admin/write access — mirrors the
  *  backend's OKTA_ADMIN_GROUP. Used only to decide which UI to SHOW (the
@@ -103,7 +103,7 @@ export function currentUserIsOktaAdmin(): boolean {
 }
 
 /** The raw access token JWT, or null — registered with api/client.ts via
- *  setOktaAccessTokenSource() so every request can read a fresh one. */
+ *  setOidcAccessTokenSource() so every request can read a fresh one. */
 export function currentOktaAccessToken(): string | null {
   try {
     return getOktaAuth().getAccessToken() ?? null

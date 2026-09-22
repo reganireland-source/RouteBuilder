@@ -8,21 +8,22 @@
  *
  *  1. The whole-app entry gate (components/AuthGate.tsx) — PasswordGate's
  *     client-side-only page password (OBFUSCATION ONLY — see its own
- *     docstring) in admin_key mode, or a real Okta sign-in (OktaGate) in
- *     okta mode. Wrapped around <App/> in main.tsx, outside even THIS
- *     provider.
+ *     docstring) in admin_key mode, a real Okta sign-in (OktaGate) in okta
+ *     mode, or a real Entra ID sign-in (EntraGate) in entra mode. Wrapped
+ *     around <App/> in main.tsx, outside even THIS provider.
  *
- *  2. Admin mode (THIS file) — real authorisation, in both modes:
+ *  2. Admin mode (THIS file) — real authorisation, in every mode:
  *       admin_key — the user enters an admin key, verified AGAINST THE
  *       BACKEND via POST /api/auth/verify (compared to ADMIN_KEY). Only on
  *       success is the key kept and handed to api/client.ts
  *       (setAdminToken), sent as `X-Admin-Token` on every mutating request.
- *       okta — there is no separate "unlock" step: OktaGate already
- *       required a valid Okta session before App ever mounted. Whether
- *       THAT session also grants admin is decided by Okta group membership
- *       (see auth/okta.ts's currentUserIsOktaAdmin, mirroring the backend's
- *       OKTA_ADMIN_GROUP check in backend/app/auth/okta.py) and re-checked
- *       on every request server-side — what's read here is a UI hint only.
+ *       okta / entra — there is no separate "unlock" step: the gate already
+ *       required a valid SSO session before App ever mounted. Whether THAT
+ *       session also grants admin is decided by Okta group membership or an
+ *       Entra App Role (see auth/okta.ts's currentUserIsOktaAdmin /
+ *       auth/entra.ts's currentUserIsEntraAdmin, mirroring the backend's own
+ *       checks) and re-checked on every request server-side — what's read
+ *       here is a UI hint only.
  *     Either way, the backend re-checks its own copy of the credential on
  *     each write endpoint, so a forged client cannot mutate data by lying
  *     about isAdmin.
@@ -39,33 +40,42 @@
  */
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { setAdminToken as setClientToken, clearAdminToken as clearClientToken, setOktaAccessTokenSource } from '../api/client'
-import { OKTA_MODE, currentOktaAccessToken, currentOktaUser, currentUserIsOktaAdmin, getOktaAuth } from '../auth/okta'
+import { setAdminToken as setClientToken, clearAdminToken as clearClientToken, setOidcAccessTokenSource } from '../api/client'
+import { AUTH_MODE } from '../auth/mode'
+import { currentOktaAccessToken, currentOktaUser, currentUserIsOktaAdmin, getOktaAuth } from '../auth/okta'
+import {
+  currentEntraAccessToken, currentEntraAccount, currentEntraUserLabel, currentUserIsEntraAdmin,
+  getMsal, refreshEntraToken,
+} from '../auth/entra'
 
 // Same backend base URL logic as api/client.ts (empty string = same-origin dev proxy).
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
-/** Shape of the context value returned by useAuth(). Identical across both
- *  auth modes, so every existing consumer keeps working unchanged. */
+/** Shape of the context value returned by useAuth(). Identical across every
+ *  auth mode, so every existing consumer keeps working unchanged. */
 interface AuthCtx {
   /** True when the user may see admin UI (admin_key: unlocked, or no
-   *  ADMIN_KEY set; okta: their Okta groups include OKTA_ADMIN_GROUP). */
+   *  ADMIN_KEY set; okta: their Okta groups include OKTA_ADMIN_GROUP; entra:
+   *  their Entra App Roles include ENTRA_ADMIN_ROLE). */
   isAdmin: boolean
   /** True when SOME credential is required to reach admin (admin_key: an
-   *  ADMIN_KEY is configured; okta: always true — there is no open mode). */
+   *  ADMIN_KEY is configured; okta/entra: always true — there is no open
+   *  mode). */
   authRequired: boolean
   /** Which auth model this build is running, so components can render
    *  mode-appropriate UI (AdminBar) without reading env vars themselves. */
-  mode: 'admin_key' | 'okta'
-  /** okta mode only: the signed-in user's email/name, or null. Always null
-   *  in admin_key mode — there is no individual identity to show. */
+  mode: 'admin_key' | 'okta' | 'entra'
+  /** okta/entra mode only: the signed-in user's email/name, or null. Always
+   *  null in admin_key mode — there is no individual identity to show. */
   userLabel: string | null
   /** admin_key mode: try a candidate admin key against POST /api/auth/verify.
-   *  okta mode: always a no-op returning false — see OktaAuthProvider. */
+   *  okta/entra mode: always a no-op returning false — see
+   *  OktaAuthProvider/EntraAuthProvider. */
   unlock: (key: string) => Promise<boolean>
   /** admin_key mode: leave admin mode, clearing the token everywhere.
-   *  okta mode: a full Okta sign-out (there is no "authenticated but not
-   *  admin" state to merely drop back to — see OktaAuthProvider). */
+   *  okta/entra mode: a full SSO sign-out (there is no "authenticated but
+   *  not admin" state to merely drop back to — see
+   *  OktaAuthProvider/EntraAuthProvider). */
   lock: () => void
 }
 
@@ -152,7 +162,7 @@ function OktaAuthProvider({ children }: { children: ReactNode }) {
     // Registered once: api/client.ts calls this function fresh on every
     // request rather than being pushed a token, so it always sees whatever
     // okta-auth-js's background renewal most recently stored.
-    setOktaAccessTokenSource(currentOktaAccessToken)
+    setOidcAccessTokenSource(currentOktaAccessToken)
 
     function refresh() {
       setIsAdmin(currentUserIsOktaAdmin())
@@ -194,15 +204,72 @@ function OktaAuthProvider({ children }: { children: ReactNode }) {
   )
 }
 
-/** Provider wrapping the whole app (see main.tsx). Picks the admin_key or
- *  okta implementation ONCE — OKTA_MODE is a build-time constant (baked in
- *  from VITE_AUTH_MODE), so this choice can never change during the app's
- *  lifetime, which is what makes branching between two different provider
+/** entra mode's provider. By the time this ever mounts, EntraGate has
+ *  already guaranteed a valid Entra ID session exists — this only has to
+ *  read WHO that session belongs to and whether their App Roles grant
+ *  admin, and keep api/client.ts supplied with a fresh access token. Unlike
+ *  okta-auth-js, MSAL has no background renewal timer of its own to
+ *  subscribe to (see auth/entra.ts's own docstring on why), so this
+ *  provider runs its own periodic refresh instead. */
+function EntraAuthProvider({ children }: { children: ReactNode }) {
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [userLabel, setUserLabel] = useState<string | null>(null)
+
+  useEffect(() => {
+    // Registered once, same contract as OktaAuthProvider's — see
+    // api/client.ts's authHeaders() and auth/entra.ts's own docstring on
+    // why this one reads from a small cache rather than an ambient one.
+    setOidcAccessTokenSource(currentEntraAccessToken)
+
+    let alive = true
+    async function refreshClaims() {
+      const account = await currentEntraAccount()
+      if (!alive) return
+      setIsAdmin(currentUserIsEntraAdmin(account))
+      setUserLabel(currentEntraUserLabel(account))
+    }
+    void refreshClaims()
+
+    // No background renewal timer to subscribe to (unlike okta-auth-js) —
+    // refreshEntraToken() re-acquires the access token (from MSAL's own
+    // cache, or silently over the network near expiry) on an interval well
+    // inside a typical token's lifetime; re-reading the account's claims
+    // alongside it means an App Role change takes effect on the same
+    // cadence rather than only on the next full page load.
+    const interval = setInterval(() => {
+      void refreshEntraToken().then(refreshClaims)
+    }, 5 * 60 * 1000)
+
+    return () => { alive = false; clearInterval(interval) }
+  }, [])
+
+  // No passphrase to enter in entra mode — same no-op reasoning as
+  // OktaAuthProvider's.
+  const unlock = async () => false
+
+  // A full Entra sign-out (redirects away and back), same reasoning as
+  // OktaAuthProvider's lock(): entra mode has no "authenticated but
+  // deliberately not admin" state to fall back to.
+  const lock = () => {
+    void getMsal().then(msal => msal.logoutRedirect())
+  }
+
+  return (
+    <AuthContext.Provider value={{ isAdmin, authRequired: true, mode: 'entra', userLabel, unlock, lock }}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+/** Provider wrapping the whole app (see main.tsx). Picks the right
+ *  implementation ONCE — AUTH_MODE is a build-time constant (baked in from
+ *  VITE_AUTH_MODE), so this choice can never change during the app's
+ *  lifetime, which is what makes branching between three different provider
  *  components here safe despite each calling its own hooks. */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  return OKTA_MODE
-    ? <OktaAuthProvider>{children}</OktaAuthProvider>
-    : <AdminKeyAuthProvider>{children}</AdminKeyAuthProvider>
+  if (AUTH_MODE === 'okta') return <OktaAuthProvider>{children}</OktaAuthProvider>
+  if (AUTH_MODE === 'entra') return <EntraAuthProvider>{children}</EntraAuthProvider>
+  return <AdminKeyAuthProvider>{children}</AdminKeyAuthProvider>
 }
 
 /** Hook giving any component access to { isAdmin, authRequired, mode, userLabel, unlock, lock }. */

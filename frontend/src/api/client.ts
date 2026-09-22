@@ -29,10 +29,11 @@
  *      header; plain GETs stay public and send nothing. The token is a
  *      module-level variable here; AuthContext also mirrors it into
  *      sessionStorage ('rb_admin_token') so admin mode survives a refresh.
- *      okta — AuthContext calls setOktaAccessTokenSource() once, registering
- *      a getter into okta-auth-js's own token store. EVERY request,
- *      including GETs, carries an `Authorization: Bearer <token>` header,
- *      because okta mode gates the whole app, not just writes.
+ *      okta / entra — AuthContext calls setOidcAccessTokenSource() once,
+ *      registering a getter into whichever SSO provider's own token cache is
+ *      active. EVERY request, including GETs, carries an `Authorization:
+ *      Bearer <token>` header, because either SSO mode gates the whole app,
+ *      not just writes.
  *
  * The `api` object itself is a flat catalogue of typed endpoint wrappers,
  * grouped by resource (nodes, segments, systems, capacity, outages, config,
@@ -65,24 +66,30 @@ export function setAdminToken(t: string) { _adminToken = t }
 /** Forget the admin token (admin logout); write requests become anonymous again. */
 export function clearAdminToken() { _adminToken = '' }
 
-// Okta access token SOURCE — a function, not a value, registered once by
-// AuthContext when VITE_AUTH_MODE=okta. A function rather than a plain
-// setter (contrast setAdminToken above) because okta-auth-js's TokenManager
-// renews the access token on its own schedule in the background; reading it
-// fresh on every single request via this indirection is what keeps every
-// request using a current token without this module ever needing to know
-// about renewal, or importing @okta/okta-auth-js itself (which would pull
-// the Okta SDK into the bundle's critical path even for admin_key deploys).
-let _getOktaAccessToken: (() => string | null) | null = null
-export function setOktaAccessTokenSource(fn: () => string | null) { _getOktaAccessToken = fn }
+// SSO access token SOURCE — a function, not a value, registered once by
+// AuthContext when VITE_AUTH_MODE is "okta" or "entra". A function rather
+// than a plain setter (contrast setAdminToken above) because both SDKs'
+// token stores are read fresh rather than pushed: okta-auth-js's
+// TokenManager renews the access token on its own schedule in the
+// background; MSAL has no such timer, so auth/entra.ts maintains its own
+// small cache instead (see that module's own docstring) — either way,
+// reading it fresh on every single request via this indirection is what
+// keeps every request using a current token without this module ever
+// needing to know about renewal, or importing either SSO SDK itself (which
+// would pull it into the bundle's critical path even for admin_key
+// deploys). Only ONE provider is ever active per build (see auth/mode.ts),
+// so a single slot — not one per provider — is all this needs.
+let _getOidcAccessToken: (() => string | null) | null = null
+export function setOidcAccessTokenSource(fn: () => string | null) { _getOidcAccessToken = fn }
 
 /** Header fragment merged into EVERY request (see get() below — unlike the
- *  admin-key model, okta mode gates reads too, not just writes): the Okta
- *  bearer token when running in okta mode, X-Admin-Token when unlocked in
- *  admin_key mode, nothing in either mode's default/logged-out state. */
+ *  admin-key model, okta/entra mode gates reads too, not just writes): the
+ *  SSO bearer token when running in either SSO mode, X-Admin-Token when
+ *  unlocked in admin_key mode, nothing in any mode's default/logged-out
+ *  state. */
 function authHeaders(): Record<string, string> {
-  const oktaToken = _getOktaAccessToken?.()
-  if (oktaToken) return { Authorization: `Bearer ${oktaToken}` }
+  const oidcToken = _getOidcAccessToken?.()
+  if (oidcToken) return { Authorization: `Bearer ${oidcToken}` }
   return _adminToken ? { 'X-Admin-Token': _adminToken } : {}
 }
 

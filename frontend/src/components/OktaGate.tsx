@@ -34,25 +34,9 @@
  */
 import { useEffect, useState } from 'react'
 import { getOktaAuth } from '../auth/okta'
+import { GateMessage } from './GateMessage'
 
 type Status = 'checking' | 'redirecting' | 'authenticated' | 'error'
-
-/** Minimal dark-themed full-screen message — no ThemeContext here, same as
- *  PasswordGate: both render OUTSIDE it (see main.tsx), before App has ever
- *  mounted. */
-function FullScreenMessage({ title, body }: { title: string; body?: string }) {
-  return (
-    <div style={{
-      position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: '#0b1220', color: '#e2e8f0', fontFamily: 'system-ui, sans-serif', padding: 24,
-    }}>
-      <div style={{ textAlign: 'center', maxWidth: 420 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{title}</div>
-        {body && <div style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6 }}>{body}</div>}
-      </div>
-    </div>
-  )
-}
 
 export function OktaGate({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<Status>('checking')
@@ -89,10 +73,10 @@ export function OktaGate({ children }: { children: React.ReactNode }) {
 
   if (status === 'authenticated') return <>{children}</>
   if (status === 'error') {
-    return <FullScreenMessage title="Sign-in error" body={error || 'Something went wrong starting the Okta sign-in flow.'} />
+    return <GateMessage title="Sign-in error" body={error || 'Something went wrong starting the Okta sign-in flow.'} />
   }
   return (
-    <FullScreenMessage
+    <GateMessage
       title={status === 'redirecting' ? 'Redirecting to sign-in…' : 'Checking your session…'}
     />
   )

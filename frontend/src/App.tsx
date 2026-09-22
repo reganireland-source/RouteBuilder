@@ -2548,19 +2548,25 @@ export default function App() {
 function AdminBar() {
   const { authRequired, mode } = useAuth()
   if (!authRequired) return null
-  // Split into two fully separate components rather than one branching on
-  // `mode` internally: each mode's UI is only ever relevant on its own, and
-  // keeping them apart means neither adds to the other's own cognitive-
-  // complexity budget.
-  return mode === 'okta' ? <OktaAdminBar /> : <AdminKeyBar />
+  // Split into separate components rather than one branching on `mode`
+  // internally: each mode's UI is only ever relevant on its own, and
+  // keeping them apart means none adds to the others' own cognitive-
+  // complexity budget. okta/entra share ONE component (SsoAdminBar) rather
+  // than each getting their own near-identical copy — the two only ever
+  // differ in the provider name and the admin noun (group vs role) shown
+  // in the read-only hint text.
+  if (mode === 'okta') return <SsoAdminBar provider="Okta" adminNoun="group" />
+  if (mode === 'entra') return <SsoAdminBar provider="Entra ID" adminNoun="role" />
+  return <AdminKeyBar />
 }
 
-/** okta mode's AdminBar: authRequired is always true (OktaGate already
- *  required a session before App ever mounted), so this always shows — who
- *  is signed in and whether their Okta groups grant admin, with a Sign out
- *  button. There is no "Unlock" flow: isAdmin is decided entirely by Okta
- *  group membership, not by anything typed into this app. */
-function OktaAdminBar() {
+/** okta/entra modes' shared AdminBar: authRequired is always true (the
+ *  gate already required a session before App ever mounted), so this
+ *  always shows — who is signed in and whether their SSO group/role grants
+ *  admin, with a Sign out button. There is no "Unlock" flow: isAdmin is
+ *  decided entirely by the SSO provider, not by anything typed into this
+ *  app. */
+function SsoAdminBar({ provider, adminNoun }: { provider: string; adminNoun: string }) {
   const { isAdmin, userLabel, lock } = useAuth()
   const t = useTheme()
   return (
@@ -2578,7 +2584,7 @@ function OktaAdminBar() {
         <button onClick={lock} style={{ fontSize: 10, padding: '3px 8px', borderRadius: 4, border: `1px solid ${t.border}`, background: 'transparent', color: t.textFaint, cursor: 'pointer' }}>Sign out</button>
       </div>
       {!isAdmin && (
-        <div style={{ fontSize: 10, color: t.textFaint, marginTop: 3 }}>Ask your Okta administrator to add you to the admin group for editing access.</div>
+        <div style={{ fontSize: 10, color: t.textFaint, marginTop: 3 }}>Ask your {provider} administrator to add you to the admin {adminNoun} for editing access.</div>
       )}
     </div>
   )
