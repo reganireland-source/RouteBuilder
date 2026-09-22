@@ -44,6 +44,7 @@ import {
 import { NODE_TYPE_LABEL } from '../mapGeometry'
 import { useTheme } from '../theme'
 import { AssetSearch } from './AssetSearch'
+import { Tooltip } from './Tooltip'
 
 const STORAGE_KEY = 'rb.assetFilter'
 
@@ -151,8 +152,13 @@ function toggleInSet<V>(set: Set<V>, value: V): Set<V> {
  * dozens of options (Country, Facility Owner) never sits permanently on
  * screen — only the categories the user actually opens do, one at a time.
  */
-function FilterDropdown<V extends string>({ label, options, optionLabel, selected, onToggle, isOpen, onOpenChange, searchable = false }: {
+function FilterDropdown<V extends string>({ label, hint, options, optionLabel, selected, onToggle, isOpen, onOpenChange, searchable = false }: {
   label: string
+  /** A short explanation of what this category actually filters by — shown
+   *  as a Tooltip on the trigger, since "Ownership" or "On-Net" alone don't
+   *  say which field they read or what the values mean. Omitted only where
+   *  the label is already fully self-explanatory. */
+  hint?: string
   options: V[]
   optionLabel: (v: V) => string
   selected: Set<V>
@@ -168,26 +174,31 @@ function FilterDropdown<V extends string>({ label, options, optionLabel, selecte
     ? options.filter(o => optionLabel(o).toLowerCase().includes(query.trim().toLowerCase()))
     : options
 
+  const trigger = (
+    <button
+      type="button"
+      onClick={() => onOpenChange(!isOpen)}
+      className="rb-btn-motion"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 5,
+        padding: '5px 9px', borderRadius: 6,
+        border: `1px solid ${count > 0 || isOpen ? t.blue : t.border}`,
+        background: count > 0 ? t.blue + '18' : t.bgDeep,
+        color: count > 0 || isOpen ? t.blue : t.textMuted,
+        cursor: 'pointer', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+      }}
+    >
+      {label}{count > 0 ? ` (${count})` : ''}
+      <span style={{ fontSize: 9, lineHeight: 1 }}>▾</span>
+    </button>
+  )
+
   return (
     <div style={{ position: 'relative' }}>
-      <button
-        type="button"
-        onClick={() => onOpenChange(!isOpen)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 5,
-          padding: '5px 9px', borderRadius: 6,
-          border: `1px solid ${count > 0 || isOpen ? t.blue : t.border}`,
-          background: count > 0 ? t.blue + '18' : t.bgDeep,
-          color: count > 0 || isOpen ? t.blue : t.textMuted,
-          cursor: 'pointer', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
-        }}
-      >
-        {label}{count > 0 ? ` (${count})` : ''}
-        <span style={{ fontSize: 9, lineHeight: 1 }}>▾</span>
-      </button>
+      {hint ? <Tooltip label={hint}>{trigger}</Tooltip> : trigger}
 
       {isOpen && (
-        <div style={{
+        <div className="rb-anim-dropdown" style={{
           position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 20,
           minWidth: 190, maxHeight: 260, overflowY: 'auto',
           background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 8,
@@ -298,31 +309,34 @@ export function AssetFilterBar({ nodes, segments, systems, capacity, onNetOwners
 
   return (
     <div ref={containerRef} style={{ position: 'absolute', top: 12, left: 64, zIndex: 1090 }}>
-      <button
-        type="button"
-        onClick={() => { setOpen(o => !o); setOpenCategory(null) }}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 7,
-          padding: '7px 14px', borderRadius: 10,
-          border: `1px solid ${open || activeCount > 0 ? t.blue : t.border}`,
-          background: open ? t.blue + '22' : t.bgPanel,
-          color: open || activeCount > 0 ? t.blue : t.textMuted,
-          cursor: 'pointer', fontSize: 12, fontWeight: 700,
-          boxShadow: '0 2px 10px rgba(0,0,0,0.35)',
-        }}
-      >
-        <span style={{ fontSize: 14, lineHeight: 1 }}>▾</span>
-        Asset Filter
-        {activeCount > 0 && (
-          <span style={{
-            fontSize: 10, fontWeight: 700, lineHeight: 1,
-            background: t.blue + '33', color: t.blue, borderRadius: 10, padding: '2px 6px',
-          }}>{activeCount}</span>
-        )}
-      </button>
+      <Tooltip label="Dim assets that don't match your filters below — the search box zooms to one specific asset instead, independent of them">
+        <button
+          type="button"
+          onClick={() => { setOpen(o => !o); setOpenCategory(null) }}
+          className="rb-btn-motion"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 7,
+            padding: '7px 14px', borderRadius: 10,
+            border: `1px solid ${open || activeCount > 0 ? t.blue : t.border}`,
+            background: open ? t.blue + '22' : t.bgPanel,
+            color: open || activeCount > 0 ? t.blue : t.textMuted,
+            cursor: 'pointer', fontSize: 12, fontWeight: 700,
+            boxShadow: '0 2px 10px rgba(0,0,0,0.35)',
+          }}
+        >
+          <span style={{ fontSize: 14, lineHeight: 1 }}>▾</span>
+          Asset Filter
+          {activeCount > 0 && (
+            <span style={{
+              fontSize: 10, fontWeight: 700, lineHeight: 1,
+              background: t.blue + '33', color: t.blue, borderRadius: 10, padding: '2px 6px',
+            }}>{activeCount}</span>
+          )}
+        </button>
+      </Tooltip>
 
       {open && (
-        <div style={{
+        <div className="rb-anim-dropdown" style={{
           position: 'absolute', top: 'calc(100% + 6px)', left: 0, width: 360,
           background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 10,
           boxShadow: '0 12px 36px rgba(0,0,0,0.45)', padding: 12,
@@ -333,35 +347,41 @@ export function AssetFilterBar({ nodes, segments, systems, capacity, onNetOwners
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             <FilterDropdown
-              label="Show" options={KIND_OPTS} optionLabel={v => KIND_LABEL[v]}
+              label="Show" hint="Limit the filter to PoPs, Segments, or both"
+              options={KIND_OPTS} optionLabel={v => KIND_LABEL[v]}
               selected={sel.kinds} onToggle={toggleKind}
               isOpen={openCategory === 'kinds'} onOpenChange={o => openOnly('kinds', o)}
             />
             <FilterDropdown
-              label="On-Net" options={ON_NET_OPTS} optionLabel={v => ON_NET_LABEL[v]}
+              label="On-Net" hint="Whether an asset is on our own network or third-party"
+              options={ON_NET_OPTS} optionLabel={v => ON_NET_LABEL[v]}
               selected={sel.onNet} onToggle={toggleOnNet}
               isOpen={openCategory === 'onNet'} onOpenChange={o => openOnly('onNet', o)}
             />
             <FilterDropdown
-              label="PoP Type" options={NODE_TYPE_OPTS} optionLabel={v => NODE_TYPE_LABEL[v] ?? v}
+              label="PoP Type" hint="Node classification — landing station, PoP tier, or branching unit"
+              options={NODE_TYPE_OPTS} optionLabel={v => NODE_TYPE_LABEL[v] ?? v}
               selected={sel.nodeTypes} onToggle={toggleNodeType}
               isOpen={openCategory === 'nodeTypes'} onOpenChange={o => openOnly('nodeTypes', o)}
             />
             <FilterDropdown
-              label="Ownership" options={OWNERSHIP_OPTS} optionLabel={v => OWNERSHIP_LABEL[v]}
+              label="Ownership" hint="Segment's commercial ownership model (owned, IRU, consortium, ...)"
+              options={OWNERSHIP_OPTS} optionLabel={v => OWNERSHIP_LABEL[v]}
               selected={sel.ownerships} onToggle={toggleOwnership}
               isOpen={openCategory === 'ownerships'} onOpenChange={o => openOnly('ownerships', o)}
             />
             {facilityOwners.length > 0 && (
               <FilterDropdown
-                label="Facility Owner" options={facilityOwners} optionLabel={v => v} searchable
+                label="Facility Owner" hint="Which company owns the landing site or PoP" searchable
+                options={facilityOwners} optionLabel={v => v}
                 selected={sel.facilityOwners} onToggle={toggleFacilityOwner}
                 isOpen={openCategory === 'facilityOwners'} onOpenChange={o => openOnly('facilityOwners', o)}
               />
             )}
             {countries.length > 0 && (
               <FilterDropdown
-                label="Country" options={countries} optionLabel={v => COUNTRY_NAMES[v] ?? v} searchable
+                label="Country" hint="Node's country, or either endpoint's for a segment" searchable
+                options={countries} optionLabel={v => COUNTRY_NAMES[v] ?? v}
                 selected={sel.countries} onToggle={toggleCountry}
                 isOpen={openCategory === 'countries'} onOpenChange={o => openOnly('countries', o)}
               />
@@ -369,28 +389,32 @@ export function AssetFilterBar({ nodes, segments, systems, capacity, onNetOwners
 
             {/* Single-value threshold: a literal native <select>, not a
                 checklist — there is only ever one active choice. */}
-            <select
-              value={sel.capacityBelowPct ?? ''}
-              onChange={e => setSel(s => ({ ...s, capacityBelowPct: e.target.value === '' ? null : Number(e.target.value) }))}
-              style={{
-                padding: '5px 8px', borderRadius: 6,
-                border: `1px solid ${sel.capacityBelowPct !== null ? t.blue : t.border}`,
-                background: sel.capacityBelowPct !== null ? t.blue + '18' : t.bgDeep,
-                color: sel.capacityBelowPct !== null ? t.blue : t.textMuted,
-                cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
-              }}
-            >
-              <option value="">Capacity: Any</option>
-              {CAPACITY_PRESETS.map(p => (
-                <option key={p} value={p}>{`< ${p}% free`}</option>
-              ))}
-            </select>
+            <Tooltip label="Flag segments running low on spare capacity">
+              <select
+                value={sel.capacityBelowPct ?? ''}
+                onChange={e => setSel(s => ({ ...s, capacityBelowPct: e.target.value === '' ? null : Number(e.target.value) }))}
+                className="rb-btn-motion"
+                style={{
+                  padding: '5px 8px', borderRadius: 6,
+                  border: `1px solid ${sel.capacityBelowPct !== null ? t.blue : t.border}`,
+                  background: sel.capacityBelowPct !== null ? t.blue + '18' : t.bgDeep,
+                  color: sel.capacityBelowPct !== null ? t.blue : t.textMuted,
+                  cursor: 'pointer', fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
+                }}
+              >
+                <option value="">Capacity: Any</option>
+                {CAPACITY_PRESETS.map(p => (
+                  <option key={p} value={p}>{`< ${p}% free`}</option>
+                ))}
+              </select>
+            </Tooltip>
           </div>
 
           {activeCount > 0 && (
             <button
               type="button"
               onClick={clearAll}
+              className="rb-btn-motion"
               style={{
                 marginTop: 10, width: '100%', padding: '7px', borderRadius: 6,
                 border: `1px solid ${t.border}`, background: 'transparent',
