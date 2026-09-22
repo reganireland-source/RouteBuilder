@@ -11,7 +11,9 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
-from .auth.okta import OktaAuthError, OktaVerifier, auth_mode, load_okta_settings
+from .auth.oidc import OidcAuthError, OidcVerifier, auth_mode
+from .auth.okta import load_okta_settings
+from .auth.entra import load_entra_settings
 from .hazards.service import warm_in_background as warm_hazard_cache
 from .api import (
     auth as auth_api,
@@ -80,15 +82,21 @@ def _open_writes_allowed() -> bool:
     return os.getenv("ALLOW_OPEN_WRITES", "") == "true"
 
 
-# Built ONCE at import time when AUTH_MODE=okta, not per-request — see
-# OktaVerifier's own docstring on why re-creating it per request would throw
-# away its signing-key cache and turn every request into a round trip to
-# Okta. None when AUTH_MODE isn't "okta", or when it is but OKTA_ISSUER/
-# OKTA_CLIENT_ID are unset — auth_guard's own check on this treats that as
-# "okta mode requested but not yet configured" and fails closed (503), the
-# same shape of failure ADMIN_KEY being unset already produces today.
-_okta_settings = load_okta_settings() if auth_mode() == "okta" else None
-_okta_verifier = OktaVerifier(_okta_settings) if _okta_settings else None
+# Built ONCE at import time when AUTH_MODE is "okta" or "entra", not
+# per-request — see OidcVerifier's own docstring on why re-creating it per
+# request would throw away its signing-key cache and turn every request into
+# a round trip to the identity provider. None when AUTH_MODE is admin_key,
+# or when it's an SSO mode but that provider's own required variables are
+# unset — auth_guard's own check on this treats that as "SSO mode requested
+# but not yet configured" and fails closed (503), the same shape of failure
+# ADMIN_KEY being unset already produces today.
+if auth_mode() == "okta":
+    _oidc_settings = load_okta_settings()
+elif auth_mode() == "entra":
+    _oidc_settings = load_entra_settings()
+else:
+    _oidc_settings = None
+_oidc_verifier = OidcVerifier(_oidc_settings) if _oidc_settings else None
 
 
 def _bearer_token(request: Request) -> str:
@@ -104,21 +112,25 @@ async def lifespan(app: FastAPI):
     # Finding #2: write authorization now fails CLOSED. Make the resulting mode
     # obvious in the logs at boot so a misconfigured deploy is diagnosable from
     # the first log line instead of from a stream of 503s.
-    if auth_mode() == "okta":
-        if _okta_verifier:
-            group_note = (
-                f"OKTA_ADMIN_GROUP={_okta_settings.admin_group!r}" if _okta_settings.admin_group
-                else "OKTA_ADMIN_GROUP is not set — nobody will be granted admin access"
+    if auth_mode() in ("okta", "entra"):
+        provider_label = "Okta" if auth_mode() == "okta" else "Entra ID"
+        setup_doc = "docs/okta-setup.md" if auth_mode() == "okta" else "docs/entra-setup.md"
+        required_vars = "OKTA_ISSUER/OKTA_CLIENT_ID" if auth_mode() == "okta" else "ENTRA_TENANT_ID/ENTRA_CLIENT_ID"
+        if _oidc_settings is not None:
+            claim_note = (
+                f"{_oidc_settings.admin_claim_type}={_oidc_settings.admin_claim_value!r}"
+                if _oidc_settings.admin_claim_value
+                else f"no admin {_oidc_settings.admin_claim_type} configured — nobody will be granted admin access"
             )
             logger.info(
-                "AUTH_MODE=okta — every request requires a valid Okta session "
-                "(issuer %s). %s.", _okta_settings.issuer, group_note,
+                "AUTH_MODE=%s — every request requires a valid %s session "
+                "(issuer %s). %s.", auth_mode(), provider_label, _oidc_settings.issuer, claim_note,
             )
         else:
             logger.error(
-                "AUTH_MODE=okta but OKTA_ISSUER/OKTA_CLIENT_ID are not set — "
-                "every request will be REFUSED with 503 (fail closed). See "
-                "docs/okta-setup.md."
+                "AUTH_MODE=%s but %s are not set — every request will be "
+                "REFUSED with 503 (fail closed). See %s.",
+                auth_mode(), required_vars, setup_doc,
             )
     elif _admin_key():
         logger.info(
@@ -169,10 +181,11 @@ app = FastAPI(title="RouteBuilder API", version="0.1.0", lifespan=lifespan)
 # auth_guard (renamed from admin_write_guard when AUTH_MODE=okta support was
 # added) runs ONE of two entirely different checks depending on auth_mode():
 # the original admin-key model (gates writes only, one shared secret) or, in
-# "okta" mode, EVERY request needs a valid Okta bearer token and write
-# methods additionally need the configured admin group — see app/auth/okta.py
-# and docs/okta-setup.md. The exemption/ordering reasoning below predates
-# okta mode but applies identically to it.
+# "okta"/"entra" mode, EVERY request needs a valid SSO bearer token and write
+# methods additionally need the configured admin group/role — see
+# app/auth/oidc.py, app/auth/okta.py, app/auth/entra.py, docs/okta-setup.md
+# and docs/entra-setup.md. The exemption/ordering reasoning below predates
+# okta mode but applies identically to both SSO modes.
 #
 # Why this order:
 #   • CORS outermost  → THIS IS LOAD-BEARING, not stylistic. A prior version had
@@ -300,17 +313,18 @@ def _rate_limited(client_ip: str) -> bool:
 # ADMIN-KEY check (unchanged from before AUTH_MODE existed): all write methods
 # require the X-Admin-Token header to match ADMIN_KEY; a handful of paths are
 # exempted because they are query/read operations that happen to use POST
-# (rate limited instead). The OKTA check (see _okta_auth_check below) is a
-# strictly bigger ask: EVERY request, including plain GETs, needs a valid
-# Okta session.
+# (rate limited instead). The SSO check (see _sso_auth_check below — shared
+# by both "okta" and "entra" modes, since the check itself has no
+# provider-specific logic once _oidc_verifier is built) is a strictly bigger
+# ask: EVERY request, including plain GETs, needs a valid SSO session.
 #
 # Finding #2: the admin-key check used to enforce the token only `if
 # admin_key:` — with ADMIN_KEY absent (a fresh deploy, a renamed variable, a
 # dropped env file) every POST/PUT/PATCH/DELETE was accepted from anyone. It
 # now fails CLOSED: no key and no explicit dev-mode opt-in means writes are
-# refused with 503. The okta check applies the identical philosophy: okta
-# mode requested but not configured (no OKTA_ISSUER/OKTA_CLIENT_ID) also
-# fails closed with 503, never open.
+# refused with 503. The SSO check applies the identical philosophy: an SSO
+# mode requested but not configured (missing OKTA_ISSUER/OKTA_CLIENT_ID or
+# ENTRA_TENANT_ID/ENTRA_CLIENT_ID) also fails closed with 503, never open.
 _WRITE_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 _EXEMPT_WRITE_PATHS = {
     "/api/routes",           # route search query
@@ -319,40 +333,55 @@ _EXEMPT_WRITE_PATHS = {
     "/api/feature-requests", # anyone can submit feedback
     "/api/auth/verify",      # auth handshake itself must be open
 }
-# Reachable with NO Okta session at all, even though okta mode otherwise
+# Reachable with NO SSO session at all, even though okta/entra mode otherwise
 # gates every other request. Kept to the bare minimum: the two health
 # endpoints already documented as public probes in app/api/health.py
-# (Railway's readiness/liveness checks have no Okta token to send) and the
+# (Railway's readiness/liveness checks have no SSO token to send) and the
 # config endpoint the frontend calls BEFORE it has ever logged in, to learn
 # where to send the browser to sign in.
-_OKTA_PUBLIC_PATHS = {
+_SSO_PUBLIC_PATHS = {
     "/api/health",
     "/api/health/live",
     "/api/auth/config",
 }
 
+#: Provider-facing copy for the two failure messages below — keyed by
+#: auth_mode()'s own return value, so a typo can't silently fall through to
+#: the wrong provider's wording (see auth_mode()'s docstring on why an
+#: unrecognised AUTH_MODE value is never "okta" or "entra" in the first place).
+_SSO_PROVIDER_LABEL = {"okta": "Okta", "entra": "Entra ID"}
+_SSO_ADMIN_NOUN = {"okta": "group", "entra": "role"}
+_SSO_REQUIRED_VARS = {
+    "okta": "OKTA_ISSUER/OKTA_CLIENT_ID",
+    "entra": "ENTRA_TENANT_ID/ENTRA_CLIENT_ID",
+}
 
-def _okta_auth_check(request: Request) -> Optional[JSONResponse]:
+
+def _sso_auth_check(request: Request) -> Optional[JSONResponse]:
     """
-    The okta-mode half of auth_guard. Returns a JSONResponse to short-circuit
+    The SSO-mode half of auth_guard — identical for "okta" and "entra",
+    since by the time this runs _oidc_verifier already encapsulates
+    everything provider-specific. Returns a JSONResponse to short-circuit
     the request, or None to let it through to call_next().
 
     Every request needs a valid bearer token — a whole-app gate, per the
     organisation's own choice of scope, unlike admin-key mode where only
     writes were ever gated. Write methods additionally need the configured
-    admin group, UNLESS the path is one of _EXEMPT_WRITE_PATHS: those are
-    read-shaped actions that only happen to use POST, reachable by any
-    authenticated user in admin-key mode too — okta mode keeps that the same,
+    admin group/role, UNLESS the path is one of _EXEMPT_WRITE_PATHS: those
+    are read-shaped actions that only happen to use POST, reachable by any
+    authenticated user in admin-key mode too — SSO mode keeps that the same,
     it just adds "authenticated" as a new precondition that didn't exist
     before.
     """
-    if request.url.path in _OKTA_PUBLIC_PATHS:
+    if request.url.path in _SSO_PUBLIC_PATHS:
         return None
-    if _okta_verifier is None:
+    mode = auth_mode()
+    provider = _SSO_PROVIDER_LABEL.get(mode, "SSO")
+    if _oidc_verifier is None:
         return JSONResponse(
             {
-                "detail": "Okta sign-in is not configured on the server "
-                          "(AUTH_MODE=okta but OKTA_ISSUER/OKTA_CLIENT_ID are unset)."
+                "detail": f"{provider} sign-in is not configured on the server "
+                          f"(AUTH_MODE={mode} but {_SSO_REQUIRED_VARS.get(mode, '')} are unset)."
             },
             status_code=503,
         )
@@ -360,18 +389,19 @@ def _okta_auth_check(request: Request) -> Optional[JSONResponse]:
     if not token:
         return JSONResponse({"detail": "Sign in required."}, status_code=401)
     try:
-        claims = _okta_verifier.verify(token)
-    except OktaAuthError:
+        claims = _oidc_verifier.verify(token)
+    except OidcAuthError:
         return JSONResponse(
             {"detail": "Your session has expired or is invalid. Please sign in again."},
             status_code=401,
         )
     needs_admin = request.method in _WRITE_METHODS and request.url.path not in _EXEMPT_WRITE_PATHS
-    if needs_admin and not _okta_verifier.is_admin(claims):
+    if needs_admin and not _oidc_verifier.is_admin(claims):
+        noun = _SSO_ADMIN_NOUN.get(mode, "group")
         return JSONResponse(
             {
-                "detail": "Admin access required. Ask your Okta administrator to "
-                          "add you to the admin group."
+                "detail": f"Admin access required. Ask your {provider} administrator "
+                          f"to add you to the admin {noun}."
             },
             status_code=403,
         )
@@ -380,12 +410,12 @@ def _okta_auth_check(request: Request) -> Optional[JSONResponse]:
 
 @app.middleware("http")
 async def auth_guard(request: Request, call_next):
-    if auth_mode() == "okta":
+    if auth_mode() in ("okta", "entra"):
         if request.url.path in _EXEMPT_WRITE_PATHS and _rate_limited(_client_ip(request)):
             return JSONResponse(
                 {"detail": "Too many requests — slow down."}, status_code=429
             )
-        blocked = _okta_auth_check(request)
+        blocked = _sso_auth_check(request)
         if blocked is not None:
             return blocked
         return await call_next(request)
