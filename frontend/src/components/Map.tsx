@@ -899,10 +899,16 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
           }
         }
 
-        // ── Asset Filter ── same idiom as the hazard lens above: dim rather
-        // than remove, so a filtered-out segment still gives spatial context.
-        if (assetFilter?.active && !assetFilter.segmentIds.has(seg.id)) {
-          pathOptions = { ...pathOptions, opacity: Math.min(pathOptions.opacity, 0.05) }
+        // ── Asset Filter ── matches are emphasised, not just left alone —
+        // weight rather than colour, same reasoning as KML Mode just above
+        // (colour already carries route/system/country/outage state).
+        // Non-matches dim, same idiom as the hazard lens.
+        if (assetFilter?.active) {
+          if (assetFilter.segmentIds.has(seg.id)) {
+            pathOptions = { ...pathOptions, weight: pathOptions.weight + 1.2, opacity: Math.max(pathOptions.opacity, 0.95) }
+          } else {
+            pathOptions = { ...pathOptions, opacity: Math.min(pathOptions.opacity, 0.05) }
+          }
         }
 
         // ── Selection ── the card names one cable; this is what says WHICH.
@@ -1050,10 +1056,18 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
           }
         }
 
-        // ── Asset Filter ── see the matching block in the segment loop.
-        if (assetFilter?.active && !assetFilter.nodeIds.has(node.id)) {
-          fillOpacity = Math.min(fillOpacity, 0.08)
-          nodeOpacity = Math.min(nodeOpacity, 0.08)
+        // ── Asset Filter ── see the matching block in the segment loop:
+        // matches get bigger/bolder/fully opaque, non-matches dim.
+        if (assetFilter?.active) {
+          if (assetFilter.nodeIds.has(node.id)) {
+            radius = Math.max(radius, ns.radius + 2)
+            weight = Math.max(weight, 2.5)
+            fillOpacity = Math.max(fillOpacity, ns.opacity)
+            nodeOpacity = 1
+          } else {
+            fillOpacity = Math.min(fillOpacity, 0.08)
+            nodeOpacity = Math.min(nodeOpacity, 0.08)
+          }
         }
 
         return (
