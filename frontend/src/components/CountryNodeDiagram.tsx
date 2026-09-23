@@ -333,13 +333,29 @@ export function CountryNodeDiagram({
     setPan({ x: (el.clientWidth - w * z) / 2, y: (el.clientHeight - h * z) / 2 })
   }
 
-  function clickSeg(seg: CableSegment, color: string, e: React.MouseEvent) {
-    e.stopPropagation()
+  // `e` is optional so a keyboard activation (Enter/Space via navProps below,
+  // which has no real mouse/pointer event to forward) can call these the same
+  // way a click does.
+  function clickSeg(seg: CableSegment, color: string, e?: React.SyntheticEvent) {
+    e?.stopPropagation()
     setSelected(prev => prev?.kind === 'seg' && prev.seg.id === seg.id ? null : { kind: 'seg', seg, color })
   }
-  function clickNode(node: CableNode, e: React.MouseEvent) {
-    e.stopPropagation()
+  function clickNode(node: CableNode, e?: React.SyntheticEvent) {
+    e?.stopPropagation()
     setSelected(prev => prev?.kind === 'node' && prev.node.id === node.id ? null : { kind: 'node', node })
+  }
+
+  /** Keyboard/ARIA contract for an SVG click target — SVG elements get none of
+   *  this for free. Mirrors SegmentFanDiagram.tsx's own `navProps` helper. */
+  function navProps(select: () => void, label: string) {
+    return {
+      onKeyDown: (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select() }
+      },
+      tabIndex: 0,
+      role: 'button' as const,
+      'aria-label': label,
+    }
   }
 
   const nodesById   = useMemo(() => Object.fromEntries(nodes.map(n => [n.id, n])),   [nodes])
@@ -762,7 +778,8 @@ export function CountryNodeDiagram({
                   <path d={d} fill="none" stroke="transparent" strokeWidth={14}
                     style={{ cursor: 'pointer' }}
                     onMouseEnter={e => segTip(seg, e)} onMouseLeave={() => setTip(null)}
-                    onClick={e => clickSeg(seg, color, e)} />
+                    onClick={e => clickSeg(seg, color, e)}
+                    {...navProps(() => clickSeg(seg, color), `Segment ${seg.id}`)} />
                   <path d={d} fill="none" stroke={color} strokeWidth={isSel ? 5 : 2.2}
                     style={{ pointerEvents: 'none' }} />
                   <text x={lx} y={ly} fontSize={11} fontWeight="600" fill={color}
@@ -798,7 +815,8 @@ export function CountryNodeDiagram({
                     <line x1={x1} y1={y1} x2={x2} y2={y2}
                       stroke="transparent" strokeWidth={14} style={{ cursor: 'pointer' }}
                       onMouseEnter={e => stubTip(seg, e)} onMouseLeave={() => setTip(null)}
-                      onClick={e => clickSeg(seg, sysColor, e)} />
+                      onClick={e => clickSeg(seg, sysColor, e)}
+                      {...navProps(() => clickSeg(seg, sysColor), `Segment ${seg.id}`)} />
                     <line x1={x1} y1={y1} x2={x2} y2={y2}
                       stroke={sysColor} strokeWidth={isSelSub ? 5 : 2.2} strokeDasharray="5,3"
                       markerEnd="url(#ndSub)" style={{ pointerEvents: 'none' }} />
@@ -840,7 +858,8 @@ export function CountryNodeDiagram({
                   <line x1={px} y1={py} x2={ex} y2={ey}
                     stroke="transparent" strokeWidth={14} style={{ cursor: 'pointer' }}
                     onMouseEnter={e => segTip(seg, e)} onMouseLeave={() => setTip(null)}
-                    onClick={e => clickSeg(seg, CROSS_COLOR, e)} />
+                    onClick={e => clickSeg(seg, CROSS_COLOR, e)}
+                    {...navProps(() => clickSeg(seg, CROSS_COLOR), `Segment ${seg.id}`)} />
                   <line x1={px} y1={py} x2={ex} y2={ey}
                     stroke={CROSS_COLOR} strokeWidth={isSelCrs ? 5 : 2.2} strokeDasharray="5,3"
                     markerEnd="url(#ndCrs)" style={{ pointerEvents: 'none' }} />
@@ -870,7 +889,8 @@ export function CountryNodeDiagram({
               return (
                 <g key={n.id} style={{ cursor: 'pointer' }}
                   onMouseEnter={e => nodeTip(n, e)} onMouseLeave={() => setTip(null)}
-                  onClick={e => clickNode(n, e)}>
+                  onClick={e => clickNode(n, e)}
+                  {...navProps(() => clickNode(n), `Node ${n.name}`)}>
                   {/* Opaque background — occludes any edges drawn behind this node */}
                   <rect x={x - BOX_H} y={y - BOX_H} width={BOX_H * 2} height={BOX_H * 2}
                     fill="#ffffff" stroke="none" rx={3} />

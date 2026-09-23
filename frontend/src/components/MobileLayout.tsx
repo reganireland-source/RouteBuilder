@@ -75,7 +75,7 @@ const NlpChat = NLP_ENABLED
 // ── Sheet snap positions ────────────────────────────────────────────────────
 type SheetSnap = 'peek' | 'full'
 
-const PEEK_H = 76   // handle (28px) + tab bar (~48px)
+const PEEK_H = 88   // handle (40px, bumped from 28 for a comfortable touch target) + tab bar (~48px)
 const FULL_F = 0.91
 
 function snapPx(snap: SheetSnap): number {
@@ -718,8 +718,10 @@ export function MobileLayout({
     transition: 'color 0.15s, border-color 0.15s',
   })
 
+  // minHeight (not just padding) closes most of the gap to a comfortable
+  // touch target without inflating this pill's visual weight to match.
   const smallBtn = (destructive = false): React.CSSProperties => ({
-    padding: '4px 10px', borderRadius: 4, border: `1px solid ${t.border}`,
+    padding: '4px 10px', minHeight: 32, borderRadius: 4, border: `1px solid ${t.border}`,
     background: 'transparent', color: destructive ? t.red : t.textMuted,
     cursor: 'pointer', fontSize: 11, fontWeight: 600,
   })
@@ -729,7 +731,7 @@ export function MobileLayout({
     <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', fontFamily: 'system-ui, sans-serif', color: t.text }}>
 
       {/* ── Full-screen map ─────────────────────────────────────────────── */}
-      <div style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+      <div role="main" aria-label="Network map" style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
         {nodes.length > 0 ? (
           <NetworkMap
             livingWorld={livingWorld}
@@ -905,6 +907,7 @@ export function MobileLayout({
 
       {/* ── Bottom sheet ────────────────────────────────────────────────── */}
       <div
+        role="complementary" aria-label="Search, results and navigation"
         style={{
           position: 'fixed', bottom: 0, left: 0, right: 0,
           height: sheetHeight,
@@ -917,11 +920,14 @@ export function MobileLayout({
           transition: animating ? 'height 0.3s cubic-bezier(0.4,0,0.2,1)' : 'none',
         }}
       >
-        {/* Sheet toggle button */}
+        {/* Sheet toggle button — the primary control for expanding/collapsing
+            the results sheet, so its 28px original height (well under a
+            comfortable touch target) mattered more than most; bumped to 40,
+            full width already made it easy to hit horizontally. */}
         <button
           onClick={toggleSheet}
           style={{
-            flexShrink: 0, height: 28, width: '100%',
+            flexShrink: 0, height: 40, width: '100%',
             display: 'flex', justifyContent: 'center', alignItems: 'center',
             cursor: 'pointer', background: 'transparent', border: 'none',
             userSelect: 'none',

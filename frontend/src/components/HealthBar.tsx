@@ -28,7 +28,7 @@
  */
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import { useTheme } from '../theme'
+import { useTheme, type Theme } from '../theme'
 
 type Status = 'checking' | 'ok' | 'error' | 'disabled'
 
@@ -38,11 +38,16 @@ interface Indicator {
   detail?: string
 }
 
-const DOT_COLOR: Record<Status, string> = {
-  ok:       '#a6e3a1',
-  error:    '#f38ba8',
-  checking: '#f9e2af',
-  disabled: '#6c7086',
+// Themed, not hardcoded: this used to be a fixed Record<Status, string> of
+// literal hex values (Catppuccin Mocha's own palette), so the dots stayed
+// dark-theme-colored even after switching to Light or Dusk. "checking" maps
+// to orange (the app's "in-progress" semantic per DESIGN.md) since theme.ts
+// has no dedicated amber/yellow token.
+function dotColor(t: Theme, status: Status): string {
+  if (status === 'ok') return t.green
+  if (status === 'error') return t.red
+  if (status === 'checking') return t.orange
+  return t.textFaintest
 }
 
 interface Props {
@@ -203,9 +208,9 @@ export function HealthBar({ dataLoaded, mapsProvider }: Props) {
           >
             <div style={{
               width: 8, height: 8, borderRadius: '50%',
-              background: DOT_COLOR[ind.status],
+              background: dotColor(t, ind.status),
               flexShrink: 0,
-              boxShadow: ind.status === 'ok' ? `0 0 4px ${DOT_COLOR.ok}88` : undefined,
+              boxShadow: ind.status === 'ok' ? `0 0 4px ${t.green}88` : undefined,
             }} />
             <span style={{ fontSize: 10, color: t.textFaint, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
               {ind.label}
@@ -225,7 +230,7 @@ export function HealthBar({ dataLoaded, mapsProvider }: Props) {
       >
         Build <strong style={{ color: t.textMuted }}>{__BUILD_NUMBER__}</strong>
         <span style={{ margin: '0 5px', opacity: 0.4 }}>·</span>
-        {__BUILD_COMMIT__}{__BUILD_DIRTY__ && <span style={{ color: '#f9e2af' }}>*</span>}
+        {__BUILD_COMMIT__}{__BUILD_DIRTY__ && <span style={{ color: t.orange }}>*</span>}
         <span style={{ margin: '0 5px', opacity: 0.4 }}>·</span>
         {__BUILD_BRANCH__}
         <span style={{ margin: '0 5px', opacity: 0.4 }}>·</span>

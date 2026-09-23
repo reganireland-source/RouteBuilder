@@ -91,20 +91,22 @@ function NewSegmentInline({
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 10, color: t.textFaint, marginBottom: 2 }}>
+          <label htmlFor="chop-endpoint-start" style={{ display: 'block', fontSize: 10, color: t.textFaint, marginBottom: 2 }}>
             Start {aGuess && <span>({aGuess.distKm.toFixed(0)} km from nearest)</span>}
-          </div>
+          </label>
           <Typeahead
+            id="chop-endpoint-start"
             value={aQuery} invalid={!aNode} options={nodeOptions}
             onChangeText={txt => { setAQuery(txt); setAId(null) }}
             onPick={o => { setAQuery(o.label); setAId(o.id) }}
           />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 10, color: t.textFaint, marginBottom: 2 }}>
+          <label htmlFor="chop-endpoint-end" style={{ display: 'block', fontSize: 10, color: t.textFaint, marginBottom: 2 }}>
             End {zGuess && <span>({zGuess.distKm.toFixed(0)} km from nearest)</span>}
-          </div>
+          </label>
           <Typeahead
+            id="chop-endpoint-end"
             value={zQuery} invalid={!zNode} options={nodeOptions}
             onChangeText={txt => { setZQuery(txt); setZId(null) }}
             onPick={o => { setZQuery(o.label); setZId(o.id) }}
@@ -323,6 +325,7 @@ export function KmlChopSourcePanel({ state, onClose }: { state: KmlChopState; on
           ) : (
             <div key="sync-source">
               <Typeahead
+                ariaLabel="Search submarine cable name"
                 value={s.scmQuery}
                 onChangeText={txt => { s.setScmQuery(txt); s.setScmSelectedId(null) }}
                 onPick={o => { s.setScmQuery(o.label); s.setScmSelectedId(o.id) }}

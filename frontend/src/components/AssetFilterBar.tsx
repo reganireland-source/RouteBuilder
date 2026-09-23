@@ -200,7 +200,7 @@ function FilterDropdown<V extends string>({ label, hint, options, optionLabel, s
       {isOpen && (
         <div className="rb-anim-dropdown" style={{
           position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 20,
-          minWidth: 190, maxHeight: 260, overflowY: 'auto',
+          minWidth: 190, maxWidth: 'min(280px, calc(100vw - 16px))', maxHeight: 260, overflowY: 'auto',
           background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 8,
           boxShadow: '0 8px 24px rgba(0,0,0,0.4)', padding: 6,
         }}>

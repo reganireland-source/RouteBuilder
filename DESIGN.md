@@ -194,6 +194,7 @@ Corner radius scales with a surface's size and how "solid" it should feel: small
 - **Background:** `neutral-bg-panel`, swapping to `neutral-bg-selected` for the selected state in a list.
 - **Shadow Strategy:** none at rest — see the Elevation section's Named Rule; only floating/layered surfaces cast shadow.
 - **Border:** 1px `neutral-border` is the default separator, not a shadow.
+- **Severity/selection stripe:** a 3–4px `border-left` in the status or accent color — outage severity (`OutagePanel`), hazard severity (`HazardsNearbyCard`), note severity (`EntityNotesPanel`), and list-row selection (`AlgoEval`) all use this as "the single strongest colour cue on the card" (verbatim from `EntityNotesPanel`'s own comment). Confirmed intentional and consistent, not a one-off habit — keep it when adding a new severity-coded card; don't reach for a full-border or background-tint substitute instead.
 
 ### Modals
 - **Style:** `neutral-bg-panel`/`neutral-bg-deep` fill, 1px border, 8–14px radius, Modal-tier shadow, `rgba(0,0,0,0.6)` backdrop scrim.

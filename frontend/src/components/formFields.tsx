@@ -4,7 +4,7 @@
  * use the same inputs/buttons without duplicating or drifting from them.
  * Pure presentational components — no domain logic.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useTheme, type Theme } from '../theme'
 import type { Ownership } from '../types'
 
@@ -33,10 +33,12 @@ export function LabeledInput({ label, value, onChange, placeholder, invalid }: {
 }) {
   const t = useTheme()
   const s = useFieldStyles()
+  const id = useId()
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
-      <label style={s.label}>{label}</label>
+      <label htmlFor={id} style={s.label}>{label}</label>
       <input
+        id={id}
         style={{ ...s.input, border: `1px solid ${invalid ? t.red : t.border}` }}
         value={value} placeholder={placeholder} autoComplete="off"
         onChange={e => onChange(e.target.value)}
@@ -49,10 +51,11 @@ export function LabeledSelect<T extends string>({ label, value, onChange, option
   label: string; value: T; onChange: (v: T) => void; options: { value: T; label: string }[]
 }) {
   const s = useFieldStyles()
+  const id = useId()
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
-      <label style={s.label}>{label}</label>
-      <select style={s.input} value={value} onChange={e => onChange(e.target.value as T)}>
+      <label htmlFor={id} style={s.label}>{label}</label>
+      <select id={id} style={s.input} value={value} onChange={e => onChange(e.target.value as T)}>
         {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
     </div>
@@ -79,7 +82,7 @@ export interface TypeaheadOption { id: string; label: string }
  * the text last changed", not "the text happens to match something."
  */
 export function Typeahead({
-  value, onChangeText, onPick, options, placeholder, disabled, invalid, emptyText,
+  value, onChangeText, onPick, options, placeholder, disabled, invalid, emptyText, id, ariaLabel,
 }: {
   value: string
   onChangeText: (text: string) => void
@@ -89,6 +92,11 @@ export function Typeahead({
   disabled?: boolean
   invalid?: boolean
   emptyText?: string
+  /** Pass this and pair it with a `<label htmlFor={id}>` at the call site
+   *  when there's a visible label; use `ariaLabel` instead when the only
+   *  hint is a placeholder (which screen readers can't rely on as a name). */
+  id?: string
+  ariaLabel?: string
 }) {
   const t = useTheme()
   const s = useFieldStyles()
@@ -122,6 +130,8 @@ export function Typeahead({
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
       <input
+        id={id}
+        aria-label={ariaLabel}
         value={value}
         onChange={e => { onChangeText(e.target.value); setOpen(true); setActiveIdx(0) }}
         onFocus={() => setOpen(true)}

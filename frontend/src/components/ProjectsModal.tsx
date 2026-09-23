@@ -302,13 +302,13 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
   function renderList() {
     return (
       <div style={s.scroll} ref={scrollRef}>
-        {err && <div style={{ color: '#f38ba8', marginBottom: 12, fontSize: 13 }}>{err}</div>}
+        {err && <div style={{ color: t.red, marginBottom: 12, fontSize: 13 }}>{err}</div>}
         {pendingCircuit && !pendingTargetProject && (
           <div style={{ padding: '12px 16px', borderRadius: 8, background: `${t.blue}18`, border: `1px solid ${t.blue}66`, marginBottom: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: t.blue, marginBottom: 4 }}>Adding circuit to project</div>
             <div style={{ fontSize: 12, color: t.textMuted }}>
               {pendingCircuit.searchLabel}
-              {pendingCircuit.protectRoute && <span style={{ color: '#f9e2af', marginLeft: 8 }}>+ Protect</span>}
+              {pendingCircuit.protectRoute && <span style={{ color: t.orange, marginLeft: 8 }}>+ Protect</span>}
             </div>
             <div style={{ fontSize: 12, color: t.textMuted, marginTop: 6 }}>Select a project below, or create a new one.</div>
           </div>
@@ -320,7 +320,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
             </div>
             <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 12 }}>
               {pendingCircuit?.searchLabel}
-              {pendingCircuit?.protectRoute && <span style={{ color: '#f9e2af', marginLeft: 8 }}>+ Protect</span>}
+              {pendingCircuit?.protectRoute && <span style={{ color: t.orange, marginLeft: 8 }}>+ Protect</span>}
             </div>
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: t.textMuted, textTransform: 'uppercase' as const, marginBottom: 5 }}>
@@ -357,7 +357,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
           <div key={p.id}
             role="button"
             tabIndex={0}
-            style={{ ...s.card, borderColor: confirmDelete === p.id ? '#f38ba8' : pendingCircuit ? t.blue + '88' : t.border }}
+            style={{ ...s.card, borderColor: confirmDelete === p.id ? t.red : pendingCircuit ? t.blue + '88' : t.border }}
             onClick={() => handleProjectClick(p)}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleProjectClick(p) } }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -368,15 +368,15 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
                   <span style={{ marginRight: 12 }}>📡 {p.circuits.length} circuit{p.circuits.length !== 1 ? 's' : ''}</span>
                   <span style={{
                     padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 600,
-                    background: p.visibility === 'confidential' ? 'rgba(243,139,168,0.15)' : 'rgba(166,227,161,0.15)',
-                    color: p.visibility === 'confidential' ? '#f38ba8' : '#a6e3a1',
+                    background: p.visibility === 'confidential' ? `${t.red}26` : `${t.green}26`,
+                    color: p.visibility === 'confidential' ? t.red : t.green,
                   }}>{p.visibility}</span>
                 </div>
               </div>
               <div role="presentation" style={{ display: 'flex', gap: 6, alignItems: 'center' }} onClick={e => e.stopPropagation()}>
                 {confirmDelete === p.id ? (
                   <>
-                    <button style={s.btn('#fff', '#f38ba8')} onClick={() => deleteProject(p.id)}>Confirm Delete</button>
+                    <button style={s.btn('#fff', t.red)} onClick={() => deleteProject(p.id)}>Confirm Delete</button>
                     <button style={s.btn(t.text, t.border)} onClick={() => setConfirmDelete(null)}>Cancel</button>
                   </>
                 ) : isAdmin ? (
@@ -468,8 +468,8 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
           />
         </div>
 
-        {err && <div style={{ color: '#f38ba8', fontSize: 13, marginBottom: 10 }}>{err}</div>}
-        {!isAdmin && <div style={{ fontSize: 11, color: '#f9e2af', marginBottom: 8 }}>🔒 Admin access required to save changes</div>}
+        {err && <div style={{ color: t.red, fontSize: 13, marginBottom: 10 }}>{err}</div>}
+        {!isAdmin && <div style={{ fontSize: 11, color: t.orange, marginBottom: 8 }}>🔒 Admin access required to save changes</div>}
         <button style={{ ...s.btn(t.bgCard, t.blue), opacity: (!isAdmin || saving) ? 0.45 : 1 }} onClick={saveProject} disabled={saving || !isAdmin} title={!isAdmin ? 'Admin access required' : undefined}>
           {saving ? 'Saving…' : selected ? 'Save Changes' : 'Create Project'}
         </button>
@@ -502,7 +502,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
                 <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 6 }}>
                   {routeLabel(c.route_snapshot as unknown as Route)}
                   {c.protect_route_snapshot && (
-                    <span style={{ marginLeft: 8, color: '#f9e2af', fontWeight: 600 }}>+ Protect</span>
+                    <span style={{ marginLeft: 8, color: t.orange, fontWeight: 600 }}>+ Protect</span>
                   )}
                 </div>
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' as const, fontSize: 12, color: t.textMuted }}>
@@ -515,7 +515,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
               </div>
               <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
                 <button style={s.btn(t.blue, 'transparent')} onClick={() => { setEditingCircuit(c); setCircuitDraft({ ...c }) }}>Edit</button>
-                <button style={s.btn('#f38ba8', 'transparent')} onClick={() => removeCircuit(c.circuit_id)}>Remove</button>
+                <button style={s.btn(t.red, 'transparent')} onClick={() => removeCircuit(c.circuit_id)}>Remove</button>
               </div>
             </div>
           </div>
@@ -682,7 +682,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
             {aNode?.name ?? '—'} → {zNode?.name ?? '—'}
           </div>
           {circuitDraft.protect_route_snapshot && (
-            <div style={{ fontSize: 12, color: '#f9e2af', marginTop: 4 }}>+ Protect route included</div>
+            <div style={{ fontSize: 12, color: t.orange, marginTop: 4 }}>+ Protect route included</div>
           )}
         </div>
 
@@ -692,7 +692,7 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
           <EndBlock label={`Z-End${zNode ? ` — ${zNode.country}` : ''}`} end={circuitDraft.z_end} setter={setZ} />
         </div>
 
-        {err && <div style={{ color: '#f38ba8', fontSize: 13, marginBottom: 10 }}>{err}</div>}
+        {err && <div style={{ color: t.red, fontSize: 13, marginBottom: 10 }}>{err}</div>}
         <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
           <button style={{ ...s.btn(t.bgCard, t.blue), opacity: (!isAdmin || saving) ? 0.45 : 1 }} onClick={saveCircuit} disabled={saving || !isAdmin} title={!isAdmin ? 'Admin access required' : undefined}>{saving ? 'Saving…' : 'Save Circuit'}</button>
           <button style={s.btn(t.textMuted, 'transparent')} onClick={() => { setEditingCircuit(null); setCircuitDraft(null) }}>Cancel</button>

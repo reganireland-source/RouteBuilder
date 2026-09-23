@@ -44,7 +44,7 @@
  * identity on every render, remounting them and dropping in-progress input.
  * ============================================================================
  */
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useId } from 'react'
 import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, AllowedHandoffSegment, InterconnectRule, KmlPathInfo, NoteCategory, NoteSeverity, OnNet, SegmentCapacity, SegmentOutage, SolutionNote, VerificationStatus } from '../types'
 import { useTheme, type Theme } from '../theme'
 import { useAuth } from '../context/AuthContext'
@@ -192,6 +192,7 @@ function Field({ label, val, k, src, setSrc, readOnly = false, type = 'text', op
   multiline?: boolean   // renders a full-width textarea spanning all columns
 }) {
   const t = useTheme()
+  const id = useId()
   const inputStyle: React.CSSProperties = {
     background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 3,
     color: t.text, fontSize: 12, padding: '3px 6px', width: '100%', boxSizing: 'border-box',
@@ -228,11 +229,12 @@ function Field({ label, val, k, src, setSrc, readOnly = false, type = 'text', op
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, ...(multiline ? { gridColumn: '1 / -1' } : {}) }}>
-      <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+      <label htmlFor={id} style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
       {readOnly ? (
-        <input style={roStyle} value={String(val ?? '')} readOnly autoComplete="off" />
+        <input id={id} style={roStyle} value={String(val ?? '')} readOnly autoComplete="off" />
       ) : multiline ? (
         <textarea
+          id={id}
           style={{ ...inputStyle, resize: 'vertical', minHeight: 64, lineHeight: 1.5 }}
           rows={3}
           placeholder={placeholder}
@@ -240,11 +242,12 @@ function Field({ label, val, k, src, setSrc, readOnly = false, type = 'text', op
           onChange={e => setSrc({ ...src, [k]: e.target.value })}
         />
       ) : options ? (
-        <select style={inputStyle} value={String(src[k] ?? '')} onChange={e => setSrc({ ...src, [k]: e.target.value })}>
+        <select id={id} style={inputStyle} value={String(src[k] ?? '')} onChange={e => setSrc({ ...src, [k]: e.target.value })}>
           {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       ) : (
         <input
+          id={id}
           style={inputStyle}
           type={type === 'number' ? 'text' : type}
           inputMode={type === 'number' ? 'decimal' : undefined}
@@ -288,6 +291,8 @@ function StatusQuarterPair({
   placeholder: string
 }) {
   const t = useTheme()
+  const statusId = useId()
+  const quarterId = useId()
   const inputStyle: React.CSSProperties = {
     background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 3,
     color: t.text, fontSize: 12, padding: '3px 6px', width: '100%', boxSizing: 'border-box',
@@ -300,8 +305,9 @@ function StatusQuarterPair({
   return (
     <>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <label style={labelStyle}>{label}</label>
+        <label htmlFor={statusId} style={labelStyle}>{label}</label>
         <select
+          id={statusId}
           style={inputStyle}
           value={String(src[statusKey] ?? defaultValue)}
           onChange={e => setSrc({
@@ -315,8 +321,9 @@ function StatusQuarterPair({
       </div>
       {isActive && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <label style={labelStyle}>{quarterLabel}</label>
+          <label htmlFor={quarterId} style={labelStyle}>{quarterLabel}</label>
           <input
+            id={quarterId}
             style={{ ...inputStyle, border: `1px solid ${quarterValid ? t.border : t.red}` }}
             type="text" autoComplete="off" placeholder={placeholder}
             value={String(src[quarterKey] ?? '')}
@@ -365,6 +372,7 @@ function NodeSearchField({ label, k, src, setSrc, nodes }: {
   nodes: CableNode[]
 }) {
   const t = useTheme()
+  const id = useId()
   const inputStyle: React.CSSProperties = {
     background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 3,
     color: t.text, fontSize: 12, padding: '3px 6px', width: '100%', boxSizing: 'border-box',
@@ -400,8 +408,9 @@ function NodeSearchField({ label, k, src, setSrc, nodes }: {
 
   return (
     <div ref={wrapRef} style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
-      <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+      <label htmlFor={id} style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
       <input
+        id={id}
         style={{ ...inputStyle, borderColor, paddingRight: isValid ? 22 : undefined }}
         value={query}
         placeholder="Search ID, name, city, country…"
@@ -509,6 +518,7 @@ function SegmentSearchField({ label, k, src, setSrc, segments }: {
   segments: CableSegment[]
 }) {
   const t = useTheme()
+  const id = useId()
   const inputStyle: React.CSSProperties = {
     background: t.bgInput, border: `1px solid ${t.border}`, borderRadius: 3,
     color: t.text, fontSize: 12, padding: '3px 6px', width: '100%', boxSizing: 'border-box',
@@ -544,8 +554,9 @@ function SegmentSearchField({ label, k, src, setSrc, segments }: {
 
   return (
     <div ref={wrapRef} style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
-      <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
+      <label htmlFor={id} style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</label>
       <input
+        id={id}
         style={{ ...inputStyle, borderColor, paddingRight: isValid ? 22 : undefined }}
         value={query}
         placeholder="Search ID, name, system or end nodes…"
@@ -1125,14 +1136,14 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           {((editValues.waypoints as [number, number][]) ?? []).map(([wlat, wlng], wi) => (
             <div key={wi} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
               <span style={{ fontSize: 10, color: t.textFaint, width: 20, textAlign: 'right', flexShrink: 0 }}>{wi + 1}</span>
-              <input type="text" inputMode="decimal" placeholder="Lat" value={String(wlat)} autoComplete="off" style={{ ...inputStyle, width: 90 }}
+              <input type="text" inputMode="decimal" placeholder="Lat" aria-label={`Waypoint ${wi + 1} latitude`} value={String(wlat)} autoComplete="off" style={{ ...inputStyle, width: 90 }}
                 onChange={e => { const wps = [...((editValues.waypoints as [number, number][]) ?? [])]; const v = parseFloat(e.target.value); if (!isNaN(v)) { wps[wi] = [v, wps[wi][1]]; setEditValues({ ...editValues, waypoints: wps }) } }}
                 onPaste={e => {
                   const text = e.clipboardData.getData('text').trim()
                   const parts = text.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean)
                   if (parts.length >= 2) { const a = parseFloat(parts[0]); const b = parseFloat(parts[1]); if (!isNaN(a) && !isNaN(b)) { e.preventDefault(); const wps = [...((editValues.waypoints as [number, number][]) ?? [])]; wps[wi] = [a, b]; setEditValues({ ...editValues, waypoints: wps }) } }
                 }} />
-              <input type="text" inputMode="decimal" placeholder="Lng" value={String(wlng)} autoComplete="off" style={{ ...inputStyle, width: 90 }}
+              <input type="text" inputMode="decimal" placeholder="Lng" aria-label={`Waypoint ${wi + 1} longitude`} value={String(wlng)} autoComplete="off" style={{ ...inputStyle, width: 90 }}
                 onChange={e => { const wps = [...((editValues.waypoints as [number, number][]) ?? [])]; const v = parseFloat(e.target.value); if (!isNaN(v)) { wps[wi] = [wps[wi][0], v]; setEditValues({ ...editValues, waypoints: wps }) } }} />
               <button disabled={wi === 0} onClick={() => { const wps = [...((editValues.waypoints as [number, number][]) ?? [])]; [wps[wi - 1], wps[wi]] = [wps[wi], wps[wi - 1]]; setEditValues({ ...editValues, waypoints: wps }) }} style={{ fontSize: 11, padding: '2px 6px', borderRadius: 3, border: `1px solid ${t.border}`, background: 'transparent', color: t.textFaint, cursor: wi === 0 ? 'not-allowed' : 'pointer', opacity: wi === 0 ? 0.3 : 1 }}>↑</button>
               <button disabled={wi === ((editValues.waypoints as [number, number][]) ?? []).length - 1} onClick={() => { const wps = [...((editValues.waypoints as [number, number][]) ?? [])]; [wps[wi], wps[wi + 1]] = [wps[wi + 1], wps[wi]]; setEditValues({ ...editValues, waypoints: wps }) }} style={{ fontSize: 11, padding: '2px 6px', borderRadius: 3, border: `1px solid ${t.border}`, background: 'transparent', color: t.textFaint, cursor: wi === ((editValues.waypoints as [number, number][]) ?? []).length - 1 ? 'not-allowed' : 'pointer', opacity: wi === ((editValues.waypoints as [number, number][]) ?? []).length - 1 ? 0.3 : 1 }}>↓</button>
@@ -1340,8 +1351,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     )
     const segSearchWidget = (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, position: 'relative' }}>
-        <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Segment ID *</label>
-        <input style={inputStyle} placeholder="Type to filter segments…"
+        <label htmlFor="refdata-cap-segment-search" style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Segment ID *</label>
+        <input id="refdata-cap-segment-search" style={inputStyle} placeholder="Type to filter segments…"
           value={String(addValues.segment_id ?? '')}
           onChange={e => { setAddValues({ ...addValues, segment_id: e.target.value }); setCapSegmentOpen(true) }}
           onFocus={() => setCapSegmentOpen(true)}

@@ -1694,7 +1694,7 @@ export default function App() {
         })()}
 
         {/* Left panel */}
-        <div style={{
+        <div role="complementary" aria-label="Search and navigation" style={{
           width: leftOpen ? 440 : 0, flexShrink: 0, display: 'flex', flexDirection: 'column',
           background: theme.bgPanel, borderRight: leftOpen ? `1px solid ${theme.border}` : 'none',
           overflow: 'hidden', transition: 'width 0.3s ease',
@@ -1926,7 +1926,7 @@ export default function App() {
         </Tooltip>
 
         {/* Middle panel */}
-        <div style={{
+        <div role="complementary" aria-label="Results" style={{
           width: middleOpen ? 520 : 0, flexShrink: 0, display: 'flex', flexDirection: 'column',
           background: theme.bgDeep, borderRight: middleOpen ? `1px solid ${theme.border}` : 'none',
           overflow: 'hidden', transition: 'width 0.3s ease',
@@ -2062,7 +2062,7 @@ export default function App() {
         </Tooltip>
 
         {/* Map */}
-        <div style={{ flex: 1, position: 'relative' }}>
+        <div role="main" aria-label="Network map" style={{ flex: 1, position: 'relative' }}>
 
           {/* Country Node Diagram button */}
           {mode === 'countryviewer' && countryHighlight && (

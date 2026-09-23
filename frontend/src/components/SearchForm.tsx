@@ -265,6 +265,7 @@ function FilteredMulti({ items, selected, onToggle, placeholder, listHeight = 13
         value={query}
         onChange={e => setQuery(e.target.value)}
         placeholder={placeholder}
+        aria-label={placeholder}
         style={{
           width: '100%', padding: '5px 8px', border: 'none',
           borderBottom: `1px solid ${t.border}`, background: t.bgInput,
@@ -475,11 +476,15 @@ function HopStepper({ label, icon, value, onChange }: {
 
 /** Type-ahead combobox for choosing a single node (origin or destination):
  *  filters as you type, supports keyboard navigation, stores the node id. */
-function NodeCombobox({ nodes, value, onChange, placeholder }: {
+function NodeCombobox({ nodes, value, onChange, placeholder, id }: {
   nodes: CableNode[]
   value: string
   onChange: (id: string) => void
   placeholder: string
+  /** Pairs with an external `<label htmlFor={id}>` — the input only exists
+   *  while nothing is selected (a selected node renders as a read-only chip
+   *  instead), so the id/label pairing applies to that search state. */
+  id?: string
 }) {
   const t = useTheme()
   const [query, setQuery]       = useState('')
@@ -582,6 +587,7 @@ function NodeCombobox({ nodes, value, onChange, placeholder }: {
         </div>
       ) : (
         <input
+          id={id}
           ref={inputRef}
           value={query}
           placeholder={placeholder}
@@ -642,6 +648,18 @@ function NodeCombobox({ nodes, value, onChange, placeholder }: {
   )
 }
 
+/** Same local-copy pattern as RouteList.tsx/RefDataModal.tsx's own
+ *  `useIsMobile` — no shared hook module exists for this in the codebase. */
+function useIsMobile(): boolean {
+  const [mobile, setMobile] = useState(() => window.innerWidth < 768)
+  useEffect(() => {
+    const handler = () => setMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+  return mobile
+}
+
 /** The Advanced Constraints modal: tabbed include/avoid pickers for nodes,
  *  segments, systems and countries, plus max wet/terrestrial hop steppers.
  *  Edits the constraint state owned by the parent SearchForm. */
@@ -699,6 +717,7 @@ function AdvancedConstraintsModal({
   onClearAll: () => void
 }) {
   const t = useTheme()
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     if (!open) return
@@ -900,12 +919,17 @@ function AdvancedConstraintsModal({
           >×</button>
         </div>
 
-        {/* Body */}
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        {/* Body — stacks sidebar above content on mobile instead of squeezing
+            it into a fixed 210px rail alongside an already-narrowed modal
+            (that left as little as ~125px for the content pane on a phone). */}
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', flex: 1, overflow: 'hidden' }}>
           {/* Sidebar */}
           <div style={{
-            width: 210, flexShrink: 0,
-            borderRight: `1px solid ${t.border}`,
+            width: isMobile ? '100%' : 210,
+            maxHeight: isMobile ? '38%' : undefined,
+            flexShrink: 0,
+            borderRight: isMobile ? 'none' : `1px solid ${t.border}`,
+            borderBottom: isMobile ? `1px solid ${t.border}` : 'none',
             display: 'flex', flexDirection: 'column',
             background: t.bgDeep,
           }}>
@@ -1218,8 +1242,8 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
       <KmlModeToggle kmlMode={kmlMode} onToggle={onToggleKmlMode} />
 
       <div style={{ position: 'relative' }}>
-        <label style={labelStyle}>Origin</label>
-        <NodeCombobox nodes={nodes} value={startNode} onChange={setStartNode} placeholder="Search city, code, country, owner…" />
+        <label htmlFor="search-origin" style={labelStyle}>Origin</label>
+        <NodeCombobox id="search-origin" nodes={nodes} value={startNode} onChange={setStartNode} placeholder="Search city, code, country, owner…" />
 
         {/* Flip origin ↔ destination — Google Maps style */}
         <button
@@ -1242,13 +1266,13 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
       </div>
 
       <div>
-        <label style={labelStyle}>Destination</label>
-        <NodeCombobox nodes={nodes} value={endNode} onChange={setEndNode} placeholder="Search city, code, country, owner…" />
+        <label htmlFor="search-destination" style={labelStyle}>Destination</label>
+        <NodeCombobox id="search-destination" nodes={nodes} value={endNode} onChange={setEndNode} placeholder="Search city, code, country, owner…" />
       </div>
 
       <div>
-        <label style={labelStyle}>Diversity</label>
-        <select value={diversity} onChange={e => setDiversity(e.target.value as DiversityType)} style={selectStyle}>
+        <label htmlFor="search-diversity" style={labelStyle}>Diversity</label>
+        <select id="search-diversity" value={diversity} onChange={e => setDiversity(e.target.value as DiversityType)} style={selectStyle}>
           <option value="none">None</option>
           <option value="terrestrial_origin">Terrestrial Diversity — Origin End Only</option>
           <option value="terrestrial_destination">Terrestrial Diversity — Destination End Only</option>
