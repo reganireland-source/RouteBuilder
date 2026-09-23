@@ -97,6 +97,52 @@ const EMPTY_PREVIEW: KmlPreviewLine[] = []
  *  narrow enough that two parallel cables stay separately selectable. */
 const HIT_TARGET_WEIGHT = 14
 
+/** The map's base rendering — see MapStyleCard and the Props doc on `mapStyle`. */
+export type MapStyle = 'standard' | 'satellite' | 'contrast'
+
+// Esri's free, keyless World Imagery service — the same "Community Basemaps"
+// family as theme.ts's three tile sources, just the satellite/aerial member
+// of it rather than a Canvas/Street map. Reference is its matching labels
+// overlay (boundaries, place names), stacked the same way theme.ts's own
+// _Base/_Reference pairs already are.
+const SATELLITE_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+const SATELLITE_LABELS_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'
+const SATELLITE_ATTRIBUTION = '&copy; <a href="https://www.esri.com/">Esri</a> &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+
+/** High-contrast mode's one fixed accent for backhaul (terrestrial)
+ *  segments — deliberately NOT a theme token: the whole point of this mode
+ *  is a single unmistakable hue against a desaturated map, independent of
+ *  which of the three themes is active. Chosen to sit outside every
+ *  existing semantic color (red=error, green=healthy, orange=warning,
+ *  blue=the one UI accent) so it reads as "the backhaul color" and nothing
+ *  else. */
+const HIGH_CONTRAST_BACKHAUL_COLOR = '#ff2d92'
+
+interface SegPathOptions { color: string; weight: number; opacity: number; dashArray: string | undefined }
+
+/** The one override 'contrast' mode makes to the segment styling ladder —
+ *  pulled out to its own function (rather than inline in the segment
+ *  flatMap, an already very large pre-existing function) purely to keep
+ *  that function's own cognitive-complexity budget from growing; see its
+ *  call site for where this sits in the ladder's precedence. Subsea
+ *  segments and anything already drawn as "down" are untouched, so
+ *  route/system/country color and the outage-red override still read
+ *  normally. */
+function applyHighContrast(pathOptions: SegPathOptions, mapStyle: MapStyle, segType: string, showAsDown: boolean): SegPathOptions {
+  if (mapStyle !== 'contrast' || segType !== 'terrestrial' || showAsDown) return pathOptions
+  return { ...pathOptions, color: HIGH_CONTRAST_BACKHAUL_COLOR, weight: Math.max(pathOptions.weight, 3) }
+}
+
+/** The map wrapper's conditional classes — pulled out of NetworkMap's own
+ *  body for the same reason as applyHighContrast above (that function's
+ *  cognitive-complexity budget, not this logic's). */
+function mapWrapperClasses(bannerOffset: boolean, mapStyle: MapStyle): string | undefined {
+  const classes: string[] = []
+  if (bannerOffset) classes.push('rb-banner-offset')
+  if (mapStyle === 'contrast') classes.push('rb-high-contrast')
+  return classes.length > 0 ? classes.join(' ') : undefined
+}
+
 // Human-readable labels for the Ownership enum, used in segment tooltips.
 const OWNERSHIP_LABEL: Record<string, string> = {
   owned:                'Owned',
@@ -187,6 +233,14 @@ interface Props {
   onManualNodeClick?: (node: CableNode) => void
   manualMobileMode?: boolean   // enlarge candidate circles for touch
   mapsProvider?: 'osm' | 'google'
+  /** Base rendering, independent of the light/dark/dusk theme: 'standard' is
+   *  the active theme's own tile set (unchanged default); 'satellite' swaps
+   *  in Esri's keyless World Imagery; 'contrast' keeps the theme's tiles but
+   *  desaturates them and gives backhaul segments a fixed, vivid accent —
+   *  see the MapStyleCard component below. Controlled by the parent (App.tsx
+   *  owns and persists the value) like every other map toggle. */
+  mapStyle?: MapStyle
+  onMapStyleChange?: (style: MapStyle) => void
   // Network Editor — see EditorMapLayer.tsx. `nodes`/`segments`/`capacity` above
   // already carry the derived (base + staged edits) arrays when this is active,
   // so only the interaction-mode/selection state is needed here.
@@ -414,6 +468,51 @@ function GoogleMutantLayer({ themeId }: { themeId: string }) {
   return null
 }
 
+/**
+ * The map's base tile source — Google, Esri satellite imagery, or the
+ * active theme's own Esri tiles, depending on `mapsProvider`/`mapStyle`. An
+ * if/else chain (not a ternary) and its own function on purpose: this used
+ * to be an inline three-way ternary directly in NetworkMap's JSX, which
+ * both tripped the nested-ternary lint rule and (being a ternary in an
+ * already very large function) added to NetworkMap's own cognitive
+ * complexity for no real benefit — this reads the same either way.
+ */
+function BaseTileLayers({ mapsProvider, mapStyle, theme }: {
+  mapsProvider: 'osm' | 'google' | undefined
+  mapStyle: MapStyle
+  theme: ReturnType<typeof useTheme>
+}) {
+  if (mapsProvider === 'google' || (!mapsProvider && import.meta.env.VITE_MAPS_PROVIDER === 'google')) {
+    return <GoogleMutantLayer themeId={theme.themeId} />
+  }
+
+  if (mapStyle === 'satellite') {
+    // Independent of theme — satellite imagery replaces the tile source
+    // outright rather than the light/dark/dusk canvas styles. 'contrast'
+    // deliberately does NOT come through this branch: it keeps the theme's
+    // own tiles and desaturates them via CSS instead (see the
+    // .rb-high-contrast rule), so switching it on/off never re-fetches a
+    // different tile set.
+    return (
+      <>
+        <TileLayer key={SATELLITE_TILE_URL} url={SATELLITE_TILE_URL} attribution={SATELLITE_ATTRIBUTION} noWrap={false} />
+        <TileLayer key={SATELLITE_LABELS_URL} url={SATELLITE_LABELS_URL} noWrap={false} />
+      </>
+    )
+  }
+
+  return (
+    <>
+      <TileLayer key={theme.mapTileUrl} url={theme.mapTileUrl} attribution={theme.mapAttribution} noWrap={false} />
+      {/* Esri's gray-canvas styles ship geography and place labels as two
+          separate tile sets (see theme.ts) — this is the transparent
+          labels overlay, stacked on top so text renders over the base. */}
+      {theme.mapLabelsUrl && (
+        <TileLayer key={theme.mapLabelsUrl} url={theme.mapLabelsUrl} noWrap={false} />
+      )}
+    </>
+  )
+}
 
 /**
  * Format an ISO date string for the Planned Events tooltip window, e.g.
@@ -480,10 +579,64 @@ function NodeTypeLegend({ narrow }: { narrow: boolean }) {
   )
 }
 
+const MAP_STYLE_OPTS: { value: MapStyle; icon: string; label: string }[] = [
+  { value: 'standard',  icon: '🗺',  label: 'Standard' },
+  { value: 'satellite', icon: '🌐', label: 'Satellite' },
+  { value: 'contrast',  icon: '◐',  label: 'Contrast' },
+]
+
+/**
+ * Base-rendering picker — a small set of mutually-exclusive map styles as
+ * icon+label tiles, docked bottom-left like Google Maps' own style picker
+ * (the brief this was built against named that layout specifically). Sits
+ * ABOVE NodeTypeLegend on desktop (that one owns the bottom-left corner
+ * itself); NodeTypeLegend's row count is fixed at 6, so its rendered height
+ * is predictable and this can use a fixed clearance rather than measuring it.
+ * On a narrow viewport the legend relocates to a strip under the header
+ * instead (see NodeTypeLegend), which frees the bottom-left corner for this
+ * card there — it only needs to clear the bottom sheet's peek height.
+ */
+function MapStyleCard({ style, onChange, narrow }: { style: MapStyle; onChange?: (s: MapStyle) => void; narrow: boolean }) {
+  if (!onChange) return null
+  return (
+    <div style={{
+      position: 'absolute', zIndex: 1000,
+      ...(narrow ? { bottom: 96, left: 8 } : { bottom: 178, left: 8 }),
+      background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(4px)',
+      border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7,
+      padding: 6, display: 'flex', gap: 4,
+    }}>
+      {MAP_STYLE_OPTS.map(opt => {
+        const active = style === opt.value
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            title={opt.label}
+            className="rb-btn-motion"
+            style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+              width: 52, padding: '6px 2px', borderRadius: 5,
+              border: `1px solid ${active ? '#5b9cf6' : 'rgba(255,255,255,0.14)'}`,
+              background: active ? 'rgba(91,156,246,0.22)' : 'transparent',
+              color: active ? '#5b9cf6' : 'rgba(255,255,255,0.82)',
+              cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
+            }}
+          >
+            <span style={{ fontSize: 16, lineHeight: 1 }}>{opt.icon}</span>
+            <span style={{ fontSize: 9, fontWeight: 600, whiteSpace: 'nowrap' }}>{opt.label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, controlsOpen = false, kmlPaths = EMPTY_KML_PATHS, kmlMode = false, kmlPreview = EMPTY_PREVIEW, kmlPreviewKey = 0, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, assetFilter, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace, kmlChop = null }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, controlsOpen = false, kmlPaths = EMPTY_KML_PATHS, kmlMode = false, kmlPreview = EMPTY_PREVIEW, kmlPreviewKey = 0, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, assetFilter, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, mapStyle = 'standard', onMapStyleChange, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace, kmlChop = null }: Props) {
   const t = useTheme()
   const narrowViewport = useNarrowViewport()
   const { hoveredSegmentId } = useSegmentHover()
@@ -630,9 +783,11 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
     }
   }
 
+  const wrapperClasses = mapWrapperClasses(bannerOffset, mapStyle)
+
   return (
     <div
-      className={bannerOffset ? 'rb-banner-offset' : undefined}
+      className={wrapperClasses}
       style={{ position: 'relative', height: '100%', width: '100%' }}
     >
     {/* Pulsing glow keyframes for the hovered-segment highlight below. A plain
@@ -667,6 +822,16 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         animation: rb-segment-glow-pulse 1.4s ease-in-out infinite;
         filter: blur(2px);
       }
+      /* High-contrast map style: desaturate the tiles (both the base and any
+         labels overlay live in this one Leaflet pane) rather than swapping
+         to a different tile source, so toggling it never re-fetches
+         anything. contrast()/brightness() keep the desaturated geography
+         from going muddy at typical zoom levels. Segment colors are handled
+         separately in the styling ladder below, not by this filter — an
+         element filter would desaturate the accent-colored cables too. */
+      .rb-high-contrast .leaflet-tile-pane {
+        filter: grayscale(1) contrast(1.15) brightness(1.05);
+      }
       /* The future-network banner occupies the top of the map when a planned
          date is active, so the zoom control drops below it. */
       .rb-banner-offset .leaflet-top.leaflet-left .leaflet-control-zoom { margin-top: 44px; }
@@ -680,6 +845,7 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
       }
     `}</style>
     <NodeTypeLegend narrow={narrowViewport} />
+    <MapStyleCard style={mapStyle} onChange={onMapStyleChange} narrow={narrowViewport} />
     {hazardsOn && !editorMode && (
       <HazardStatusPanel
         feed={hazardFeed ?? null}
@@ -704,23 +870,7 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
       maxBounds={[[-75, -25], [80, 345]]}
       maxBoundsViscosity={1.0}
     >
-      {(mapsProvider === 'google' || (!mapsProvider && import.meta.env.VITE_MAPS_PROVIDER === 'google'))
-        ? <GoogleMutantLayer themeId={t.themeId} />
-        : <>
-            <TileLayer
-              key={t.mapTileUrl}
-              url={t.mapTileUrl}
-              attribution={t.mapAttribution}
-              noWrap={false}
-            />
-            {/* Esri's gray-canvas styles ship geography and place labels as two
-                separate tile sets (see theme.ts) — this is the transparent
-                labels overlay, stacked on top so text renders over the base. */}
-            {t.mapLabelsUrl && (
-              <TileLayer key={t.mapLabelsUrl} url={t.mapLabelsUrl} noWrap={false} />
-            )}
-          </>
-      }
+      <BaseTileLayers mapsProvider={mapsProvider} mapStyle={mapStyle} theme={t} />
 
       <MapResizer panelWidth={panelWidth} />
       <MapFlyTo highlight={countryHighlight} />
@@ -864,6 +1014,15 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
           opacity:   showAsDown ? 0.95 : opacity,
           dashArray: showAsDown ? '6 3 2 3' : seg.type === 'terrestrial' ? '6 4' : undefined,
         }
+
+        // ── High contrast mode ── accentuate backhaul against the
+        // desaturated map (see .rb-high-contrast above and the
+        // applyHighContrast helper's own doc comment). Applied after the
+        // base ladder for the same reason the hazard lens is — removable
+        // without unpicking the precedence above — but before it, so a
+        // hazard on a backhaul segment still wins (a live hazard is a
+        // higher-priority fact than "this cable is terrestrial").
+        pathOptions = applyHighContrast(pathOptions, mapStyle, seg.type, showAsDown)
 
         // ── Hazard lens ──
         // Applied AFTER the ladder above rather than as another branch inside

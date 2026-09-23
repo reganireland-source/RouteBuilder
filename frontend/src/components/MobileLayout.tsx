@@ -34,6 +34,7 @@
 import { lazy, Suspense, useState, useEffect, type Dispatch, type SetStateAction } from 'react'
 import { createPortal } from 'react-dom'
 import { NetworkMap } from './Map'
+import type { MapStyle } from './Map'
 import { SearchForm } from './SearchForm'
 import { RouteList } from './RouteList'
 import type { SortKey } from './RouteList'
@@ -144,6 +145,8 @@ export interface MobileLayoutProps {
   clearSearch:       () => void
   clearAll:          () => void
   cycleTheme:                    () => void
+  mapStyle:                      MapStyle
+  onMapStyleChange:              (s: MapStyle) => void
   onToggleHideNonActive:         () => void
   onToggleShowSegmentLabels:     () => void
   onToggleShowNodeLabels:        () => void
@@ -641,7 +644,7 @@ export function MobileLayout({
   serviceChoice, onServiceChoiceChange, visibleSegments,
   onNodeClick, onSegmentClick, onCloseSegment, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
-  switchMode, clearSearch, clearAll, cycleTheme, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowNodeLabels, onToggleShowAllOutages,
+  switchMode, clearSearch, clearAll, cycleTheme, mapStyle, onMapStyleChange, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowNodeLabels, onToggleShowAllOutages,
   onToggleShowPlannedEvents,
   onToggleSubseaOnly, onToggleBackhaulOnly, livingWorld, onToggleLivingWorld,
   hazardsOn, onToggleHazards, hazardAssetView, onHazardAssetViewChange,
@@ -777,6 +780,8 @@ export function MobileLayout({
             onManualNodeClick={onManualNodeClick}
             manualMobileMode={manualBuilding}
             mapsProvider={config.maps_provider}
+            mapStyle={mapStyle}
+            onMapStyleChange={onMapStyleChange}
           />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: t.textFaint, background: t.bgMap }}>

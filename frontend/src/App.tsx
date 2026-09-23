@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useReducer, useRef, useState } from
 import { createPortal } from 'react-dom'
 import { useAuth } from './context/AuthContext'
 import { NetworkMap } from './components/Map'
+import type { MapStyle } from './components/Map'
 import { SearchForm } from './components/SearchForm'
 import { RouteList } from './components/RouteList'
 import type { SortKey } from './components/RouteList'
@@ -516,6 +517,18 @@ export default function App() {
   const theme = themeFor(themeMode)
   function cycleTheme() { setThemeMode(m => nextThemeMode(m)) }
   const { tooltipsEnabled, setTooltipsEnabled } = useTooltipSettings()
+
+  // Map base rendering (Standard / Satellite / Contrast) — persisted the same
+  // try/catch-wrapped way as every other sticky map preference in this app.
+  const [mapStyle, setMapStyle] = useState<MapStyle>(() => {
+    try {
+      const raw = localStorage.getItem('rb.mapStyle')
+      return raw === 'satellite' || raw === 'contrast' ? raw : 'standard'
+    } catch { return 'standard' }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('rb.mapStyle', mapStyle) } catch { /* private mode */ }
+  }, [mapStyle])
 
   // Bridges the active theme to plain CSS custom properties on <html>, for the
   // handful of browser-native surfaces React inline styles can't reach —
@@ -1375,6 +1388,8 @@ export default function App() {
           clearSearch={clearSearch}
           clearAll={clearAll}
           cycleTheme={cycleTheme}
+          mapStyle={mapStyle}
+          onMapStyleChange={setMapStyle}
           hideNonActive={hideNonActive}
           onToggleHideNonActive={() => setHideNonActive(v => !v)}
           showSegmentLabels={showSegmentLabels}
@@ -2175,6 +2190,8 @@ export default function App() {
               manualCandidates={mode === 'routemanual' ? manualCandidates : []}
               onManualNodeClick={mode === 'routemanual' ? handleManualNodeClick : undefined}
               mapsProvider={config.maps_provider}
+              mapStyle={mapStyle}
+              onMapStyleChange={setMapStyle}
               editorMode={mode === 'networkeditor'}
               editorSubMode={editorState.subMode}
               editorSelection={editorState.selection}
