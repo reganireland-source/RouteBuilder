@@ -41,13 +41,16 @@
  *      immediately after creating the very rows it needs to see (see that
  *      function's own comment).
  *
- * Reuses rather than reinvents: generateNodeId/generateSegmentId/
- * generateSegmentName/suggestSegmentDefaults (utils/editorGeo.ts, the same
- * helpers Network Editor's own "create segment" flow uses), haversineKm for
- * a straight-line length_km placeholder (the same fallback NewSegmentForm
- * uses before real geometry exists), Typeahead (components/formFields.tsx,
- * the same combobox KmlChopImport's SCM search uses), and the api.create*
- * endpoints already used everywhere else in the app — no new backend CRUD.
+ * Reuses rather than reinvents: generateSegmentId/generateSegmentName/
+ * suggestSegmentDefaults (utils/editorGeo.ts, the same helpers Network
+ * Editor's own "create segment" flow uses), haversineKm for a straight-line
+ * length_km placeholder (the same fallback NewSegmentForm uses before real
+ * geometry exists), Typeahead (components/formFields.tsx, the same combobox
+ * KmlChopImport's SCM search uses), and the api.create* endpoints already
+ * used everywhere else in the app — no new backend CRUD. Node ids are the
+ * one exception: unlike a segment id (derivable from its endpoints) or a
+ * system id (a reasonable slug of the name), a landing station's real-world
+ * code is a fact the reviewer has to supply themselves — see NODE_ID_MAX_LEN.
  */
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type {
@@ -57,7 +60,7 @@ import { useTheme } from '../theme'
 import type { Theme } from '../theme'
 import { api } from '../api/client'
 import {
-  generateNodeId, generateSegmentId, generateSegmentName, haversineKm, suggestSegmentDefaults,
+  generateSegmentId, generateSegmentName, haversineKm, suggestSegmentDefaults,
 } from '../utils/editorGeo'
 import { rankNodeCandidates } from '../utils/nodeMatch'
 import { NODE_TYPE_LABEL } from '../mapGeometry'
@@ -107,7 +110,9 @@ interface LandingDraft {
   country: string
   resolution: 'unresolved' | 'existing' | 'new'
   existingNodeId?: string
-  newNodeId?: string
+  /** Always a string (never undefined) — bound directly to a controlled
+   *  input; '' just means "not typed in yet" (see landingNodeId()). */
+  newNodeId: string
   newNodeType: NodeType
   newNodeOwner: string
 }
@@ -118,7 +123,7 @@ function emptyLandingDraft(): LandingDraft {
   return {
     key: `landing-${landingKeySeq}`,
     name: '', lat: '', lng: '', city: '', country: '',
-    resolution: 'unresolved', newNodeType: 'landing_station', newNodeOwner: '',
+    resolution: 'unresolved', newNodeId: '', newNodeType: 'landing_station', newNodeOwner: '',
   }
 }
 
@@ -142,6 +147,11 @@ let segmentKeySeq = 0
 
 /** backend/app/id_utils.py's ID_MAX_LEN for a system (same cap as a node). */
 const SYSTEM_ID_MAX_LEN = 15
+/** backend/app/id_utils.py's ID_MAX_LEN for a node — the 4-ish character
+ *  code (e.g. SYD1, PER2), never auto-derived from the name: a landing
+ *  station's real-world code and its descriptive name are two independent
+ *  facts, and typing one must never silently overwrite the other. */
+const NODE_ID_MAX_LEN = 15
 
 /** Same character allow-list AND length cap as the backend's id normaliser,
  *  applied to a suggested system id the same way editorGeo.ts's (unexported)
@@ -151,10 +161,12 @@ function slugifySystemId(name: string): string {
   return name.toUpperCase().replace(/[^A-Z0-9_&-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, SYSTEM_ID_MAX_LEN)
 }
 
-/** The node id a landing row resolves to, or undefined while unresolved. */
+/** The node id a landing row resolves to, or undefined while unresolved —
+ *  including a 'new' row whose code hasn't been typed in yet, since that's
+ *  not a usable id either. */
 function landingNodeId(row: LandingDraft): string | undefined {
   if (row.resolution === 'existing') return row.existingNodeId
-  if (row.resolution === 'new') return row.newNodeId
+  if (row.resolution === 'new') return row.newNodeId || undefined
   return undefined
 }
 
@@ -500,13 +512,17 @@ function NodeCandidateRow({ candidate, onLink, t }: {
   )
 }
 
-function LandingRow({ row, index, onChange, onRemove, nodes, defaultOwner }: {
+function LandingRow({ row, index, onChange, onRemove, nodes, defaultOwner, takenIds }: {
   row: LandingDraft
   index: number
   onChange: (row: LandingDraft) => void
   onRemove: () => void
   nodes: CableNode[]
   defaultOwner: string
+  /** Existing node ids plus every OTHER row's own new-node id in this
+   *  session — this row's own id is deliberately excluded, so retyping the
+   *  same value back doesn't flag itself as a collision. */
+  takenIds: Set<string>
 }) {
   const t = useTheme()
   const lat = parseFloat(row.lat)
@@ -518,13 +534,20 @@ function LandingRow({ row, index, onChange, onRemove, nodes, defaultOwner }: {
     [hasCoords, lat, lng, row.name, row.city, nodes],
   )
 
+  const nodeIdEmpty = row.newNodeId.trim().length === 0
+  const nodeIdTaken = !nodeIdEmpty && takenIds.has(row.newNodeId)
+  const nodeIdTooLong = row.newNodeId.length > NODE_ID_MAX_LEN
+  const nodeIdInvalid = nodeIdTaken || nodeIdTooLong
+
   function createNew() {
-    const newId = generateNodeId(row.country, row.newNodeType, nodes)
-    // Pre-fill from the cable's own consortium — a landing station almost
-    // always belongs to one of the system's declared owners, not "Telstra"
-    // (Node.owner's server-side default), which would be actively wrong for
-    // a cable this org doesn't operate. Still freely editable below.
-    onChange({ ...row, resolution: 'new', newNodeId: newId, newNodeOwner: row.newNodeOwner || defaultOwner })
+    // No auto-generated code: a landing station's real-world 4-ish
+    // character code is a fact the reviewer knows (or looks up), not
+    // something worth guessing at — see NODE_ID_MAX_LEN's own comment.
+    // Pre-fill owner from the cable's own consortium — a landing station
+    // almost always belongs to one of the system's declared owners, not
+    // "Telstra" (Node.owner's server-side default), which would be
+    // actively wrong for a cable this org doesn't operate.
+    onChange({ ...row, resolution: 'new', newNodeId: '', newNodeOwner: row.newNodeOwner || defaultOwner })
   }
 
   return (
@@ -573,7 +596,15 @@ function LandingRow({ row, index, onChange, onRemove, nodes, defaultOwner }: {
       )}
       {row.resolution === 'new' && (
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 10 }}>
-          <span style={{ fontSize: 12, color: t.blue }}>+ New node <strong>{row.newNodeId}</strong></span>
+          <LabeledField label="Node Code">
+            {id => (
+              <input
+                id={id} style={{ ...fieldStyle(t), width: 100, border: `1px solid ${nodeIdInvalid ? t.red : t.border}` }}
+                type="text" autoComplete="off" maxLength={NODE_ID_MAX_LEN} placeholder="e.g. SYD1"
+                value={row.newNodeId} onChange={e => onChange({ ...row, newNodeId: e.target.value.toUpperCase() })}
+              />
+            )}
+          </LabeledField>
           <LabeledField label="Type">
             {id => (
               <select id={id} style={{ ...fieldStyle(t), width: 160 }} value={row.newNodeType}
@@ -588,6 +619,8 @@ function LandingRow({ row, index, onChange, onRemove, nodes, defaultOwner }: {
                 value={row.newNodeOwner} onChange={e => onChange({ ...row, newNodeOwner: e.target.value })} />
             )}
           </LabeledField>
+          {nodeIdTaken && <span style={{ fontSize: 11, color: t.red, width: '100%' }}>A node with this code already exists.</span>}
+          {nodeIdTooLong && <span style={{ fontSize: 11, color: t.red, width: '100%' }}>Node codes are capped at {NODE_ID_MAX_LEN} characters.</span>}
           <button type="button" onClick={() => onChange({ ...row, resolution: 'unresolved' })} style={{
             border: 'none', background: 'transparent', color: t.textFaint, cursor: 'pointer', fontSize: 11, textDecoration: 'underline',
           }}>change</button>
@@ -628,15 +661,23 @@ function StepLandingStations({ rows, setRows, nodes, defaultOwner }: {
   function updateRow(key: string, updated: LandingDraft) {
     setRows(rows.map(r => (r.key === key ? updated : r)))
   }
+  const existingIds = useMemo(() => new Set(nodes.map(n => n.id)), [nodes])
   return (
     <div style={{ maxWidth: 720 }}>
-      {rows.map((row, i) => (
-        <LandingRow
-          key={row.key} row={row} index={i} nodes={nodes} defaultOwner={defaultOwner}
-          onChange={updated => updateRow(row.key, updated)}
-          onRemove={() => setRows(rows.filter(r => r.key !== row.key))}
-        />
-      ))}
+      {rows.map((row, i) => {
+        // Every OTHER row's own new-node code, plus every existing node —
+        // never this row's own code, so retyping the same value doesn't
+        // flag itself as a collision with itself.
+        const otherNewIds = rows.filter(r => r.key !== row.key && r.resolution === 'new' && r.newNodeId).map(r => r.newNodeId)
+        const takenIds = new Set([...existingIds, ...otherNewIds])
+        return (
+          <LandingRow
+            key={row.key} row={row} index={i} nodes={nodes} defaultOwner={defaultOwner} takenIds={takenIds}
+            onChange={updated => updateRow(row.key, updated)}
+            onRemove={() => setRows(rows.filter(r => r.key !== row.key))}
+          />
+        )
+      })}
       <AddRowButton label="+ Add landing station" onClick={() => setRows([...rows, emptyLandingDraft()])} />
     </div>
   )
@@ -889,11 +930,35 @@ function identityStepValid(system: SystemDraft, systems: CableSystem[]): boolean
   return true
 }
 
+/** At least 2 rows resolved to a real id, no two 'new' rows sharing a code,
+ *  and no 'new' row's code colliding with an existing node — the same
+ *  before-you-can-proceed guard identityStepValid gives the system id, so a
+ *  collision the "Node Code" field already flags in red can't be clicked
+ *  past and only surface at the commit round-trip. */
+function landingStepValid(landingRows: LandingDraft[], nodes: CableNode[]): boolean {
+  // Not just "resolution !== 'unresolved'" — a 'new' row whose code hasn't
+  // been typed in yet has no usable id, so it must not count as resolved.
+  const resolvedCount = landingRows.filter(r => landingNodeId(r) !== undefined).length
+  if (resolvedCount < 2) return false
+
+  const existingIds = new Set(nodes.map(n => n.id))
+  const seenNewIds = new Set<string>()
+  for (const row of landingRows) {
+    if (row.resolution !== 'new' || !row.newNodeId) continue
+    if (row.newNodeId.length > NODE_ID_MAX_LEN) return false
+    if (existingIds.has(row.newNodeId)) return false
+    if (seenNewIds.has(row.newNodeId)) return false
+    seenNewIds.add(row.newNodeId)
+  }
+  return true
+}
+
 function canAdvance(
   step: number, system: SystemDraft, systems: CableSystem[], landingRows: LandingDraft[], segmentDrafts: SegmentDraft[],
+  nodes: CableNode[],
 ): boolean {
   if (step === 1) return identityStepValid(system, systems)
-  if (step === 2) return landingRows.filter(r => r.resolution !== 'unresolved').length >= 2
+  if (step === 2) return landingStepValid(landingRows, nodes)
   if (step === 3) return segmentDrafts.length > 0
   return true
 }
@@ -1039,7 +1104,7 @@ export function CableImportWizard({ nodes, segments, systems, onClose, onDataCha
         {!done && (
           <WizardFooter
             step={step} t={t} committing={committing}
-            canAdvance={canAdvance(step, system, systems, landingRows, segmentDrafts)}
+            canAdvance={canAdvance(step, system, systems, landingRows, segmentDrafts, nodes)}
             onBack={() => setStep(s => Math.max(1, s - 1))}
             onNext={() => goToStep(Math.min(4, step + 1))}
             onCommit={commit}
@@ -1204,7 +1269,7 @@ async function commitNewNode(row: LandingDraft, setItem: (key: string, patch: Pa
   setItem(key, { status: 'committing' })
   try {
     await api.createNode({
-      id: row.newNodeId!, name: row.name || row.newNodeId!, lat: parseFloat(row.lat), lng: parseFloat(row.lng),
+      id: row.newNodeId, name: row.name || row.newNodeId, lat: parseFloat(row.lat), lng: parseFloat(row.lng),
       type: row.newNodeType, country: row.country, owner: row.newNodeOwner || undefined, city: row.city || undefined,
     })
     setItem(key, { status: 'success' })
