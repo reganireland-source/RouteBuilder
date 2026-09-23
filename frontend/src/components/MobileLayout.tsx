@@ -379,6 +379,7 @@ function MobileControlsDrawer({
               <button
                 key={item.label}
                 onClick={item.onClick}
+                aria-pressed={item.active}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 12,
                   width: '100%', padding: '13px 16px',
@@ -453,6 +454,7 @@ function MobileControlsDrawer({
             {/* Tooltips toggle — on by default */}
             <button
               onClick={() => { setTooltipsEnabled(!tooltipsEnabled); setOpen(false) }}
+              aria-pressed={tooltipsEnabled}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12,
                 width: '100%', padding: '13px 16px',

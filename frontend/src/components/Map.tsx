@@ -112,29 +112,73 @@ const SATELLITE_ATTRIBUTION = '&copy; <a href="https://www.esri.com/">Esri</a> &
 /** High-contrast mode's one fixed accent for backhaul (terrestrial)
  *  segments — deliberately NOT a theme token: the whole point of this mode
  *  is a single unmistakable hue against a desaturated map, independent of
- *  which of the three themes is active. Chosen to sit outside every
- *  existing semantic color (red=error, green=healthy, orange=warning,
- *  blue=the one UI accent) so it reads as "the backhaul color" and nothing
- *  else. */
-const HIGH_CONTRAST_BACKHAUL_COLOR = '#ff2d92'
+ *  which of the three themes is active. A saturated magenta was the first
+ *  attempt; against a genuinely gray map that hue sits at a mid luminance
+ *  and doesn't actually punch through the way the mode's name promises.
+ *  High-visibility yellow has the highest luminance of any fully-saturated
+ *  hue, so it reads as a hard edge against grayscale tiles at any
+ *  lightness — light or dark — the same way safety colorways use it. Sits
+ *  outside every existing semantic color too (red=error, green=healthy,
+ *  orange=warning, blue=the one UI accent), so it reads as "the backhaul
+ *  color" and nothing else. */
+const HIGH_CONTRAST_BACKHAUL_COLOR = '#ffd400'
+
+/** Satellite mode's override for the plain background network — the
+ *  default muted t.mapInactiveSegment blue-gray at low opacity was tuned
+ *  against a flat basemap and gets swallowed by real photographic imagery
+ *  (Esri World Imagery is mostly saturated green/brown land and blue
+ *  ocean). Near-white reads as a hard edge against all of those at once,
+ *  the same reason chart/wayfinding lines drawn over satellite photography
+ *  (Google/Apple Maps included) default to white or near-white rather than
+ *  a mid-tone color. */
+const SATELLITE_DEFAULT_SEGMENT_COLOR = '#f4f7ff'
 
 interface SegPathOptions { color: string; weight: number; opacity: number; dashArray: string | undefined }
 
-/** The one override 'contrast' mode makes to the segment styling ladder —
- *  pulled out to its own function (rather than inline in the segment
- *  flatMap, an already very large pre-existing function) purely to keep
- *  that function's own cognitive-complexity budget from growing; see its
- *  call site for where this sits in the ladder's precedence. Subsea
- *  segments and anything already drawn as "down" are untouched, so
- *  route/system/country color and the outage-red override still read
- *  normally. */
-function applyHighContrast(pathOptions: SegPathOptions, mapStyle: MapStyle, segType: string, showAsDown: boolean): SegPathOptions {
-  if (mapStyle !== 'contrast' || segType !== 'terrestrial' || showAsDown) return pathOptions
-  return { ...pathOptions, color: HIGH_CONTRAST_BACKHAUL_COLOR, weight: Math.max(pathOptions.weight, 3) }
+/** The map-style-specific overrides to the segment styling ladder — pulled
+ *  out to its own function (rather than inline in the segment flatMap, an
+ *  already very large pre-existing function) purely to keep that
+ *  function's own cognitive-complexity budget from growing; see its call
+ *  site for where this sits in the ladder's precedence. Anything already
+ *  drawn as "down" is untouched, so the outage-red override still reads
+ *  normally.
+ *
+ *  `isDefaultNetworkColor` marks segments still on the ladder's own plain
+ *  "background network" color (not a route/system/country highlight, and
+ *  not already faded out by an active country lens) — only that tier gets
+ *  boosted, so a deliberately-dimmed or deliberately-colored segment isn't
+ *  overwritten by a mode meant to rescue the *unremarkable* majority of
+ *  the network from disappearing into the tiles. That check (`ladderColor`
+ *  vs `inactiveColor`, gated on `countryActive`) is done in here rather
+ *  than at the call site so it doesn't add to the already very large
+ *  ladder function's own cognitive-complexity budget. */
+function applyMapStyleContrast(
+  pathOptions: SegPathOptions,
+  mapStyle: MapStyle,
+  segType: string,
+  showAsDown: boolean,
+  countryActive: boolean,
+  ladderColor: string,
+  inactiveColor: string,
+): SegPathOptions {
+  if (showAsDown) return pathOptions
+  if (mapStyle === 'contrast' && segType === 'terrestrial') {
+    return { ...pathOptions, color: HIGH_CONTRAST_BACKHAUL_COLOR, weight: Math.max(pathOptions.weight, 3) }
+  }
+  const isDefaultNetworkColor = !countryActive && ladderColor === inactiveColor
+  if (mapStyle === 'satellite' && isDefaultNetworkColor) {
+    return {
+      ...pathOptions,
+      color: SATELLITE_DEFAULT_SEGMENT_COLOR,
+      weight: Math.max(pathOptions.weight, 2.5),
+      opacity: Math.max(pathOptions.opacity, 0.8),
+    }
+  }
+  return pathOptions
 }
 
 /** The map wrapper's conditional classes — pulled out of NetworkMap's own
- *  body for the same reason as applyHighContrast above (that function's
+ *  body for the same reason as applyMapStyleContrast above (that function's
  *  cognitive-complexity budget, not this logic's). */
 function mapWrapperClasses(bannerOffset: boolean, mapStyle: MapStyle): string | undefined {
   const classes: string[] = []
@@ -596,7 +640,16 @@ const MAP_STYLE_OPTS: { value: MapStyle; icon: string; label: string }[] = [
  * instead (see NodeTypeLegend), which frees the bottom-left corner for this
  * card there — it only needs to clear the bottom sheet's peek height.
  */
-function MapStyleCard({ style, onChange, narrow }: { style: MapStyle; onChange?: (s: MapStyle) => void; narrow: boolean }) {
+function MapStyleCard({ style, onChange, narrow, accent }: {
+  style: MapStyle; onChange?: (s: MapStyle) => void; narrow: boolean
+  /** theme.blue — this card's own chrome (background/border) intentionally
+   *  matches NodeTypeLegend's fixed dark-glass convention, same as that
+   *  component, but the ACTIVE-state indicator is the app's one accent
+   *  color and has to come from the theme like everywhere else it appears,
+   *  not a literal hex (that would only be correct for one of the three
+   *  themes and stay stuck on it after switching). */
+  accent: string
+}) {
   if (!onChange) return null
   return (
     <div style={{
@@ -614,13 +667,14 @@ function MapStyleCard({ style, onChange, narrow }: { style: MapStyle; onChange?:
             type="button"
             onClick={() => onChange(opt.value)}
             title={opt.label}
+            aria-pressed={active}
             className="rb-btn-motion"
             style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
               width: 52, padding: '6px 2px', borderRadius: 5,
-              border: `1px solid ${active ? '#5b9cf6' : 'rgba(255,255,255,0.14)'}`,
-              background: active ? 'rgba(91,156,246,0.22)' : 'transparent',
-              color: active ? '#5b9cf6' : 'rgba(255,255,255,0.82)',
+              border: `1px solid ${active ? accent : 'rgba(255,255,255,0.14)'}`,
+              background: active ? accent + '38' : 'transparent',
+              color: active ? accent : 'rgba(255,255,255,0.82)',
               cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
             }}
           >
@@ -845,7 +899,7 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
       }
     `}</style>
     <NodeTypeLegend narrow={narrowViewport} />
-    <MapStyleCard style={mapStyle} onChange={onMapStyleChange} narrow={narrowViewport} />
+    <MapStyleCard style={mapStyle} onChange={onMapStyleChange} narrow={narrowViewport} accent={t.blue} />
     {hazardsOn && !editorMode && (
       <HazardStatusPanel
         feed={hazardFeed ?? null}
@@ -998,11 +1052,11 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
           opacity = 0.9
         } else if (systemViewerActive) {
           color   = segmentColor[seg.id] ?? t.mapInactiveSegment
-          weight  = segmentWeight[seg.id] ?? 1
+          weight  = segmentWeight[seg.id] ?? 2
           opacity = segmentOpacity[seg.id] ?? 0.08
         } else {
           color   = segmentColor[seg.id] ?? t.mapInactiveSegment
-          weight  = segmentWeight[seg.id] ?? 1
+          weight  = segmentWeight[seg.id] ?? 2
           opacity = segmentOpacity[seg.id] ?? 0.35
         }
 
@@ -1015,14 +1069,15 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
           dashArray: showAsDown ? '6 3 2 3' : seg.type === 'terrestrial' ? '6 4' : undefined,
         }
 
-        // ── High contrast mode ── accentuate backhaul against the
-        // desaturated map (see .rb-high-contrast above and the
-        // applyHighContrast helper's own doc comment). Applied after the
-        // base ladder for the same reason the hazard lens is — removable
-        // without unpicking the precedence above — but before it, so a
-        // hazard on a backhaul segment still wins (a live hazard is a
-        // higher-priority fact than "this cable is terrestrial").
-        pathOptions = applyHighContrast(pathOptions, mapStyle, seg.type, showAsDown)
+        // ── Map style contrast overrides ── accentuate the plain
+        // background network against each mode's basemap (see
+        // .rb-high-contrast above and the applyMapStyleContrast helper's
+        // own doc comment). Applied after the base ladder for the same
+        // reason the hazard lens is — removable without unpicking the
+        // precedence above — but before it, so a hazard on a segment still
+        // wins (a live hazard is a higher-priority fact than which basemap
+        // is showing).
+        pathOptions = applyMapStyleContrast(pathOptions, mapStyle, seg.type, showAsDown, countryActive, color, t.mapInactiveSegment)
 
         // ── Hazard lens ──
         // Applied AFTER the ladder above rather than as another branch inside

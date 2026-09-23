@@ -2625,6 +2625,7 @@ function ControlsRow({ theme, index, item }: {
   const row = (
     <button
       onClick={item.onClick}
+      aria-pressed={item.active}
       className="rb-anim-rise rb-btn-motion"
       style={{
         display: 'flex', alignItems: 'center', gap: 12,
