@@ -235,17 +235,25 @@ export function searchAssets(index: Entry[], query: string, limit = 12): AssetHi
   return hits.slice(0, limit)
 }
 
+/** A segment-under-node sub-row: an AssetHit (so it can go straight to
+ *  onSelect on a pick) plus the 4-alpha code of the node at the OTHER end
+ *  from the one it's listed under, so the reader sees "leads to JWLS"
+ *  before they even read the segment id. */
+export interface NodeSegmentHit extends AssetHit {
+  otherNodeCode: string
+}
+
 /**
- * The segments terminating at one node, shaped as AssetHits so AssetSearch
- * can list them beneath that node's row and hand a pick straight to
- * onSelect like any other hit. Labelled by segment ID rather than name (name
- * is often blank or a duplicate of the id for backhaul) with both endpoint
- * node names as the sublabel, since "which two nodes does this connect" is
- * exactly what someone expanding a node's segments wants to see next to the
- * id. Not part of the ranked index — these aren't matched against a query,
- * they're a fixed lookup keyed on the node the user already picked.
+ * The segments terminating at one node, shaped for AssetSearch to list
+ * beneath that node's row and hand a pick straight to onSelect like any
+ * other hit. Labelled by segment ID rather than name (name is often blank
+ * or a duplicate of the id for backhaul) with both endpoint node names as
+ * the sublabel, since "which two nodes does this connect" is exactly what
+ * someone expanding a node's segments wants to see next to the id. Not part
+ * of the ranked index — these aren't matched against a query, they're a
+ * fixed lookup keyed on the node the user already picked.
  */
-export function segmentsForNode(nodeId: string, segments: CableSegment[], nodes: CableNode[]): AssetHit[] {
+export function segmentsForNode(nodeId: string, segments: CableSegment[], nodes: CableNode[]): NodeSegmentHit[] {
   const nameById = new Map(nodes.map(n => [n.id, n.name]))
   const nodeName = (id: string) => nameById.get(id) ?? id
   return segments
@@ -256,6 +264,7 @@ export function segmentsForNode(nodeId: string, segments: CableSegment[], nodes:
       label: seg.id,
       sublabel: `${nodeName(seg.start_node_id)} → ${nodeName(seg.end_node_id)}`,
       score: 0,
+      otherNodeCode: seg.start_node_id === nodeId ? seg.end_node_id : seg.start_node_id,
     }))
 }
 

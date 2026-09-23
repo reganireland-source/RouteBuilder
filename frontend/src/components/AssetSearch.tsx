@@ -67,7 +67,7 @@ import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { CableNode, CableSegment, CableSystem } from '../types'
 import type { Theme } from '../theme'
 import { useTheme } from '../theme'
-import type { AssetHit, AssetKind } from '../utils/assetSearch'
+import type { AssetHit, AssetKind, NodeSegmentHit } from '../utils/assetSearch'
 import { KIND_LABEL, buildAssetIndex, searchAssets, segmentsForNode } from '../utils/assetSearch'
 
 interface Props {
@@ -162,10 +162,12 @@ interface ListProps {
 /** One segment terminating at a node hit above it — a button (not a div),
  *  so it is keyboard-reachable via Tab/Enter without wiring it into the
  *  listbox's own arrow-key roving highlight, which stays scoped to the
- *  top-level hits. Labelled by id first (what "SEG_ID" means at a glance)
- *  then both endpoint node names, matching the request that drove this: see
- *  the node it's under, then see what it connects to. */
-function NodeSegmentRow({ hit, onPick }: { hit: AssetHit; onPick: (hit: AssetHit) => void }) {
+ *  top-level hits. Leads with the OTHER end's 4-alpha node code — "where
+ *  does this take me" is the first thing worth knowing when scanning a list
+ *  of segments off one node — then the segment id, then both endpoint node
+ *  names, matching the request that drove this: see the node it's under,
+ *  see where it leads, then see what it connects to. */
+function NodeSegmentRow({ hit, onPick }: { hit: NodeSegmentHit; onPick: (hit: AssetHit) => void }) {
   const t = useTheme()
   return (
     <button
@@ -177,6 +179,9 @@ function NodeSegmentRow({ hit, onPick }: { hit: AssetHit; onPick: (hit: AssetHit
         border: 'none', background: 'transparent', fontFamily: 'inherit',
       }}
     >
+      <span style={{ fontSize: 11, fontWeight: 700, color: t.blue, flexShrink: 0 }}>
+        {hit.otherNodeCode}
+      </span>
       <span style={{ fontSize: 11, fontWeight: 700, color: t.pink, flexShrink: 0 }}>
         {hit.label}
       </span>
@@ -211,7 +216,7 @@ function ResultList({ hits, activeIdx, listId, optionId, query, onPick, onHover,
   // navigation changes activeIdx far more often than it changes which node
   // hits are showing.
   const nodeSegments = useMemo(() => {
-    const map = new Map<string, AssetHit[]>()
+    const map = new Map<string, NodeSegmentHit[]>()
     for (const hit of hits) {
       if (hit.kind === 'node') map.set(hit.id, segmentsForNode(hit.id, segments, nodes))
     }
