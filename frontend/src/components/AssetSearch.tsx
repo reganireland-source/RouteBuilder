@@ -63,12 +63,12 @@
  * Backend endpoints: none.
  * ============================================================================
  */
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { CableNode, CableSegment, CableSystem } from '../types'
 import type { Theme } from '../theme'
 import { useTheme } from '../theme'
 import type { AssetHit, AssetKind } from '../utils/assetSearch'
-import { KIND_LABEL, buildAssetIndex, searchAssets } from '../utils/assetSearch'
+import { KIND_LABEL, buildAssetIndex, searchAssets, segmentsForNode } from '../utils/assetSearch'
 
 interface Props {
   nodes: CableNode[]
@@ -154,6 +154,40 @@ interface ListProps {
   query: string
   onPick: (hit: AssetHit) => void
   onHover: (i: number) => void
+  /** For expanding a node row into the segments that terminate there. */
+  nodes: CableNode[]
+  segments: CableSegment[]
+}
+
+/** One segment terminating at a node hit above it — a button (not a div),
+ *  so it is keyboard-reachable via Tab/Enter without wiring it into the
+ *  listbox's own arrow-key roving highlight, which stays scoped to the
+ *  top-level hits. Labelled by id first (what "SEG_ID" means at a glance)
+ *  then both endpoint node names, matching the request that drove this: see
+ *  the node it's under, then see what it connects to. */
+function NodeSegmentRow({ hit, onPick }: { hit: AssetHit; onPick: (hit: AssetHit) => void }) {
+  const t = useTheme()
+  return (
+    <button
+      type="button"
+      onClick={() => onPick(hit)}
+      style={{
+        display: 'flex', alignItems: 'baseline', gap: 6, width: '100%',
+        padding: '4px 10px 4px 28px', cursor: 'pointer', textAlign: 'left',
+        border: 'none', background: 'transparent', fontFamily: 'inherit',
+      }}
+    >
+      <span style={{ fontSize: 11, fontWeight: 700, color: t.pink, flexShrink: 0 }}>
+        {hit.label}
+      </span>
+      <span style={{
+        fontSize: 11, color: t.textFaint,
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+      }}>
+        {hit.sublabel}
+      </span>
+    </button>
+  )
 }
 
 /**
@@ -162,7 +196,7 @@ interface ListProps {
  * highlight-into-view effect can live next to the rows it measures: keyboard
  * navigation must not push the highlight below the fold of a scrolled list.
  */
-function ResultList({ hits, activeIdx, listId, optionId, query, onPick, onHover }: ListProps) {
+function ResultList({ hits, activeIdx, listId, optionId, query, onPick, onHover, nodes, segments }: ListProps) {
   const t = useTheme()
   const rowRefs = useRef<(HTMLDivElement | null)[]>([])
 
@@ -171,6 +205,18 @@ function ResultList({ hits, activeIdx, listId, optionId, query, onPick, onHover 
   useEffect(() => {
     rowRefs.current[activeIdx]?.scrollIntoView({ block: 'nearest' })
   }, [activeIdx])
+
+  // Keyed on the node hits actually on screen (at most a handful of the ≤12
+  // results), not recomputed on every activeIdx-driven re-render — arrow-key
+  // navigation changes activeIdx far more often than it changes which node
+  // hits are showing.
+  const nodeSegments = useMemo(() => {
+    const map = new Map<string, AssetHit[]>()
+    for (const hit of hits) {
+      if (hit.kind === 'node') map.set(hit.id, segmentsForNode(hit.id, segments, nodes))
+    }
+    return map
+  }, [hits, segments, nodes])
 
   const panel: React.CSSProperties = {
     position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 1300,
@@ -189,43 +235,59 @@ function ResultList({ hits, activeIdx, listId, optionId, query, onPick, onHover 
 
   return (
     <div id={listId} role="listbox" aria-label="Asset search results" style={panel}>
-      {hits.map((hit, i) => (
-        <div
-          key={`${hit.kind}:${hit.id}`}
-          id={optionId(i)}
-          ref={el => { rowRefs.current[i] = el }}
-          role="option"
-          aria-selected={i === activeIdx}
-          // mousedown, not click: the input's blur would otherwise tear the
-          // dropdown down before the click ever landed on a row.
-          onMouseDown={e => { e.preventDefault(); onPick(hit) }}
-          onMouseEnter={() => onHover(i)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '7px 10px', cursor: 'pointer',
-            background: i === activeIdx ? t.bgDeep : 'transparent',
-            borderBottom: i < hits.length - 1 ? `1px solid ${t.border}` : 'none',
-          }}
-        >
-          <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{
-              fontSize: 13, fontWeight: 600, color: t.text,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {hit.label}
-            </div>
-            {hit.sublabel && (
-              <div style={{
-                fontSize: 11, color: t.textFaint, marginTop: 1,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              }}>
-                {hit.sublabel}
+      {hits.map((hit, i) => {
+        const childSegments = hit.kind === 'node' ? nodeSegments.get(hit.id) ?? [] : []
+        return (
+          <Fragment key={`${hit.kind}:${hit.id}`}>
+            <div
+              id={optionId(i)}
+              ref={el => { rowRefs.current[i] = el }}
+              role="option"
+              aria-selected={i === activeIdx}
+              // mousedown, not click: the input's blur would otherwise tear the
+              // dropdown down before the click ever landed on a row.
+              onMouseDown={e => { e.preventDefault(); onPick(hit) }}
+              onMouseEnter={() => onHover(i)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '7px 10px', cursor: 'pointer',
+                background: i === activeIdx ? t.bgDeep : 'transparent',
+                borderBottom: childSegments.length === 0 && i < hits.length - 1 ? `1px solid ${t.border}` : 'none',
+              }}
+            >
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{
+                  fontSize: 13, fontWeight: 600, color: t.text,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {hit.label}
+                </div>
+                {hit.sublabel && (
+                  <div style={{
+                    fontSize: 11, color: t.textFaint, marginTop: 1,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {hit.sublabel}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-          <KindChip kind={hit.kind} />
-        </div>
-      ))}
+              <KindChip kind={hit.kind} />
+            </div>
+            {childSegments.map((segHit, si) => (
+              <div
+                key={`${hit.id}-seg-${segHit.id}`}
+                style={{
+                  background: t.bgDeep,
+                  borderBottom: si === childSegments.length - 1 && i < hits.length - 1
+                    ? `1px solid ${t.border}` : 'none',
+                }}
+              >
+                <NodeSegmentRow hit={segHit} onPick={onPick} />
+              </div>
+            ))}
+          </Fragment>
+        )
+      })}
     </div>
   )
 }
@@ -431,6 +493,8 @@ export function AssetSearch({ nodes, segments, systems, onSelect, compact = fals
             query={query}
             onPick={pick}
             onHover={setActiveIdx}
+            nodes={nodes}
+            segments={segments}
           />
         )}
       </div>

@@ -235,6 +235,30 @@ export function searchAssets(index: Entry[], query: string, limit = 12): AssetHi
   return hits.slice(0, limit)
 }
 
+/**
+ * The segments terminating at one node, shaped as AssetHits so AssetSearch
+ * can list them beneath that node's row and hand a pick straight to
+ * onSelect like any other hit. Labelled by segment ID rather than name (name
+ * is often blank or a duplicate of the id for backhaul) with both endpoint
+ * node names as the sublabel, since "which two nodes does this connect" is
+ * exactly what someone expanding a node's segments wants to see next to the
+ * id. Not part of the ranked index — these aren't matched against a query,
+ * they're a fixed lookup keyed on the node the user already picked.
+ */
+export function segmentsForNode(nodeId: string, segments: CableSegment[], nodes: CableNode[]): AssetHit[] {
+  const nameById = new Map(nodes.map(n => [n.id, n.name]))
+  const nodeName = (id: string) => nameById.get(id) ?? id
+  return segments
+    .filter(seg => seg.start_node_id === nodeId || seg.end_node_id === nodeId)
+    .map(seg => ({
+      kind: 'segment' as const,
+      id: seg.id,
+      label: seg.id,
+      sublabel: `${nodeName(seg.start_node_id)} → ${nodeName(seg.end_node_id)}`,
+      score: 0,
+    }))
+}
+
 /** Display chip text per kind — kept here so the component has no vocabulary
  *  of its own to drift from the index's. */
 export const KIND_LABEL: Record<AssetKind, string> = {
