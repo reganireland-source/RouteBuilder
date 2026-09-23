@@ -894,6 +894,35 @@ export default function App() {
     switchMode(next)
   }
 
+  /** The map's own panic button: back out of whatever admin-tool overlay is
+   *  open, whatever mode is active, and whatever is selected/highlighted on
+   *  the map, in one action. Routed through safeSwitchMode (not switchMode
+   *  directly) so unsaved Network Editor changes or a route mid-build in
+   *  RouteManual still get their confirmation dialog rather than being
+   *  silently discarded — everything else here only touches what's
+   *  currently shown/selected, never data. Deliberately leaves pinnedRoutes
+   *  and the Asset Filter's own match state alone: those are things the
+   *  user deliberately curated, not a "selection" to back out of. */
+  function resetMapView() {
+    setCtrlMenuOpen(false)
+    setKmlImportOpen(false)
+    setKmlLibraryOpen(false)
+    setCableImportOpen(false)
+    setRefDataOpen(false)
+    setProjectsOpen(false)
+    setCapDashOpen(false)
+    setAlgoEvalOpen(false)
+    setSelectedNode(null)
+    setSelectedSegment(null)
+    setSpotlightNodeId(null)
+    setSelectedSystems([])
+    setSelectedRouteIds([])
+    setSearchPin(null)
+    setNearestNodeIds([])
+    setHoveredSegmentId(null)
+    safeSwitchMode('routebuilder')
+  }
+
   // ── RouteManual handlers ─────────────────────────────────────────────────
   // Lookup maps rebuilt each render so the manual builder can resolve ids fast.
   const nodesById_      = Object.fromEntries(nodes.map(n => [n.id, n]))
@@ -2142,6 +2171,27 @@ export default function App() {
               onAssetSelect={handleAssetSelect}
               onFilterChange={setAssetFilterMatch}
             />
+          </div>
+
+          {/* Bottom-right: the only corner of the map not already claimed by
+              the zoom control (top-left), Asset Filter (top), Controls
+              (top-right, viewport-fixed), or the style picker/legend stack
+              (bottom-left) — see resetMapView's own doc comment for what it
+              backs out of. */}
+          <div style={{ position: 'absolute', bottom: 28, right: 8, zIndex: 1000 }}>
+            <button
+              type="button" onClick={resetMapView}
+              title="Back out of the current mode and clear everything selected on the map"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 12px', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit',
+                background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(4px)',
+                border: '1px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.82)',
+                fontSize: 12, fontWeight: 600,
+              }}
+            >
+              <span aria-hidden="true">⟲</span> Reset
+            </button>
           </div>
 
           {nodes.length > 0 ? (
