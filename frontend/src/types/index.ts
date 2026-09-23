@@ -170,6 +170,8 @@ export interface CableSystem {
   eol_status?: EolStatus
   eol_quarter?: string | null
   rfs_quarter?: string | null
+  fiber_pair_count?: number | null
+  consortium_owners?: string[] | null
 }
 
 /**

@@ -154,6 +154,13 @@ class CableSystem(BaseModel):
     # says when this system starts carrying traffic, EOL when it stops.
     eol_status: EolStatus = EolStatus.active
     eol_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
+    # Fibre pair count and consortium ownership are system-level facts (a
+    # single cable's total pair count, its list of member operators) rather
+    # than per-node/per-segment ones — a landing station's own `owner` stays
+    # a single string even when the system it belongs to is a multi-party
+    # consortium. Both optional: most systems predate this field.
+    fiber_pair_count: Optional[int] = Field(default=None, ge=0)
+    consortium_owners: Optional[list[str]] = None
 
     @model_validator(mode="after")
     def _rfs_consistent(self):
@@ -378,6 +385,8 @@ class CableSystemUpdate(BaseModel):
     rfs_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
     eol_status: Optional[EolStatus] = None
     eol_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
+    fiber_pair_count: Optional[int] = Field(default=None, ge=0)
+    consortium_owners: Optional[list[str]] = None
 
 class SegmentCapacityUpdate(BaseModel):
     # Review finding #11: same non-negativity constraints as SegmentCapacity.

@@ -20,6 +20,8 @@ import { SegmentInfoPanel } from './components/SegmentInfoPanel'
 const KmlChopSourcePanel = lazy(() => import('./components/KmlChopImport').then(m => ({ default: m.KmlChopSourcePanel })))
 const KmlChopTablePanel = lazy(() => import('./components/KmlChopImport').then(m => ({ default: m.KmlChopTablePanel })))
 const KmlLibrary = lazy(() => import('./components/KmlLibrary').then(m => ({ default: m.KmlLibrary })))
+// Same reasoning: only an admin modeling a cable we don't own ever opens this.
+const CableImportWizard = lazy(() => import('./components/CableImportWizard').then(m => ({ default: m.CableImportWizard })))
 import { NodeFinder } from './components/NodeFinder'
 import { CityPairPanel } from './components/CityPairPanel'
 import { HealthBar } from './components/HealthBar'
@@ -629,6 +631,7 @@ export default function App() {
   const [selectedNode, setSelectedNode] = useState<{ node: CableNode; x: number; y: number } | null>(null) // node whose info popup is open (with click coords)
   const [kmlImportOpen, setKmlImportOpen] = useState(false)
   const [kmlLibraryOpen, setKmlLibraryOpen] = useState(false)
+  const [cableImportOpen, setCableImportOpen] = useState(false)
   // Geometry being examined during an import — drawn over the network so the
   // cuts can be checked against it, and never stored. `key` is bumped per
   // request so re-previewing the same path still re-fits the map.
@@ -1683,6 +1686,10 @@ export default function App() {
                       // inside it are still admin-only.
                       { label: 'KML Library', icon: '📚', onClick: () => { setKmlLibraryOpen(true); setCtrlMenuOpen(false) } },
                       ...(isAdmin ? [{ label: 'KML Import', icon: '🛰', onClick: () => { setKmlImportOpen(true); setCtrlMenuOpen(false) } }] : []),
+                      // Admin-only for the same reason: it writes (new system/
+                      // nodes/segments). Models a cable this org does not own —
+                      // see CableImportWizard.tsx's own header comment.
+                      ...(isAdmin ? [{ label: 'Cable Import', icon: '🌊', onClick: () => { setCableImportOpen(true); setCtrlMenuOpen(false) } }] : []),
                     ].map((item, i) => <ControlsRow key={item.label} theme={theme} index={i + 10} item={item} />)}
 
                     {/* Appearance */}
@@ -2288,6 +2295,16 @@ export default function App() {
             onDataChange={handleDataChange}
             initialNoteFocus={refDataNoteFocus ?? undefined}
             onClose={() => { setRefDataOpen(false); setRefDataNoteFocus(null) }}
+          />
+        </Suspense>
+      )}
+
+      {cableImportOpen && (
+        <Suspense fallback={null}>
+          <CableImportWizard
+            nodes={nodes} segments={segments} systems={systems}
+            onDataChange={handleDataChange}
+            onClose={() => setCableImportOpen(false)}
           />
         </Suspense>
       )}

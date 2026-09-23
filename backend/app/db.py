@@ -683,7 +683,8 @@ def init_db() -> None:
             _once(cur, 'm060', _run_migration_060)   # backfill rfs_status='in_service' on systems/segments
             _once(cur, 'm061', _run_migration_061)   # backfill eol_status='active' on systems/segments
             _once(cur, 'm062', _run_migration_062)   # add segment_kml.source (upload vs submarinecablemap)
-            # ↑ ADD NEW MIGRATIONS HERE (m061, m062, ...) — see the
+            _once(cur, 'm063', _run_migration_063)   # add CableSystem.fiber_pair_count / consortium_owners
+            # ↑ ADD NEW MIGRATIONS HERE (m064, m065, ...) — see the
             #   "HOW TO ADD A NEW MIGRATION" comment at the top of this list.
         conn.commit()
         _seed_if_empty(conn)
@@ -3384,3 +3385,20 @@ def _run_migration_062(cur) -> None:
     """
     cur.execute("ALTER TABLE segment_kml ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'upload'")
     cur.execute("UPDATE segment_kml SET source = 'upload' WHERE source IS NULL")
+
+
+def _run_migration_063(cur) -> None:
+    """Add CableSystem.fiber_pair_count / consortium_owners — no backfill value.
+
+    New optional fields for the Cable Import feature (app/models.py's
+    CableSystem): total fibre pair count and the list of consortium member
+    operators, for systems this org tracks but does not own. Unlike
+    m060/m061's status backfills, there is no correct value to assume for
+    existing rows — nothing recorded either fact before this migration — so
+    both are set to JSON null rather than guessed. This still keeps the
+    stored data self-describing (the keys exist and read as "unknown", not
+    "missing"), matching every other field-backfill migration's convention in
+    this file.
+    """
+    cur.execute("UPDATE systems SET data = jsonb_set(data, '{fiber_pair_count}', 'null'::jsonb)")
+    cur.execute("UPDATE systems SET data = jsonb_set(data, '{consortium_owners}', 'null'::jsonb)")
