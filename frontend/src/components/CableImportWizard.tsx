@@ -3,20 +3,25 @@
  *  CableImportWizard.tsx — model a cable we do not own.
  * ============================================================================
  *
- * Phase 1 of the "Cable Import" feature (see the approved plan): a manual,
+ * Phases 1+2 of the "Cable Import" feature (see the approved plan): a manual
  * four-step wizard that creates a CableSystem, resolves or creates its
  * landing-station Nodes, and proposes+creates a trunk-topology breakdown of
- * Segments — with no web research and no geometry sync yet (that's Phase 2/3).
- * It exists so a competitor/future cable this org does not own can be modeled
- * with the same rigor as owned infrastructure, without ever touching a
- * scraper. Every created segment defaults to Ownership.offnet_resell and
- * participates in RouteFinder exactly like any other off-net segment today —
- * a deliberate choice confirmed with the user, not an oversight (see the
- * plan's Context section).
+ * Segments — then, if the reviewer linked a submarinecablemap.com cable in
+ * step 1, hands off straight into the existing Chop Import tool with that
+ * cable already flattened and the new segments already declared. No web
+ * research/extraction yet (that's Phase 3). It exists so a competitor/future
+ * cable this org does not own can be modeled with the same rigor as owned
+ * infrastructure. Every created segment defaults to Ownership.offnet_resell
+ * and participates in RouteFinder exactly like any other off-net segment
+ * today — a deliberate choice confirmed with the user, not an oversight (see
+ * the plan's Context section).
  *
  * Steps:
  *   1. Cable identity   — system-level facts (name, RFS/EOL, fibre pairs,
- *      consortium owners). Staged only; nothing is POSTed until step 4.
+ *      consortium owners), plus an OPTIONAL link to a submarinecablemap.com
+ *      cable (Typeahead over GET /api/kml/scm/cables, the same search
+ *      KmlChopImport's own source panel uses). Staged only; nothing is
+ *      POSTed until step 4.
  *   2. Landing stations  — an ORDERED list (order drives step 3's default
  *      trunk chop). Each row is either linked to an existing node (ranked by
  *      utils/nodeMatch.ts's rankNodeCandidates) or resolved to a new CLS.
@@ -27,18 +32,26 @@
  *   4. Review & create   — POSTs in dependency order (system → new nodes →
  *      segments → capacity), one item at a time with its own progress state,
  *      matching the commit pattern already established by
- *      hooks/useKmlChopState.ts's own commit() function.
+ *      hooks/useKmlChopState.ts's own commit() function. On success, if a
+ *      submarinecablemap.com cable was linked, onLinkGeometry hands the new
+ *      system id + committed segment ids up to App.tsx, which opens Chop
+ *      Import and calls useKmlChopState's runFlattenForScmCable — built
+ *      specifically for this handoff, since neither this wizard nor
+ *      App.tsx can safely read useKmlChopState's `segments` prop back
+ *      immediately after creating the very rows it needs to see (see that
+ *      function's own comment).
  *
  * Reuses rather than reinvents: generateNodeId/generateSegmentId/
  * generateSegmentName/suggestSegmentDefaults (utils/editorGeo.ts, the same
  * helpers Network Editor's own "create segment" flow uses), haversineKm for
  * a straight-line length_km placeholder (the same fallback NewSegmentForm
- * uses before real geometry exists), and the api.create* endpoints already
- * used everywhere else in the app — no new backend CRUD.
+ * uses before real geometry exists), Typeahead (components/formFields.tsx,
+ * the same combobox KmlChopImport's SCM search uses), and the api.create*
+ * endpoints already used everywhere else in the app — no new backend CRUD.
  */
-import { useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type {
-  CableNode, CableSegment, CableSystem, EolStatus, NodeType, Ownership, RfsStatus, SegmentType,
+  CableNode, CableSegment, CableSystem, EolStatus, NodeType, Ownership, RfsStatus, ScmCable, SegmentType,
 } from '../types'
 import { useTheme } from '../theme'
 import type { Theme } from '../theme'
@@ -48,6 +61,7 @@ import {
 } from '../utils/editorGeo'
 import { rankNodeCandidates } from '../utils/nodeMatch'
 import { NODE_TYPE_LABEL } from '../mapGeometry'
+import { Typeahead } from './formFields'
 
 interface Props {
   nodes: CableNode[]
@@ -55,6 +69,10 @@ interface Props {
   systems: CableSystem[]
   onClose: () => void
   onDataChange: () => void
+  /** Fired once, after a successful commit, ONLY when step 1 linked a
+   *  submarinecablemap.com cable — App.tsx uses this to open Chop Import
+   *  and flatten that cable straight onto the segments just created. */
+  onLinkGeometry: (systemId: string, segmentIds: string[], scmCableId: string) => void
 }
 
 // ── Draft state ──────────────────────────────────────────────────────────
@@ -283,10 +301,15 @@ function ConsortiumOwnersField({ owners, setOwners }: { owners: string[]; setOwn
   )
 }
 
-function StepIdentity({ draft, setDraft, systems }: {
+function StepIdentity({ draft, setDraft, systems, scmCables, scmQuery, setScmQuery, scmSelectedId, setScmSelectedId }: {
   draft: SystemDraft
   setDraft: (d: SystemDraft) => void
   systems: CableSystem[]
+  scmCables: ScmCable[]
+  scmQuery: string
+  setScmQuery: (q: string) => void
+  scmSelectedId: string | null
+  setScmSelectedId: (id: string | null) => void
 }) {
   const t = useTheme()
   const idTaken = draft.id.length > 0 && systems.some(s => s.id === draft.id)
@@ -356,6 +379,47 @@ function StepIdentity({ draft, setDraft, systems }: {
         owners={draft.consortium_owners}
         setOwners={owners => setDraft({ ...draft, consortium_owners: owners })}
       />
+      <ScmLinkField
+        scmCables={scmCables} query={scmQuery} setQuery={setScmQuery}
+        selectedId={scmSelectedId} setSelectedId={setScmSelectedId}
+      />
+    </div>
+  )
+}
+
+/** Optional link to a submarinecablemap.com cable — the same Typeahead over
+ *  the same search KmlChopImport's own sync-source picker uses (GET
+ *  /api/kml/scm/cables). Picking one here is what lets step 4's DonePanel
+ *  hand off straight into Chop Import instead of just naming it as the next
+ *  manual step (see onLinkGeometry in the wizard's own header comment). */
+function ScmLinkField({ scmCables, query, setQuery, selectedId, setSelectedId }: {
+  scmCables: ScmCable[]
+  query: string
+  setQuery: (q: string) => void
+  selectedId: string | null
+  setSelectedId: (id: string | null) => void
+}) {
+  const t = useTheme()
+  const id = useId()
+  const options = useMemo(() => scmCables.map(c => ({ id: c.id, label: c.name })), [scmCables])
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <label htmlFor={id} style={labelStyle(t)}>Link submarinecablemap.com cable (optional)</label>
+      <Typeahead
+        id={id}
+        value={query}
+        onChangeText={txt => { setQuery(txt); setSelectedId(null) }}
+        onPick={o => { setQuery(o.label); setSelectedId(o.id) }}
+        options={options}
+        placeholder={scmCables.length === 0 ? 'Loading cable list…' : 'Search submarine cable name…'}
+        disabled={scmCables.length === 0}
+        emptyText="No cables match."
+      />
+      {selectedId && (
+        <span style={{ fontSize: 11, color: t.green }}>
+          ✓ Will hand off to Chop Import to flatten this cable&rsquo;s geometry after creation.
+        </span>
+      )}
     </div>
   )
 }
@@ -783,7 +847,7 @@ function canAdvance(
   return true
 }
 
-export function CableImportWizard({ nodes, segments, systems, onClose, onDataChange }: Props) {
+export function CableImportWizard({ nodes, segments, systems, onClose, onDataChange, onLinkGeometry }: Props) {
   const t = useTheme()
   const [step, setStep] = useState(1)
   const [system, setSystem] = useState<SystemDraft>(emptySystemDraft)
@@ -792,7 +856,21 @@ export function CableImportWizard({ nodes, segments, systems, onClose, onDataCha
   const [proposalGenerated, setProposalGenerated] = useState(false)
   const [committing, setCommitting] = useState(false)
   const [commitItems, setCommitItems] = useState<CommitItem[] | null>(null)
+  const [committedSegmentIds, setCommittedSegmentIds] = useState<string[]>([])
   const [done, setDone] = useState(false)
+
+  // Step 1's optional "link to submarinecablemap.com" — fetched once, the
+  // same way useKmlChopState.ts's own sync-source picker does, so it's ready
+  // by the time the reviewer reaches that field rather than loading on click.
+  const [scmCables, setScmCables] = useState<ScmCable[]>([])
+  const [scmQuery, setScmQuery] = useState('')
+  const [scmSelectedId, setScmSelectedId] = useState<string | null>(null)
+  const scmFetchStarted = useRef(false)
+  useEffect(() => {
+    if (scmFetchStarted.current) return
+    scmFetchStarted.current = true
+    api.searchScmCables('').then(res => setScmCables(res.cables)).catch(() => {})
+  }, [])
 
   function goToStep(next: number) {
     if (next === 3 && !proposalGenerated) {
@@ -822,9 +900,11 @@ export function CableImportWizard({ nodes, segments, systems, onClose, onDataCha
       if (row.resolution !== 'new') continue
       await commitNewNode(row, setItem)
     }
+    const succeeded: string[] = []
     for (const draft of segmentDrafts) {
-      await commitSegment(draft, system, landingRows, setItem)
+      if (await commitSegment(draft, system, landingRows, setItem)) succeeded.push(draft.id)
     }
+    setCommittedSegmentIds(succeeded)
 
     onDataChange()
     setCommitting(false)
@@ -834,6 +914,7 @@ export function CableImportWizard({ nodes, segments, systems, onClose, onDataCha
   const stepContent = renderStep(step, {
     system, setSystem, systems, landingRows, setLandingRows, nodes,
     segmentDrafts, setSegmentDrafts, segments, commitItems,
+    scmCables, scmQuery, setScmQuery, scmSelectedId, setScmSelectedId,
   })
 
   return (
@@ -854,7 +935,14 @@ export function CableImportWizard({ nodes, segments, systems, onClose, onDataCha
         </div>
         <StepTabs step={step} t={t} />
         <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
-          {done ? <DonePanel t={t} onClose={onClose} /> : stepContent}
+          {done ? (
+            <DonePanel
+              t={t} onClose={onClose}
+              scmSelectedId={scmSelectedId}
+              scmCableName={scmCables.find(c => c.id === scmSelectedId)?.name ?? scmSelectedId ?? ''}
+              onContinueToGeometry={() => onLinkGeometry(system.id, committedSegmentIds, scmSelectedId!)}
+            />
+          ) : stepContent}
         </div>
         {!done && (
           <WizardFooter
@@ -875,8 +963,18 @@ function renderStep(step: number, props: {
   landingRows: LandingDraft[]; setLandingRows: (r: LandingDraft[]) => void; nodes: CableNode[]
   segmentDrafts: SegmentDraft[]; setSegmentDrafts: (d: SegmentDraft[]) => void; segments: CableSegment[]
   commitItems: CommitItem[] | null
+  scmCables: ScmCable[]; scmQuery: string; setScmQuery: (q: string) => void
+  scmSelectedId: string | null; setScmSelectedId: (id: string | null) => void
 }): React.ReactNode {
-  if (step === 1) return <StepIdentity draft={props.system} setDraft={props.setSystem} systems={props.systems} />
+  if (step === 1) {
+    return (
+      <StepIdentity
+        draft={props.system} setDraft={props.setSystem} systems={props.systems}
+        scmCables={props.scmCables} scmQuery={props.scmQuery} setScmQuery={props.setScmQuery}
+        scmSelectedId={props.scmSelectedId} setScmSelectedId={props.setScmSelectedId}
+      />
+    )
+  }
   if (step === 2) {
     return (
       <StepLandingStations
@@ -952,7 +1050,24 @@ function WizardFooter({ step, t, committing, canAdvance: advanceOk, onBack, onNe
   )
 }
 
-function DonePanel({ t, onClose }: { t: Theme; onClose: () => void }) {
+function DonePanel({ t, onClose, scmSelectedId, scmCableName, onContinueToGeometry }: {
+  t: Theme; onClose: () => void
+  scmSelectedId: string | null; scmCableName: string; onContinueToGeometry: () => void
+}) {
+  if (scmSelectedId) {
+    return (
+      <div style={{ maxWidth: 480 }}>
+        <p style={{ fontSize: 13, color: t.text }}>
+          Cable created. Continue to <strong>Chop Import</strong> to flatten {scmCableName}&rsquo;s
+          geometry from submarinecablemap.com straight onto these segments.
+        </p>
+        <button type="button" onClick={onContinueToGeometry} style={{
+          marginTop: 10, padding: '7px 16px', borderRadius: 5, border: 'none', background: t.green, color: '#fff',
+          fontSize: 12, cursor: 'pointer',
+        }}>Continue to KML Import →</button>
+      </div>
+    )
+  }
   return (
     <div style={{ maxWidth: 480 }}>
       <p style={{ fontSize: 13, color: t.text }}>
@@ -1002,17 +1117,21 @@ async function commitNewNode(row: LandingDraft, setItem: (key: string, patch: Pa
   }
 }
 
+/** Returns whether the segment itself landed (a capacity failure doesn't
+ *  un-succeed it) — commit() uses this to build the list of segment ids to
+ *  hand to onLinkGeometry, since only segments that actually exist are safe
+ *  to declare against a flatten. */
 async function commitSegment(
   draft: SegmentDraft, system: SystemDraft, landingRows: LandingDraft[],
   setItem: (key: string, patch: Partial<CommitItem>) => void,
-): Promise<void> {
+): Promise<boolean> {
   const key = `segment:${draft.key}`
   setItem(key, { status: 'committing' })
   const startId = landingNodeId(landingRows.find(r => r.key === draft.startKey)!)
   const endId = landingNodeId(landingRows.find(r => r.key === draft.endKey)!)
   if (!startId || !endId) {
     setItem(key, { status: 'fail', reason: 'endpoint not resolved' })
-    return
+    return false
   }
   try {
     // Straight-line length until real geometry is attached via KML Import
@@ -1032,9 +1151,9 @@ async function commitSegment(
     setItem(key, { status: 'success' })
   } catch (e) {
     setItem(key, { status: 'fail', reason: e instanceof Error ? e.message : String(e) })
-    return
+    return false
   }
-  if (draft.total_capacity_t.trim() === '') return
+  if (draft.total_capacity_t.trim() === '') return true
   const capKey = `capacity:${draft.key}`
   setItem(capKey, { status: 'committing' })
   try {
@@ -1044,4 +1163,5 @@ async function commitSegment(
   } catch (e) {
     setItem(capKey, { status: 'fail', reason: e instanceof Error ? e.message : String(e) })
   }
+  return true
 }

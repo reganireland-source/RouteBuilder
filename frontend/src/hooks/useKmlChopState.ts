@@ -270,14 +270,18 @@ export function useKmlChopState({ segments, systems, nodes, onDataChange, onMapP
 
   const canFlatten = sourceMode === 'upload' ? pendingFiles.length > 0 : scmSelectedId !== null
 
-  async function runFlatten() {
+  /** Shared body of runFlatten/runFlattenForScmCable — takes the system/
+   *  declared-ids to pass through as explicit ARGUMENTS rather than reading
+   *  them back off `systemId`/`declaredIds` state, so a caller that just set
+   *  them in the same breath (see runFlattenForScmCable) never races a
+   *  stale read of state that hasn't committed yet. */
+  async function flattenWith(source: { files: File[] } | { cableId: string }, sysId: string, segIds: Set<string>) {
     setBusy(true); setError(null); setCommitProgress({}); setColorOverrides({})
     try {
-      const source = sourceMode === 'upload' ? { files: pendingFiles } : { cableId: scmSelectedId! }
-      // Passed through even when unset (both are optional on the backend
-      // now) — covers the case where the reviewer happened to pick a system
-      // before flattening; suggest_cuts() runs the same either way.
-      const res = await api.flattenKmlImport(source, systemId || undefined, [...declaredIds])
+      // sysId/segIds passed through even when empty (both optional on the
+      // backend) — covers the case where the reviewer happened to pick a
+      // system before flattening; suggest_cuts() runs the same either way.
+      const res = await api.flattenKmlImport(source, sysId || undefined, [...segIds])
       setFlat(res)
       const { cuts, assigns } = initialCutsAndAssignments(res.chains)
       setCutsByChain(cuts)
@@ -288,6 +292,28 @@ export function useKmlChopState({ segments, systems, nodes, onDataChange, onMapP
     } finally {
       setBusy(false)
     }
+  }
+
+  async function runFlatten() {
+    const source = sourceMode === 'upload' ? { files: pendingFiles } : { cableId: scmSelectedId! }
+    await flattenWith(source, systemId, declaredIds)
+  }
+
+  /** Cable Import's Phase 2 handoff: jump straight to a specific
+   *  submarinecablemap.com cable, already knowing which system and segments
+   *  it belongs to (the caller just created them) — skipping the usual
+   *  pick-a-source-then-separately-declare-a-system flow entirely. Sets the
+   *  UI-facing state too (source mode, selected cable, declared system) so
+   *  the source panel that mounts right after reflects what just happened,
+   *  but the actual flatten call uses sysId/segIds directly rather than
+   *  those state values, since the setState calls just above have not
+   *  necessarily committed by the time this runs (see flattenWith's comment). */
+  async function runFlattenForScmCable(cableId: string, sysId: string, segIds: string[]) {
+    setSourceMode('sync')
+    setScmSelectedId(cableId)
+    setSystemId(sysId)
+    setDeclaredIds(new Set(segIds))
+    await flattenWith({ cableId }, sysId, new Set(segIds))
   }
 
   /** Re-suggest cuts once the reviewer has picked (or changed) the system/
@@ -492,6 +518,8 @@ export function useKmlChopState({ segments, systems, nodes, onDataChange, onMapP
     scmCables, scmQuery, setScmQuery, scmSelectedId, setScmSelectedId,
     systemId, chooseSystem, declaredIds, toggleDeclared, systemSegments,
     busy, error, canFlatten, runFlatten: () => void runFlatten(),
+    runFlattenForScmCable: (cableId: string, sysId: string, segIds: string[]) =>
+      runFlattenForScmCable(cableId, sysId, segIds),
     flat, cutsByChain, assignments, creatingKey, setCreatingKey, colorForStretch, cycleStretchColor,
     addAssignment, removeAssignment, removeCut,
     createSegmentFor: (chainIndex: number, start: number, seg: CableSegment, cap: SegmentCapacity) =>

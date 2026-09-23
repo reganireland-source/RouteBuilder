@@ -2305,6 +2305,17 @@ export default function App() {
             nodes={nodes} segments={segments} systems={systems}
             onDataChange={handleDataChange}
             onClose={() => setCableImportOpen(false)}
+            // Phase 2 handoff: jump straight into Chop Import with the SCM
+            // cable already flattened and the new segments already declared.
+            // runFlattenForScmCable takes systemId/segmentIds as explicit
+            // arguments rather than re-reading kmlChop's own `segments` prop,
+            // because that prop cannot have re-rendered with these very rows
+            // yet — see that function's own comment in useKmlChopState.ts.
+            onLinkGeometry={(systemId, segmentIds, scmCableId) => {
+              setCableImportOpen(false)
+              setKmlImportOpen(true)
+              void kmlChop.runFlattenForScmCable(scmCableId, systemId, segmentIds)
+            }}
           />
         </Suspense>
       )}
