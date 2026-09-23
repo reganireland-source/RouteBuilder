@@ -18,6 +18,7 @@ from .hazards.service import warm_in_background as warm_hazard_cache
 from .api import (
     auth as auth_api,
     bulk,
+    cableimport,
     capacity,
     city_pairs,
     config,
@@ -675,6 +676,7 @@ app.include_router(feature_requests.router, prefix="/api")
 app.include_router(solution_notes.router, prefix="/api")
 app.include_router(hazards.router, prefix="/api")
 app.include_router(kml_api.router, prefix="/api")
+app.include_router(cableimport.router, prefix="/api")
 
 # NLP route parsing — only registered when NLP_ENABLED=true
 if os.getenv("NLP_ENABLED", "").lower() == "true":

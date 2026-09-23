@@ -301,7 +301,39 @@ function ConsortiumOwnersField({ owners, setOwners }: { owners: string[]; setOwn
   )
 }
 
-function StepIdentity({ draft, setDraft, systems, scmCables, scmQuery, setScmQuery, scmSelectedId, setScmSelectedId }: {
+const CONFIDENCE_COLOR: Record<string, (t: Theme) => string> = {
+  high: t => t.green, medium: t => t.orange, low: t => t.red,
+}
+const SOURCE_LABEL: Record<string, string> = { wikipedia: 'Wikipedia', model_knowledge: 'general knowledge' }
+
+/** What research_cable() found, and how much to trust it — every field it
+ *  pre-filled below stays exactly as editable as if the reviewer had typed
+ *  it themselves; this banner exists so they know what to double-check,
+ *  not to make the result look more authoritative than it is. */
+function ResearchBanner({ meta, t }: { meta: { confidence: string; sources: string[]; notes: string }; t: Theme }) {
+  const confidenceColor = (CONFIDENCE_COLOR[meta.confidence] ?? CONFIDENCE_COLOR.low)(t)
+  return (
+    <div style={{
+      border: `1px solid ${t.border}`, borderRadius: 5, padding: '7px 10px',
+      background: t.bgCard, display: 'flex', flexDirection: 'column', gap: 3,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+        <span style={{ color: confidenceColor, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          {meta.confidence} confidence
+        </span>
+        <span style={{ color: t.textFaint }}>
+          from {meta.sources.map(s => SOURCE_LABEL[s] ?? s).join(' + ')}
+        </span>
+      </div>
+      {meta.notes && <span style={{ fontSize: 11, color: t.textMuted }}>{meta.notes}</span>}
+    </div>
+  )
+}
+
+function StepIdentity({
+  draft, setDraft, systems, scmCables, scmQuery, setScmQuery, scmSelectedId, setScmSelectedId,
+  researching, researchMeta, researchError, onResearch,
+}: {
   draft: SystemDraft
   setDraft: (d: SystemDraft) => void
   systems: CableSystem[]
@@ -310,6 +342,10 @@ function StepIdentity({ draft, setDraft, systems, scmCables, scmQuery, setScmQue
   setScmQuery: (q: string) => void
   scmSelectedId: string | null
   setScmSelectedId: (id: string | null) => void
+  researching: boolean
+  researchMeta: { confidence: string; sources: string[]; notes: string } | null
+  researchError: string | null
+  onResearch: () => void
 }) {
   const t = useTheme()
   const idTaken = draft.id.length > 0 && systems.some(s => s.id === draft.id)
@@ -318,22 +354,37 @@ function StepIdentity({ draft, setDraft, systems, scmCables, scmQuery, setScmQue
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 460 }}>
-      <LabeledField label="Cable Name">
-        {id => (
-          <input
-            id={id} style={fieldStyle(t)} type="text" autoComplete="off" placeholder="e.g. Bifrost"
-            value={draft.name}
-            onChange={e => {
-              const name = e.target.value
-              // Only auto-follow the id while the user hasn't hand-edited it —
-              // otherwise typing a name after fixing a typo'd id would silently
-              // clobber the fix.
-              const autoId = draft.id === '' || draft.id === slugifySystemId(draft.name)
-              setDraft({ ...draft, name, id: autoId ? slugifySystemId(name) : draft.id })
-            }}
-          />
-        )}
-      </LabeledField>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+        <div style={{ flex: 1 }}>
+          <LabeledField label="Cable Name">
+            {id => (
+              <input
+                id={id} style={fieldStyle(t)} type="text" autoComplete="off" placeholder="e.g. Bifrost"
+                value={draft.name}
+                onChange={e => {
+                  const name = e.target.value
+                  // Only auto-follow the id while the user hasn't hand-edited it —
+                  // otherwise typing a name after fixing a typo'd id would silently
+                  // clobber the fix.
+                  const autoId = draft.id === '' || draft.id === slugifySystemId(draft.name)
+                  setDraft({ ...draft, name, id: autoId ? slugifySystemId(name) : draft.id })
+                }}
+              />
+            )}
+          </LabeledField>
+        </div>
+        <button
+          type="button" onClick={onResearch} disabled={researching || draft.name.trim().length === 0}
+          title="Look up owners, fibre pairs, RFS date and landing stations from Wikipedia and general knowledge"
+          style={{
+            padding: '5px 12px', borderRadius: 4, border: `1px solid ${t.blue}`,
+            background: t.blue + '18', color: t.blue, fontSize: 12, cursor: 'pointer',
+            opacity: researching || draft.name.trim().length === 0 ? 0.5 : 1, whiteSpace: 'nowrap',
+          }}
+        >{researching ? 'Researching…' : '✨ Research'}</button>
+      </div>
+      {researchError && <span style={{ fontSize: 11, color: t.red }}>{researchError}</span>}
+      {researchMeta && <ResearchBanner meta={researchMeta} t={t} />}
       <LabeledField label="System ID">
         {id => (
           <input
@@ -872,6 +923,46 @@ export function CableImportWizard({ nodes, segments, systems, onClose, onDataCha
     api.searchScmCables('').then(res => setScmCables(res.cables)).catch(() => {})
   }, [])
 
+  // Phase 3: aggregated research (Wikipedia + the LLM's own knowledge — see
+  // app/cableimport/research.py's header for why not submarinenetworks.com
+  // directly) pre-fills step 1's fields and stages step 2's landing rows.
+  // Nothing here is committed by itself — every pre-filled value stays as
+  // editable as it was in Phase 1, exactly the "propose, never silently
+  // commit" behaviour the feature was scoped around from the start.
+  const [researching, setResearching] = useState(false)
+  const [researchMeta, setResearchMeta] = useState<{ confidence: string; sources: string[]; notes: string } | null>(null)
+  const [researchError, setResearchError] = useState<string | null>(null)
+
+  async function runResearch() {
+    const name = system.name.trim()
+    if (!name) return
+    setResearching(true); setResearchError(null); setResearchMeta(null)
+    try {
+      const res = await api.researchCable(name)
+      setSystem(prev => ({
+        ...prev,
+        description: res.description || prev.description,
+        consortium_owners: res.consortium_owners.length > 0 ? res.consortium_owners : prev.consortium_owners,
+        fiber_pair_count: res.fiber_pair_count != null ? String(res.fiber_pair_count) : prev.fiber_pair_count,
+        rfs_status: res.rfs_status,
+        rfs_quarter: res.rfs_quarter ?? prev.rfs_quarter,
+      }))
+      if (res.landing_stations.length > 0) {
+        setLandingRows(res.landing_stations.map(ls => ({
+          ...emptyLandingDraft(),
+          name: ls.name, city: ls.city ?? '', country: ls.country ?? '',
+          lat: ls.lat != null ? String(ls.lat) : '', lng: ls.lng != null ? String(ls.lng) : '',
+        })))
+        setProposalGenerated(false)
+      }
+      setResearchMeta({ confidence: res.confidence, sources: res.sources_used, notes: res.notes })
+    } catch (e) {
+      setResearchError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setResearching(false)
+    }
+  }
+
   function goToStep(next: number) {
     if (next === 3 && !proposalGenerated) {
       setSegmentDrafts(proposeSegments(landingRows, nodes, system.id))
@@ -915,6 +1006,7 @@ export function CableImportWizard({ nodes, segments, systems, onClose, onDataCha
     system, setSystem, systems, landingRows, setLandingRows, nodes,
     segmentDrafts, setSegmentDrafts, segments, commitItems,
     scmCables, scmQuery, setScmQuery, scmSelectedId, setScmSelectedId,
+    researching, researchMeta, researchError, onResearch: () => void runResearch(),
   })
 
   return (
@@ -965,6 +1057,8 @@ function renderStep(step: number, props: {
   commitItems: CommitItem[] | null
   scmCables: ScmCable[]; scmQuery: string; setScmQuery: (q: string) => void
   scmSelectedId: string | null; setScmSelectedId: (id: string | null) => void
+  researching: boolean; researchMeta: { confidence: string; sources: string[]; notes: string } | null
+  researchError: string | null; onResearch: () => void
 }): React.ReactNode {
   if (step === 1) {
     return (
@@ -972,6 +1066,8 @@ function renderStep(step: number, props: {
         draft={props.system} setDraft={props.setSystem} systems={props.systems}
         scmCables={props.scmCables} scmQuery={props.scmQuery} setScmQuery={props.setScmQuery}
         scmSelectedId={props.scmSelectedId} setScmSelectedId={props.setScmSelectedId}
+        researching={props.researching} researchMeta={props.researchMeta}
+        researchError={props.researchError} onResearch={props.onResearch}
       />
     )
   }

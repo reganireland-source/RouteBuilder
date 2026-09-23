@@ -617,3 +617,42 @@ class NlpParseResponse(BaseModel):
     explanation: str = ""
     confidence: str = "low"
     ambiguities: list[str] = []
+
+
+# ── Cable Import research (Phase 3) ────────────────────────────────────────
+# See app/cableimport/research.py's own header for why this fans out to
+# whatever public sources are actually reachable (Wikipedia today) plus the
+# LLM's own general knowledge, rather than scraping submarinenetworks.com
+# directly — that site returns a JS bot-challenge to any non-browser client.
+
+class CableResearchRequest(BaseModel):
+    # Same reasoning as NlpParseRequest's cap: this endpoint spends real LLM
+    # budget per call, so the input is bounded even though it's admin-gated.
+    cable_name: str = Field(max_length=200, min_length=1)
+
+
+class ResearchedLandingStation(BaseModel):
+    name: str
+    city: Optional[str] = None
+    country: Optional[str] = None
+    # Rough city-centre approximations at best — never presented as surveyed.
+    # See CableResearchResult.notes for how untrustworthy a given result is.
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)
+    lng: Optional[float] = Field(default=None, ge=-180, le=180)
+
+
+class CableResearchResult(BaseModel):
+    cable_name: str
+    description: str = ""
+    consortium_owners: list[str] = []
+    fiber_pair_count: Optional[int] = Field(default=None, ge=0)
+    rfs_status: RfsStatus = RfsStatus.planned
+    rfs_quarter: Optional[str] = None
+    landing_stations: list[ResearchedLandingStation] = []
+    # Where this came from — ["wikipedia", "model_knowledge"], either or both.
+    # Never empty: model_knowledge is always the fallback of last resort.
+    sources_used: list[str] = []
+    confidence: str = "low"
+    # Caveats a reviewer should read before trusting any of the above, e.g.
+    # "no source article found" or "fibre pair count not publicly disclosed".
+    notes: str = ""

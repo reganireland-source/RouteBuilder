@@ -666,6 +666,41 @@ export interface NlpParseResponse {
   ambiguities: string[]
 }
 
+/**
+ * One PROPOSED landing station from POST /api/cableimport/research — never
+ * a real Node, just what the Cable Import wizard's step 2 pre-fills a row
+ * with. lat/lng are rough city-centre approximations at best.
+ */
+export interface ResearchedLandingStation {
+  name: string
+  city: string | null
+  country: string | null
+  lat: number | null
+  lng: number | null
+}
+
+/**
+ * Result of POST /api/cableimport/research — aggregated, LLM-extracted facts
+ * about a named submarine cable this org does not own, for the Cable Import
+ * wizard's step 1 to pre-fill. Every field is a PROPOSAL the reviewer can
+ * freely edit or discard, never written to the database by this call alone.
+ * `sources_used` is `["wikipedia"]` and/or `["model_knowledge"]` (the latter
+ * always present as the fallback of last resort); `confidence`/`notes` say
+ * how much to trust the rest.
+ */
+export interface CableResearchResult {
+  cable_name: string
+  description: string
+  consortium_owners: string[]
+  fiber_pair_count: number | null
+  rfs_status: RfsStatus
+  rfs_quarter: string | null
+  landing_stations: ResearchedLandingStation[]
+  sources_used: string[]
+  confidence: 'high' | 'medium' | 'low'
+  notes: string
+}
+
 // ── Technical Enrichment Lookups ─────────────────────────────────────────────
 
 /**
