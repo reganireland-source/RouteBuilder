@@ -112,16 +112,17 @@ const SATELLITE_ATTRIBUTION = '&copy; <a href="https://www.esri.com/">Esri</a> &
 /** High-contrast mode's one fixed accent for backhaul (terrestrial)
  *  segments — deliberately NOT a theme token: the whole point of this mode
  *  is a single unmistakable hue against a desaturated map, independent of
- *  which of the three themes is active. A saturated magenta was the first
- *  attempt; against a genuinely gray map that hue sits at a mid luminance
- *  and doesn't actually punch through the way the mode's name promises.
- *  High-visibility yellow has the highest luminance of any fully-saturated
- *  hue, so it reads as a hard edge against grayscale tiles at any
- *  lightness — light or dark — the same way safety colorways use it. Sits
- *  outside every existing semantic color too (red=error, green=healthy,
- *  orange=warning, blue=the one UI accent), so it reads as "the backhaul
- *  color" and nothing else. */
-const HIGH_CONTRAST_BACKHAUL_COLOR = '#ffd400'
+ *  which of the three themes is active. Two earlier attempts didn't hold
+ *  up: a saturated magenta sits at a mid luminance and doesn't punch
+ *  through a genuinely gray map, and a high-luminance yellow turned out to
+ *  fail the opposite way — real tile imagery, once grayscaled, is mostly
+ *  light (roads, labels, land), so a light hue nearly disappears into it.
+ *  A dark, vivid purple stays legible against that common light-gray case
+ *  while still reading as a hard edge on darker terrain/water, and it sits
+ *  outside every existing semantic color (red=error, green=healthy,
+ *  orange=warning, blue=the one UI accent, violet=Secondary PoP node), so
+ *  it reads as "the backhaul color" and nothing else. */
+const HIGH_CONTRAST_BACKHAUL_COLOR = '#5b21b6'
 
 /** Satellite mode's override for the plain background network — the
  *  default muted t.mapInactiveSegment blue-gray at low opacity was tuned
