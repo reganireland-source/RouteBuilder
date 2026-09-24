@@ -1,3 +1,16 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# openai_provider.py — OpenAI / Azure OpenAI implementation of LLMProvider.
+#
+# Selected by get_provider() (app/nlp/provider.py) when either
+# OPENAI_API_KEY or AZURE_OPENAI_ENDPOINT is set (and no ANTHROPIC_API_KEY
+# takes priority — see that module). Backs only the text-only JSON
+# completion used by app/nlp/parser.py's natural-language route search; it
+# does NOT override the multimodal methods, so calling
+# complete_json_multimodal/stream_json_multimodal on this provider falls
+# back to LLMProvider's default (which raises NotImplementedError for
+# complete_json_multimodal) — the Outage Parser's vision feature therefore
+# requires ANTHROPIC_API_KEY regardless of what is configured here.
+# ─────────────────────────────────────────────────────────────────────────────
 import json
 import os
 from .provider import LLMProvider

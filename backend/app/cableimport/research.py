@@ -166,10 +166,25 @@ def _source_block(cable_name: str, wiki: Optional[dict]) -> tuple[str, list[str]
 
 
 def _clean_owners(raw) -> list[str]:
+    """Coerce the LLM's raw `consortium_owners` value into a list of
+    non-blank, stripped strings, capped at 20 — defensive against the model
+    returning null, a non-list, or garbage entries instead of following the
+    prompt's schema."""
     return [str(x).strip() for x in (raw or []) if str(x).strip()][:20]
 
 
 def _clean_landing(item) -> Optional[ResearchedLandingStation]:
+    """
+    Validate and coerce one raw `landing_stations` entry from the LLM
+    response into a `ResearchedLandingStation`, or None if it's unusable
+    (not a dict, or missing a `name`).
+
+    `lat`/`lng` are individually dropped to None — rather than rejecting the
+    whole entry — when absent, non-numeric, or outside a valid coordinate
+    range, since a landing station with a name but no usable position is
+    still a useful proposal for the reviewer; only the impossible fields are
+    discarded, not the whole record.
+    """
     if not isinstance(item, dict) or not item.get("name"):
         return None
     lat, lng = item.get("lat"), item.get("lng")
@@ -183,6 +198,8 @@ def _clean_landing(item) -> Optional[ResearchedLandingStation]:
 
 
 def _clean_landings(raw) -> list[ResearchedLandingStation]:
+    """Map `_clean_landing` over the LLM's raw `landing_stations` list
+    (capped at 40 entries), dropping any that don't clean up validly."""
     out = []
     for item in (raw or [])[:40]:
         cleaned = _clean_landing(item)
@@ -192,6 +209,9 @@ def _clean_landings(raw) -> list[ResearchedLandingStation]:
 
 
 def _clean_fiber_pair_count(raw) -> Optional[int]:
+    """The LLM's raw `fiber_pair_count` as a non-negative int, or None if
+    it's missing, negative, or not actually a number (e.g. the model
+    returned a string or null instead of following the schema)."""
     if isinstance(raw, (int, float)) and raw >= 0:
         return int(raw)
     return None

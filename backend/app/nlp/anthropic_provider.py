@@ -1,3 +1,19 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# anthropic_provider.py — Claude/Anthropic implementation of LLMProvider.
+#
+# Selected by get_provider() (app/nlp/provider.py) when ANTHROPIC_API_KEY is
+# set — see that module for the selection order and how this class is
+# imported lazily so its `anthropic` SDK dependency is only needed when
+# actually used. Backs two features:
+#   - app/nlp/parser.py's natural-language route search (complete_json,
+#     using the small/fast Haiku model — see model="claude-haiku-4-5..."
+#     below).
+#   - The Outage Parser's screenshot/table reading (complete_json_multimodal
+#     / stream_json_multimodal, using a stronger Sonnet model — see
+#     _VISION_MODEL), which is currently the ONLY provider in this codebase
+#     that implements the multimodal methods with real vision support
+#     (OpenAIProvider only implements complete_json).
+# ─────────────────────────────────────────────────────────────────────────────
 import json
 import os
 from .provider import LLMProvider
@@ -43,7 +59,14 @@ _VISION_TIMEOUT = float(os.getenv("OUTAGE_PARSER_TIMEOUT_SECONDS", "300"))
 
 
 class AnthropicProvider(LLMProvider):
+    """LLMProvider backed by the Anthropic Messages API. See module
+    docstring for which features use which of its methods and models."""
+
     def __init__(self):
+        """Construct the Anthropic SDK client using ANTHROPIC_API_KEY from
+        the environment. `anthropic` is imported here (not at module top
+        level) so the SDK dependency is only required once a caller actually
+        needs this provider — see get_provider() in provider.py."""
         import anthropic
         self._client = anthropic.Anthropic(
             api_key=os.getenv("ANTHROPIC_API_KEY"),
@@ -52,6 +75,18 @@ class AnthropicProvider(LLMProvider):
         )
 
     def complete_json(self, system_prompt: str, user_prompt: str) -> dict:
+        """LLMProvider.complete_json implementation: a single non-streaming
+        text-only call to Claude Haiku (the small/fast model, appropriate
+        for the route-search NLP parsing workload — see app/nlp/parser.py),
+        capped at 1024 output tokens.
+
+        Extracts the JSON text from the response via _extract_json_text
+        (handling a possible leading `thinking` block and/or a markdown code
+        fence) and json.loads's it. Raises whatever json.loads or the
+        Anthropic SDK raises on failure (network error, malformed JSON,
+        etc.) — the caller (app/nlp/parser.py → app/api/nlp.py) is
+        responsible for turning that into a client-safe error.
+        """
         response = self._client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=1024,

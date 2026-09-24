@@ -36,6 +36,8 @@ DATA = Path(__file__).parent.parent / "data"
 
 @pytest.fixture(scope="module")
 def network():
+    """The real reference network (nodes.json/segments.json), loaded once per
+    module — only used by the join-then-split composition test below."""
     nodes = json.loads((DATA / "nodes.json").read_text())
     segments = json.loads((DATA / "segments.json").read_text())
     return nodes, segments, {n["id"]: n for n in nodes}

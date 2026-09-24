@@ -74,6 +74,9 @@ def make_token(private_key, *, issuer=ISSUER, audience=CLIENT_ID, claims=None, e
 
 
 def make_verifier(public_key, *, admin_claim_type="groups", admin_claim_value=ADMIN_VALUE):
+    """Build an OidcVerifier wired to the stub JWK client above, so verify()
+    checks signature/issuer/audience/expiry exactly as it would in production
+    without ever making a network call for the signing key."""
     settings = OidcSettings(
         issuer=ISSUER, client_id=CLIENT_ID, audience=CLIENT_ID,
         jwks_uri=f"{ISSUER}/keys",

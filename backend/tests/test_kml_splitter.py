@@ -50,6 +50,8 @@ EXPECTED_CUTS = ["TUAS", "BOM1", "DXB1", "LON1"]
 
 @pytest.fixture(scope="module")
 def network():
+    """The real reference network (nodes.json/segments.json), loaded once per
+    module rather than per test since it's read-only and tests only query it."""
     nodes = json.loads((DATA / "nodes.json").read_text())
     segments = json.loads((DATA / "segments.json").read_text())
     return nodes, segments, {n["id"]: n for n in nodes}

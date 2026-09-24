@@ -4,6 +4,12 @@
 # Route prefix: /api/hazards (this router has prefix="/hazards"; main.py mounts
 # it under "/api").
 #
+# CONDITIONAL MOUNTING: main.py only includes this router — and only runs the
+# lifespan hazard-cache warm-up — when the HAZARDS_ENABLED deploy-time feature
+# flag is true (the default). When it's false, neither this module's routes
+# nor app/hazards/service.py's warm-on-boot ever run; that gating lives in
+# main.py, not here, so this module itself is unchanged either way.
+#
 # A read-only proxy over two third-party feeds — bushfire.io and USGS — flattened
 # to one shape, filtered to what can plausibly affect network infrastructure, and
 # annotated with which of OUR nodes and segments each event sits near. The work,

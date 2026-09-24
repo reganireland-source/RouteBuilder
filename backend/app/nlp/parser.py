@@ -206,12 +206,23 @@ def _country_catalog(nodes) -> str:
     return "\n".join(f"{code} ({count} nodes)" for code, count in sorted(counts.items()))
 
 
+#: The set of DiversityType enum values a parsed "diversity" field may take.
+#: Sourced from the actual DiversityType model enum (not hand-duplicated)
+#: so this can never drift out of sync with what RouteRequest.diversity
+#: actually accepts.
 _VALID_DIVERSITY = {d.value for d in DiversityType}
+#: Valid values for sort_mode (STEP 4 in SYSTEM_PROMPT — display-only
+#: re-ordering of the already-selected pool, e.g. "availability"/"reliability"
+#: which are NOT valid optimise_for values because there is no pool-selection
+#: notion of them — see SYSTEM_PROMPT's "CHOOSING optimise_for vs sort_mode").
 _VALID_SORT = {
     "hops", "distance", "length", "latency",
     "availability", "reliability",
     "margin", "cost", "capacity", "ownership", "outages",
 }
+#: Valid values for optimise_for (STEP 3 in SYSTEM_PROMPT — which routes fill
+#: the memory pool). A strict subset of _VALID_SORT's dimensions; notably
+#: excludes "availability"/"reliability" (see _VALID_SORT above).
 _VALID_OPTIMISE_FOR = {
     "hops", "distance", "length", "latency",
     "margin", "cost", "capacity", "ownership", "outages",
@@ -219,20 +230,92 @@ _VALID_OPTIMISE_FOR = {
 
 
 def parse_route_request(provider, nodes, segments, text: str) -> NlpParseResponse:
+    """
+    Turn one free-text route query into a validated NlpParseResponse.
+
+    This is the module's single entry point, called by
+    app/api/nlp.py's POST /api/nlp/parse handler.
+
+    Params:
+      - provider: an LLMProvider (see app/nlp/provider.py) already resolved
+        by the caller via get_provider(). Only its complete_json() method is
+        used here.
+      - nodes: the full live list of Node objects (from data_loader.load_nodes()).
+      - segments: the full live list of CableSegment objects
+        (from data_loader.load_segments()).
+      - text: the user's free-text query, e.g. "route from Singapore to Tokyo
+        avoiding Japan, max 2 wet hops".
+
+    Behaviour (the NL → structured-params mapping):
+      1. Builds the "vocabulary" the model is allowed to use: every valid
+         node id, segment id, system id, and country code currently in the
+         network, PLUS SYSTEM_PROMPT formatted with human-readable catalogue
+         listings of the same (so the model can match a place/cable NAME the
+         user typed to the right ID).
+      2. Calls provider.complete_json(prompt, text) — this is the only call
+         out to the LLM; complete_json is contracted to return a Python dict
+         already parsed from the model's JSON response (see
+         LLMProvider.complete_json's docstring).
+      3. SANITISES every field of that raw dict against the real catalogues
+         built in step 1, because an LLM response is never trusted verbatim:
+           - start_node_id / end_node_id: kept only if they are a real,
+             current node id; otherwise reset to None (never raise — an
+             unmatched endpoint is reported to the user as "could not
+             resolve", not a 500).
+           - must_include_nodes / must_avoid_nodes / *_segments / *_systems /
+             *_countries: each list is filtered down to only the ids/codes
+             that actually exist right now (clean_ids), silently dropping any
+             hallucinated id the model may have invented.
+           - diversity: must be one of the real DiversityType values, else
+             falls back to "none" (the least restrictive setting — never
+             fail closed into over-constraining a search the user didn't ask
+             for).
+           - sort_mode / optimise_for: must be one of the pipeline's actual
+             valid dimensions (see _VALID_SORT / _VALID_OPTIMISE_FOR and
+             SYSTEM_PROMPT's discussion of the STEP 3 vs STEP 4 distinction),
+             else reset to None (unset, meaning "use the default").
+           - max_wet_hops / max_terrestrial_hops: kept only if numeric and
+             >= 1 (_clean_hop); a non-numeric, missing, or zero/negative
+             value is treated as "no limit" (None) rather than raising.
+           - explanation / confidence / ambiguities: coerced to their
+             expected str/str/list shapes with permissive defaults, since
+             these are purely explanatory metadata, not routing constraints —
+             a missing or oddly-typed value here should never blow up the
+             whole parse.
+      4. Returns the sanitised fields wrapped in an NlpParseResponse, which
+         is the exact shape the frontend feeds into the normal route-search
+         request builder.
+
+    No exception is raised for a "bad" LLM answer — every field independently
+    degrades to a safe default (None / "none" / [] / unfiltered-out) rather
+    than the whole parse failing; the caller (app/api/nlp.py) only has to
+    handle the case where provider.complete_json() itself raises (e.g.
+    malformed JSON, upstream API error).
+    """
+    # The three real-id sets and the real-country set are the ground truth
+    # every LLM-proposed id/code is checked against below — anything not in
+    # these sets is a hallucination and gets silently dropped, never trusted.
     node_ids = {n.id for n in nodes}
     segment_ids = {s.id for s in segments}
     system_ids = {s.system_id for s in segments}
     valid_countries = {n.country for n in nodes if n.type != "branching_unit"}
 
+    # Fill in the SYSTEM_PROMPT template with the live network's vocabulary
+    # so the model only ever sees ids/names that actually exist right now.
     prompt = SYSTEM_PROMPT.format(
         node_catalog=_node_catalog(nodes),
         segment_catalog=_segment_catalog(segments),
         system_catalog=_system_catalog(segments),
         country_catalog=_country_catalog(nodes),
     )
+    # The only LLM call in this module: prompt is the system prompt, text is
+    # the user's turn. complete_json is contracted to hand back an already
+    # JSON-parsed dict (or raise) — see LLMProvider.complete_json.
     raw = provider.complete_json(prompt, text)
 
     def clean_ids(lst, valid_set):
+        # Keep only ids/codes that are members of valid_set; drop everything
+        # else (a hallucinated id, or None/missing list) without raising.
         return [i for i in (lst or []) if i in valid_set]
 
     diversity_raw = raw.get("diversity", "none")
@@ -245,6 +328,9 @@ def parse_route_request(provider, nodes, segments, text: str) -> NlpParseRespons
     optimise_for = optimise_raw if optimise_raw in _VALID_OPTIMISE_FOR else None
 
     def _clean_hop(val) -> "int | None":
+        # A hop cap must be a real, positive number; anything else (missing,
+        # non-numeric, zero, negative) is treated as "no limit" rather than
+        # raising or silently coercing to some arbitrary default.
         if isinstance(val, (int, float)) and val >= 1:
             return int(val)
         return None
@@ -253,6 +339,8 @@ def parse_route_request(provider, nodes, segments, text: str) -> NlpParseRespons
     end = raw.get("end_node_id")
 
     return NlpParseResponse(
+        # Endpoints: only trusted if they match a real, current node id;
+        # otherwise reported as unresolved (None) rather than passed through.
         start_node_id=start if start in node_ids else None,
         end_node_id=end if end in node_ids else None,
         must_include_nodes=clean_ids(raw.get("must_include_nodes", []), node_ids),

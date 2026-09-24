@@ -4,6 +4,12 @@
 # Route prefix: /api/cableimport (this router has prefix="/cableimport";
 # main.py mounts it under "/api", so the path is /api/cableimport/research).
 #
+# CONDITIONAL MOUNTING: main.py only includes this router when the
+# CABLE_IMPORT_RESEARCH_ENABLED deploy-time feature flag is true (the
+# default). When it's false this module's route never runs at all; that
+# gating lives in main.py, not here, so this module itself is unchanged
+# either way.
+#
 # What it does: given a cable name, gathers whatever public source text is
 # actually reachable (currently Wikipedia — see app/cableimport/research.py's
 # own header for why submarinenetworks.com isn't the source, despite being
