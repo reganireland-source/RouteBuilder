@@ -23,6 +23,40 @@ export function denormalizeLng(lng: number): number {
 }
 
 /**
+ * Normalise a whole surveyed path's longitudes for continuous rendering.
+ *
+ * normalizeLng()'s fixed -30° threshold is an ANCHOR rule for single points
+ * (a node, a search pin) — it has no notion of "this point belongs to a
+ * path with these neighbours." Applied point-by-point to a KML path it
+ * quietly tears the line apart the moment the path dips under -30° without
+ * actually crossing the antimeridian at all: a real Atlantic cable (e.g.
+ * Brazil ~-38° to Angola ~13°) gets its Brazil-side points shifted by +360°
+ * while its Angola-side points are left alone, so the two ends end up
+ * ~308° apart instead of ~52° — a cable that renders as a straight line
+ * around most of the world.
+ *
+ * Fix: anchor the first point with normalizeLng, then unwrap every
+ * following point by whichever multiple of 360° keeps it within 180° of
+ * the PREVIOUS (already-normalised) point — standard longitude-sequence
+ * unwrapping. A genuine transpacific path still normalises exactly as
+ * before (each step is already <180° apart); a path that never actually
+ * needed the Pacific shift now stays contiguous instead of tearing.
+ */
+export function normalizeLngPath(points: [number, number][]): [number, number][] {
+  if (points.length === 0) return []
+  const out: [number, number][] = [[points[0][0], normalizeLng(points[0][1])]]
+  for (let i = 1; i < points.length; i++) {
+    const [lat, lng] = points[i]
+    let n = normalizeLng(lng)
+    const prev = out[i - 1][1]
+    while (n - prev > 180) n -= 360
+    while (n - prev < -180) n += 360
+    out.push([lat, n])
+  }
+  return out
+}
+
+/**
  * Catmull-Rom spline: interpolates `steps` points between each pair of
  * control points, producing a smooth curve that passes through every point.
  */
@@ -79,7 +113,7 @@ export function geoLines(
   if (d < -180) d += 360
 
   if (kmlPath && kmlPath.length >= 2) {
-    return [kmlPath.map(([klat, klng]): [number, number] => [klat, normalizeLng(klng)])]
+    return [normalizeLngPath(kmlPath)]
   }
 
   if (waypoints && waypoints.length > 0) {

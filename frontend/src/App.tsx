@@ -36,7 +36,7 @@ import {
   CURRENT_CHOICE, resolveServiceDate, filterSegmentsInService, isFutureView, todayIso,
   type ServiceDateChoice,
 } from './utils/serviceDate'
-import { normalizeLng } from './mapGeometry'
+import { normalizeLngPath } from './mapGeometry'
 import { useSegmentHover } from './context/SegmentHoverContext'
 import { useTooltipSettings } from './context/TooltipSettingsContext'
 import { api } from './api/client'
@@ -684,8 +684,9 @@ export default function App() {
    *  Returns null when there is nothing to fit. */
   function boundsOf(points: [number, number][]): [[number, number], [number, number]] | null {
     if (points.length === 0) return null
-    const lats = points.map(p => p[0])
-    const lngs = points.map(p => normalizeLng(p[1]))
+    const normalized = normalizeLngPath(points)
+    const lats = normalized.map(p => p[0])
+    const lngs = normalized.map(p => p[1])
     // A single point has zero extent, which fitBounds renders as maximum zoom;
     // pad it into a small box so a one-node city lands at a sane scale.
     const pad = points.length === 1 ? 0.35 : 0

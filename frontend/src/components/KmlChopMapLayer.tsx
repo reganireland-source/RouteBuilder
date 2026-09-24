@@ -27,7 +27,7 @@ import { Fragment, useEffect } from 'react'
 import * as L from 'leaflet'
 import { Marker, Polyline, Tooltip, useMap } from 'react-leaflet'
 import type { KmlChain } from '../types'
-import { nearestSegmentIndex, normalizeLng } from '../mapGeometry'
+import { nearestSegmentIndex, normalizeLngPath } from '../mapGeometry'
 import { useTheme, type Theme } from '../theme'
 
 /** Above the read-only KML preview (500), below markers (600) — this layer is
@@ -87,7 +87,7 @@ const KINK_ICON = buildKinkIcon()
  *  than inline in every callback, since several handlers need the same
  *  normalised array to stay in the same space as what is actually drawn. */
 function normalizedCoords(chain: KmlChain): [number, number][] {
-  return chain.coords.map(([lat, lng]): [number, number] => [lat, normalizeLng(lng)])
+  return normalizeLngPath(chain.coords)
 }
 
 /** [0, ...interior cuts, last] — the boundary indices bracketing every

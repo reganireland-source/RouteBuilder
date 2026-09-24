@@ -24,7 +24,7 @@ import { useEffect } from 'react'
 import * as L from 'leaflet'
 import { Polyline, CircleMarker, Tooltip, useMap } from 'react-leaflet'
 import type { KmlPreviewLine } from '../types'
-import { normalizeLng } from '../mapGeometry'
+import { normalizeLngPath } from '../mapGeometry'
 
 /** Above cables (400) and hazards (450), below markers (600). */
 const PANE_NAME = 'rb-kml-preview'
@@ -70,7 +70,7 @@ function PreviewPane({ lines, fitKey }: Props) {
   }, [map])
 
   useEffect(() => {
-    const pts = lines.flatMap(l => l.coords.map(([lat, lng]): [number, number] => [lat, normalizeLng(lng)]))
+    const pts = lines.flatMap(l => normalizeLngPath(l.coords))
     if (pts.length < 2) return
     // THE REVIEW DIALOG COVERS THE BOTTOM OF THE MAP while a preview is up, and
     // Leaflet fits to the whole container regardless. Fitting without allowing
@@ -98,7 +98,7 @@ export function KmlPreviewLayer({ lines, fitKey }: Props) {
     <>
       <PreviewPane lines={lines} fitKey={fitKey} />
       {lines.map((line, i) => {
-        const positions = line.coords.map(([lat, lng]): [number, number] => [lat, normalizeLng(lng)])
+        const positions = normalizeLngPath(line.coords)
         return (
           <Polyline
             key={`${line.label}-${i}`}
@@ -122,7 +122,11 @@ export function KmlPreviewLayer({ lines, fitKey }: Props) {
         line.cutAt ? (
           <CircleMarker
             key={`cut-${line.label}-${i}`}
-            center={[line.cutAt[0], normalizeLng(line.cutAt[1])]}
+            // Anchored against this line's own first point, not normalised in
+            // isolation — otherwise a cut on a line whose coords ended up
+            // shifted by the continuity unwrap (normalizeLngPath) could land
+            // ~360° away from the line it is meant to mark.
+            center={normalizeLngPath([line.coords[0], line.cutAt])[1]}
             radius={7}
             interactive={false}
             pathOptions={{
