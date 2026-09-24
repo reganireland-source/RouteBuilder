@@ -42,6 +42,7 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
   const [value, setValue] = useState('')
   const [shake, setShake] = useState(false)
   const [wrong, setWrong] = useState(false)
+  const [showVideo, setShowVideo] = useState(false)
 
   if (authed) return <>{children}</>
 
@@ -139,6 +140,73 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
           Enter
         </button>
       </div>
+
+      {/* No password required — this is public marketing material, not the
+          app itself, so it stays reachable from this same not-yet-authed
+          branch regardless of what's typed above. */}
+      <button
+        onClick={() => setShowVideo(true)}
+        style={{
+          marginBottom: 'max(4vh, 24px)',
+          padding: '9px 18px', borderRadius: 8,
+          border: '1px solid rgba(137, 180, 250, 0.35)',
+          background: 'rgba(137, 180, 250, 0.08)', color: '#89b4fa',
+          fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 8,
+          transition: 'background 0.15s',
+        }}
+        onMouseOver={e => (e.currentTarget.style.background = 'rgba(137, 180, 250, 0.16)')}
+        onMouseOut={e => (e.currentTarget.style.background = 'rgba(137, 180, 250, 0.08)')}
+      >
+        ▶ Watch the Overview
+      </button>
+
+      {showVideo && (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setShowVideo(false)}
+          onKeyDown={e => { if (e.key === 'Escape') setShowVideo(false) }}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 2000,
+            background: 'rgba(6, 10, 22, 0.88)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 24,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: 900 }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+              <button
+                onClick={() => setShowVideo(false)}
+                title="Close"
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: '#cdd6f4', fontSize: 26, lineHeight: 1, padding: 4,
+                }}
+              >×</button>
+            </div>
+            <video
+              controls
+              autoPlay
+              style={{
+                width: '100%', borderRadius: 12, display: 'block',
+                boxShadow: '0 24px 64px rgba(0,0,0,0.7)',
+                border: '1px solid rgba(89, 104, 165, 0.45)',
+              }}
+            >
+              {/* VP9/WebM first — royalty-free, universally supported by
+                  every browser that ships a video decoder at all. H.264/MP4
+                  as a fallback for the few engines that skip VP9 but still
+                  carry the licensed H.264 codec. */}
+              <source src="/videos/overview.webm" type="video/webm" />
+              <source src="/videos/overview.mp4" type="video/mp4" />
+            </video>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @keyframes shake {
