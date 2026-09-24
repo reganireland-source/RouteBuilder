@@ -509,6 +509,18 @@ const GOOGLE_DARK_STYLES = [
   { featureType: 'transit',      elementType: 'geometry',       stylers: [{ color: '#1a1a28' }] },
 ]
 
+/**
+ * Loads Google's Maps JS API on demand (once per page, via a shared
+ * `<script>` tag keyed by id so a second mount doesn't inject it twice) and
+ * mounts it into Leaflet through the `leaflet.gridlayer.googlemutant` plugin
+ * imported at the top of this file, which patches `L.gridLayer.googleMutant`
+ * onto the Leaflet namespace. Styled dark to match the app's non-light
+ * themes via GOOGLE_DARK_STYLES (Google's own Maps styling JSON), roadmap
+ * type only. Silently renders nothing if `VITE_GMAPS_API_KEY` is unset —
+ * this is a fallback layer, not a required one (see BaseTileLayers). Cleans
+ * up by removing its layer (but deliberately leaves the loaded script/API in
+ * place for any later remount to reuse).
+ */
 function GoogleMutantLayer({ themeId }: { themeId: string }) {
   const map = useMap()
   useEffect(() => {
@@ -805,6 +817,18 @@ function computeActiveLightSegments({
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
+/**
+ * The Leaflet map component — renders the whole network (nodes + cable
+ * segments), every mode-specific overlay (RouteManual, Network Editor, KML
+ * Mode/preview/chop, hazards, Living World, traveling light, country/system/
+ * outage/planned-event highlighting, asset filtering) and the base tile
+ * layer, all driven purely by props (see the `Props` interface above for the
+ * full surface and the file header for the end-to-end rendering pipeline).
+ * Purely presentational: it owns no application state of its own — every
+ * toggle, selection and derived id-set is computed by the caller (App.tsx /
+ * MobileLayout.tsx) and handed down, and every click/drag is reported back
+ * up through callback props rather than mutating anything here.
+ */
 export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, selectedNodeId = null, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, controlsOpen = false, kmlPaths = EMPTY_KML_PATHS, kmlMode = false, kmlPreview = EMPTY_PREVIEW, kmlPreviewKey = 0, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, assetFilter, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, mapStyle = 'standard', onMapStyleChange, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace, kmlChop = null }: Props) {
   const t = useTheme()
   const narrowViewport = useNarrowViewport()

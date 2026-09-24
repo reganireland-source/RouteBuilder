@@ -46,6 +46,8 @@ const PANE_Z = 650
  *  crawl. */
 const MIN_DURATION_MS = 1100
 const MAX_DURATION_MS = 3200
+/** One-way travel time for a segment of the given real-world length, per the
+ *  linear formula and clamp described just above. */
 function durationForLength(lengthKm: number): number {
   const raw = 850 + lengthKm * 0.32
   return Math.min(MAX_DURATION_MS, Math.max(MIN_DURATION_MS, raw))
@@ -85,6 +87,9 @@ function prefersReducedMotion(): boolean {
 }
 
 const EARTH_RADIUS_KM = 6371
+/** Great-circle distance in km between two [lat, lng] points (haversine
+ *  formula) — used to build each light's cumulative-distance table so travel
+ *  speed reflects real segment length rather than raw point count. */
 function haversineKm(a: [number, number], b: [number, number]): number {
   const toRad = (d: number) => (d * Math.PI) / 180
   const dLat = toRad(b[0] - a[0])
@@ -123,6 +128,8 @@ function pointAt(points: [number, number][], cumKm: number[], totalKm: number, d
   return [a[0] + (b[0] - a[0]) * frac, a[1] + (b[1] - a[1]) * frac]
 }
 
+/** The glowing dot marker for one traveling light, in the given accent colour
+ *  (via the `--rb-tl-color` CSS variable consumed by `.rb-tl-dot` below). */
 function buildIcon(color: string): L.DivIcon {
   return L.divIcon({
     className: 'rb-traveling-light-icon',
@@ -132,6 +139,16 @@ function buildIcon(color: string): L.DivIcon {
   })
 }
 
+/**
+ * "This cable is active" — draws one back-and-forth traveling light marker
+ * per entry in `segments` (see `ActiveLightSegment`/the file header for how
+ * NetworkMap computes that set and why). Two effects: one mounts the pane
+ * and starts a persistent requestAnimationFrame loop once ([map] deps) that
+ * drives every currently-tracked light every frame; the other, keyed on
+ * `[segments, map]`, adds/removes/recolors markers to match whichever
+ * segments are currently active without disturbing the shared loop or an
+ * unaffected light's current travel position. A no-op under reduced motion.
+ */
 export function TravelingLightLayer({ segments }: Props) {
   const map = useMap()
   const lightsRef = useRef(new Map<string, Light>())

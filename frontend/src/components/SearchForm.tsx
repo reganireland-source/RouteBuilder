@@ -35,6 +35,8 @@ import { createPortal } from 'react-dom'
 import type { CableNode, CableSegment, CableSystem, DiversityType, RouteRequest } from '../types'
 import { useTheme } from '../theme'
 
+/** Props for {@link SearchForm}. See the file header for the full picture of
+ *  how prefilledOrigin/prefilledDest/prefill interact with local field state. */
 interface Props {
   nodes: CableNode[]
   segments: CableSegment[]
@@ -88,6 +90,7 @@ const COUNTRY_NAMES: Record<string, string> = {
   YE: 'Yemen',
 }
 
+/** ISO country code → display name, falling back to the raw code when unknown. */
 function countryName(code: string) {
   return COUNTRY_NAMES[code] ?? code
 }
@@ -98,7 +101,9 @@ function toggleMulti(id: string, list: string[], setter: (v: string[]) => void) 
 }
 
 // Metadata for the tabs inside the Advanced Constraints modal (label, icon,
-// which include/avoid list each drives).
+// which include/avoid list each drives). `id` is also the key used to look up
+// each tab's current chips/hasValue via AdvancedConstraintsModal's getChips()
+// and to clear it via clearConstraint() — it must match the switch cases there.
 const CONSTRAINT_DEFS = [
   {
     id: 'optimise_for',
@@ -162,10 +167,15 @@ const CONSTRAINT_DEFS = [
   },
 ]
 
+/** One choice in the "Optimise For" picker: the RouteRequest.optimise_for
+ *  value it sends (empty string = Auto/unset), plus the copy shown when it's
+ *  selected (what it does, and the tradeoff of picking it). */
 interface OptimiseOption {
   value: string; label: string; icon: string
   explain?: string; better?: string; worse?: string
 }
+// The catalogue of "Optimise For" choices rendered as buttons in the modal's
+// optimise_for tab, each with its own explain/better/worse copy shown when active.
 const OPTIMISE_OPTIONS: OptimiseOption[] = [
   { value: '', label: 'Auto', icon: '✦' },
   {
@@ -734,6 +744,9 @@ function AdvancedConstraintsModal({
     (maxWetHops !== '' ? 1 : 0) + (maxTerrestrialHops !== '' ? 1 : 0) +
     (optimiseFor !== '' ? 1 : 0)
 
+  /** For the sidebar row of a given constraint tab: resolve its selected ids
+   *  (nodes/segments/systems/countries) to display names for the small chip
+   *  preview, and report whether that tab currently has anything set. */
   function getChips(id: string): { chips: string[]; hasValue: boolean } {
     switch (id) {
       case 'must_include_nodes':
@@ -767,6 +780,9 @@ function AdvancedConstraintsModal({
     }
   }
 
+  /** Reset just the one constraint tab identified by `id` back to empty,
+   *  leaving every other tab's selection untouched. Used by each sidebar
+   *  row's own × button. */
   function clearConstraint(id: string) {
     switch (id) {
       case 'must_include_nodes': setMustIncludeNodes([]); break
@@ -785,6 +801,10 @@ function AdvancedConstraintsModal({
   const activeDef = CONSTRAINT_DEFS.find(d => d.id === activeTab) ?? CONSTRAINT_DEFS[0]
   const LIST_H = 300
 
+  /** Render the content pane for whichever constraint tab is active: a
+   *  FilteredNodeMulti/FilteredMulti picker for the list-based constraints,
+   *  paired HopStepper controls for max_hops, or the optimise_for button
+   *  grid with its explain/better/worse copy. */
   function renderPanel() {
     switch (activeTab) {
       case 'must_include_nodes':
@@ -1153,6 +1173,10 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
       prefill.max_terrestrial_hops != null ||
       prefill.optimise_for != null
     )
+    // Computed for a possible future "open the Advanced Constraints modal
+    // automatically when a prefill sets any advanced field" behavior, but
+    // that wiring isn't present yet — `void` just satisfies the unused-var
+    // lint rule without silently dropping the computation.
     void hasAdvanced
   }, [prefill])
 
@@ -1160,12 +1184,18 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
   useEffect(() => { if (prefilledOrigin) setStartNode(prefilledOrigin) }, [prefilledOrigin])
   useEffect(() => { if (prefilledDest)   setEndNode(prefilledDest)   }, [prefilledDest])
 
+  // Build the must_include/avoid_systems picker's option list from the systems
+  // actually referenced by a segment (not the full `systems` prop, which may
+  // include systems with no segments loaded) — dedup ids, then resolve each to
+  // its display name, falling back to the raw id if not found in `systems`.
   const segmentSystemIds = [...new Set(segments.map(s => s.system_id))]
   const systemOptions = segmentSystemIds.map(id => {
     const sys = systems.find(s => s.id === id)
     return { id, name: sys?.name ?? id }
   }).sort((a, b) => a.id.localeCompare(b.id))
 
+  // Build the must_include/avoid_countries picker's option list: every
+  // distinct country a non-branching-unit node sits in, alphabetised by name.
   const countryOptions = useMemo(() => {
     const seen = new Set<string>()
     const opts: { id: string; name: string }[] = []

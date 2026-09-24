@@ -146,6 +146,8 @@ function KindChip({ kind }: { kind: AssetKind }) {
   )
 }
 
+/** Props for {@link ResultList} — the floating dropdown of ranked hits plus
+ *  everything it needs to render, highlight and (for node hits) expand rows. */
 interface ListProps {
   hits: AssetHit[]
   activeIdx: number
@@ -338,6 +340,9 @@ export function AssetSearch({ nodes, segments, systems, onSelect, compact = fals
   // the new best match — with no extra render pass to get there.
   const activeIdx = rawActiveIdx < hits.length ? rawActiveIdx : 0
 
+  /** Close the dropdown; in compact mode also collapse back to the magnifier
+   *  icon and clear the query, since there's no room to leave an empty field
+   *  sitting open over the header. */
   function close() {
     setOpen(false)
     if (compact) { setExpanded(false); setQuery('') }
@@ -353,6 +358,8 @@ export function AssetSearch({ nodes, segments, systems, onSelect, compact = fals
     requestAnimationFrame(() => { inputRef.current?.focus(); inputRef.current?.select() })
   }
 
+  /** Compact mode only: expand the magnifier into the field, open the
+   *  dropdown, and focus the (about to be mounted) input. */
   function reveal() {
     setExpanded(true)
     setOpen(true)
@@ -396,6 +403,10 @@ export function AssetSearch({ nodes, segments, systems, onSelect, compact = fals
     if (compact) setExpanded(false)
   }
 
+  /** Keyboard navigation for the field: Escape closes and blurs regardless of
+   *  dropdown state; ArrowUp/Down move the highlight (clamped to the hit
+   *  list's bounds) only while the dropdown is actually showing results;
+   *  Enter picks the highlighted hit, or the top hit if none is highlighted. */
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Escape') { close(); inputRef.current?.blur(); return }
     if (!showList || hits.length === 0) return

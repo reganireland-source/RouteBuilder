@@ -97,12 +97,24 @@ const FULL_TOP_CLEARANCE = 96
 // under 520px wide).
 const SHEET_MAX_W = 520
 
+/** Resolve a snap position to a pixel height for the sheet. 'peek' is the
+ *  fixed PEEK_H; 'full' is computed live from the current viewport height
+ *  (window.innerHeight) minus FULL_TOP_CLEARANCE, so it stays correct across
+ *  orientation changes and different device heights without a resize listener
+ *  — it's only read at the moment a snap is applied (see doSnap below), not
+ *  kept continuously in sync while the sheet sits still. */
 function snapPx(snap: SheetSnap): number {
   if (snap === 'peek') return PEEK_H
   return Math.round(window.innerHeight - FULL_TOP_CLEARANCE)
 }
 
 // ── Props ───────────────────────────────────────────────────────────────────
+/** Props for {@link MobileLayout}. Mirrors the state and callbacks App.tsx
+ *  also feeds its desktop three-panel layout (left/middle panels + right map)
+ *  — see the file header for how this component rearranges the same surface
+ *  for touch. MobileLayout owns no domain state itself; every value here is
+ *  either read-only reference/result data or a callback that reports back
+ *  up to App.tsx, which is the single source of truth in both layouts. */
 export interface MobileLayoutProps {
   nodes: CableNode[]
   segments: CableSegment[]
@@ -580,6 +592,14 @@ function ManualBuildStrip({ steps, segments, candidateCount, t, onUndo, onFinish
   )
 }
 
+/**
+ * The sheet's top banner: shows either "Circuit Designer" (no active project)
+ * or the active project's name, and opens a small dropdown with actions to
+ * switch or exit project mode. The mobile equivalent of the project-mode
+ * indicator in App.tsx's desktop header. Presentational only — onSwitch/onExit
+ * are callbacks owned by App.tsx; this component just tracks its own
+ * open/closed dropdown state.
+ */
 function MobileModeBanner({ activeProject, onSwitch, onExit, t }: {
   activeProject: Project | null
   onSwitch: () => void
@@ -725,6 +745,11 @@ export function MobileLayout({
     if (manualBuilding && snap !== 'peek') doSnap('peek')
   }, [manualBuilding]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** Animate the sheet to the given snap position: flips on the CSS height
+   *  transition, sets the target snap + pixel height (computed fresh from the
+   *  current viewport via snapPx), then clears the "animating" flag after the
+   *  320ms transition duration so a later non-gesture height change (e.g. a
+   *  route arriving) doesn't itself animate. */
   function doSnap(s: SheetSnap) {
     setAnimating(true)
     setSnap(s)
@@ -732,10 +757,18 @@ export function MobileLayout({
     setTimeout(() => setAnimating(false), 320)
   }
 
+  /** Flip the sheet between its two snap points — the handler for the sheet's
+   *  own drag-handle button. */
   function toggleSheet() {
     doSnap(snap === 'peek' ? 'full' : 'peek')
   }
 
+  /** Top-level tab tap handler. If RouteManual is mid-build and the user taps
+   *  away to a different top-level tab, don't switch immediately — surface the
+   *  discard-confirmation dialog (warnSwitchMode) instead, since RouteManual's
+   *  in-progress route lives only in App.tsx's manualState and would be lost.
+   *  Otherwise switch modes and, if the sheet was peeking, expand it back to
+   *  full so the newly-selected panel is actually visible. */
   function tapTab(next: AppMode) {
     if (manualBuilding && next !== 'routemanual') {
       setWarnSwitchMode(next)

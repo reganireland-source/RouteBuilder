@@ -97,6 +97,9 @@ const COUNTRY_NAMES: Record<string, string> = {
 /** Which category dropdown (if any) is currently open. Only one at a time. */
 type Category = 'kinds' | 'onNet' | 'nodeTypes' | 'ownerships' | 'facilityOwners' | 'countries'
 
+/** The localStorage-serializable shape of AssetFilterSelection: identical
+ *  fields, but each Set<T> becomes a plain array (JSON has no Set type) —
+ *  see loadSelection/saveSelection for the conversion in each direction. */
 interface StoredSelection {
   kinds: AssetKindFilter[]
   nodeTypes: NodeType[]
@@ -107,6 +110,11 @@ interface StoredSelection {
   capacityBelowPct: number | null
 }
 
+/** Read the persisted filter selection from localStorage, converting each
+ *  stored array back into a Set. Falls back to an empty selection on missing
+ *  data, malformed JSON, or a storage read failure (private browsing etc.) —
+ *  `Partial<StoredSelection>` plus the `?? []` fallbacks below also cover a
+ *  selection saved by an older app version that's missing newer fields. */
 function loadSelection(): AssetFilterSelection {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -126,6 +134,9 @@ function loadSelection(): AssetFilterSelection {
   }
 }
 
+/** Persist the current selection to localStorage, converting each Set to a
+ *  plain array for JSON. Swallows write failures (private browsing / quota) —
+ *  the filter just won't survive a reload, which is a safe degrade. */
 function saveSelection(sel: AssetFilterSelection) {
   try {
     const stored: StoredSelection = {
@@ -139,6 +150,8 @@ function saveSelection(sel: AssetFilterSelection) {
   }
 }
 
+/** Immutably add `value` to `set` if absent, else remove it — returns a new
+ *  Set so React state updates see a changed reference. */
 function toggleInSet<V>(set: Set<V>, value: V): Set<V> {
   const next = new Set(set)
   if (next.has(value)) next.delete(value)
@@ -329,6 +342,14 @@ interface Props {
   compact?: boolean
 }
 
+/**
+ * The Asset Filter dropdown itself — see the file header for the full
+ * picture (embedded AssetSearch + the faceted filter categories below it).
+ * Owns the selection state (persisted to localStorage) and which category
+ * dropdown is open; reports the computed node/segment id match up to the
+ * host via onFilterChange whenever the selection or the underlying reference
+ * data changes. Renders nothing on the map itself — that's the host's job.
+ */
 export function AssetFilterBar({ nodes, segments, systems, capacity, onNetOwnership, onAssetSelect, onFilterChange, compact = false }: Props) {
   const t = useTheme()
   const [open, setOpen] = useState(false)
@@ -356,6 +377,13 @@ export function AssetFilterBar({ nodes, segments, systems, capacity, onNetOwners
   const facilityOwners = useMemo(() => distinctFacilityOwners(nodes), [nodes])
   const countries = useMemo(() => distinctCountries(nodes), [nodes])
 
+  // The actual filter evaluation: with nothing selected in any category, the
+  // filter is inactive and matches everything (empty id sets + active:false
+  // tells the map "don't dim anything"). Otherwise every node/segment is
+  // tested against the current selection via nodeMatchesFilter/
+  // segmentMatchesFilter (utils/assetFilters.ts) — categories AND together,
+  // choices within one category OR together, per the file header — and only
+  // the ids that pass go into the returned sets.
   const match = useMemo<AssetFilterMatch>(() => {
     const active = isAssetFilterActive(sel)
     if (!active) return { active: false, nodeIds: new Set(), segmentIds: new Set() }

@@ -59,6 +59,8 @@ export interface KmlChopMapLayerProps {
   fitKey: number
 }
 
+/** A small white-filled, blue-ringed circle — the draggable handle marking an
+ *  existing interior cut on a chain (see the "cuts" concept on `KmlChopMapLayerProps`). */
 function buildCutIcon(): L.DivIcon {
   return L.divIcon({
     className: '',
@@ -69,6 +71,8 @@ function buildCutIcon(): L.DivIcon {
   })
 }
 
+/** A small amber warning triangle — non-interactive marker at a chain's
+ *  kink_indices (see the file header's note on where these come from). */
 function buildKinkIcon(): L.DivIcon {
   return L.divIcon({
     className: '',
@@ -167,6 +171,16 @@ function ChainHitTarget({ chainIndex, positions, onAddCut, cuts, t }: {
   )
 }
 
+/**
+ * The interactive map surface for a KML chop session: draws every chain as
+ * one click-to-cut hit target plus one visible Polyline per stretch (coloured
+ * via `colorForStretch`), draggable handles for each existing cut, and
+ * non-interactive kink-warning glyphs. All state (chains, cuts, colours) is
+ * owned by the caller (KmlChopImport.tsx via useKmlChopState.ts) and handed
+ * down as props — this component only draws and reports interactions back up
+ * through `onAddCut`/`onMoveCut`/`onRemoveCut`. Mounted by Map.tsx whenever
+ * `kmlChop` is non-null.
+ */
 export function KmlChopMapLayer({ chains, cutsByChain, colorForStretch, onAddCut, onMoveCut, onRemoveCut, fitKey }: KmlChopMapLayerProps) {
   const t = useTheme()
 

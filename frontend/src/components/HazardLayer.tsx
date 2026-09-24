@@ -127,6 +127,14 @@ function isRelevant(h: Hazard): boolean {
   return h.affected.length > 0
 }
 
+/**
+ * Builds the triangular divIcon for one hazard, sized/weighted by severity
+ * (SEVERITY_SIZE/SEVERITY_WEIGHT) and coloured by `color` (from
+ * `severityColor`). `relevant` (an asset of ours is in range) controls
+ * whether it's drawn solid/opaque or dashed/muted — see the "solid outline"
+ * comment inline below. The kind glyph (fire/flood/etc.) is layered on top
+ * as HTML text, not SVG, for cross-browser emoji rendering consistency.
+ */
 function buildIcon(h: Hazard, color: string, relevant: boolean): L.DivIcon {
   const w = SEVERITY_SIZE[h.severity]
   const hgt = Math.round(w * (TRI_VB_H / TRI_VB_W))
@@ -195,6 +203,10 @@ function affectedHtml(h: Hazard, t: T): string {
     </div>`
 }
 
+/** Builds the full popup body (severity/kind badges, title, detail text,
+ *  affected-assets block via `affectedHtml`, and attribution/source line) as
+ *  an HTML string for Leaflet's `bindPopup`. Every value interpolated from
+ *  hazard-feed data is passed through `esc` first. */
 function popupHtml(h: Hazard, t: T): string {
   const color = severityColor(h.severity, t)
   const affected = affectedHtml(h, t)
@@ -226,6 +238,16 @@ interface Props {
   focusId?: string | null
 }
 
+/**
+ * Draws every current hazard (or, with `focusId` set, only that one) as a
+ * triangular marker plus, where the feed provided one, its GeoJSON footprint
+ * polygon — both in their own pane (see PANE_NAME/PANE_Z above and the file
+ * header for why this sits above the cables). Rebuilds its whole Leaflet
+ * layer group imperatively inside a single effect keyed on `[map, shown, t]`
+ * rather than diffing individual markers — the hazard set changes wholesale
+ * on every feed refresh, so incremental diffing would add complexity for no
+ * real benefit. Mounted by Map.tsx whenever `hazardsOn` is true.
+ */
 export function HazardLayer({ hazards, focusId }: Props) {
   const map = useMap()
   const t = useTheme()

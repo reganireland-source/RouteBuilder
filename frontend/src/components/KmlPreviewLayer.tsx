@@ -93,6 +93,15 @@ function PreviewPane({ lines, fitKey }: Props) {
   return null
 }
 
+/**
+ * Draws a set of preview cable-path lines (an upload under review) above the
+ * live network, each in its own colour from PREVIEW_COLORS, with a marked
+ * dot at every cut point. Always mounts `PreviewPane` unconditionally (see
+ * its own doc comment for why) so the pane exists before any `Polyline`
+ * below tries to render into it. `lines`/`fitKey` are as described on `Props`
+ * above. Mounted by Map.tsx regardless of mode; renders nothing when `lines`
+ * is empty (the caller's EMPTY_PREVIEW default).
+ */
 export function KmlPreviewLayer({ lines, fitKey }: Props) {
   return (
     <>

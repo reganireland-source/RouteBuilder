@@ -40,6 +40,18 @@ import { normalizeLng, denormalizeLng, geoLines, nearestSegmentIndex, NODE_STYLE
 import { useTheme } from '../theme'
 import { ConfirmDialog } from './ConfirmDialog'
 
+/**
+ * Props for EditorMapLayer. `nodes`/`segments` are the derived (base + staged
+ * edits) arrays Map.tsx already computes for its own normal render, so the
+ * editor overlay and the underlying cable/node drawing always agree on what
+ * currently exists. `subMode` picks which of the four render branches below
+ * is active; `selection`/`segmentDraft`/`pendingNodeIds`/`pendingSegmentIds`
+ * describe what's currently selected or staged-but-unsaved so it can be drawn
+ * distinctly (blue ring vs. dashed amber ring — see `buildIcon`). Every
+ * `onEditor*` callback in Map.tsx's own Props maps 1:1 to one of the
+ * `on*` callbacks here; all coordinates handed back through them are already
+ * denormalised (see the file header's note on longitude space).
+ */
 interface Props {
   nodes: CableNode[]
   segments: CableSegment[]
@@ -99,6 +111,13 @@ function buildWaypointIcon(color: string): L.DivIcon {
   })
 }
 
+/**
+ * Network Editor's interactive map overlay. Renders one of four mutually
+ * exclusive UIs depending on `subMode` ('move' | 'waypoints' | 'create' |
+ * 'delete'; anything else — i.e. no editor sub-mode active — renders
+ * nothing), described in the file header above. Mounted by Map.tsx only
+ * while `editorMode` is on.
+ */
 export function EditorMapLayer({
   nodes, segments, subMode, selection, segmentDraft, pendingNodeIds, pendingSegmentIds,
   onNodeDragEnd, onNodeSelect, onSegmentSelect, onWaypointInsert, onWaypointDragEnd, onWaypointDelete,
@@ -141,6 +160,10 @@ export function EditorMapLayer({
     />
   )
 
+  // ── Move sub-mode: every node is a draggable Marker. Dragging a
+  // branching_unit (a virtual routing point) commits immediately;
+  // dragging anything else (a physical site) opens moveConfirm instead of
+  // committing directly — see its own comment above. ──
   if (subMode === 'move') {
     return (
       <>

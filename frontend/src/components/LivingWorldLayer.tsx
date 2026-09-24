@@ -86,6 +86,11 @@ const MIN_SPRITE_GAP_PX = 70
  */
 const MAX_SPAWN_ZOOM = 7
 
+/** One currently-alive sprite's full runtime state — its Leaflet marker and
+ *  DOM element, current position, heading, and lifecycle timestamps. Lives
+ *  entirely inside the effect below (never in React state), since every
+ *  field changes every animation frame and would be far too expensive to
+ *  push through React's render cycle. */
 interface Creature {
   marker: L.Marker
   el: HTMLElement
@@ -188,6 +193,15 @@ function opacityAt(now: number, c: Creature): number {
   return PEAK_OPACITY
 }
 
+/**
+ * The "Living World" easter egg — see the file header for the full rules.
+ * Runs its own imperative spawn/animate/despawn loop entirely inside a
+ * single mount-time effect (no React re-renders on every frame); `nodes` is
+ * only read to keep sprites off the network's markers and is held in a ref
+ * so a data refresh doesn't restart the whole population. Renders only
+ * `LivingWorldStyles` — every visible sprite is a Leaflet marker created and
+ * moved directly through the Leaflet API, not JSX.
+ */
 export function LivingWorldLayer({ nodes }: Props) {
   const map = useMap()
   // Nodes change whenever reference data refetches. Held in a ref rather than
@@ -214,6 +228,7 @@ export function LivingWorldLayer({ nodes }: Props) {
     let lastFrame = performance.now()
     let raf = 0
 
+    /** Removes one creature's marker from the map and the tracked list. */
     function despawn(c: Creature) {
       c.marker.remove()
       const i = creatures.indexOf(c)
@@ -255,6 +270,10 @@ export function LivingWorldLayer({ nodes }: Props) {
       return true
     }
 
+    /** Advances one creature by `dtSeconds`, moving it in pixel space at the
+     *  current zoom (see the file header's note on why drift is measured in
+     *  pixels, not degrees) and writing the result back as lat/lng. No-op
+     *  under reduced motion or for a sprite with zero speed. */
     function step(c: Creature, dtSeconds: number) {
       if (reduced || c.sprite.speed === 0) return
       const zoom = map.getZoom()
@@ -267,6 +286,9 @@ export function LivingWorldLayer({ nodes }: Props) {
       c.marker.setLatLng(next)
     }
 
+    /** The animation-frame tick: maybe spawns a new creature, steps and
+     *  fades every alive one, and despawns anything expired or drifted off
+     *  the current view. Reschedules itself via requestAnimationFrame. */
     function frame(now: number) {
       raf = requestAnimationFrame(frame)
       const dt = Math.min((now - lastFrame) / 1000, 0.25) // clamp: tab was hidden
