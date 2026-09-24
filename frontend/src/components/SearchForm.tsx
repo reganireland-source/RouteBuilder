@@ -1359,7 +1359,17 @@ export function SearchForm({ nodes, segments, systems = [], onSearch, loading, p
           padding: '8px 16px', borderRadius: 4, border: 'none',
           fontWeight: 600, fontSize: 14,
           cursor: loading ? 'not-allowed' : (!startNode || !endNode) ? 'not-allowed' : 'pointer',
-          color: (!startNode && !loading) || (!endNode && !loading) ? t.textFaint : '#e0f2fe',
+          // DESIGN.md's button-primary-disabled recipe names a literal
+          // #0b1220 disabled-text hex, but checked against Dusk's actual
+          // borderSubtle (#4a4f72) that pairing is only 2.36:1 — the literal
+          // was evidently tuned against Light's pale borderSubtle (#ccd0da)
+          // and never verified against Dark/Dusk's much darker one. t.text
+          // is the theme's own primary foreground, deliberately paired with
+          // that same theme's borderSubtle everywhere else it's used
+          // (light-on-dark in Dark/Dusk, dark-on-light in Light) — 5.47:1
+          // here, and the token that should have been used to begin with
+          // rather than a cross-theme literal.
+          color: (!startNode && !loading) || (!endNode && !loading) ? t.text : '#e0f2fe',
           background: loading
             ? 'linear-gradient(90deg, #1e3a8a, #1d4ed8, #0ea5e9, #bae6fd, #e0f2fe, #bae6fd, #0ea5e9, #1d4ed8, #1e3a8a)'
             : (!startNode || !endNode)
