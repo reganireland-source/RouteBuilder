@@ -376,12 +376,44 @@ function subTabStyle(theme: Theme, active: boolean): React.CSSProperties {
   }
 }
 
-/** Hook: true when the viewport is narrower than 768px. Drives the switch to
- *  the separate mobile layout. Re-evaluates on window resize. */
+/** True under 768px wide — the ordinary tall-phone/narrow-browser case. */
+function isNarrowViewport(): boolean {
+  return window.innerWidth < 768
+}
+
+/** True for a touch device reporting a squarish viewport well past 768px —
+ *  a small high-density screen (e.g. a keyboard phone with a near-square
+ *  panel, like the Unihertz Titan line) whose browser doesn't apply the
+ *  usual CSS-pixel downscale, so it reports something close to its native
+ *  resolution instead of a normal ~360-430px-wide phone viewport. Width
+ *  alone can't tell that apart from a desktop window, so this also requires
+ *  a coarse (touch) primary pointer and a near-1:1 aspect ratio — a desktop
+ *  or laptop is essentially never both touch-primary and roughly square,
+ *  and a portrait tablet (aspect ~0.7-0.8) falls outside this band, so
+ *  neither gets pulled into mobile mode by this rule. Capped at 1200px so
+ *  a genuinely large touch display (an all-in-one kiosk, a touch monitor)
+ *  isn't misread as a phone. */
+function isSquarishTouchViewport(): boolean {
+  const w = window.innerWidth
+  const h = window.innerHeight
+  if (w >= 1200) return false
+  const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches
+  if (!isCoarsePointer) return false
+  const aspect = w / h
+  return aspect >= 0.8 && aspect <= 1.25
+}
+
+function computeIsMobile(): boolean {
+  return isNarrowViewport() || isSquarishTouchViewport()
+}
+
+/** Hook: true when the viewport calls for the mobile layout — either the
+ *  ordinary narrow-phone case or a squarish high-density touch screen (see
+ *  isSquarishTouchViewport). Re-evaluates on window resize. */
 function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  const [isMobile, setIsMobile] = useState(computeIsMobile)
   useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 768)
+    const handler = () => setIsMobile(computeIsMobile())
     window.addEventListener('resize', handler)
     return () => window.removeEventListener('resize', handler)
   }, [])

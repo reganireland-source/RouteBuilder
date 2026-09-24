@@ -77,11 +77,29 @@ const NlpChat = NLP_ENABLED
 type SheetSnap = 'peek' | 'full'
 
 const PEEK_H = 88   // handle (40px, bumped from 28 for a comfortable touch target) + tab bar (~48px)
-const FULL_F = 0.91
+// A FIXED top clearance, not a fraction of height: the old 9% (FULL_F=0.91)
+// gave a normal tall phone (e.g. 844px) a 76px glimpse of map above the
+// "full" sheet, but the same fraction starves that glimpse on a short,
+// squarish screen (e.g. a 533px-tall square display, where 9% is only
+// 48px) even though the header content sitting in it is the same absolute
+// height either way. A fixed clearance keeps that glimpse roughly constant
+// across every device instead of shrinking exactly where it's needed most.
+const FULL_TOP_CLEARANCE = 96
+// The sheet's search form, tabs and lists were all tuned for a ~360-430px
+// phone body. A squarish high-density touch screen (see isSquarishTouchViewport
+// in App.tsx) can report a much wider viewport than that despite being a
+// small physical device, and stretching those same rows edge-to-edge across
+// it doesn't make them more usable — a search field over 1000px wide just
+// looks like an unfinished desktop form, not a phone form. Capping the
+// sheet's own width and centering it keeps its density exactly as designed
+// on any viewport, while the map underneath still uses the full width it's
+// actually built to use. No-op on a normal phone (min(100%, 520px) = 100%
+// under 520px wide).
+const SHEET_MAX_W = 520
 
 function snapPx(snap: SheetSnap): number {
   if (snap === 'peek') return PEEK_H
-  return Math.round(window.innerHeight * FULL_F)
+  return Math.round(window.innerHeight - FULL_TOP_CLEARANCE)
 }
 
 // ── Props ───────────────────────────────────────────────────────────────────
@@ -503,7 +521,8 @@ function ManualBuildStrip({ steps, segments, candidateCount, t, onUndo, onFinish
   }, 0)
   return (
     <div style={{
-      position: 'fixed', bottom: PEEK_H, left: 0, right: 0, zIndex: 49,
+      position: 'fixed', bottom: PEEK_H, left: '50%', transform: 'translateX(-50%)',
+      width: `min(100%, ${SHEET_MAX_W}px)`, zIndex: 49,
       background: t.bgPanel + 'f8',
       borderTop: `1px solid ${t.border}`,
       padding: '8px 14px',
@@ -917,7 +936,8 @@ export function MobileLayout({
       <div
         role="complementary" aria-label="Search, results and navigation"
         style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0,
+          position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
+          width: `min(100%, ${SHEET_MAX_W}px)`,
           height: sheetHeight,
           background: t.bgPanel,
           borderRadius: '16px 16px 0 0',
