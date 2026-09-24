@@ -273,14 +273,24 @@ def get_conn() -> "_PooledConnection":
     raising — the app degrades in latency instead of returning 500s under a
     traffic spike.
     """
+    # _get_pool() returns None only if pool creation itself failed (e.g. DB
+    # unreachable at startup); that's the JSON-mode-never-built-a-pool case
+    # and the transient-failure case both, so fall through to a direct
+    # connection either way.
     pool = _get_pool()
     if pool is not None:
         try:
+            # Wrapping with pool=pool means _PooledConnection.close() later
+            # returns this connection to the pool instead of closing the socket.
             return _PooledConnection(pool.getconn(), pool)
         except psycopg2.pool.PoolError as e:
+            # Pool has no free connections and is already at DB_POOL_MAX — degrade
+            # to a direct connection (pool=None below) rather than raising.
             _log.warning(
                 "DB pool exhausted (%s) — falling back to a direct connection", e
             )
+    # Direct-connect fallback: pool=None here means close() really closes the
+    # socket instead of returning it to a (nonexistent, for this connection) pool.
     return _PooledConnection(psycopg2.connect(DATABASE_URL, **_connect_kwargs()), None)
 
 
@@ -535,6 +545,11 @@ def _once(cur, name: str, fn) -> None:
     all it takes to roll a data change out to production: the next deploy
     applies it once, and every later restart sees the marker row and skips it.
     """
+    # fetchone() returns None when no row matched the SELECT, i.e. this
+    # migration id has never been recorded — that's the "not yet applied"
+    # signal. Both statements run on the caller's cursor/transaction (the one
+    # opened in init_db()), so fn(cur)'s writes and the marker INSERT below
+    # either both land or both roll back together with the rest of init_db().
     cur.execute("SELECT 1 FROM _migrations WHERE id = %s", (name,))
     if cur.fetchone() is None:
         fn(cur)
@@ -2659,12 +2674,28 @@ def _run_migration_047(cur) -> None:
 
 def _run_migration_048(cur) -> None:
     """Rename segment KO01 (typo) to KR01 (Busan C2C CLS–KT Songjeong backhaul)."""
+    # Since the primary key IS the id/segment_id (this table has no separate
+    # surrogate key), "renaming" a row means copy-then-delete rather than an
+    # UPDATE of the key column. The SELECT ... FROM ... pulls the existing
+    # JSONB document for the KO01 row, `||` (JSONB concatenation) overlays a
+    # single-key object onto it to overwrite just the "id"/"segment_id" field
+    # inside the document (leaving every other field untouched), and the
+    # result is inserted under the new primary key 'KR01'. ON CONFLICT DO
+    # NOTHING makes the copy step idempotent if this migration is ever
+    # re-run against a database where KR01 already exists. The old KO01 row
+    # is only removed afterwards, so a crash between the two statements
+    # leaves both the correct KR01 row and the stale KO01 row present rather
+    # than losing the data.
     cur.execute(
         "INSERT INTO segments (id, data) SELECT 'KR01', data || '{\"id\":\"KR01\"}'::jsonb FROM segments WHERE id = 'KO01' ON CONFLICT (id) DO NOTHING"
     )
     cur.execute(
         "INSERT INTO capacity (segment_id, data) SELECT 'KR01', data || '{\"segment_id\":\"KR01\"}'::jsonb FROM capacity WHERE segment_id = 'KO01' ON CONFLICT (segment_id) DO NOTHING"
     )
+    # Now safe to drop the old KO01 rows (segments row first would violate
+    # nothing here since capacity has no FK to segments, but capacity is
+    # deleted first purely to mirror the delete order used elsewhere in this
+    # file: dependents before the row they depend on).
     cur.execute("DELETE FROM capacity WHERE segment_id = 'KO01'")
     cur.execute("DELETE FROM segments WHERE id = 'KO01'")
 
