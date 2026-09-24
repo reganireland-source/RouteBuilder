@@ -319,6 +319,14 @@ function MobileControlsDrawer({
             boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
             overflow: 'hidden',
           }}>
+          {/* 14 rows (9 toggles + 3 actions + theme + tooltips) run to well
+              over 600px — fits inside a normal phone's height with room to
+              spare, but not inside a short/square display (this button's
+              own top:14 + this panel's top:50 already spend 64px before a
+              single row is drawn). This inner wrapper scrolls the rows
+              instead of the outer panel, which stays overflow:hidden so its
+              rounded corners still clip the first/last row's background. */}
+          <div style={{ maxHeight: 'calc(100vh - 76px)', overflowY: 'auto' }}>
             {/* Toggles */}
             {[
               {
@@ -489,6 +497,7 @@ function MobileControlsDrawer({
                 <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: t.blue, textTransform: 'uppercase', letterSpacing: '0.05em' }}>On</span>
               )}
             </button>
+          </div>
           </div>
         </>
       )}
