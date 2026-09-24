@@ -11,6 +11,15 @@
         ],
         "createdAt": "2026-09-24T09:38:36.030Z",
         "reason": "pre-existing (predates this session) bottom-sheet snap transition: a single fixed-position panel, animates once per tap (not scroll-linked, not per-list-item), 300ms bounded height interpolation with a deliberate cubic-bezier already tuned — standard native-bottom-sheet motion, not a layout-thrash case; rewriting to grid-template-rows would be disproportionate churn to a working, already-shipped interaction outside the scope of the square-display/scroll-truncation fixes just made"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "frontend/src/components/RouteManual.tsx"
+        ],
+        "createdAt": "2026-09-24T11:23:23.873Z",
+        "reason": "Agent: borderLeft color is candidateColor(idx), the same hue as the row's identity dot and its matching map marker — a functional color-key linking list rows to map candidates, not a decorative accent; pre-existing pattern, predates this session"
       }
     ]
   }
