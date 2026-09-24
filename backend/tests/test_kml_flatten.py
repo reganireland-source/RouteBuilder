@@ -264,6 +264,9 @@ def test_missing_a_node_still_produces_a_valid_join():
 
 # ── suggest_cuts ──────────────────────────────────────────────────────────────
 
+# Three nodes on a line (A-B-C) and two declared segments that should sit
+# back-to-back along a flattened chain running through all three — the shape
+# suggest_cuts is meant to recognise and propose a cut point for.
 NODES_BY_ID = {
     "A": {"id": "A", "lat": 0.0, "lng": 0.0},
     "B": {"id": "B", "lat": 0.0, "lng": 5.0},

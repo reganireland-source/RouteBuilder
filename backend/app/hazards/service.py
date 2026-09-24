@@ -62,6 +62,8 @@ DEFAULT_MIN_SEVERITY = HazardSeverity.watch
 
 
 def _env_float(name: str, default: float) -> float:
+    """Read env var `name` as a float, falling back to `default` when unset,
+    blank, or not parseable (a warning is logged for the last case)."""
     try:
         return float(os.getenv(name, "").strip() or default)
     except ValueError:
@@ -70,6 +72,8 @@ def _env_float(name: str, default: float) -> float:
 
 
 def _env_int(name: str, default: int) -> int:
+    """Read env var `name` as an int, falling back to `default` when unset,
+    blank, or not parseable (a warning is logged for the last case)."""
     try:
         return int(os.getenv(name, "").strip() or default)
     except ValueError:
@@ -78,6 +82,12 @@ def _env_int(name: str, default: int) -> int:
 
 
 def min_severity() -> HazardSeverity:
+    """
+    The configured severity floor: `HAZARDS_MIN_SEVERITY` if set to a
+    recognised `HazardSeverity` value, else `DEFAULT_MIN_SEVERITY`. An
+    unrecognised value is logged and treated the same as unset, rather than
+    raising — a typo'd env var must not take the whole feed down.
+    """
     raw = os.getenv("HAZARDS_MIN_SEVERITY", "").strip()
     try:
         return HazardSeverity(raw) if raw else DEFAULT_MIN_SEVERITY
@@ -100,6 +110,23 @@ class HazardService:
 
     # ── cache ────────────────────────────────────────────────────────────
     def get(self, *, force: bool = False) -> HazardFeed:
+        """
+        Return the current `HazardFeed`, rebuilding it only when needed.
+
+        Params:
+            force: bypass the TTL and rebuild unconditionally (used by
+                `GET /api/hazards?force=true`). Still goes through the same
+                lock, so a forced rebuild cannot race a concurrent one.
+
+        Behaviour: serves the cached feed as long as it exists, isn't forced,
+        and is younger than `HAZARDS_TTL_SECONDS` (`DEFAULT_TTL_SECONDS` if
+        unset); otherwise calls `_build()` while holding `self._lock`, so
+        concurrent callers queue behind one rebuild rather than each
+        triggering their own (see `warm_in_background`'s docstring for why
+        that matters). `time.monotonic()` is used for the cache clock
+        deliberately — it can't jump backwards under a system clock
+        adjustment the way `time.time()` could.
+        """
         ttl = _env_int("HAZARDS_TTL_SECONDS", DEFAULT_TTL_SECONDS)
         with self._lock:
             fresh_enough = (
@@ -115,12 +142,23 @@ class HazardService:
             return feed
 
     def cache_age_seconds(self) -> float | None:
+        """Seconds since the cached feed was built, or None if nothing has
+        been built yet. Used by `GET /api/hazards/sources` to report freshness."""
         if self._cached is None:
             return None
         return time.monotonic() - self._cached_at
 
     # ── assembly ─────────────────────────────────────────────────────────
     def _bushfire_source(self) -> BushfireSource | None:
+        """
+        The `BushfireSource` to use for this build, or None if no API key is
+        configured.
+
+        Reuses the existing instance — and therefore its `_geometry_cache` —
+        as long as the (key, base_url) pair is unchanged from last time; a
+        change in either (e.g. a rotated key) rebuilds it from scratch, since
+        the old instance's cache would be against the wrong credentials/host.
+        """
         key, url = bushfire_api_key(), bushfire_base_url()
         if not key:
             return None
@@ -130,6 +168,18 @@ class HazardService:
         return self._bushfire
 
     def _build(self) -> HazardFeed:
+        """
+        Assemble one fresh `HazardFeed` from scratch: run both sources
+        (each isolated so one failing never affects the other — see the
+        module header), dedupe cross-source duplicates, attach nearby
+        network assets to every surviving hazard, sort by severity then
+        title, and stamp the result with when it was built.
+
+        This is the expensive path `get()` guards behind the TTL cache — a
+        full call here includes bushfire.io's two-pass fetch/hydrate cycle
+        and USGS's fetch, plus loading and densifying the whole network for
+        proximity matching.
+        """
         floor = severity_rank(min_severity())
         hazards: list[Hazard] = []
         statuses: list[HazardSourceStatus] = []
@@ -161,6 +211,19 @@ class HazardService:
         )
 
     def _run(self, source, floor: int, sink: list[Hazard]) -> HazardSourceStatus:
+        """
+        Fetch one source (`BushfireSource` or `UsgsSource`), append whatever
+        it returns onto the shared `sink` list, and report its health as a
+        `HazardSourceStatus` — never raising, so a broken feed degrades the
+        result instead of failing the whole `_build()`.
+
+        Two exception branches by design: `SourceError` is the source's own
+        well-formed failure report (bad HTTP status, unreachable host, bad
+        JSON — see sources.py's `_get_json`) and is logged at `warning`; any
+        other exception is an unexpected bug in this code or the source and
+        is logged at `exception` (full traceback) so it's visible without
+        also taking the app down.
+        """
         try:
             found = source.fetch(floor, severity_rank)
         except SourceError as exc:

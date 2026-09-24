@@ -159,6 +159,29 @@ class NetworkGeometry:
         wet_radius_km: float = DEFAULT_WET_RADIUS_KM,
         kml_paths: Optional[dict[str, list[list[float]]]] = None,
     ) -> None:
+        """
+        Pre-process `nodes` and `segments` (plain dicts, as loaded by
+        data_loader) into the flat, densified form `assets_near` tests
+        against, once, up front.
+
+        Params:
+            nodes: iterable of node dicts with at least `id`, `lat`, `lng`
+                (and optionally `name` for the label).
+            segments: iterable of segment dicts with `start_node_id`,
+                `end_node_id`, optional `waypoints`, and a `type` of
+                `"wet"` or terrestrial.
+            node_radius_km / terrestrial_radius_km / wet_radius_km: per-asset
+                match radii (see the module header for why wet gets a wider one).
+            kml_paths: optional {segment_id: [[lat, lng], ...]} of surveyed
+                routes, keyed by segment id. When present for a segment its
+                path is used verbatim in place of the node/waypoint spline —
+                see the inline comment below for why, and `kml_backed` for
+                which segments this applied to.
+
+        A node or segment referencing a missing endpoint is silently skipped
+        rather than raising, since a hazard proximity pass must not fail the
+        whole feed over one malformed row in the network data.
+        """
         self.node_radius_km = node_radius_km
         self.terrestrial_radius_km = terrestrial_radius_km
         self.wet_radius_km = wet_radius_km

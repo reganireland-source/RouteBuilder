@@ -28,6 +28,8 @@ from app.models import CableSegment, CableSystem, Node              # noqa: E402
 
 
 def _node(**over):
+    """Build a fully-populated, valid Node so each test can override just the
+    one or two fields it cares about and merge onto a realistic baseline."""
     base = {
         "id": "SYD1", "name": "Sydney", "lat": -33.8, "lng": 151.2,
         "type": "landing_station", "country": "AU", "owner": "Telstra",
@@ -40,6 +42,8 @@ def _node(**over):
 
 
 def _segment(**over):
+    """Build a fully-populated, valid CableSegment for the same reason as
+    _node() above: tests override only what they're checking."""
     base = {
         "id": "SEG1", "name": "Seg One", "system_id": "SYS1",
         "start_node_id": "A", "end_node_id": "B", "type": "wet",

@@ -259,6 +259,8 @@ const UFO: Sprite = {
   palette: { g: '#a8e6f2', U: '#c3cbd4', l: '#f2e04a', b: '#7fe6c0' },
 }
 
+/** The full bestiary, in no particular order (see pickSprite for how one is
+ *  chosen — order here has no effect on odds, only each entry's `weight` does). */
 export const SPRITES: Sprite[] = [
   CARGO_SHIP, WHALE, SAILBOAT, DOLPHIN, SHARK,
   CABLE_SHIP, PIRATE_SHIP, SUBMARINE,

@@ -38,6 +38,8 @@ KML_HEAD = '<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis
 
 
 def kmz(kml_text: str, entry: str = "doc.kml") -> bytes:
+    """Wrap raw KML text into an in-memory zip (KMZ), the container format
+    most real exporters use instead of bare .kml."""
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr(entry, kml_text)

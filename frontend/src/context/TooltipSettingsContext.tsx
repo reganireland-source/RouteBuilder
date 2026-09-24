@@ -48,9 +48,17 @@ const TooltipSettingsContext = createContext<TooltipSettingsCtx>({
   setTooltipsEnabled: () => {},
 })
 
+/**
+ * Provider wrapping the whole app (see main.tsx). Initializes state from
+ * localStorage on first render and re-persists it on every change, so the
+ * preference survives reloads and new tabs.
+ * @param children - The whole app tree.
+ */
 export function TooltipSettingsProvider({ children }: { children: ReactNode }) {
   const [tooltipsEnabled, setTooltipsEnabled] = useState(loadEnabled)
 
+  // Keep localStorage in sync whenever the preference changes (including
+  // the initial value, harmlessly re-writing what was just read).
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, String(tooltipsEnabled)) } catch { /* private mode */ }
   }, [tooltipsEnabled])
@@ -62,4 +70,7 @@ export function TooltipSettingsProvider({ children }: { children: ReactNode }) {
   )
 }
 
+/** Hook giving any component the current tooltip preference and a setter
+ *  to change it. Falls back to the default context value (`{ tooltipsEnabled:
+ *  true, setTooltipsEnabled: noop }`) if called outside the provider. */
 export const useTooltipSettings = () => useContext(TooltipSettingsContext)

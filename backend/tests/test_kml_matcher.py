@@ -65,6 +65,9 @@ DATA = Path(__file__).parent.parent / "data"
 
 @pytest.fixture(scope="module")
 def network():
+    """Loads the app's real production nodes/segments dataset (not synthetic
+    fixtures) — the auto-accept safety property is only meaningful when
+    proven against the actual, messy network, not a hand-picked toy case."""
     nodes = json.loads((DATA / "nodes.json").read_text())
     segments = json.loads((DATA / "segments.json").read_text())
     by_id = {n["id"]: n for n in nodes}

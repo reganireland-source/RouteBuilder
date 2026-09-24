@@ -135,6 +135,18 @@ RULES:
 
 
 def _source_block(cable_name: str, wiki: Optional[dict]) -> tuple[str, list[str]]:
+    """
+    Build the source-text portion of the LLM prompt, and report which
+    source(s) fed it.
+
+    Returns a (block, sources_used) pair: `block` is prose instructing the
+    model either to extract from the given Wikipedia extract (falling back to
+    its own general knowledge only where the extract is silent, and to say so
+    in "notes") or, when `wiki` is None, to answer from general knowledge
+    alone or admit it doesn't recognise the cable. `sources_used` is
+    `["wikipedia"]` or `["model_knowledge"]` and is threaded straight through
+    to `CableResearchResult.sources_used`.
+    """
     if wiki:
         block = (
             f'SOURCE TEXT (Wikipedia: "{wiki["title"]}", {wiki["url"]}):\n{wiki["extract"]}\n\n'

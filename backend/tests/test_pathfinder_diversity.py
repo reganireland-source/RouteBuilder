@@ -39,6 +39,8 @@ def network():
 
 
 def _primaries(G, rules, a, b, limit=12):
+    """Pull candidate primary routes the same way find_routes does: drain the
+    generator (cheapest-first) and keep only rule-valid ones, up to limit."""
     raw = itertools.islice(nx.shortest_simple_paths(G, a, b, weight="length_km"), 120)
     return [
         p for p in raw

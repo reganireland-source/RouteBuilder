@@ -319,6 +319,9 @@ def test_filter_without_systems_falls_back_to_segment_dates():
 
 
 def test_filter_segments_in_service_returns_the_same_list_when_unfiltered():
+    """`is`, not `==`: with no service_date the function must hand back the
+    very same list object rather than a copy, so callers can rely on it being
+    a cheap no-op when EOL filtering is not in play."""
     _, segments, systems = _network(EolStatus.eol, "2001-Q1")
     assert filter_segments_in_service(segments, systems, None) is segments
 

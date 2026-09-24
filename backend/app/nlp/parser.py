@@ -148,6 +148,11 @@ RULES:
 
 
 def _node_catalog(nodes) -> str:
+    """Render the "AVAILABLE NODES" block of SYSTEM_PROMPT: one line per node
+    as "id | name | country | type". Branching units (undersea cable splits,
+    not real place names a user would type) are excluded — they would only
+    confuse the model's place-name → node-id mapping.
+    """
     return "\n".join(
         f"{n.id} | {n.name} | {n.country} | {n.type}"
         for n in nodes
@@ -156,6 +161,13 @@ def _node_catalog(nodes) -> str:
 
 
 def _segment_catalog(segments) -> str:
+    """Render the "AVAILABLE WET SEGMENTS" block of SYSTEM_PROMPT: one line
+    per submarine (type == "wet") segment as "id | name | system_id".
+    Terrestrial segments are excluded — the prompt only needs to teach the
+    model wet-segment ids, since must_include_segments/must_avoid_segments
+    are only ever meant to name specific submarine cable hops a user could
+    plausibly reference by name.
+    """
     return "\n".join(
         f"{s.id} | {s.name} | {s.system_id}"
         for s in segments
@@ -164,6 +176,16 @@ def _segment_catalog(segments) -> str:
 
 
 def _system_catalog(segments) -> str:
+    """Render the "AVAILABLE CABLE SYSTEMS" block of SYSTEM_PROMPT: the
+    distinct system_ids across all segments, one per line, sorted.
+
+    The dict `seen` is used purely as an ordered de-duplication set keyed by
+    system_id; the display name derived on the right-hand side (splitting on
+    an en dash then a hyphen) is computed but not actually used in the output
+    joined below — only the sorted system_id keys are — so this is a case of
+    over-fetching left over from an earlier version of the prompt format:
+    harmless, but the name splitting has no effect on what the model sees.
+    """
     seen = {}
     for s in segments:
         if s.system_id not in seen:
@@ -172,6 +194,13 @@ def _system_catalog(segments) -> str:
 
 
 def _country_catalog(nodes) -> str:
+    """Render the "AVAILABLE COUNTRIES" block of SYSTEM_PROMPT: each ISO
+    country code that appears on a non-branching-unit node, with how many
+    nodes it has, e.g. "SG (3 nodes)" — sorted by code. This both tells the
+    model which country codes are valid for must_include_countries /
+    must_avoid_countries and gives it a rough sense of network density per
+    country.
+    """
     from collections import Counter
     counts = Counter(n.country for n in nodes if n.type != "branching_unit")
     return "\n".join(f"{code} ({count} nodes)" for code, count in sorted(counts.items()))

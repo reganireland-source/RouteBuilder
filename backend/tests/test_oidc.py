@@ -56,6 +56,8 @@ class _StubJwkClient:
 
 
 def make_token(private_key, *, issuer=ISSUER, audience=CLIENT_ID, claims=None, expired=False, missing_exp=False):
+    """Build and RS256-sign a JWT with the given claims/quirks, standing in
+    for whatever a real OIDC provider would have issued."""
     now = int(time.time())
     payload = {
         "iss": issuer,

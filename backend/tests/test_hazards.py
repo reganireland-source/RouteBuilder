@@ -75,6 +75,8 @@ def test_polygon_rings_are_actually_simplified():
 
 
 def test_simplified_rings_stay_closed():
+    """GeoJSON/Leaflet polygon rings must start and end on the same point;
+    RDP trims interior vertices but must never drop that closing duplicate."""
     out = simplify_geometry({"type": "Polygon", "coordinates": [_square_ring()]}, 0.003)
     ring = out["coordinates"][0]
     assert ring[0] == ring[-1]
@@ -222,6 +224,8 @@ def test_results_are_sorted_nearest_first():
 
 
 def test_a_segment_with_an_unknown_endpoint_is_skipped():
+    """Defensive against a dangling reference (e.g. a stale/deleted node id
+    left on a segment): it must be dropped from proximity matching, not raise."""
     geo = NetworkGeometry(NODES, [dict(SEGMENTS[0], end_node_id="NOPE")])
     assert geo.segments == []
 

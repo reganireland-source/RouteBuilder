@@ -20,6 +20,12 @@ import { isNodeOnNet, isSegmentOnNet } from './onNet'
 
 export type AssetKindFilter = 'node' | 'segment'
 
+/**
+ * One faceted filter selection for the Asset Filter bar — see the file
+ * header for how categories/badges combine (AND across categories, OR within
+ * one). Built up by AssetFilterBar as the user toggles badges, and tested
+ * against each node/segment via nodeMatchesFilter/segmentMatchesFilter.
+ */
 export interface AssetFilterSelection {
   /** Which asset kinds this filter applies to at all. Empty = both. */
   kinds: Set<AssetKindFilter>
@@ -34,6 +40,7 @@ export interface AssetFilterSelection {
   capacityBelowPct: number | null
 }
 
+/** A selection with every category empty — matches everything, i.e. "no filter applied". */
 export function emptyAssetFilterSelection(): AssetFilterSelection {
   return {
     kinds: new Set(),
@@ -46,12 +53,17 @@ export function emptyAssetFilterSelection(): AssetFilterSelection {
   }
 }
 
+/** True when at least one category/threshold is set — i.e. the selection
+ *  would actually exclude something. Used to decide whether to dim
+ *  non-matching assets on the map at all. */
 export function isAssetFilterActive(sel: AssetFilterSelection): boolean {
   return sel.kinds.size > 0 || sel.nodeTypes.size > 0 || sel.onNet.size > 0
     || sel.ownerships.size > 0 || sel.facilityOwners.size > 0 || sel.countries.size > 0
     || sel.capacityBelowPct !== null
 }
 
+/** Does this node pass every active category of the selection? Categories
+ *  with no badges chosen impose no constraint (see file header). */
 export function nodeMatchesFilter(node: CableNode, sel: AssetFilterSelection): boolean {
   if (sel.kinds.size > 0 && !sel.kinds.has('node')) return false
   if (sel.nodeTypes.size > 0 && !sel.nodeTypes.has(node.type)) return false
@@ -84,6 +96,13 @@ function segmentCapacityOk(seg: CableSegment, sel: AssetFilterSelection, capacit
   return (cap.available_capacity_t / cap.total_capacity_t) * 100 < sel.capacityBelowPct
 }
 
+/**
+ * Does this segment pass every active category of the selection? Combines
+ * the per-category checks above (kind, ownership, on-net, country via either
+ * endpoint, capacity threshold); each is a no-op when its category is empty.
+ * `nodesById`/`onNetOwnership`/`capacityById` are lookups the caller already
+ * has, passed in rather than recomputed per segment.
+ */
 export function segmentMatchesFilter(
   seg: CableSegment,
   sel: AssetFilterSelection,
