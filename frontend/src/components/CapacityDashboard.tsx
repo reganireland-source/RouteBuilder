@@ -24,21 +24,29 @@ import { useMemo, useState } from 'react'
 import type { CableSegment, SegmentCapacity } from '../types'
 import { useTheme } from '../theme'
 
+/** Props for {@link CapacityDashboard}. See file header for a fuller description of each field. */
 interface Props {
   segments: CableSegment[]
   capacity: SegmentCapacity[]
   onClose: () => void
 }
 
+/** Formats a capacity value (in Tbps) for display: whole-ish TB above 1, otherwise GB. */
 function fmt(tb: number): string {
   return tb >= 1 ? `${tb.toFixed(1)} TB` : `${(tb * 1000).toFixed(0)} GB`
 }
 
+/** Formats `used/total` as a rounded percentage string, or an em-dash when total is 0 (avoids divide-by-zero). */
 function pct(used: number, total: number): string {
   if (total === 0) return '—'
   return `${Math.round((used / total) * 100)}%`
 }
 
+/**
+ * A small horizontal utilisation gauge: a fixed-width track with a filled
+ * portion sized to `used/total` (capped at 100%), coloured green/orange/red
+ * at the same 60%/85% thresholds used elsewhere in this file.
+ */
 function UtilBar({ used, total }: { used: number; total: number }) {
   const t = useTheme()
   const ratio = total > 0 ? Math.min(used / total, 1) : 0
@@ -50,6 +58,7 @@ function UtilBar({ used, total }: { used: number; total: number }) {
   )
 }
 
+/** A SegmentCapacity record joined against its parent CableSegment, plus derived used/utilPct figures. */
 interface EnrichedSeg {
   id:        string
   name:      string
@@ -61,9 +70,21 @@ interface EnrichedSeg {
   utilPct:   number
 }
 
+/**
+ * Full-screen capacity dashboard modal. See the file-level docblock for the
+ * overall layout; the component body computes the enriched/derived data once
+ * via `useMemo`, then several plain reduces for the headline totals, and
+ * finally renders the two ranked "Top 15" tables filtered by the wet/terrestrial
+ * toggle held in `tableFilter`.
+ */
 export function CapacityDashboard({ segments, capacity, onClose }: Props) {
   const t = useTheme()
 
+  // Join SegmentCapacity rows against their CableSegment (for name/system/type),
+  // and derive `used` (total - available) and `utilPct` once up front so every
+  // consumer below (tables, stat cards, sort comparators) can read them directly
+  // rather than recomputing. Capacity records with no matching segment (stale
+  // data) are silently skipped rather than rendered with blank labels.
   const enriched: EnrichedSeg[] = useMemo(() => {
     const segById = Object.fromEntries(segments.map(s => [s.id, s]))
     const result: EnrichedSeg[] = []
@@ -86,6 +107,8 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
     return result
   }, [segments, capacity])
 
+  // Split into submarine ("wet") vs terrestrial/backhaul segments — the two
+  // populations the headline stat cards and the table toggle both work over.
   const wetSegs  = enriched.filter((e: EnrichedSeg) => e.type === 'wet')
   const terrSegs = enriched.filter((e: EnrichedSeg) => e.type === 'terrestrial')
 
@@ -102,6 +125,9 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
   const [tableFilter, setTableFilter] = useState<'wet' | 'terrestrial'>('wet')
 
   const filtered      = tableFilter === 'wet' ? wetSegs : terrSegs
+  // Two independent rankings of the same filtered set: most spare capacity
+  // (descending available) and most congested (ascending available) — spread
+  // ([...filtered]) so sorting one doesn't mutate the array the other reads.
   const topSpare      = [...filtered].sort((a, b) => b.avail - a.avail).slice(0, 15)
   const topCongested  = [...filtered].sort((a, b) => a.avail - b.avail).slice(0, 15)
 
@@ -140,6 +166,13 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
     borderTop: `1px solid ${t.border}`,
   }
 
+  /**
+   * Renders one ranked table of EnrichedSeg rows (used for both "Top 15 Most
+   * Spare" and "Top 15 Most Congested" with different pre-sorted `rows`),
+   * with a rank column, formatted available/total capacity, a colour-coded
+   * used-% cell, and a UtilBar. Defined inside CapacityDashboard so it can
+   * close over `t` (theme) without threading it through props.
+   */
   function SegTable({ rows, label }: { rows: typeof topSpare; label: string }) {
     return (
       <div style={{ marginBottom: 32 }}>

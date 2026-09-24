@@ -65,6 +65,7 @@ function dotState(applicable: boolean, offered: boolean): DotState {
   return offered ? 'green' : 'red'
 }
 
+/** Renders one traffic-light cell: a green/red filled circle for green/red states, or a grey dash for 'na'. */
 function Dot({ state }: { state: DotState }) {
   if (state === 'na') {
     return (
@@ -84,6 +85,11 @@ function Dot({ state }: { state: DotState }) {
   )
 }
 
+/**
+ * The small pill heading each category section (Backbone/Underlay/Colocation).
+ * `active` (true when the node offers at least one product in that category)
+ * drives whether the badge is drawn in its category colour or dimmed/red-dotted.
+ */
 function CategoryBadge({ label, active, category }: { label: string; active: boolean; category: 'backbone' | 'underlay' | 'colocation' }) {
   const s = CAT_STYLE[category]
   return (
@@ -120,6 +126,12 @@ function SpeedHeader() {
   )
 }
 
+/**
+ * One product's row of speed dots. For each of ALL_SPEEDS, looks up whether
+ * that speed is applicable to this product (via PRODUCT_MAX) and, if so,
+ * whether it's in the node's `available` list, then delegates to
+ * {@link dotState}/{@link Dot} to render the resulting traffic-light dot.
+ */
 function ProductMatrixRow({ label, productKey, available }: { label: string; productKey: string; available?: PortSpeed[] }) {
   const maxSpeeds = PRODUCT_MAX[productKey]
   const availSet = new Set(available ?? [])
@@ -141,17 +153,26 @@ function ProductMatrixRow({ label, productKey, available }: { label: string; pro
   )
 }
 
+/** Props for {@link ProductCoverageMatrix}. */
 interface Props {
   capabilities: NodeCapabilities
   /** Section heading; pass null to render the matrix bare inside your own panel. */
   heading?: string | null
 }
 
+/**
+ * Read-only traffic-light matrix of a node's product coverage — see the
+ * file-level docblock for how to read the dots. Renders three sections in a
+ * fixed order (Backbone, Underlay, Colocation); each category's badge is lit
+ * only if the node has at least one speed configured for at least one product
+ * in that category.
+ */
 export function ProductCoverageMatrix({ capabilities, heading = 'Product Coverage' }: Props) {
   const t = useTheme()
   const bb = capabilities.backbone
   const ul = capabilities.underlay
   const co = capabilities.colocation
+  // "Active" = at least one product in the category has at least one speed configured.
   const backboneActive = !!(bb?.ipt?.length || bb?.epl?.length || bb?.evpl?.length)
   const underlayActive = !!(ul?.gid?.length || ul?.ipvpn?.length)
   const coloActive     = !!co

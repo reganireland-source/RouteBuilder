@@ -45,6 +45,12 @@ const COLO_LABELS: Record<number, string> = {
 
 type ProductKey = 'ipt' | 'epl' | 'evpl' | 'gid' | 'ipvpn'
 
+/**
+ * The in-progress edit state for one node's coverage, while its inline editor
+ * is open. Speeds are held as `Set<PortSpeed>` (rather than arrays) purely for
+ * O(1) toggle/has checks in the UI; converted to/from the sparse
+ * NodeCapabilities wire shape by {@link capsToDraft}/{@link draftToCaps}.
+ */
 interface DraftCaps {
   ipt:   Set<PortSpeed>
   epl:   Set<PortSpeed>
@@ -54,6 +60,7 @@ interface DraftCaps {
   coloCategory: number | null
 }
 
+/** Converts a node's (possibly undefined) NodeCapabilities into editable DraftCaps, defaulting every missing field to empty/null. */
 function capsToDraft(caps?: NodeCapabilities): DraftCaps {
   return {
     ipt:          new Set((caps?.backbone?.ipt   ?? []) as PortSpeed[]),
@@ -65,6 +72,15 @@ function capsToDraft(caps?: NodeCapabilities): DraftCaps {
   }
 }
 
+/**
+ * Converts DraftCaps back into the sparse NodeCapabilities shape sent to the
+ * backend. A product with an empty speed Set is omitted from its category
+ * object entirely (not written as `[]`), and a category with no products set
+ * becomes `undefined` rather than `{}` — this keeps saved records minimal and
+ * matches how `capsToDraft` reads absence back in. Speed arrays are rebuilt by
+ * filtering ALL_SPEEDS (not `[...set]`) so they're always written in the
+ * canonical 1G/10G/100G/400G order regardless of toggle order.
+ */
 function draftToCaps(d: DraftCaps): NodeCapabilities {
   const bb: NodeCapabilities['backbone'] = {}
   if (d.ipt.size)   bb.ipt   = ALL_SPEEDS.filter(s => d.ipt.has(s))
@@ -82,6 +98,7 @@ function draftToCaps(d: DraftCaps): NodeCapabilities {
   }
 }
 
+/** Derives the three summary-row traffic-light dot states (backbone/underlay/colocation "configured?") from a node's stored capabilities. */
 function quickDots(caps?: NodeCapabilities) {
   const backboneActive = !!(caps?.backbone?.ipt?.length || caps?.backbone?.epl?.length || caps?.backbone?.evpl?.length)
   const underlayActive = !!(caps?.underlay?.gid?.length || caps?.underlay?.ipvpn?.length)
@@ -89,11 +106,20 @@ function quickDots(caps?: NodeCapabilities) {
   return { backboneActive, underlayActive, coloActive }
 }
 
+/** Props for {@link ProductCoveragePanel}. */
 interface Props {
   nodes: CableNode[]
   onDataChange: () => void
 }
 
+/**
+ * Admin editor listing every non-branching-unit node with a filter box and an
+ * expandable inline editor for each row's NodeCapabilities. See the
+ * file-level docblock for the full behaviour; within the component: `draft`
+ * holds the DraftCaps for whichever single node is currently being edited
+ * (`editId`), and `save` PUTs `draftToCaps(draft)` via api.updateNode, then
+ * calls `onDataChange` so the parent refetches and closes the editor.
+ */
 export function ProductCoveragePanel({ nodes, onDataChange }: Props) {
   const t = useTheme()
   const [filter, setFilter] = useState('')
@@ -102,6 +128,10 @@ export function ProductCoveragePanel({ nodes, onDataChange }: Props) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Branching units are cable-internal junctions with no product coverage of
+  // their own, so they're excluded entirely. Remaining nodes sort landing
+  // stations first, then primary PoPs, then everything else (secondary/
+  // extension PoPs etc.), each group alphabetical by id.
   const eligibleNodes = nodes
     .filter(n => n.type !== 'branching_unit')
     .sort((a, b) => {
@@ -117,14 +147,17 @@ export function ProductCoveragePanel({ nodes, onDataChange }: Props) {
       )
     : eligibleNodes
 
+  /** Opens the inline editor for `node`, seeding `draft` from its current (possibly empty) capabilities. */
   function openEdit(node: CableNode) {
     setEditId(node.id)
     setDraft(capsToDraft(node.capabilities))
     setError(null)
   }
 
+  /** Closes the inline editor, discarding any unsaved draft changes. */
   function closeEdit() { setEditId(null); setDraft(null); setError(null) }
 
+  /** Toggles one (product, speed) cell in the current draft on/off. No-op if no editor is open. */
   function toggleSpeed(productKey: ProductKey, speed: PortSpeed) {
     if (!draft) return
     const next = new Set(draft[productKey])
@@ -133,11 +166,13 @@ export function ProductCoveragePanel({ nodes, onDataChange }: Props) {
     setDraft({ ...draft, [productKey]: next })
   }
 
+  /** Sets (or clears, with `null`) the colocation category on the current draft. */
   function setColo(cat: number | null) {
     if (!draft) return
     setDraft({ ...draft, coloCategory: cat })
   }
 
+  /** Persists the current draft for `nodeId` via api.updateNode, then notifies the parent and closes the editor. Failures are shown inline rather than thrown. */
   async function save(nodeId: string) {
     if (!draft) return
     setSaving(true); setError(null)

@@ -53,6 +53,7 @@ import { useTheme } from '../theme'
 // ── Categories = the coloured lines of the metro map ────────────────────────
 // `rail` is the column index each line occupies in the left-hand gutter; it is
 // what makes parallel lines read as a metro map rather than a single spine.
+/** One metro-map "line" — a capability category, its display colour/icon, and its gutter column (`rail`). */
 interface Category {
   id: string
   label: string
@@ -97,6 +98,7 @@ function railSpans(milestones: { cat: string }[]): Set<string>[] {
 }
 
 // ── Milestones ──────────────────────────────────────────────────────────────
+/** One shipped capability — a single "station" on its category's line for a given month. `cat` must match a {@link Category.id}. */
 interface Milestone {
   cat: string
   icon: string
@@ -106,6 +108,7 @@ interface Milestone {
   major?: boolean
 }
 
+/** One month's band on the map: its header (label/sub/era), intensity meter, and the Milestones shipped that month. */
 interface Month {
   key: string
   label: string
@@ -218,6 +221,12 @@ const ROW_H = 78             // px per station row — also the rail segment len
 // The month bands and intensity meters are unchanged — only the gutter gives.
 const NARROW_PX = 620
 
+/**
+ * Tracks whether the viewport is narrower than NARROW_PX, via a live
+ * matchMedia listener (so it updates on resize, not just at mount). Guards
+ * `window` access for SSR/non-browser environments by defaulting to `false`
+ * when `window` is undefined.
+ */
 function useNarrow() {
   const [narrow, setNarrow] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < NARROW_PX,
@@ -282,6 +291,7 @@ function intensityWording(intensity: Month['intensity']): string {
   return 'QUIET MONTH'
 }
 
+/** Renders one month's header band: label + era text + the 4-cell intensity meter, coloured by {@link intensityColor}. */
 function MonthBand({ month, t }: { month: Month; t: ReturnType<typeof useTheme> }) {
   const bandColor = intensityColor(month.intensity, t)
   const bandWord = intensityWording(month.intensity)
@@ -330,6 +340,14 @@ function MonthBand({ month, t }: { month: Month; t: ReturnType<typeof useTheme> 
 }
 
 // ── One station on the map ──────────────────────────────────────────────────
+/**
+ * One clickable station row: the rail lines behind it, the pixel marker
+ * (square for `major`, dot otherwise), and an expand/collapse card showing
+ * `ms.detail`. `open` controls both the marker's fill and whether the card
+ * shows its full detail text or a single-line ellipsis with a "PRESS TO READ"
+ * hint; toggling is handled entirely by the parent via `onToggle` (this
+ * component holds no state of its own).
+ */
 function Station({ ms, live, open, onToggle, narrow, t }: {
   ms: Milestone
   /** Category ids whose line is "in service" on this row — see railSpans. */
@@ -473,6 +491,7 @@ function monthStations(month: Month, ctx: {
 }
 
 // ── The legend: the metro map's line key ────────────────────────────────────
+/** The line key beneath the title card: one tile per Category with its colour swatch, icon and label; hover title shows the category's `blurb`. */
 function Legend({ t }: { t: ReturnType<typeof useTheme> }) {
   return (
     <div style={{
@@ -496,11 +515,24 @@ function Legend({ t }: { t: ReturnType<typeof useTheme> }) {
   )
 }
 
+/** Props for {@link ProductHistory}. */
 interface Props {
   /** Rendered for the print/PDF version: no animation, everything expanded. */
   printMode?: boolean
 }
 
+/**
+ * The Product History metro map — see the file-level docblock for the full
+ * rationale and dating methodology. Renders the title/score card, the
+ * category Legend, an optional per-line filter row, then each visible
+ * Month's band and stations via {@link monthStations}. `filter` (a Category id
+ * or null) narrows `visibleMonths` to just that line's milestones, dropping
+ * any month left with none; `open` tracks which single station card is
+ * currently expanded (shared across all months — only one station is open at
+ * a time). In `printMode`, all animation/interactivity is suppressed and
+ * every station renders fully expanded (see {@link monthStations}'s `open:
+ * printMode || open === id`).
+ */
 export function ProductHistory({ printMode = false }: Props) {
   const t = useTheme()
   const narrow = useNarrow()
@@ -627,6 +659,7 @@ export function ProductHistory({ printMode = false }: Props) {
   )
 }
 
+/** Style for one line-filter chip (ALL LINES or a single category), highlighted in `color` when `active`. */
 function filterBtn(color: string, active: boolean, t: ReturnType<typeof useTheme>) {
   return {
     padding: '5px 9px', cursor: 'pointer',

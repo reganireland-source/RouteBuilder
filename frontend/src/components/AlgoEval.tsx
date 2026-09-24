@@ -29,8 +29,14 @@ import type { CableNode, CableSegment, CableSystem, DiversityType, NodeType, Rou
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+/** The five buckets CORE_TESTS is organised into; also drives the left-panel grouping and CAT styling. */
 type Category = 'endpoint' | 'diversity' | 'constraint' | 'preference' | 'edge_case'
 
+/**
+ * The kinds of checks an {@link Assertion} can express against a set of routes
+ * returned by api.searchRoutes. Each value corresponds to one `case` in
+ * {@link evaluateAssertion}, which is the sole place these are interpreted.
+ */
 type AssertionType =
   | 'route_found' | 'no_routes_found' | 'min_routes'
   | 'routes_diverse_wet' | 'routes_diverse_full'
@@ -39,6 +45,11 @@ type AssertionType =
   | 'path_excludes_country'
   | 'wet_hops_max' | 'latency_under' | 'distance_under' | 'distance_over'
 
+/**
+ * A single pass/fail check to run against a TestCase's route results.
+ * `params` carries the assertion's thresholds/targets (e.g. `{ threshold_km: 10000 }`,
+ * `{ node_id: 'JTHA' }`) and is interpreted per-`type` inside {@link evaluateAssertion}.
+ */
 interface Assertion {
   id: string
   description: string
@@ -46,6 +57,12 @@ interface Assertion {
   params?: Record<string, unknown>
 }
 
+/**
+ * One scenario in the evaluation harness: a RouteRequest to fire at the backend
+ * plus the Assertions its result must satisfy to "pass". `isCore` distinguishes
+ * the built-in CORE_TESTS catalogue from ones generated at runtime by
+ * {@link buildRandomTest} (which are always `isCore: false`).
+ */
 interface TestCase {
   id: string
   name: string
@@ -63,12 +80,20 @@ interface TestCase {
   }
 }
 
+/** The outcome of evaluating one Assertion against a TestResult's routes. */
 interface AssertionResult {
   assertion_id: string
   passed: boolean
   message: string
 }
 
+/**
+ * The outcome of running one TestCase: the raw routes returned (for the
+ * route-path visualisation), the per-assertion breakdown, and `passed`, which
+ * is true only when every assertion in the test passed. `error` is set when
+ * the api.searchRoutes call itself threw (network/HTTP failure) rather than
+ * when an assertion failed.
+ */
 interface TestResult {
   test_id: string
   passed: boolean
@@ -79,6 +104,11 @@ interface TestResult {
   error?: string
 }
 
+/**
+ * The result of one "Run All Tests" pass: every TestResult from that pass plus
+ * aggregate pass/fail counts. Persisted to localStorage (see loadHistory/saveHistory)
+ * so recent runs survive a page reload, and offered in the header's history dropdown.
+ */
 interface TestRun {
   id: string
   timestamp: string
@@ -90,6 +120,15 @@ interface TestRun {
 
 // ── Core test cases ───────────────────────────────────────────────────────────
 
+/**
+ * The built-in, hand-authored regression catalogue (all `isCore: true`). Each
+ * entry pairs a real endpoint/constraint/diversity RouteRequest with the
+ * Assertions that request's result must satisfy. "Run All Tests" iterates this
+ * array in order via {@link AlgoEval}'s `runAll`. Grouped by Category with a
+ * comment banner per group; a `knownLimitation` on an entry means a failure
+ * there reflects real network topology rather than an algorithm bug (see the
+ * `TestCase.knownLimitation` docstring above).
+ */
 const CORE_TESTS: TestCase[] = [
   // ── Endpoint Tests ─────────────────────────────────────────────────────────
   {
@@ -753,8 +792,16 @@ const CORE_TESTS: TestCase[] = [
 
 // ── Random test generator ─────────────────────────────────────────────────────
 
+// Monotonically increasing counter used to give each generated random test a
+// unique, stable-looking id (RND-001, RND-002, ...) across one "Generate" batch.
 let _rndSeq = 0
 
+/**
+ * Great-circle distance between two lat/lng points, in kilometres, via the
+ * haversine formula (Earth radius R = 6371 km). Used by {@link buildRandomTest}
+ * to derive plausible distance/latency bounds for a randomly picked O-D pair —
+ * this is a straight-line estimate, not the actual cable path length.
+ */
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371
   const dLat = (lat2 - lat1) * Math.PI / 180
@@ -763,16 +810,38 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
+// Node types eligible as random start/end points — excludes branching units
+// (which are cable-internal junctions, not customer-facing endpoints).
 const ENDPOINT_TYPES: NodeType[] = ['landing_station', 'primary_pop', 'secondary_pop']
 
+/**
+ * Generates one ad-hoc TestCase from live reference data, for the "Custom" /
+ * random-test tab. Picks a random start/end node pair (from different
+ * countries), a weighted-random diversity mode, and optionally a system to
+ * exclude, then derives generic-but-plausible distance/latency assertions from
+ * the straight-line (haversine) distance between the two endpoints — loose
+ * enough to tolerate real cable routing overhead while still catching
+ * impossible routes, distance-model errors, or badly looped paths.
+ *
+ * @param _idx    Unused positional index (kept for call-site symmetry with a
+ *                loop of `randomCount` calls; the actual identity comes from
+ *                the module-level `_rndSeq` counter instead).
+ * @param nodes   Full CableNode list to pick endpoints from.
+ * @param systems Full CableSystem list to optionally pick an excluded system from.
+ * @throws if fewer than two eligible endpoint nodes exist.
+ */
 function buildRandomTest(_idx: number, nodes: CableNode[], systems: CableSystem[]): TestCase {
   const seq = ++_rndSeq
   const endpointNodes = nodes.filter(n => ENDPOINT_TYPES.includes(n.type))
   if (endpointNodes.length < 2) throw new Error('Not enough endpoint nodes')
 
+  // Small local helpers: pick() returns a uniformly random element, maybe()
+  // returns true with the given probability (0-1).
   const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)]
   const maybe = (prob: number) => Math.random() < prob
 
+  // Pick two distinct endpoints in different countries, so the generated test
+  // always exercises a cross-border corridor rather than a trivial same-city hop.
   const start = pick(endpointNodes)
   const end   = pick(endpointNodes.filter(n => n.id !== start.id && n.country !== start.country))
 
@@ -867,6 +936,22 @@ function buildRandomTest(_idx: number, nodes: CableNode[], systems: CableSystem[
 
 // ── Assertion evaluator ───────────────────────────────────────────────────────
 
+/**
+ * Interprets a single Assertion against the routes returned for its TestCase
+ * and produces a pass/fail AssertionResult with a human-readable message. This
+ * is the one place AssertionType values are given meaning — every `case`
+ * mirrors an entry in that union. Threshold/target values come from
+ * `a.params` (falling back to a sane default when the param is absent) so a
+ * malformed/incomplete `params` object degrades gracefully rather than throwing.
+ *
+ * Diversity checks (`routes_diverse_wet`/`routes_diverse_full`) only ever
+ * compare the first two routes (`routes[0]` vs `routes[1]`) — the harness
+ * assumes worker/protect pairs, not N-way diversity sets.
+ *
+ * Any exception thrown while evaluating (e.g. an unexpected route shape) is
+ * caught and turned into a failed assertion with the error in its message,
+ * rather than crashing the whole test run.
+ */
 function evaluateAssertion(a: Assertion, routes: Route[], nodesById: Map<string, CableNode>): AssertionResult {
   try {
     switch (a.type) {
@@ -950,21 +1035,31 @@ function evaluateAssertion(a: Assertion, routes: Route[], nodesById: Map<string,
 const HISTORY_KEY = 'rb_algo_eval_history'
 const MAX_HISTORY = 20
 
+/** Reads past TestRuns from localStorage; returns [] on missing/corrupt data rather than throwing. */
 function loadHistory(): TestRun[] {
   try { return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]') } catch { return [] }
 }
+/** Persists TestRuns to localStorage, keeping only the most recent MAX_HISTORY entries. */
 function saveHistory(runs: TestRun[]): void {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(runs.slice(0, MAX_HISTORY)))
 }
 
 // ── Route path visualisation ──────────────────────────────────────────────────
 
+// Colour used to draw each segment type in the RoutePathViz "metro map" strip.
 const SEG_COLOR: Record<string, string> = {
   wet:         '#89b4fa',
   backhaul:    '#f9e2af',
   terrestrial: '#6c7086',
 }
 
+/**
+ * Renders one route as a horizontal chain of node dots connected by
+ * segment-coloured lines (blue = wet/submarine, yellow = backhaul, grey =
+ * terrestrial), with a small legend beneath. Used in the "Route Results"
+ * section of the detail pane so an engineer can eyeball the physical path a
+ * test's routes actually took, not just the pass/fail assertions.
+ */
 function RoutePathViz({ route, nodesById }: { route: Route; nodesById: Map<string, CableNode> }) {
   const t = useTheme()
   const nodes = route.nodes
@@ -1042,6 +1137,9 @@ function RoutePathViz({ route, nodesById }: { route: Route; nodesById: Map<strin
 
 // ── Category config ───────────────────────────────────────────────────────────
 
+// Display metadata (label, accent colour, emoji icon) for each Category —
+// drives the group headers in the core-test list and the category chip shown
+// in the test-detail header.
 const CAT: Record<Category, { label: string; color: string; icon: string }> = {
   endpoint:   { label: 'Endpoint',    color: '#89b4fa', icon: '🔵' },
   diversity:  { label: 'Diversity',   color: '#a6e3a1', icon: '🟢' },
@@ -1052,6 +1150,16 @@ const CAT: Record<Category, { label: string; color: string; icon: string }> = {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+/**
+ * Props for {@link AlgoEval}.
+ * @property nodes    Reference-data nodes, used to build a lookup map for assertions
+ *                     (e.g. `path_excludes_country`) and for RoutePathViz labels.
+ * @property segments Reference-data segments (accepted for API symmetry with other
+ *                     panels; not currently read inside this component).
+ * @property systems  Reference-data cable systems, used by the random test generator
+ *                     to pick a system to exclude.
+ * @property onClose  Invoked when the user clicks "✕ Close" to dismiss the modal.
+ */
 interface Props {
   nodes: CableNode[]
   segments: CableSegment[]
@@ -1059,6 +1167,30 @@ interface Props {
   onClose: () => void
 }
 
+/**
+ * The Algo Eval modal: a full-screen test runner UI over CORE_TESTS (and, on
+ * the "Custom" tab, ad-hoc random tests from {@link buildRandomTest}).
+ *
+ * State/orchestration summary:
+ *  - `history`/`activeRunId` hold past "Run All Tests" passes (persisted via
+ *    loadHistory/saveHistory) and which one is currently displayed.
+ *  - `runOne` fires a single TestCase's request through api.searchRoutes,
+ *    evaluates every assertion via {@link evaluateAssertion}, and times the
+ *    round trip; a thrown API error is caught and turned into a failed
+ *    TestResult rather than propagating.
+ *  - `runAll` sequentially runs every CORE_TESTS entry (not in parallel — so
+ *    the "currently running" spinner can highlight one test at a time),
+ *    aggregates the results into a new TestRun, and pushes it onto history.
+ *    `runIdRef` guards against a stale run's results landing after a newer
+ *    run has started (checked before each test and again after the loop).
+ *  - `runAllRandom` does the same for the generator-produced `randomTests`,
+ *    but keeps its results in a separate `randomResults` map rather than the
+ *    persisted history (random tests are disposable, not saved across reloads).
+ *  - The left panel switches between the "core" tab (CORE_TESTS grouped by
+ *    Category) and the "custom" tab (the random generator + its results);
+ *    the right panel shows the selected test's request, assertions, any
+ *    knownLimitation callout, and its route visualisation.
+ */
 export function AlgoEval({ nodes, systems, onClose }: Props) {
   const t = useTheme()
   const nodesById = new Map(nodes.map(n => [n.id, n]))
@@ -1083,6 +1215,9 @@ export function AlgoEval({ nodes, systems, onClose }: Props) {
   const resultMap = new Map(activeRun?.results.map(r => [r.test_id, r]) ?? [])
 
   // ── Run a single test ──────────────────────────────────────────────────────
+  // Fires tc.request through the live search API, evaluates every assertion
+  // against the returned routes, and times the round trip. Network/API errors
+  // are caught here so one bad test can't abort a batch run.
   const runOne = useCallback(async (tc: TestCase): Promise<TestResult> => {
     const t0 = performance.now()
     try {
@@ -1108,6 +1243,9 @@ export function AlgoEval({ nodes, systems, onClose }: Props) {
   }, [nodesById])
 
   // ── Run all tests ──────────────────────────────────────────────────────────
+  // Sequentially runs every CORE_TESTS entry (one at a time, not in parallel,
+  // so `runningTestId` can highlight the in-flight test in the list) and
+  // aggregates the results into a new TestRun pushed onto history.
   const runAll = useCallback(async () => {
     setRunning(true)
     const runNum = ++runIdRef.current
@@ -1115,6 +1253,9 @@ export function AlgoEval({ nodes, systems, onClose }: Props) {
     const results: TestResult[] = []
 
     for (const tc of CORE_TESTS) {
+      // Bail out early if a newer runAll() has started since this loop began
+      // (e.g. the user clicked "Run All Tests" again mid-run) so a stale run
+      // doesn't overwrite a fresher one's results.
       if (runIdRef.current !== runNum) break
       setRunningTestId(tc.id)
       const result = await runOne(tc)
@@ -1140,6 +1281,9 @@ export function AlgoEval({ nodes, systems, onClose }: Props) {
   }, [runOne, history])
 
   // ── Run all random tests ───────────────────────────────────────────────────
+  // Same sequential-run pattern as runAll, but over the generator-produced
+  // randomTests and writing into randomResults (not the persisted history —
+  // random tests are disposable and regenerated fresh each "Generate" click).
   const runAllRandom = useCallback(async () => {
     if (randomTests.length === 0) return
     setRandomRunning(true)
