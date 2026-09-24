@@ -153,6 +153,11 @@ def name_score(path_tokens: set[str], segment_tokens: set[str]) -> float:
 
 @dataclass
 class Candidate:
+    """One scored segment for a path, as returned by rank_candidates() —
+    the combined 0..100 `score` plus its geometry/name components and the
+    endpoint-gap/orientation working behind the geometry half, so a caller
+    (or reviewer) can see why a candidate scored the way it did rather than
+    just the final number."""
     segment_id: str
     segment_name: str
     system_id: str

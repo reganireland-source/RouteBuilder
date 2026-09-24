@@ -154,6 +154,9 @@ def _find_kinks(coords: list[list[float]], angle_deg: float = KINK_ANGLE_DEG) ->
 
 
 def _dedupe_consecutive(coords: list[list[float]], tol_km: float = _DEDUPE_TOLERANCE_KM) -> list[list[float]]:
+    """Drop a point that lands within `tol_km` of the point right before it —
+    called after stitching fragments together, where a join vertex from one
+    fragment can sit almost exactly on top of the next fragment's own end."""
     out: list[list[float]] = []
     for c in coords:
         if out and haversine_km((out[-1][0], out[-1][1]), (c[0], c[1])) < tol_km:
@@ -174,6 +177,8 @@ class _End:
 
 
 def _gather_ends(pieces: list[list[list[float]]]) -> list[_End]:
+    """Every fragment's two ends (own start and own end) as flat _End
+    records, ready to feed the adaptive-threshold and nearest-end lookups."""
     ends: list[_End] = []
     for i, coords in enumerate(pieces):
         ends.append(_End(i, 0, coords[0][0], coords[0][1]))
@@ -198,6 +203,11 @@ def _nearest_other_end(target: _End, ends: list[_End]) -> Optional[tuple[int, fl
 
 
 def _adaptive_jump_km(ends: list[_End]) -> float:
+    """The join-acceptance distance for this import: JUMP_MULTIPLIER times the
+    median nearest-other-fragment-end gap, clamped to [MIN_JUMP_KM,
+    MAX_JUMP_KM]. Adaptive rather than a single fixed threshold because real
+    joins cluster near the median gap and unrelated fragments sit far above
+    it — see the module docstring on why that split is close to bimodal."""
     gaps = []
     for e in ends:
         got = _nearest_other_end(e, ends)

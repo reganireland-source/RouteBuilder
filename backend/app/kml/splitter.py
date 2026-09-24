@@ -97,6 +97,9 @@ class PathPiece:
 
 
 def _cell(lat: float, lng: float) -> tuple[int, int]:
+    """The (row, col) spatial-index cell a lat/lng falls in, at _CELL_DEG
+    resolution — the coarse grid _index_path()/_nearest_vertex() use so a
+    node only has to check its own cell and its eight neighbours."""
     return (int(math.floor(lat / _CELL_DEG)), int(math.floor(lng / _CELL_DEG)))
 
 
@@ -145,6 +148,13 @@ def _cumulative_km(coords: list[list[float]]) -> list[float]:
 
 @dataclass
 class _Anchor:
+    """One network node found near the path, produced by find_anchors().
+
+    `vertex` is the index of the path's own nearest vertex to this node;
+    `distance_km` is how far that vertex sits from the node (must be within
+    the snap tolerance to exist at all); `along_km` is the cumulative
+    distance from the path's own start to that vertex, which is what lets
+    callers order anchors along the route and measure hop lengths."""
     node_id: str
     vertex: int
     distance_km: float

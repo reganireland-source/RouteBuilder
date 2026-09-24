@@ -42,16 +42,24 @@ KML_INDEX_PATH = DATA_DIR / "kml_index.json"
 
 
 def _now() -> str:
+    """Current UTC timestamp, ISO-8601 to the second — the format every
+    created_at/uploaded_at column in this module stores."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def sha256_hex(data: bytes) -> str:
+    """Hex sha256 of `data` — the content-address used as kml_files.sha256
+    and as the on-disk blob filename in file mode."""
     return hashlib.sha256(data).hexdigest()
 
 
 # ── File-mode index helpers ──────────────────────────────────────────────────
 
 def _read_index() -> dict[str, list[dict]]:
+    """Load the file-mode index (files + links), tolerating a missing or
+    corrupt file by returning an empty index rather than raising — file mode
+    is local dev/no-DATABASE_URL only, so a fresh or damaged index is treated
+    as "nothing stored yet" rather than an error."""
     if not KML_INDEX_PATH.exists():
         return {"files": [], "links": []}
     try:
@@ -65,6 +73,8 @@ def _read_index() -> dict[str, list[dict]]:
 
 
 def _write_index(index: dict[str, list[dict]]) -> None:
+    """Persist the file-mode index, writing to a temp file and renaming over
+    the real one so a crash mid-write never leaves a half-written index."""
     KML_INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
     tmp = KML_INDEX_PATH.with_suffix(".json.tmp")
     with open(tmp, "w") as f:
@@ -136,6 +146,8 @@ def get_file_bytes(file_id: str) -> Optional[tuple[bytes, str]]:
 # ── Segment links ────────────────────────────────────────────────────────────
 
 def _next_version(segment_id: str) -> int:
+    """1 for a segment's first KML, otherwise one past its current highest
+    version — link_segment() never overwrites, only appends a new version."""
     if _use_db():
         with get_conn() as conn, conn.cursor() as cur:
             cur.execute(

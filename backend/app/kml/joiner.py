@@ -76,6 +76,10 @@ class MergedPath:
 
 
 def _cell(lat: float, lng: float) -> tuple[int, int]:
+    """The (row, col) spatial-index cell a lat/lng falls in, at _CELL_DEG
+    resolution — used by _pair_ends() so an endpoint only has to compare
+    against the handful of other endpoints in its own cell and its eight
+    neighbours, rather than every endpoint in the file."""
     return (int(math.floor(lat / _CELL_DEG)), int(math.floor(lng / _CELL_DEG)))
 
 
@@ -90,6 +94,8 @@ class _End:
 
 
 def _gather_ends(paths: list[list[list[float]]]) -> list[_End]:
+    """Every fragment's two ends as flat _End records (fragments shorter than
+    2 points are skipped — they have no meaningful start/end to join on)."""
     ends: list[_End] = []
     for i, coords in enumerate(paths):
         if len(coords) < 2:

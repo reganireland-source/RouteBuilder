@@ -87,11 +87,16 @@ class ScmError(RuntimeError):
 
 
 def _cache_path(name: str) -> Path:
+    """Filesystem path for a cached response, creating CACHE_DIR if needed."""
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     return CACHE_DIR / name
 
 
 def _get_json(url: str) -> Any:
+    """Fetch and JSON-decode `url`, with a scheme allowlist (see module
+    docstring), a real User-Agent, and a request timeout. Raises ScmError
+    (never a raw urllib/json exception) on any failure, so callers only have
+    one exception type to handle."""
     scheme = urllib.parse.urlparse(url).scheme.lower()
     if scheme not in ALLOWED_SCHEMES:
         raise ScmError(f"refusing to fetch a {scheme or 'schemeless'} URL")
@@ -168,6 +173,9 @@ def search_cables(query: str, limit: int = 25) -> list[dict[str, str]]:
 
 
 def _geo_features_for(cable_id: str, *, force_refresh: bool = False) -> list[dict]:
+    """GeoJSON Features for one cable out of the whole cable-geo.json
+    collection — usually one, sometimes several (see module docstring on
+    why one cable id can own multiple features)."""
     data = _cached_json(CABLE_GEO_URL, "cable-geo.json", force_refresh=force_refresh)
     return [f for f in data.get("features", []) if (f.get("properties") or {}).get("id") == cable_id]
 

@@ -89,6 +89,8 @@ def _scm_enabled() -> bool:
 
 
 def _node_latlng(nodes, node_id):
+    """(lat, lng) for the node with this id in `nodes`, or None if it is not
+    found (unknown/blank start_node_id/end_node_id on a segment)."""
     n = next((x for x in nodes if x.id == node_id), None)
     return (n.lat, n.lng) if n else None
 

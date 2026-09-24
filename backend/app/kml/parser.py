@@ -191,6 +191,9 @@ def _localname(tag: str) -> str:
 
 
 def _text(el, child: str) -> Optional[str]:
+    """The stripped text of `el`'s first direct child named `child`
+    (namespace-agnostic), or None if absent/blank — used to pull <name>,
+    <description> and <coordinates> out of a Placemark/geometry element."""
     for sub in el:
         if _localname(sub.tag) == child and sub.text:
             stripped = sub.text.strip()
