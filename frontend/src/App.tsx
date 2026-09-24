@@ -381,24 +381,41 @@ function isNarrowViewport(): boolean {
   return window.innerWidth < 768
 }
 
+/** Best-effort touch detection across two independent browser signals, since
+ *  neither is universally reliable on its own: `matchMedia` can throw or be
+ *  absent in an unusual embedded WebView, and some of those same WebViews
+ *  are known to misreport `pointer: coarse` for a real touchscreen even when
+ *  `matchMedia` itself works fine. `navigator.maxTouchPoints` comes from a
+ *  different underlying API, so a WebView that gets one wrong doesn't
+ *  necessarily get both wrong — this is a genuine second opinion, not the
+ *  same check asked twice. Defaults to false (not touch) only if every
+ *  signal is unavailable or throws, matching isSquarishTouchViewport's own
+ *  fail-safe direction: an environment that can't be identified as a touch
+ *  square falls back to the desktop layout, not the mobile one. */
+function isLikelyTouchDevice(): boolean {
+  try {
+    if (window.matchMedia('(pointer: coarse)').matches) return true
+  } catch { /* matchMedia unsupported or misbehaving — fall through */ }
+  return typeof navigator !== 'undefined' && (navigator.maxTouchPoints ?? 0) > 0
+}
+
 /** True for a touch device reporting a squarish viewport well past 768px —
  *  a small high-density screen (e.g. a keyboard phone with a near-square
  *  panel, like the Unihertz Titan line) whose browser doesn't apply the
  *  usual CSS-pixel downscale, so it reports something close to its native
  *  resolution instead of a normal ~360-430px-wide phone viewport. Width
  *  alone can't tell that apart from a desktop window, so this also requires
- *  a coarse (touch) primary pointer and a near-1:1 aspect ratio — a desktop
- *  or laptop is essentially never both touch-primary and roughly square,
- *  and a portrait tablet (aspect ~0.7-0.8) falls outside this band, so
- *  neither gets pulled into mobile mode by this rule. Capped at 1200px so
- *  a genuinely large touch display (an all-in-one kiosk, a touch monitor)
- *  isn't misread as a phone. */
+ *  a touch-capable device (see isLikelyTouchDevice) and a near-1:1 aspect
+ *  ratio — a desktop or laptop is essentially never both touch-capable and
+ *  roughly square, and a portrait tablet (aspect ~0.7-0.8) falls outside
+ *  this band, so neither gets pulled into mobile mode by this rule. Capped
+ *  at 1200px so a genuinely large touch display (an all-in-one kiosk, a
+ *  touch monitor) isn't misread as a phone. */
 function isSquarishTouchViewport(): boolean {
   const w = window.innerWidth
   const h = window.innerHeight
   if (w >= 1200) return false
-  const isCoarsePointer = window.matchMedia('(pointer: coarse)').matches
-  if (!isCoarsePointer) return false
+  if (!isLikelyTouchDevice()) return false
   const aspect = w / h
   return aspect >= 0.8 && aspect <= 1.25
 }
