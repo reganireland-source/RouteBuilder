@@ -622,7 +622,7 @@ function NodeTypeLegend({ narrow }: { narrow: boolean }) {
               background: ns.fill, border: `${ns.weight}px solid ${ns.color}`,
               opacity: ns.opacity,
             }} />
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.82)', whiteSpace: 'nowrap', fontFamily: 'system-ui, sans-serif' }}>{label}</span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.82)', whiteSpace: 'nowrap', fontFamily: 'system-ui, sans-serif' }}>{label}</span>
           </div>
         )
       })}
@@ -678,7 +678,7 @@ function MapStyleCard({ style, onChange, narrow, accent }: {
             className="rb-btn-motion"
             style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-              width: 52, padding: '6px 2px', borderRadius: 5,
+              width: 58, padding: '6px 2px', borderRadius: 5,
               border: `1px solid ${active ? accent : 'rgba(255,255,255,0.14)'}`,
               background: active ? accent + '38' : 'transparent',
               color: active ? accent : 'rgba(255,255,255,0.82)',
@@ -686,7 +686,7 @@ function MapStyleCard({ style, onChange, narrow, accent }: {
             }}
           >
             <span style={{ fontSize: 16, lineHeight: 1 }}>{opt.icon}</span>
-            <span style={{ fontSize: 9, fontWeight: 600, whiteSpace: 'nowrap' }}>{opt.label}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>{opt.label}</span>
           </button>
         )
       })}

@@ -295,7 +295,7 @@ function MobileControlsDrawer({
         }}
       >
         <span style={{ fontSize: 18, lineHeight: 1 }}>{open ? '✕' : '≡'}</span>
-        <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1 }}>
           {open ? 'Close' : 'Controls'}
         </span>
       </button>
@@ -419,7 +419,7 @@ function MobileControlsDrawer({
                   {item.label}
                 </span>
                 {item.active && (
-                  <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: item.color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>On</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: item.color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>On</span>
                 )}
               </button>
             ))}
@@ -494,7 +494,7 @@ function MobileControlsDrawer({
                 Tooltips
               </span>
               {tooltipsEnabled && (
-                <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: t.blue, textTransform: 'uppercase', letterSpacing: '0.05em' }}>On</span>
+                <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: t.blue, textTransform: 'uppercase', letterSpacing: '0.05em' }}>On</span>
               )}
             </button>
           </div>
@@ -541,16 +541,16 @@ function ManualBuildStrip({ steps, segments, candidateCount, t, onUndo, onFinish
       <div style={{ display: 'flex', gap: 12, flex: 1 }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{hopCount}</div>
-          <div style={{ fontSize: 9, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hops</div>
+          <div style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Hops</div>
         </div>
         {hopCount > 0 && <>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{km.toLocaleString()}</div>
-            <div style={{ fontSize: 9, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>km</div>
+            <div style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>km</div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{ms.toFixed(0)}</div>
-            <div style={{ fontSize: 9, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em' }}>ms</div>
+            <div style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>ms</div>
           </div>
         </>}
       </div>
@@ -609,7 +609,13 @@ function MobileModeBanner({ activeProject, onSwitch, onExit, t }: {
           }
         </svg>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.75, lineHeight: 1 }}>
+          {/* DESIGN.md's Label role (700/10px/uppercase/0.06em) undersized to
+              9px with an opacity stacked on top of an already-muted color —
+              two dimming steps on top of one another dropped this well under
+              WCAG AA. The button's own text color (blue when a project is
+              active, textMuted otherwise) is already the intended "quieter
+              than the value below it" signal; it doesn't need opacity too. */}
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', lineHeight: 1.2 }}>
             {isProject ? 'Project Mode' : 'Mode'}
           </div>
           <div style={{ fontSize: 13, fontWeight: 700, color: isProject ? t.blue : t.text, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -840,7 +846,7 @@ export function MobileLayout({
         <img src="/favicon.svg" alt="" style={{ width: 22, height: 22, flexShrink: 0 }} />
         <div>
           <div style={{ fontSize: 13, fontWeight: 700, color: t.text, lineHeight: 1.25 }}>RouteBuilder</div>
-          <div style={{ fontSize: 9, color: t.textFaint, letterSpacing: '0.04em', marginTop: 1 }}>International Telco</div>
+          <div style={{ fontSize: 11, color: t.textFaint, letterSpacing: '0.02em', marginTop: 1 }}>International Telco</div>
         </div>
       </div>
 

@@ -212,7 +212,7 @@ export function HealthBar({ dataLoaded, mapsProvider }: Props) {
               flexShrink: 0,
               boxShadow: ind.status === 'ok' ? `0 0 4px ${t.green}88` : undefined,
             }} />
-            <span style={{ fontSize: 10, color: t.textFaint, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 11, color: t.textFaint, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
               {ind.label}
             </span>
           </div>
@@ -220,7 +220,12 @@ export function HealthBar({ dataLoaded, mapsProvider }: Props) {
       </div>
       <span
         style={{
-          fontSize: 10, color: t.textFaint, letterSpacing: '0.04em', opacity: 0.7,
+          // t.textFaint is already the muted end of the reading hierarchy —
+          // stacking a 0.7 opacity on top of it (as this used to) double-dims
+          // it below WCAG AA. Build/commit/branch/date is exactly the
+          // non-interactive smallprint the 10px floor exists for; it doesn't
+          // also need a second dimming step.
+          fontSize: 10, color: t.textFaint, letterSpacing: '0.04em',
           fontFamily: 'monospace', cursor: 'default',
           // Branch names are unbounded ("claude/cool-edison-NRUtx"), so this
           // line has to be allowed to wrap or it runs off the edge too.
