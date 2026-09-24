@@ -44,7 +44,7 @@
  * identity on every render, remounting them and dropping in-progress input.
  * ============================================================================
  */
-import { useState, useEffect, useRef, useId } from 'react'
+import { useState, useEffect, useRef, useId, lazy, Suspense } from 'react'
 import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, AllowedPair, AllowedHandoffSegment, InterconnectRule, KmlPathInfo, NoteCategory, NoteSeverity, OnNet, SegmentCapacity, SegmentOutage, SolutionNote, VerificationStatus } from '../types'
 import { useTheme, type Theme } from '../theme'
 import { useAuth } from '../context/AuthContext'
@@ -69,7 +69,16 @@ import { api } from '../api/client'
 import { ProductCoveragePanel } from './ProductCoveragePanel'
 import { BulkImportPanel } from './BulkImportPanel'
 import { TechEnrichmentPanel } from './TechEnrichmentPanel'
-import { OutageParserModal } from './OutageParserModal'
+
+// Feature flag: the AI Outage Parser (reads a pasted screenshot/table via an
+// LLM vision call — see backend/app/api/outage_parser.py). Disabled when
+// VITE_ENABLE_OUTAGE_PARSER === 'false'; defaults to enabled, matching the
+// backend's OUTAGE_PARSER_ENABLED default. Lazy-loaded only when enabled so
+// an enterprise deployment that turns this off never ships its bundle.
+const OUTAGE_PARSER_ENABLED = import.meta.env.VITE_ENABLE_OUTAGE_PARSER !== 'false'
+const OutageParserModal = OUTAGE_PARSER_ENABLED
+  ? lazy(() => import('./OutageParserModal').then(m => ({ default: m.OutageParserModal })))
+  : null
 
 // ── Verification status components — module-level so React never remounts them
 // on a parent re-render (which would swallow busy/error state mid-save).
@@ -1696,13 +1705,17 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             modal) + the two type-specific "+ Add" entry points. */}
         {isAdmin && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: isMobile ? '8px 12px' : '8px 20px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
-            <button
-              onClick={() => setOutageParserOpen(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 6, cursor: 'pointer', border: `1px solid ${t.blue}55`, background: t.blue + '18', color: t.blue }}
-            >
-              ⚡ AI Outage Parser
-            </button>
-            <span style={{ fontSize: 11, color: t.textFaint, flex: 1, minWidth: 160 }}>Paste or upload a table to bulk-replace outages or planned events with AI.</span>
+            {OUTAGE_PARSER_ENABLED && (
+              <>
+                <button
+                  onClick={() => setOutageParserOpen(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, padding: '6px 14px', borderRadius: 6, cursor: 'pointer', border: `1px solid ${t.blue}55`, background: t.blue + '18', color: t.blue }}
+                >
+                  ⚡ AI Outage Parser
+                </button>
+                <span style={{ fontSize: 11, color: t.textFaint, flex: 1, minWidth: 160 }}>Paste or upload a table to bulk-replace outages or planned events with AI.</span>
+              </>
+            )}
             <button onClick={() => startAdd(addDefaults.outages)} style={{ ...actionBtn('add'), padding: '5px 12px' }}>+ Add Outage</button>
             <button onClick={() => startAdd(PLANNED_EVENT_ADD_DEFAULTS)} style={{ ...actionBtn('add'), padding: '5px 12px', borderColor: t.orange, color: t.orange }}>+ Add Planned Event</button>
           </div>
@@ -2978,12 +2991,14 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       </div>
 
       {/* AI Outage Parser overlay (opened from the Outages tab) */}
-      {outageParserOpen && (
-        <OutageParserModal
-          segments={segments}
-          onClose={() => setOutageParserOpen(false)}
-          onReplaced={async () => { await onDataChange() }}
-        />
+      {OUTAGE_PARSER_ENABLED && OutageParserModal && outageParserOpen && (
+        <Suspense fallback={null}>
+          <OutageParserModal
+            segments={segments}
+            onClose={() => setOutageParserOpen(false)}
+            onReplaced={async () => { await onDataChange() }}
+          />
+        </Suspense>
       )}
     </div>
   )

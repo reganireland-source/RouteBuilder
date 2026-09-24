@@ -56,23 +56,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from .auth.oidc import OidcAuthError, OidcVerifier, auth_mode
-from .auth.okta import load_okta_settings
-from .auth.entra import load_entra_settings
-from .hazards.service import warm_in_background as warm_hazard_cache
+# NOTE: auth/okta.py and auth/entra.py are NOT imported here at module level —
+# see the `if auth_mode() == "okta": ...` block below, which imports each one
+# only when that provider is actually selected. This is deliberate for
+# enterprise-IT removability: a deployment that only ever runs admin_key or
+# one SSO provider can delete the other provider's file (and its unused
+# dependency, e.g. an MSAL/Okta SDK) without main.py failing to import.
 from .api import (
     auth as auth_api,
     bulk,
-    cableimport,
     capacity,
     city_pairs,
     config,
     feature_requests,
-    hazards,
     health,
     interfaces,
     kml as kml_api,
     nodes,
-    outage_parser,
     outages,
     projects,
     routes,
@@ -83,6 +83,41 @@ from .api import (
     tech_lookups,
 )
 from .db import init_db
+
+
+# ── Optional feature flags ────────────────────────────────────────────────────
+# Each of these gates one deploy-time-removable piece that calls an LLM/AI
+# service or an external third-party host. All four default to ENABLED (unset
+# or anything but the literal string "false" keeps today's always-on
+# behaviour) — these are existing always-on features being retrofitted with an
+# opt-OUT switch, unlike NLP_ENABLED above which is a newer opt-IN feature.
+# An enterprise deployment that wants one of these gone sets the var to
+# "false" (which also lets it stop mounting the corresponding router/import,
+# so the feature's module can later be deleted outright) — see each flag's
+# call site for exactly what it turns off.
+def _outage_parser_enabled() -> bool:
+    """AI Outage Parser (screenshot/table → structured outages via an LLM
+    vision call). False only when OUTAGE_PARSER_ENABLED is exactly "false"."""
+    return os.getenv("OUTAGE_PARSER_ENABLED", "").strip().lower() != "false"
+
+
+def _cable_import_research_enabled() -> bool:
+    """Cable Import's "Research" step (Wikipedia fetch + LLM extraction).
+    False only when CABLE_IMPORT_RESEARCH_ENABLED is exactly "false"."""
+    return os.getenv("CABLE_IMPORT_RESEARCH_ENABLED", "").strip().lower() != "false"
+
+
+def _hazards_enabled() -> bool:
+    """Network Hazards overlay (bushfire.io + USGS external feeds). False
+    only when HAZARDS_ENABLED is exactly "false"."""
+    return os.getenv("HAZARDS_ENABLED", "").strip().lower() != "false"
+
+
+def _scm_enabled() -> bool:
+    """submarinecablemap.com integration (cable search + geometry sync used
+    by KML Chop Import and Cable Import). False only when SCM_ENABLED is
+    exactly "false"."""
+    return os.getenv("SCM_ENABLED", "").strip().lower() != "false"
 
 # ── Logging setup (Finding #24) ───────────────────────────────────────────────
 # One logger namespace for the whole service ("routebuilder"), with two children
@@ -136,8 +171,10 @@ def _open_writes_allowed() -> bool:
 # but not yet configured" and fails closed (503), the same shape of failure
 # ADMIN_KEY being unset already produces today.
 if auth_mode() == "okta":
+    from .auth.okta import load_okta_settings
     _oidc_settings = load_okta_settings()
 elif auth_mode() == "entra":
+    from .auth.entra import load_entra_settings
     _oidc_settings = load_entra_settings()
 else:
     _oidc_settings = None
@@ -214,7 +251,11 @@ async def lifespan(app: FastAPI):
     init_db()
     # Build the hazard cache before anyone asks for it — see warm_in_background.
     # Non-blocking and failure-tolerant: boot never waits on a third-party feed.
-    warm_hazard_cache()
+    # Only imported/called when the feature is enabled (see _hazards_enabled)
+    # so a deployment with HAZARDS_ENABLED=false never touches hazards/service.py.
+    if _hazards_enabled():
+        from .hazards.service import warm_in_background as warm_hazard_cache
+        warm_hazard_cache()
     yield
 
 
@@ -810,18 +851,37 @@ app.include_router(health.router, prefix="/api")
 app.include_router(config.router, prefix="/api")
 app.include_router(city_pairs.router, prefix="/api")
 app.include_router(outages.router, prefix="/api")
-app.include_router(outage_parser.router, prefix="/api")
 app.include_router(bulk.router, prefix="/api")
 app.include_router(interfaces.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
 app.include_router(tech_lookups.router, prefix="/api")
 app.include_router(feature_requests.router, prefix="/api")
 app.include_router(solution_notes.router, prefix="/api")
-app.include_router(hazards.router, prefix="/api")
 app.include_router(kml_api.router, prefix="/api")
-app.include_router(cableimport.router, prefix="/api")
 
 # NLP route parsing — only registered when NLP_ENABLED=true
 if os.getenv("NLP_ENABLED", "").lower() == "true":
     from .api import nlp
     app.include_router(nlp.router, prefix="/api")
+
+# AI Outage Parser — an LLM vision call; the whole router is one feature, so
+# skipping app.include_router (and the import) is enough to remove it, no
+# per-endpoint gating needed. Unmounted means the frontend's calls 404.
+if _outage_parser_enabled():
+    from .api import outage_parser
+    app.include_router(outage_parser.router, prefix="/api")
+
+# Network Hazards overlay — external bushfire.io/USGS feeds, one self
+# contained router (app/api/hazards.py + app/hazards/*).
+if _hazards_enabled():
+    from .api import hazards
+    app.include_router(hazards.router, prefix="/api")
+
+# Cable Import "Research" — app/api/cableimport.py has exactly one endpoint
+# (POST /api/cableimport/research) and it's entirely an LLM call, so the
+# whole router is skippable the same way outage_parser's is. The rest of
+# Cable Import (system/node/segment creation) reuses the ordinary
+# systems/nodes/segments routers above and is unaffected.
+if _cable_import_research_enabled():
+    from .api import cableimport
+    app.include_router(cableimport.router, prefix="/api")

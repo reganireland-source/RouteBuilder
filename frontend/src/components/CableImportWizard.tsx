@@ -66,6 +66,19 @@ import { rankNodeCandidates } from '../utils/nodeMatch'
 import { NODE_TYPE_LABEL } from '../mapGeometry'
 import { Typeahead } from './formFields'
 
+// Feature flag: the "✨ Research" button (Wikipedia fetch + LLM extraction —
+// see backend/app/cableimport/research.py). Disabled when
+// VITE_ENABLE_CABLE_IMPORT_RESEARCH === 'false'; defaults to enabled,
+// matching the backend's CABLE_IMPORT_RESEARCH_ENABLED default. The rest of
+// the wizard (manual entry) is unaffected.
+const CABLE_IMPORT_RESEARCH_ENABLED = import.meta.env.VITE_ENABLE_CABLE_IMPORT_RESEARCH !== 'false'
+
+// Feature flag: the optional submarinecablemap.com link field (step 1) and
+// the Phase 2 geometry hand-off it enables — see backend/app/kml/submarinecablemap.py.
+// Disabled when VITE_ENABLE_SCM === 'false'; defaults to enabled. Not an AI
+// feature — a plain third-party HTTP fetch, proxied through the backend.
+const SCM_ENABLED = import.meta.env.VITE_ENABLE_SCM !== 'false'
+
 interface Props {
   nodes: CableNode[]
   segments: CableSegment[]
@@ -385,18 +398,20 @@ function StepIdentity({
             )}
           </LabeledField>
         </div>
-        <button
-          type="button" onClick={onResearch} disabled={researching || draft.name.trim().length === 0}
-          title="Look up owners, fibre pairs, RFS date and landing stations from Wikipedia and general knowledge"
-          style={{
-            padding: '5px 12px', borderRadius: 4, border: `1px solid ${t.blue}`,
-            background: t.blue + '18', color: t.blue, fontSize: 12, cursor: 'pointer',
-            opacity: researching || draft.name.trim().length === 0 ? 0.5 : 1, whiteSpace: 'nowrap',
-          }}
-        >{researching ? 'Researching…' : '✨ Research'}</button>
+        {CABLE_IMPORT_RESEARCH_ENABLED && (
+          <button
+            type="button" onClick={onResearch} disabled={researching || draft.name.trim().length === 0}
+            title="Look up owners, fibre pairs, RFS date and landing stations from Wikipedia and general knowledge"
+            style={{
+              padding: '5px 12px', borderRadius: 4, border: `1px solid ${t.blue}`,
+              background: t.blue + '18', color: t.blue, fontSize: 12, cursor: 'pointer',
+              opacity: researching || draft.name.trim().length === 0 ? 0.5 : 1, whiteSpace: 'nowrap',
+            }}
+          >{researching ? 'Researching…' : '✨ Research'}</button>
+        )}
       </div>
-      {researchError && <span style={{ fontSize: 11, color: t.red }}>{researchError}</span>}
-      {researchMeta && <ResearchBanner meta={researchMeta} t={t} />}
+      {CABLE_IMPORT_RESEARCH_ENABLED && researchError && <span style={{ fontSize: 11, color: t.red }}>{researchError}</span>}
+      {CABLE_IMPORT_RESEARCH_ENABLED && researchMeta && <ResearchBanner meta={researchMeta} t={t} />}
       <LabeledField label="System ID">
         {id => (
           <input
@@ -442,10 +457,12 @@ function StepIdentity({
         owners={draft.consortium_owners}
         setOwners={owners => setDraft({ ...draft, consortium_owners: owners })}
       />
-      <ScmLinkField
-        scmCables={scmCables} query={scmQuery} setQuery={setScmQuery}
-        selectedId={scmSelectedId} setSelectedId={setScmSelectedId}
-      />
+      {SCM_ENABLED && (
+        <ScmLinkField
+          scmCables={scmCables} query={scmQuery} setQuery={setScmQuery}
+          selectedId={scmSelectedId} setSelectedId={setScmSelectedId}
+        />
+      )}
     </div>
   )
 }
@@ -983,7 +1000,7 @@ export function CableImportWizard({ nodes, segments, systems, onClose, onDataCha
   const [scmSelectedId, setScmSelectedId] = useState<string | null>(null)
   const scmFetchStarted = useRef(false)
   useEffect(() => {
-    if (scmFetchStarted.current) return
+    if (!SCM_ENABLED || scmFetchStarted.current) return
     scmFetchStarted.current = true
     api.searchScmCables('').then(res => setScmCables(res.cables)).catch(() => {})
   }, [])

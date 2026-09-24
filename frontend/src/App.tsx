@@ -138,6 +138,16 @@ const NlpChat = NLP_ENABLED
   ? lazy(() => import('./components/NlpChat'))
   : null
 
+// Feature flag: the Network Hazards overlay (bushfire.io + USGS, proxied
+// through the backend — see backend's HAZARDS_ENABLED). Disabled when
+// VITE_ENABLE_HAZARDS === 'false'; defaults to enabled. This is the
+// deploy-time switch, separate from `hazardsOn` below (the per-user toggle,
+// off by default even when this flag is on) — when this flag is off, the
+// Controls-menu toggle disappears entirely and useHazards is always called
+// with `false` so it never fetches, matching the backend having un-mounted
+// the endpoint it would have called.
+const HAZARDS_ENABLED = import.meta.env.VITE_ENABLE_HAZARDS !== 'false'
+
 /**
  * The four heaviest screens, loaded on demand.
  *
@@ -873,7 +883,7 @@ export default function App() {
   // both the desktop map and MobileLayout's can dim by it. null/inactive
   // means "don't dim anything for this" — same contract as countryHighlight.
   const [assetFilterMatch, setAssetFilterMatch]     = useState<AssetFilterMatch | null>(null)
-  const hazards = useHazards(hazardsOn)
+  const hazards = useHazards(HAZARDS_ENABLED && hazardsOn)
   // Stable identity while the layer is off, so HazardProvider's memo never churns.
   const hazardList = hazards.feed?.hazards ?? EMPTY_HAZARDS
   const [nlpSortKey, setNlpSortKey]                 = useState<SortKey | undefined>(undefined)   // sort key requested by the NLP assistant
@@ -1770,7 +1780,12 @@ export default function App() {
                       { label: 'Show All Outages', icon: '🚢', active: showAllOutages, color: theme.red,  onClick: () => setShowAllOutages(v => !v) },
                       { label: 'Show Planned Events', icon: '🗓️', active: showPlannedEvents, color: theme.orange, onClick: () => setShowPlannedEvents(v => !v) },
                       { label: 'Living World',     icon: '🐋', active: livingWorld,  color: theme.green, onClick: toggleLivingWorld, hint: 'Decorative ocean wildlife — purely visual, no effect on the data' },
-                      { label: 'Network Hazards',  icon: '⚠️', active: hazardsOn,    color: theme.orange, onClick: toggleHazards, hint: 'Live disaster feed (bushfire, earthquake) matched against the network' },
+                      // Absent entirely (not just disabled) when HAZARDS_ENABLED
+                      // is off, since the backend has un-mounted the endpoint
+                      // this would call — see HAZARDS_ENABLED's own comment.
+                      ...(HAZARDS_ENABLED ? [
+                        { label: 'Network Hazards',  icon: '⚠️', active: hazardsOn,    color: theme.orange, onClick: toggleHazards, hint: 'Live disaster feed (bushfire, earthquake) matched against the network' },
+                      ] : []),
                       // Coverage in the label: "KML Mode ON" alone would not
                       // say whether that means 3 cables or 300, and the whole
                       // point of the mode is knowing which lines are real.

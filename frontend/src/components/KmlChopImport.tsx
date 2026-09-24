@@ -36,6 +36,13 @@ import {
   NEW_SEGMENT, dedupeById, nearestNode, stretchKey, stretchLengthKm, stretchesFor,
 } from '../hooks/useKmlChopState'
 
+// Feature flag: the "Sync from Submarine Cable Map" source mode (a plain
+// third-party HTTP fetch, proxied through the backend — see
+// app/kml/submarinecablemap.py and the backend's SCM_ENABLED). Disabled when
+// VITE_ENABLE_SCM === 'false'; defaults to enabled. "Upload files" (the other
+// source mode) is unaffected.
+const SCM_ENABLED = import.meta.env.VITE_ENABLE_SCM !== 'false'
+
 const cell: React.CSSProperties = { padding: '6px 8px', fontSize: 11, verticalAlign: 'top' }
 
 /** A small colour swatch matching the stretch's map colour, so a table row
@@ -302,7 +309,7 @@ export function KmlChopSourcePanel({ state, onClose }: { state: KmlChopState; on
       {!s.flat && (
         <>
           <div style={{ display: 'flex', gap: 6 }}>
-            {(['upload', 'sync'] as const).map(m => (
+            {(SCM_ENABLED ? (['upload', 'sync'] as const) : (['upload'] as const)).map(m => (
               <button
                 key={m}
                 onClick={() => s.setSourceMode(m)}

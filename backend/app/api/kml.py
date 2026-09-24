@@ -58,6 +58,7 @@ one place.
 from __future__ import annotations
 
 import logging
+import os
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 
@@ -71,6 +72,20 @@ from ..kml.parser import KmlParseError, parse_kml, parse_upload
 log = logging.getLogger("routebuilder.kml")
 
 router = APIRouter(prefix="/kml", tags=["kml"])
+
+
+def _scm_enabled() -> bool:
+    """submarinecablemap.com integration. False only when SCM_ENABLED is
+    exactly "false" — matches app/main.py's own _scm_enabled(), duplicated
+    here (rather than imported) so this router has no dependency on main.py,
+    the same "each module reads its own flag" convention NLP_ENABLED already
+    uses across main.py and api/health.py.
+
+    Unlike outage_parser/hazards/cableimport, this router is NOT skippable
+    wholesale — most of app/api/kml.py (upload, chop, library) has nothing to
+    do with submarinecablemap.com, so only the two endpoints/branches that
+    actually call it check this flag."""
+    return os.getenv("SCM_ENABLED", "").strip().lower() != "false"
 
 
 def _node_latlng(nodes, node_id):
@@ -425,6 +440,8 @@ def scm_cables(q: str = ""):
 
     Auth: public read.
     """
+    if not _scm_enabled():
+        raise HTTPException(status_code=503, detail="submarinecablemap.com integration is disabled (SCM_ENABLED=false)")
     try:
         cables = submarinecablemap.search_cables(q) if q else submarinecablemap.list_cables()
     except submarinecablemap.ScmError as exc:
@@ -494,6 +511,8 @@ async def flatten_import(
     parsed_batches = []
 
     if cable_id:
+        if not _scm_enabled():
+            raise HTTPException(status_code=503, detail="submarinecablemap.com integration is disabled (SCM_ENABLED=false) — upload files instead")
         try:
             kml_bytes, filename, cable_name = submarinecablemap.fetch_cable_kml(cable_id)
         except submarinecablemap.ScmError as exc:
