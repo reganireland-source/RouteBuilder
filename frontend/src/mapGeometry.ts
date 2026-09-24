@@ -22,6 +22,10 @@ export function denormalizeLng(lng: number): number {
   return lng > 180 ? lng - 360 : lng
 }
 
+/** Centre of normalizeLng()'s own single-point output range (-30°..330°, a
+ *  360°-wide window) — see normalizeLngPath's second step below. */
+const CANONICAL_LNG_CENTER = 150
+
 /**
  * Normalise a whole surveyed path's longitudes for continuous rendering.
  *
@@ -35,25 +39,42 @@ export function denormalizeLng(lng: number): number {
  * ~308° apart instead of ~52° — a cable that renders as a straight line
  * around most of the world.
  *
- * Fix: anchor the first point with normalizeLng, then unwrap every
- * following point by whichever multiple of 360° keeps it within 180° of
- * the PREVIOUS (already-normalised) point — standard longitude-sequence
- * unwrapping. A genuine transpacific path still normalises exactly as
- * before (each step is already <180° apart); a path that never actually
- * needed the Pacific shift now stays contiguous instead of tearing.
+ * Fix, in two steps:
+ *
+ *  1. Anchor the first point with normalizeLng, then unwrap every following
+ *     point by whichever multiple of 360° keeps it within 180° of the
+ *     PREVIOUS (already-normalised) point — standard longitude-sequence
+ *     unwrapping. A genuine transpacific path still normalises exactly as
+ *     before (each step is already <180° apart); a path that never actually
+ *     needed the Pacific shift now stays contiguous instead of tearing.
+ *
+ *  2. Fold the WHOLE path (never a single point — that would tear it right
+ *     back apart) by whichever multiple of 360° brings its mean longitude
+ *     back toward normalizeLng()'s own output range. Anchoring purely at
+ *     the first point in step 1 fixes the tear, but can still leave a path
+ *     drifted well outside the map's one supported wrap (see Map.tsx's
+ *     maxBounds, -25°..345°) — SACS's Brazil end anchors at 321° and its
+ *     Angola end, unwrapped from there, lands past 370°: contiguous, but
+ *     hanging off the edge of where the map can ever pan to. Folding step 1's
+ *     result back toward this window is what actually make it reachable by
+ *     scrolling. A genuine transpacific path's mean is already inside the
+ *     window, so this step is a no-op for it.
  */
 export function normalizeLngPath(points: [number, number][]): [number, number][] {
   if (points.length === 0) return []
-  const out: [number, number][] = [[points[0][0], normalizeLng(points[0][1])]]
+  const unwrapped: [number, number][] = [[points[0][0], normalizeLng(points[0][1])]]
   for (let i = 1; i < points.length; i++) {
     const [lat, lng] = points[i]
     let n = normalizeLng(lng)
-    const prev = out[i - 1][1]
+    const prev = unwrapped[i - 1][1]
     while (n - prev > 180) n -= 360
     while (n - prev < -180) n += 360
-    out.push([lat, n])
+    unwrapped.push([lat, n])
   }
-  return out
+  const mean = unwrapped.reduce((sum, p) => sum + p[1], 0) / unwrapped.length
+  const shift = Math.round((mean - CANONICAL_LNG_CENTER) / 360) * 360
+  if (shift === 0) return unwrapped
+  return unwrapped.map(([lat, lng]): [number, number] => [lat, lng - shift])
 }
 
 /**
@@ -106,26 +127,16 @@ export function geoLines(
   waypoints?: [number, number][],
   kmlPath?: [number, number][],
 ): [number, number][][] {
-  const nLng1 = normalizeLng(lng1)
-  const nLng2 = normalizeLng(lng2)
-  let d = nLng2 - nLng1
-  if (d >  180) d -= 360
-  if (d < -180) d += 360
-
   if (kmlPath && kmlPath.length >= 2) {
     return [normalizeLngPath(kmlPath)]
   }
 
   if (waypoints && waypoints.length > 0) {
-    const pts: [number, number][] = [
-      [lat1, nLng1],
-      ...waypoints.map(([wlat, wlng]): [number, number] => [wlat, normalizeLng(wlng)]),
-      [lat2, nLng1 + d],
-    ]
+    const pts = normalizeLngPath([[lat1, lng1], ...waypoints, [lat2, lng2]])
     return [catmullRom(pts)]
   }
 
-  return [[[lat1, nLng1], [lat2, nLng1 + d]]]
+  return [normalizeLngPath([[lat1, lng1], [lat2, lng2]])]
 }
 
 /**
