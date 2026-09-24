@@ -34,6 +34,16 @@
 # Endpoint:
 #   POST /api/outages/parse  (admin-only; multipart form: `text`, `files`,
 #                             and optional `event_type`)
+#
+# WIRING / FEATURE FLAG
+# This whole router is one optional feature and is mounted conditionally: in
+# app/main.py, `_outage_parser_enabled()` returns False only when the env var
+# OUTAGE_PARSER_ENABLED is exactly "false" (default/unset => enabled), and
+# `if _outage_parser_enabled(): app.include_router(outage_parser.router, ...)`
+# is what actually skips importing/mounting this module. Nothing in THIS file
+# checks the flag — when disabled, the router (and therefore POST
+# /api/outages/parse) is simply never registered, so the frontend's calls to
+# it 404. That gating lives entirely in main.py, not here.
 # ─────────────────────────────────────────────────────────────────────────────
 import base64
 import io

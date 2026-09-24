@@ -32,13 +32,25 @@
 import { createContext, useContext } from 'react'
 
 export interface Theme {
+  /** The app's overall background — the outermost layer everything else sits on. */
   bgBase: string
+  /** Background for side/bottom panels (sidebar, modals' body) — one layer
+   *  above/below bgBase in the visual stack. */
   bgPanel: string
+  /** The darkest/recessed layer — headers, wells, anything meant to sit
+   *  visually "below" bgBase. */
   bgDeep: string
+  /** Default background for a card/list-row component. */
   bgCard: string
+  /** bgCard's background when that card/row is the selected one. */
   bgCardSelected: string
+  /** Background for an active/chosen control state — a picked sort order, a
+   *  toggled-on button, the currently active choice in a segmented control.
+   *  Distinct from bgCardSelected (a selected list item). */
   bgActiveSort: string
+  /** Background for text inputs and similar editable form fields. */
   bgInput: string
+  /** Background shown under the Leaflet map before/while tiles load. */
   bgMap: string
   border: string
   borderSubtle: string
@@ -68,6 +80,9 @@ export interface Theme {
   mapTileUrl: string
   mapLabelsUrl?: string
   mapAttribution: string
+  /** Which ThemeMode this literal object represents — lets a consumer that
+   *  already has a resolved Theme value branch on which theme it is without
+   *  needing a separate reference to the active ThemeMode. */
   themeId: ThemeMode
 }
 
@@ -156,5 +171,10 @@ export const duskTheme: Theme = {
 }
 
 
+/** React context carrying the currently active Theme; App.tsx provides the
+ *  chosen theme (dark/light/dusk) at the root, defaulting to darkTheme when
+ *  no provider is present. */
 export const ThemeContext = createContext<Theme>(darkTheme)
+/** Hook for reading the active theme — the standard way components access
+ *  colour tokens (e.g. `const t = useTheme()` then `t.bgPanel`). */
 export const useTheme = () => useContext(ThemeContext)

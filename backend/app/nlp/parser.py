@@ -1,5 +1,48 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# parser.py — natural-language route query → structured route-search params.
+#
+# This is the core of the NLP feature (invoked by app/api/nlp.py's
+# POST /api/nlp/parse). It does NOT call an LLM itself; instead it:
+#   1. Builds a big system prompt (SYSTEM_PROMPT) that teaches the model the
+#      current network's vocabulary (real node/segment/system/country ids)
+#      and the exact JSON shape RouteBuilder's search pipeline expects.
+#   2. Hands that prompt plus the user's free-text query to whichever
+#      LLMProvider was selected (see app/nlp/provider.py's get_provider()),
+#      via provider.complete_json(prompt, text).
+#   3. Takes the raw dict the model returns and VALIDATES/SANITISES every
+#      field against the real, current catalogues (node ids, segment ids,
+#      system ids, country codes, enum values) before it is ever trusted —
+#      an LLM can hallucinate an id that looks plausible but does not exist,
+#      or return a free-text value outside the known enum, and this module's
+#      job is to make sure nothing bogus leaks into a NlpParseResponse that
+#      later code (or the frontend) will treat as ground truth.
+#
+# Exports:
+#   - SYSTEM_PROMPT: the format-string template (see parse_route_request for
+#     how it is filled in with the live catalogues).
+#   - parse_route_request(provider, nodes, segments, text): the main entry
+#     point — see its own docstring below.
+#
+# Wiring: app/api/nlp.py's nlp_parse() is the only caller. It loads the
+# current nodes/segments from data_loader and passes them straight through,
+# so the catalogues embedded in the prompt are always the live network state,
+# not a stale snapshot.
+# ─────────────────────────────────────────────────────────────────────────────
 from ..models import DiversityType, NlpParseResponse
 
+# The system prompt sent to the LLM on every /api/nlp/parse call. It is a
+# format-string (note the {node_catalog} etc. placeholders and the doubled
+# {{ }} around the literal JSON example, which format() would otherwise try
+# to interpret as more placeholders) — see parse_route_request() below for
+# where it gets filled in with the live node/segment/system/country lists.
+#
+# This prompt is effectively the "spec" for how RouteBuilder's search
+# pipeline consumes NL queries: it documents the four-stage pipeline
+# (hard constraints → pool selection → display sort) so the model picks the
+# right output field, and enumerates the exact valid values for enum-like
+# fields (diversity types, optimise_for, sort_mode) so this module's
+# validation step (see _VALID_* sets below) has a fighting chance of the
+# model's answer already being in range.
 SYSTEM_PROMPT = """\
 You are TSABuddy, a route-parsing assistant for RouteBuilder — a submarine cable network planning tool.
 Extract structured routing parameters from plain-English requests.

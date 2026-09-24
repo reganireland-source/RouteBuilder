@@ -80,6 +80,8 @@ export function clearAdminToken() { _adminToken = '' }
 // deploys). Only ONE provider is ever active per build (see auth/mode.ts),
 // so a single slot — not one per provider — is all this needs.
 let _getOidcAccessToken: (() => string | null) | null = null
+/** Register the getter used to read a fresh SSO access token on every
+ *  request (see the block comment above for why a getter, not a value). */
 export function setOidcAccessTokenSource(fn: () => string | null) { _getOidcAccessToken = fn }
 
 /** Header fragment merged into EVERY request (see get() below — unlike the

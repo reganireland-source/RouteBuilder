@@ -36,8 +36,26 @@ import { useEffect, useState } from 'react'
 import { getOktaAuth } from '../auth/okta'
 import { GateMessage } from './GateMessage'
 
+/**
+ * Local UI state machine for the gate's own render, not exported:
+ *  - 'checking'      — initial state, resolving handleLoginRedirect()/isAuthenticated().
+ *  - 'redirecting'   — no valid session found; signInWithRedirect() is about to navigate away.
+ *  - 'authenticated' — okta-auth-js reports an authenticated session; render children.
+ *  - 'error'         — something in the flow threw; `error` holds the message.
+ */
 type Status = 'checking' | 'redirecting' | 'authenticated' | 'error'
 
+/**
+ * Whole-app entry gate for VITE_AUTH_MODE=okta. See the file header above
+ * for the full 3-step flow (redirect-callback handling, existing-session
+ * check, signInWithRedirect).
+ *
+ * @param children - The rest of the app tree, rendered only once `status`
+ *   reaches 'authenticated'.
+ * @returns `children` once authenticated; otherwise a <GateMessage> showing
+ *   the current step ("Checking your session…", "Redirecting to sign-in…",
+ *   or the caught error).
+ */
 export function OktaGate({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<Status>('checking')
   const [error, setError] = useState('')

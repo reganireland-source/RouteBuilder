@@ -9,6 +9,16 @@
  * doesn't try to; the dark palette below is hard-coded to look reasonable
  * regardless of which theme the app itself is about to mount into.
  */
+/**
+ * Full-screen centered status message (dark, hard-coded palette — see file
+ * header for why it can't read the active theme).
+ *
+ * @param title - Short bold headline, e.g. "Checking your session…" or
+ *   "Sign-in error".
+ * @param body - Optional smaller supporting line underneath (e.g. the
+ *   caught error's message, or omitted while just waiting).
+ * @returns A fixed, full-viewport overlay with the given text centered.
+ */
 export function GateMessage({ title, body }: { title: string; body?: string }) {
   return (
     <div style={{

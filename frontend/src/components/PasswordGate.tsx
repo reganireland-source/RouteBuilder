@@ -46,6 +46,13 @@ export function PasswordGate({ children }: { children: React.ReactNode }) {
 
   if (authed) return <>{children}</>
 
+  /**
+   * Compares the typed `value` against the baked-in CORRECT password.
+   * On match: persists the unlock to sessionStorage and flips `authed` to
+   * render `children`. On mismatch: clears the input, triggers the 500ms
+   * shake animation (via `shake`) and shows the inline "Incorrect
+   * password." message (via `wrong`), leaving `authed` false.
+   */
   function attempt() {
     if (value === CORRECT) {
       sessionStorage.setItem(SESSION_KEY, 'ok')

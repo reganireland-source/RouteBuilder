@@ -19,6 +19,12 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 
 const STORAGE_KEY = 'rb.tooltipsEnabled'
 
+/**
+ * Reads the persisted tooltip preference from localStorage.
+ * @returns `true` (tooltips on) if nothing was ever stored, otherwise the
+ *   stored boolean; falls back to `true` if localStorage throws (e.g.
+ *   private-browsing mode blocking storage access).
+ */
 function loadEnabled(): boolean {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -28,8 +34,12 @@ function loadEnabled(): boolean {
   }
 }
 
+/** Shape of the context value returned by useTooltipSettings(). */
 interface TooltipSettingsCtx {
+  /** Whether hover tooltips should render anywhere in the app. */
   tooltipsEnabled: boolean
+  /** Updates the preference and persists it to localStorage (see the
+   *  effect below). */
   setTooltipsEnabled: (enabled: boolean) => void
 }
 

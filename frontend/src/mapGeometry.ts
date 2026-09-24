@@ -183,6 +183,8 @@ export const NODE_STYLE: Record<string, { color: string; fill: string; radius: n
   off_net:         { color: '#374151', fill: '#6b7280', radius: 5,   weight: 1,   opacity: 0.65 },
 }
 
+/** Human-readable display name for each NodeType, used anywhere a node's
+ *  type is shown to the user (legends, tooltips, info panels). */
 export const NODE_TYPE_LABEL: Record<string, string> = {
   landing_station: 'CLS (Landing Station)',
   primary_pop:     'Primary PoP',

@@ -19,6 +19,16 @@ import type { Hazard, HazardSeverity } from '../types'
 
 const HazardContext = createContext<Hazard[]>([])
 
+/**
+ * Publishes the current hazard feed to every descendant via context.
+ *
+ * @param hazards - The full, current hazard list (typically from a polling
+ *   fetch higher up the tree); pass `[]` when the layer is off or not yet
+ *   loaded — see the file header on why that looks identical to "no
+ *   hazards" from a consumer's point of view.
+ * @param children - The subtree that may read hazards via useHazardsFor /
+ *   worstSeverityByAsset.
+ */
 export function HazardProvider({ hazards, children }: { hazards: Hazard[]; children: React.ReactNode }) {
   // Memoised on identity: the feed only changes when a poll returns, and a new
   // array every render would re-run every consumer's useMemo for nothing.

@@ -27,6 +27,23 @@ import { useTheme } from '../theme'
 import { nodeLabelById } from '../utils/nodeLabel'
 import type { AppMode, CableNode, NlpParseResponse, NlpSortMode, RouteRequest } from '../types'
 
+/**
+ * Props for NlpChat.
+ *
+ * @property nodes - Full node list, used only to look up display names
+ *   (via nodeLabelById) for the origin/destination node IDs the backend
+ *   returns; NlpChat does not otherwise read or mutate node data.
+ * @property onSearch - Fires the actual route search with the built
+ *   RouteRequest. Called both on auto-run (high/medium confidence) and from
+ *   the manual "Search anyway" button (low confidence).
+ * @property onSwitchMode - Switches the app's top-level view to
+ *   'routebuilder' before searching, so the results are visible.
+ * @property onApplySort - Optional; applies the parsed sort_mode (e.g.
+ *   "by latency") to the results list after the search fires.
+ * @property onPrefill - Optional; mirrors the built RouteRequest into the
+ *   visible route-builder form fields so the UI reflects what was searched,
+ *   not just the results.
+ */
 interface Props {
   nodes: CableNode[]
   onSearch: (req: RouteRequest) => void
@@ -35,6 +52,10 @@ interface Props {
   onPrefill?: (req: Partial<RouteRequest>) => void
 }
 
+/** Decorative robot-head avatar (hand-drawn SVG, no external asset) shown
+ *  next to the TSABuddy label and next to each parsed response. Purely
+ *  presentational — `size` scales it for the two call sites (header icon
+ *  vs. inline next to the explanation text). */
 function TSABuddyAvatar({ size = 28 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -60,12 +81,18 @@ function TSABuddyAvatar({ size = 28 }: { size?: number }) {
   )
 }
 
+/** Badge color per NlpParseResponse.confidence level — green/amber/red,
+ *  matching the traffic-light convention used elsewhere in the app. */
 const CONFIDENCE_COLOR: Record<string, string> = {
   high:   '#22c55e',
   medium: '#f59e0b',
   low:    '#ef4444',
 }
 
+/** Clickable example prompts shown above the input before a result exists,
+ *  to demonstrate the range of phrasing the backend LLM parser understands
+ *  (endpoints, diversity, avoidance, hop limits, sort). Clicking one fills
+ *  the input but does not auto-submit. */
 const EXAMPLES = [
   'Singapore to Hong Kong with wet diversity',
   'Sydney to Tokyo avoiding AAG, optimise for margin',
@@ -73,6 +100,20 @@ const EXAMPLES = [
   'SIN3 to TKO1 on EAC, full diversity, sort by latency',
 ]
 
+/**
+ * "TSABuddy" — collapsible natural-language route request bar.
+ *
+ * Renders a collapsed header strip by default; expanding it reveals an
+ * example-prompt row (before any result), a text input + submit, and,
+ * after a parse, an explanation/confidence summary of what the backend
+ * understood. See the file header for the full request/response contract
+ * and the auto-search vs. manual-search behavior split by confidence.
+ *
+ * Default export (required by React.lazy — see the file header on why this
+ * component is lazy-loaded only when NLP_ENABLED is on).
+ *
+ * @param props - See {@link Props}.
+ */
 export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort, onPrefill }: Props) {
   const t = useTheme()
   const [input, setInput]           = useState('')
@@ -88,6 +129,27 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort, on
     if (expanded) inputRef.current?.focus()
   }, [expanded])
 
+  /**
+   * Submits the typed text to the backend NLP parser and, depending on the
+   * result's confidence, either runs the search immediately or leaves it
+   * for the user to trigger manually.
+   *
+   * Flow:
+   *  1. Guard against empty input or a request already in flight.
+   *  2. POST the raw text via api.parseNlp — the backend LLM does all the
+   *     actual understanding; this function just interprets the structured
+   *     response.
+   *  3. High/medium confidence WITH both endpoints resolved: build a full
+   *     RouteRequest from the parsed fields, switch the app into
+   *     'routebuilder' mode, prefill the visible form, fire the search, and
+   *     apply any requested sort — all without further user action.
+   *  4. Low confidence (or missing endpoints): just render the summary;
+   *     the "Search anyway" button (further down, duplicating this same
+   *     RouteRequest-building logic) lets the user trigger it by hand.
+   *  5. On failure, translate common HTTP status prefixes on the thrown
+   *     error's message (set by api/client.ts) into actionable setup hints
+   *     rather than a raw stack trace.
+   */
   async function handleSubmit() {
     const text = input.trim()
     if (!text || loading) return
@@ -101,6 +163,11 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort, on
       // Auto-search if confidence is high or medium and we have endpoints
       if ((res.confidence === 'high' || res.confidence === 'medium') && res.start_node_id && res.end_node_id) {
         onSwitchMode('routebuilder')
+        // Field-by-field mapping from the LLM's parsed response shape
+        // (NlpParseResponse) to the route-search request shape
+        // (RouteRequest) — the two are similar but not identical (e.g.
+        // nullable optional fields here become `undefined` to match
+        // RouteRequest's optional-property contract).
         const req: RouteRequest = {
           start_node_id:          res.start_node_id,
           end_node_id:            res.end_node_id,
@@ -125,6 +192,10 @@ export default function NlpChat({ nodes, onSearch, onSwitchMode, onApplySort, on
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
+      // api/client.ts throws Errors whose message is prefixed with the HTTP
+      // status code (e.g. "404 Not Found: ..."); branch on that prefix to
+      // give a specific, actionable hint per known failure mode rather than
+      // surfacing the raw backend error text.
       if (msg.startsWith('404')) {
         setError('TSABuddy is not enabled on the backend — set NLP_ENABLED=true in your Railway environment variables')
       } else if (msg.startsWith('503')) {

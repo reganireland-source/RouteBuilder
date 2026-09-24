@@ -35,8 +35,26 @@ import { useEffect, useState } from 'react'
 import { getMsal, refreshEntraToken } from '../auth/entra'
 import { GateMessage } from './GateMessage'
 
+/**
+ * Local UI state machine for the gate's own render, not exported:
+ *  - 'checking'      — initial state, resolving handleRedirectPromise()/cached accounts.
+ *  - 'redirecting'   — no session found; loginRedirect() is about to navigate away.
+ *  - 'authenticated' — an MSAL account exists and its token has been refreshed; render children.
+ *  - 'error'         — something in the flow threw; `error` holds the message.
+ */
 type Status = 'checking' | 'redirecting' | 'authenticated' | 'error'
 
+/**
+ * Whole-app entry gate for VITE_AUTH_MODE=entra. See the file header above
+ * for the full 4-step flow (redirect-promise handling, cached-account check,
+ * loginRedirect, token refresh).
+ *
+ * @param children - The rest of the app tree, rendered only once `status`
+ *   reaches 'authenticated'.
+ * @returns `children` once authenticated; otherwise a <GateMessage> showing
+ *   the current step ("Checking your session…", "Redirecting to sign-in…",
+ *   or the caught error).
+ */
 export function EntraGate({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<Status>('checking')
   const [error, setError] = useState('')

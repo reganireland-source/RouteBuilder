@@ -129,6 +129,26 @@ ALLOWED_SCHEMES = ("http", "https")
 
 
 def _get_json(url: str, *, timeout: float, headers: Optional[dict[str, str]] = None) -> Any:
+    """
+    GET `url` and parse the body as JSON, merging in a default User-Agent and
+    Accept header (see `headers`, which override the defaults).
+
+    Params:
+        url: full request URL. Rejected before any network call is made
+            unless its scheme is in `ALLOWED_SCHEMES` (see the module note on
+            why `file:`/`ftp:` must never reach `urlopen`).
+        timeout: socket timeout in seconds, passed straight to `urlopen`.
+        headers: extra/overriding request headers, e.g. bushfire.io's Bearer
+            Authorization header.
+
+    Returns: the parsed JSON body (typically a dict).
+
+    Raises: `SourceError` for a disallowed scheme, an HTTP error status, an
+    unreachable host, a timeout, or a body that isn't valid JSON. Every
+    branch produces a message safe to show a user — see the inline comment
+    on the HTTPError branch for why the raw response/headers are never
+    included.
+    """
     scheme = urllib.parse.urlparse(url).scheme.lower()
     if scheme not in ALLOWED_SCHEMES:
         raise SourceError(f"refusing to fetch a {scheme or 'schemeless'} URL")
@@ -170,6 +190,7 @@ class BushfireSource:
         self._geometry_cache: dict[tuple, dict] = {}
 
     def _headers(self) -> dict[str, str]:
+        """Bearer-auth headers for every bushfire.io request this source makes."""
         return {"Authorization": f"Bearer {self.api_key}", "Accept": "application/json"}
 
     def fetch(self, min_severity_rank: int, severity_rank) -> list[Hazard]:
@@ -193,6 +214,20 @@ class BushfireSource:
         return hazards
 
     def _to_hazard(self, feature: dict) -> Optional[Hazard]:
+        """
+        Normalise one bushfire.io GeoJSON `Feature` (from the cheap `simple=true`
+        discovery pass) into a `Hazard`, or None to drop it.
+
+        A feature is dropped — never raised on — for any of: explicitly not
+        visible, a dead/closed status (`BUSHFIRE_DEAD_STATUSES`), an
+        `eventClassification` we don't map (`BUSHFIRE_KIND_MAP`), an
+        `alertLevel` we don't map (`BUSHFIRE_SEVERITY_MAP`), missing/unusable
+        geometry, or a missing `eKey` (the id we key everything else on).
+
+        `hazard.geometry` is left as None here — real geometry is filled in
+        later by `_hydrate`, which is why the centroid computed from the
+        cheap point geometry is what seeds `lat`/`lng` for now.
+        """
         props = feature.get("properties") or {}
         if props.get("visible") is False:
             return None
@@ -361,11 +396,19 @@ def _detail_geometry(detail: Any) -> Optional[dict]:
 
 
 def _authorities(props: dict) -> list[dict]:
+    """
+    The `authorities` list nested under a feature's `provenance` block, if any.
+
+    Note the `or` fallback to `props.get("provinance")`: that misspelling has
+    been observed from the upstream API itself, not a typo here — both keys
+    are checked so a fixed-or-unfixed upstream response is handled the same.
+    """
     prov = props.get("provinance") or props.get("provenance") or {}
     return prov.get("authorities") or []
 
 
 def _first_authority_url(props: dict) -> Optional[str]:
+    """First authority with a non-empty `url`, used when `attributionUrl` is absent."""
     for a in _authorities(props):
         if a.get("url"):
             return a["url"]
@@ -373,6 +416,7 @@ def _first_authority_url(props: dict) -> Optional[str]:
 
 
 def _first_authority_name(props: dict) -> Optional[str]:
+    """First authority with a non-empty `name`, used when `attribution` is absent."""
     for a in _authorities(props):
         if a.get("name"):
             return a["name"]
@@ -403,6 +447,22 @@ class UsgsSource:
         self.timeout = timeout
 
     def fetch(self, min_severity_rank: int, severity_rank) -> list[Hazard]:
+        """
+        Fetch the current USGS GeoJSON feed and normalise every feature that
+        parses and clears `min_severity_rank`.
+
+        Params:
+            min_severity_rank: floor from `severity_rank(min_severity())` in
+                service.py; quakes ranking below it are dropped.
+            severity_rank: the `HazardSeverity` -> int ranking function,
+                passed in rather than imported so this source stays testable
+                without importing the whole hazards.models module tree.
+
+        Returns: the surviving hazards, unsorted (service.py sorts the
+        combined list). Unlike `BushfireSource.fetch`, this is a single pass
+        — USGS geometry is already just an epicentre point, so there is no
+        hydration step to run afterwards.
+        """
         payload = _get_json(self.feed_url, timeout=self.timeout)
         hazards: list[Hazard] = []
         for feature in payload.get("features") or []:
@@ -415,6 +475,16 @@ class UsgsSource:
         return hazards
 
     def _to_hazard(self, feature: dict) -> Optional[Hazard]:
+        """
+        Normalise one USGS GeoJSON `Feature` into a `Hazard`, or None to drop
+        it (missing coordinates, or no `mag` reported).
+
+        Severity comes from `_magnitude_severity`, not from USGS's own
+        `alert` field (see `UsgsSource`'s class docstring for why). `detail`
+        is assembled as a short human-readable string — magnitude, scale,
+        depth, place, and a tsunami note when relevant — since USGS gives no
+        prose summary of its own the way bushfire.io's `body` does.
+        """
         props = feature.get("properties") or {}
         geom = feature.get("geometry") or {}
         coords = geom.get("coordinates") or []
@@ -488,12 +558,15 @@ def _epoch_ms_to_iso(value: Any) -> Optional[str]:
 
 
 def bushfire_api_key() -> str:
+    """The `BUSHFIRE_API_KEY` env var, stripped; `""` when unset/unconfigured."""
     return os.getenv("BUSHFIRE_API_KEY", "").strip()
 
 
 def bushfire_base_url() -> str:
+    """`BUSHFIRE_API_URL` if set, else `DEFAULT_BUSHFIRE_URL` (also the fallback for a blank value)."""
     return os.getenv("BUSHFIRE_API_URL", DEFAULT_BUSHFIRE_URL).strip() or DEFAULT_BUSHFIRE_URL
 
 
 def usgs_feed_url() -> str:
+    """`USGS_FEED_URL` if set, else `DEFAULT_USGS_URL` (also the fallback for a blank value)."""
     return os.getenv("USGS_FEED_URL", DEFAULT_USGS_URL).strip() or DEFAULT_USGS_URL
