@@ -84,10 +84,29 @@ export function NodeInfoPanel({
     const vw  = window.innerWidth
     const vh  = window.innerHeight
 
-    // Prefer right of cursor; flip left if it would overflow the right edge
-    let x = initialX + 15
-    if (x + W + PAD > vw) x = initialX - W - 15
-    x = Math.max(PAD, Math.min(x, vw - W - PAD))
+    // MARGIN, not just a gap: (initialX, initialY) is the node's own screen
+    // position (a real map click, or Asset Search's fly-to target — see
+    // handleGoToNode), and the panel is placed entirely to one side of it so
+    // its own marker/pulse/label never end up under the card regardless of
+    // how tall the card's content is. A plain vertical clamp to the viewport
+    // (no horizontal separation guarantee) is what used to let a tall card
+    // slide right back down over the node it describes.
+    const MARGIN = 24
+    let x: number
+    if (initialX + MARGIN + W + PAD <= vw) {
+      x = initialX + MARGIN // prefer right of the node
+    } else if (initialX - MARGIN - W >= PAD) {
+      x = initialX - MARGIN - W // else left of the node
+    } else {
+      // Neither side fully fits (a very narrow window) — pick whichever
+      // side has more room, but still keep the margin so the card can never
+      // slide back on top of the node itself.
+      const roomRight = vw - initialX
+      const roomLeft  = initialX
+      x = roomRight >= roomLeft
+        ? Math.min(initialX + MARGIN, vw - W - PAD)
+        : Math.max(initialX - MARGIN - W, PAD)
+    }
 
     // Prefer slightly above cursor; push up if it overflows the bottom
     let y = initialY - 80

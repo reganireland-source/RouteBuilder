@@ -213,6 +213,10 @@ interface Props {
   onSegmentClick?: (segment: CableSegment, screenX: number, screenY: number) => void
   /** The segment whose info card is open, drawn emphasised. */
   selectedSegmentId?: string | null
+  /** The node whose info card is open (click or Asset Search), pulsed on the
+   *  map so it stays unmistakable while its card is up — see the
+   *  rb-node-select-pulse ring rendered below. */
+  selectedNodeId?: string | null
   /** Fly the map to one node. `key` is bumped by the caller on every request so
    *  asking for the SAME node twice still flies (the user typed its code
    *  again); without it the effect would see identical deps and do nothing. */
@@ -766,7 +770,7 @@ function computeActiveLightSegments({
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, controlsOpen = false, kmlPaths = EMPTY_KML_PATHS, kmlMode = false, kmlPreview = EMPTY_PREVIEW, kmlPreviewKey = 0, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, assetFilter, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, mapStyle = 'standard', onMapStyleChange, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace, kmlChop = null }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, selectedNodeId = null, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, controlsOpen = false, kmlPaths = EMPTY_KML_PATHS, kmlMode = false, kmlPreview = EMPTY_PREVIEW, kmlPreviewKey = 0, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, assetFilter, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, mapStyle = 'standard', onMapStyleChange, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace, kmlChop = null }: Props) {
   const t = useTheme()
   const narrowViewport = useNarrowViewport()
   const { hoveredSegmentId } = useSegmentHover()
@@ -960,6 +964,17 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
       .rb-segment-glow {
         animation: rb-segment-glow-pulse 1.4s ease-in-out infinite;
         filter: blur(2px);
+      }
+      /* Selected-node ring — "this is the node the open card describes."
+         Same stroke-width/opacity pulse language as the route/segment glow
+         above (not an animated radius — geometry attributes like r/cx/cy
+         animate inconsistently across SVG renderers, stroke-width doesn't). */
+      @keyframes rb-node-select-pulse {
+        0%, 100% { opacity: 0.25; stroke-width: 2;  }
+        50%      { opacity: 1;    stroke-width: 10; }
+      }
+      .rb-node-select-pulse {
+        animation: rb-node-select-pulse 1.4s ease-in-out infinite;
       }
       /* High-contrast map style: desaturate the tiles (both the base and any
          labels overlay live in this one Leaflet pane) rather than swapping
@@ -1414,6 +1429,28 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
             center={[node.lat, normalizeLng(node.lng)]}
             radius={ns.radius + 4}
             pathOptions={{ color: t.orange, fillOpacity: 0, weight: 2, dashArray: '3 2' }}
+            interactive={false}
+          />
+        )
+      })}
+
+      {/*
+        Selected-node pulse — "this is the node whose card is open," for both
+        a map click (selectedNodeId) and an Asset Search jump (spotlightNodeId
+        — see spotlightNodeId's own doc comment on why that one's separate).
+        Usually the same node; a Set means either source lights it up without
+        drawing two overlapping rings if they ever briefly disagree.
+      */}
+      {[...new Set([selectedNodeId, spotlightNodeId].filter((id): id is string => !!id))].map(id => {
+        const node = nodesById[id]
+        if (!node) return null
+        const ns = NODE_STYLE[node.type] ?? NODE_STYLE.extension_pop
+        return (
+          <CircleMarker
+            key={`selected-pulse-${id}`}
+            center={[node.lat, normalizeLng(node.lng)]}
+            radius={ns.radius + 5}
+            pathOptions={{ color: t.blue, fillOpacity: 0, weight: 2, className: 'rb-node-select-pulse' }}
             interactive={false}
           />
         )

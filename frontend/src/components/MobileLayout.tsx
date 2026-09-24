@@ -759,6 +759,7 @@ export function MobileLayout({
             onNodeClick={mode === 'routemanual' && onManualNodeClick ? onManualNodeClick : onNodeClick}
             onSegmentClick={mode === 'routemanual' ? undefined : onSegmentClick}
             selectedSegmentId={selectedSegment?.segment.id ?? null}
+            selectedNodeId={selectedNode?.node.id ?? null}
             controlsOpen={drawerOpen}
             kmlPaths={kmlPaths}
             kmlMode={kmlMode}
