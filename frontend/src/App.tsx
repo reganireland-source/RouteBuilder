@@ -420,6 +420,11 @@ function isSquarishTouchViewport(): boolean {
   return aspect >= 0.8 && aspect <= 1.25
 }
 
+/** True when the mobile layout should be used: either an ordinary narrow
+ *  viewport (isNarrowViewport) or a squarish high-density touch screen
+ *  (isSquarishTouchViewport). Pure function of the current window size/
+ *  device signals — no state of its own; useIsMobile wraps it in a hook
+ *  that re-evaluates on resize. */
 function computeIsMobile(): boolean {
   return isNarrowViewport() || isSquarishTouchViewport()
 }
@@ -560,6 +565,29 @@ function ModeBanner({ activeProject, onSwitch, onExit, theme }: {
   )
 }
 
+/**
+ * The root component of the RouteBuilder frontend (default export of this file).
+ *
+ * Takes no props — it is mounted once at the top of the React tree (see
+ * main.tsx) and owns essentially all application state itself: the active
+ * `mode`, the loaded reference dataset (nodes/segments/systems/capacity/
+ * rules/config/outages), search results, pinned routes, the active project,
+ * Network Editor's staged edits, every modal's open/closed flag, and the
+ * various map display toggles. See the file-level docblock above for the
+ * full state model, the search data flow, and how pinned routes/projects
+ * relate to one another.
+ *
+ * Renders one of two mutually-exclusive layouts depending on `useIsMobile()`:
+ *   - narrow/squarish-touch viewports get <MobileLayout>, a single-column
+ *     UI that receives the same state and handlers as props;
+ *   - everything else gets the three-column desktop layout defined inline
+ *     below (left = mode controls, middle = RouteList, right = the Map),
+ *     plus a top-right Controls menu and a stack of portalled modals.
+ * Both branches share the same HazardProvider/ThemeContext wrapping and the
+ * same handler functions defined in this component body, so behaviour is
+ * kept in sync between the two layouts by construction rather than by
+ * duplicating logic.
+ */
 export default function App() {
   const isMobile = useIsMobile()
 

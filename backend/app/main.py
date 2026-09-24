@@ -1,3 +1,47 @@
+"""
+FastAPI application entrypoint for the RouteBuilder backend.
+
+WHAT THIS FILE DOES
+--------------------
+This module builds the single `app` object that uvicorn/Railway serve. It is
+the wiring layer, not business logic: business logic lives in `app/api/*`
+(route handlers), `app/pathfinder.py` + `app/graph.py` (route search),
+`app/data_loader.py` (storage) and `app/auth/*` (SSO). What lives HERE is:
+
+  1. Logging setup (module-level, runs at import time) — one "routebuilder"
+     logger namespace with ".security" and ".access" children.
+  2. `lifespan` — startup hook: logs the effective auth mode, calls
+     `init_db()` (see app/db.py) and warms the hazard cache in the
+     background (see app/hazards/service.py). No app-level shutdown logic.
+  3. Five ASGI/HTTP middlewares, registered in a deliberate order (see the
+     big banner comment below `app = FastAPI(...)`):
+       auth_guard -> BodySizeLimitMiddleware -> security_headers ->
+       request_context -> CORSMiddleware
+     Read that banner before touching registration order — it documents a
+     real production incident (Finding: CORS must be outermost) that
+     re-ordering would silently reintroduce.
+  4. Router registration — every `app/api/*.py` router is mounted here under
+     the `/api` prefix; this is the map from URL path to handler module.
+
+HOW IT'S WIRED INTO THE REST OF THE BACKEND
+--------------------------------------------
+  * Every request enters through the middleware chain built in this file,
+    then dispatches into one of the routers imported from `app/api/`.
+  * `auth_guard` (this file) is what makes `app/api/*` handlers trust that a
+    request reaching them already passed either the ADMIN_KEY check or SSO
+    (Okta/Entra) authentication/authorization — handlers themselves do not
+    re-check auth.
+  * `app/db.py`'s `init_db()` is called once here at startup; `app/data_loader.py`
+    (this backend's storage layer) assumes the schema/migrations it creates
+    already exist by the time any request is served.
+  * `app/hazards/service.py`'s `warm_in_background()` is kicked off here so the
+    hazard-overlay endpoints have cached data ready without the first caller
+    paying for a slow upstream fetch.
+
+Nothing in this file talks to `pathfinder.py`/`graph.py`/`data_loader.py`
+directly — it only mounts the routers (`routes.router`, `nodes.router`, ...)
+that do.
+"""
 import logging
 import os
 import re
@@ -110,6 +154,19 @@ def _bearer_token(request: Request) -> str:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """FastAPI lifespan hook: runs once at process startup (the code before
+    `yield`) and once at shutdown (after `yield`, which here is empty — there
+    is no shutdown cleanup).
+
+    Startup responsibilities:
+      * Log the effective auth mode (okta/entra/admin_key/open-dev/misconfigured)
+        so a bad deploy is diagnosable from the first log line.
+      * Warn loudly if CORS is wide open (ALLOWED_ORIGINS="*").
+      * Call `init_db()` (app/db.py) to run/verify schema migrations before
+        any request is served.
+      * Kick off `warm_hazard_cache()` (app/hazards/service.py) — non-blocking,
+        so a slow or unreachable upstream hazard feed never delays boot.
+    """
     # Finding #2: write authorization now fails CLOSED. Make the resulting mode
     # obvious in the logs at boot so a misconfigured deploy is diagnosable from
     # the first log line instead of from a stream of 503s.
@@ -243,6 +300,13 @@ _last_bucket_sweep = 0.0
 # used. (This header is only ever used for rate-limit bucketing and logging —
 # never for authorization decisions.)
 def _trust_proxy_headers() -> bool:
+    """True unless TRUST_PROXY_HEADERS is explicitly set to "false".
+
+    Defaults to trusting X-Forwarded-For (see the Finding #18 comment above)
+    because this service normally sits behind a proxy that sets and
+    sanitises that header. Any value other than a literal "false" (unset,
+    "true", "1", a typo) keeps the trusting default.
+    """
     return os.getenv("TRUST_PROXY_HEADERS", "").strip().lower() != "false"
 
 
@@ -280,6 +344,22 @@ def _sweep_rate_buckets(now: float) -> None:
 
 
 def _rate_limited(client_ip: str) -> bool:
+    """Sliding-window rate-limit check/record for one client IP.
+
+    Returns True if `client_ip` has already made `_RATE_LIMIT` requests within
+    the trailing `_RATE_WINDOW_SECONDS`, i.e. this request must be rejected
+    with 429; otherwise records this request's timestamp and returns False.
+
+    Implementation: each IP gets a `deque` of request timestamps (monotonic
+    clock). On every call, timestamps older than the window are popped off the
+    left before counting, so the window "slides" rather than resetting on a
+    fixed boundary. `_rate_buckets` is an OrderedDict kept in
+    least-recently-used order (`move_to_end` on every touch) so the eviction
+    backstop at the end can cheaply drop the coldest bucket first with
+    `popitem(last=False)` once `_MAX_RATE_BUCKETS` is exceeded — bounding
+    memory even under an IP-rotating abuser. Side effect: mutates
+    `_rate_buckets` (the module-level state) on every call.
+    """
     now = time.monotonic()
     _sweep_rate_buckets(now)
 
@@ -411,6 +491,23 @@ def _sso_auth_check(request: Request) -> Optional[JSONResponse]:
 
 @app.middleware("http")
 async def auth_guard(request: Request, call_next):
+    """The innermost middleware (runs first on the way in): gates writes (and,
+    in SSO mode, every request) before any handler or other middleware sees
+    the request. Two entirely different code paths depending on auth_mode():
+
+      * "okta" / "entra": rate-limit the open/exempt POST endpoints, then
+        delegate the actual auth/authorization decision to `_sso_auth_check`.
+        A non-None result from that check short-circuits the request.
+      * anything else (the original admin-key model): only _WRITE_METHODS are
+        gated. Exempt paths are rate-limited instead of authenticated. Every
+        other write must present X-Admin-Token matching ADMIN_KEY (compared
+        with `secrets.compare_digest` to avoid a timing side-channel), unless
+        ALLOW_OPEN_WRITES=true (explicit insecure dev mode) or ADMIN_KEY is
+        unset (in which case writes fail closed with 503 — see Finding #2).
+
+    Returns either a short-circuiting JSONResponse or the downstream
+    `await call_next(request)` result.
+    """
     if auth_mode() in ("okta", "entra"):
         if request.url.path in _EXEMPT_WRITE_PATHS and _rate_limited(_client_ip(request)):
             return JSONResponse(
@@ -485,11 +582,29 @@ _TOO_LARGE_START: Message = {
 
 
 class BodySizeLimitMiddleware:
+    """Raw ASGI middleware that rejects request bodies larger than `max_bytes`
+    with HTTP 413, enforced on bytes actually received rather than trusting
+    the client-supplied Content-Length header (see the Finding #25 comment
+    above for why the header alone is not enough). Implemented as a raw ASGI
+    callable — not `BaseHTTPMiddleware` — specifically because it needs to
+    wrap the `receive` channel to count body bytes as they stream in, which
+    `BaseHTTPMiddleware`'s dispatch signature does not expose.
+    """
+
     def __init__(self, app: ASGIApp, max_bytes: int = _MAX_BODY_BYTES) -> None:
+        """Store the wrapped ASGI app and the byte ceiling (defaults to the
+        module-level `_MAX_BODY_BYTES`, itself driven by MAX_BODY_BYTES)."""
         self.app = app
         self.max_bytes = max_bytes
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """ASGI entrypoint. Non-HTTP scopes (e.g. lifespan, websocket) pass
+        straight through unmodified. For HTTP requests: fast-reject an
+        honestly oversized Content-Length without reading any body bytes,
+        otherwise wrap `receive`/`send` (see `limited_receive`/`guarded_send`
+        below) so an over-budget body is caught mid-stream and answered with
+        a single 413, and any exception the wrapped app raises as a result of
+        that forced disconnect is swallowed rather than surfaced as a 500."""
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
@@ -509,6 +624,12 @@ class BodySizeLimitMiddleware:
         response_started = False
 
         async def limited_receive() -> Message:
+            """Wraps `receive`, tallying body bytes as they arrive. Once the
+            running total exceeds `self.max_bytes`, sends the 413 response
+            itself (only once, guarded by `rejected`) and reports an
+            `http.disconnect` to the wrapped app instead of the real message,
+            so the app's own body-reading code stops rather than buffering an
+            unbounded amount of data."""
             nonlocal received, rejected
             message = await receive()
             if message["type"] == "http.request":
@@ -523,6 +644,11 @@ class BodySizeLimitMiddleware:
             return message
 
         async def guarded_send(message: Message) -> None:
+            """Wraps `send`, dropping anything the app tries to emit after we
+            have already answered with our own 413 — prevents writing two
+            responses onto the same connection. Also tracks whether a
+            response has started, so `limited_receive` knows whether it is
+            still safe to send the 413 itself."""
             nonlocal response_started
             if rejected:
                 # We already sent the 413 — drop whatever the app emits so we
@@ -543,6 +669,10 @@ class BodySizeLimitMiddleware:
 
     @staticmethod
     async def _reject(send: Send) -> None:
+        """Send the pre-built 413 "Request body too large" response (status
+        line + headers, then the fixed JSON body) over the given ASGI `send`
+        channel. `dict(_TOO_LARGE_START)` copies the module-level message so
+        nothing downstream can mutate the shared template."""
         await send(dict(_TOO_LARGE_START))
         await send({"type": "http.response.body", "body": _TOO_LARGE_BODY})
 
@@ -565,6 +695,11 @@ _CSP = os.getenv(
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
+    """Attach hardening headers (CSP, X-Content-Type-Options, X-Frame-Options,
+    Referrer-Policy, HSTS) to every outgoing response, after the handler (or
+    an inner middleware short-circuit) has produced it. See the `_CSP`
+    comment above for why the Content-Security-Policy can safely deny
+    everything (this service returns JSON only, never HTML/JS/CSS)."""
     response = await call_next(request)
     response.headers["Content-Security-Policy"] = _CSP
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -610,6 +745,14 @@ def _correlation_id(request: Request) -> str:
 
 @app.middleware("http")
 async def request_context(request: Request, call_next):
+    """Stamp every request with a correlation id and emit one structured
+    access-log line per request, on both success and failure paths (the
+    logging happens in a `finally` so an exception from `call_next` still
+    gets logged, with status_code left at its 500 default in that case).
+    The correlation id is exposed on `request.state.request_id` for handlers
+    to echo into error payloads, and echoed back as the `X-Request-ID`
+    response header. See the Finding #24 comment above for what is
+    deliberately NOT logged (headers, query strings, cookies, bodies)."""
     request_id = _correlation_id(request)
     # Exposed on request.state so handlers can include the id in error payloads.
     request.state.request_id = request_id

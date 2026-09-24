@@ -619,6 +619,9 @@ def find_routes(
     # Filter by max hop counts — each segment is one hop, classified by type
     if max_wet_hops is not None or max_terrestrial_hops is not None:
         def hop_counts(path: list[str]) -> tuple[int, int]:
+            """Count (wet_hops, terrestrial_hops) for one candidate node path,
+            classifying each segment on the path by its `type` field. Used to
+            enforce max_wet_hops / max_terrestrial_hops below."""
             wet = terr = 0
             for seg_id in path_to_segment_ids(working_G, path):
                 seg = segments_by_id.get(seg_id)

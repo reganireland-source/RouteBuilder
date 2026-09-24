@@ -49,6 +49,13 @@ import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, A
 import { useTheme, type Theme } from '../theme'
 import { useAuth } from '../context/AuthContext'
 import { nodeLabelById } from '../utils/nodeLabel'
+/**
+ * Tracks whether the viewport is narrower than the mobile breakpoint (768px),
+ * re-checking on every window resize. Drives the modal's mobile-vs-desktop
+ * layout switch (MobileCard stacks vs the flex table rows) throughout this
+ * file. Returns the current boolean and re-renders the calling component
+ * whenever the breakpoint is crossed.
+ */
 function useIsMobile(): boolean {
   const [mobile, setMobile] = useState(() => window.innerWidth < 768)
   useEffect(() => {
@@ -468,6 +475,10 @@ function NodeSearchField({ label, k, src, setSrc, nodes }: {
 
 /** Type-ahead combobox for picking a segment id (used by capacity/outage forms,
  *  which reference a segment). Stores the selected segment's id into `src[k]`. */
+// NOTE: the docstring above was originally written for SegmentSearchField
+// (declared further below at line ~515) but KmlBadge was inserted between them
+// afterwards, leaving it orphaned here. Preserved as-is; SegmentSearchField
+// carries its own docstring at its declaration site.
 /**
  * Whether a segment has route geometry on file, and how good a fit it is.
  *
@@ -512,6 +523,13 @@ function KmlBadge({ info, t }: { info?: KmlPathInfo; t: Theme }) {
   )
 }
 
+/**
+ * Like <NodeSearchField> but for choosing a segment id: a type-ahead combobox
+ * that filters `segments` by id/name/system/start-or-end node as the admin
+ * types, and stores the selected segment's id into `src[k]`. Used by the
+ * capacity and outage forms (and the Notes panel's "segment" target picker),
+ * which reference a segment by id rather than embedding it inline.
+ */
 function SegmentSearchField({ label, k, src, setSrc, segments }: {
   label: string; k: string
   src: Record<string, unknown>; setSrc: (v: Record<string, unknown>) => void
@@ -622,9 +640,18 @@ const OWNERSHIP_LABEL: Record<string, string> = {
 
 const DEFAULT_ONNET = ['owned', 'consortium', 'iru']
 
+/** The six tabs that follow the generic shared-CRUD-state pattern (editId/
+ *  editValues/adding/addValues/deleteConfirmId/filter, see file header). Used
+ *  to key `counts`/`addDefaults` and to type-check the generic "+ Add" button. */
 type DataTab = 'nodes' | 'segments' | 'systems' | 'capacity' | 'outages' | 'rules'
+/** Every tab in the modal's tab bar: the six generic CRUD tabs plus the
+ *  special-cased tabs that render their own bespoke panel/state (checks,
+ *  config, coverage, bulk, tech, notes) instead of the shared CRUD state. */
 type Tab = DataTab | 'checks' | 'config' | 'coverage' | 'bulk' | 'tech' | 'notes'
 
+/** One data-integrity check's outcome, as returned by `api.getChecks()` and
+ *  rendered on the Checks tab (grouped by severity: error/warning, plus the
+ *  passing checks). */
 interface CheckResult {
   name: string
   passed: boolean
@@ -632,6 +659,11 @@ interface CheckResult {
   message: string
 }
 
+/** Props for <RefDataModal>. The whole reference dataset plus global config
+ *  are passed down from App (this component performs no fetching of its own
+ *  for the CRUD tabs — see file header's GENERIC CRUD PATTERN note); mutating
+ *  any of it round-trips through the `api` client and then calls
+ *  `onDataChange` so App can refetch and pass fresh props back down. */
 interface Props {
   nodes: CableNode[]
   segments: CableSegment[]
@@ -715,6 +747,9 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     }
   }, [mapsProvider])
 
+  /** Whether an ownership type (e.g. 'owned', 'iru') currently counts as
+   *  On-Net, per the admin-editable `onNetOwnership` set (Config tab). Drives
+   *  the ON-NET/OFF-NET badge shown per-segment on the Segments tab. */
   function isOnNet(ownership: string) { return onNetOwnership.has(ownership) }
 
   /** Toggle whether an ownership type counts as On-Net and persist it globally. */
@@ -980,6 +1015,14 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   }
 
   // ── Nodes tab ── CRUD table for CLS / PoP / branching-unit sites. ──────────
+  /**
+   * Renders the Nodes data tab: a filterable list/table of CableNode rows with
+   * inline add/edit forms built from <Field>/<NodeSearchField>, a verification
+   * badge per row (opens <VerifPrompt> via `nodeVerifPending`), and desktop
+   * table vs mobile <MobileCard> layouts driven by `isMobile`. Reads/writes the
+   * shared editId/editValues/adding/addValues/filter state declared at the top
+   * of RefDataModal (see file header's GENERIC CRUD PATTERN).
+   */
   function NodeTab() {
     const q = filter.toLowerCase()
     const filtered = nodes.filter(n =>
@@ -1106,6 +1149,14 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   // ── Segments tab ── CRUD table for cable hops (wet/terrestrial) between two
   //    nodes, each belonging to a system and carrying length/latency/ownership.
+  /**
+   * Renders the Segments data tab. Like NodeTab, but the edit/add form also
+   * includes an inline "Ocean Waypoints" list editor (add/reorder/remove
+   * intermediate lat/lng points) and disables Save until both start/end node
+   * ids resolve to a real node (see `disabled`/`disabledReason` on the
+   * SaveCancel calls below) — the API would otherwise accept a dangling
+   * reference. KmlBadge shows whether route geometry is on file per segment.
+   */
   function SegmentTab() {
     const sq = filter.toLowerCase()
     const filtered = segments.filter(s =>
@@ -1128,6 +1179,16 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         <Field label="Ownership"    k="ownership"     src={editValues} setSrc={setEditValues} options={ownerOpts} />
         <RfsFields src={editValues} setSrc={setEditValues} />
         {/* Waypoints editor */}
+        {/* Ordered list of [lat, lng] pairs stored directly on editValues.waypoints
+            (not a separate piece of state) so it participates in the same Save
+            as the rest of the form. Every mutation below (edit/reorder/remove/
+            add) follows the same immutable-update recipe: shallow-copy the
+            array out of editValues, splice/swap/mutate the copy, then call
+            setEditValues with the new array — React only re-renders because
+            the array reference changes. The ↑/↓ buttons swap adjacent entries
+            via array-destructuring assignment ([a, b] = [b, a]) rather than a
+            temp variable; the first/last row's swap button is disabled since
+            there's no neighbour to swap with in that direction. */}
         <div style={{ gridColumn: '1 / -1', marginTop: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
             <label style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ocean Waypoints</label>
@@ -1153,6 +1214,9 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           <button onClick={() => { const wps = [...((editValues.waypoints as [number, number][]) ?? []), [0, 0] as [number, number]]; setEditValues({ ...editValues, waypoints: wps }) }} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 3, border: `1px solid ${t.blue}`, background: 'transparent', color: t.blue, cursor: 'pointer', marginTop: 2 }}>+ Add waypoint</button>
         </div>
         <SaveCancel
+          // An empty waypoints array is sent as `null` rather than `[]` — this
+          // segment's route reverts to a straight line between its two nodes
+          // rather than storing a pointless empty list.
           onSave={async () => { const wps = (editValues.waypoints as [number, number][]) ?? []; await saveEdit(() => api.updateSegment(s.id, { ...editValues, waypoints: wps.length > 0 ? wps : null } as Partial<CableSegment>)) }}
           onCancel={() => setEditId(null)}
           disabled={!nodesById[String(editValues.start_node_id ?? '')] || !nodesById[String(editValues.end_node_id ?? '')]}
@@ -1259,6 +1323,12 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   // ── Systems tab ──────────────────────────────────────────────────────────────
 
   // ── Systems tab ── CRUD table for named submarine cables (id, name, margin). ─
+  /**
+   * Renders the Systems data tab: CRUD for named cable systems (id, name,
+   * description, margin, RFS/EOL lifecycle). `margin` (1-10) is colour-coded
+   * per row — green ≥7.5, orange ≥4.5, else red — as a quick at-a-glance
+   * signal of how much headroom the system's capacity margin allows.
+   */
   function SystemTab() {
     const filtered = systems.filter(s =>
       !filter || s.name.toLowerCase().includes(filter.toLowerCase()) || s.id.toLowerCase().includes(filter.toLowerCase())
@@ -1334,6 +1404,14 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   // ── Capacity tab ─────────────────────────────────────────────────────────────
 
   // ── Capacity tab ── per-segment total/available capacity (in Tbps). ───────
+  /**
+   * Renders the Capacity data tab: one row per segment_id with total/available
+   * capacity in Tbps, plus a derived "% Free" column (available/total, colour-
+   * coded red <20%, orange <50%, else green). The "+ Add" form uses a bespoke
+   * inline `segSearchWidget` (not the shared <SegmentSearchField>, which lives
+   * outside this closure and can't see `capSegmentOpen`) to look up the
+   * segment_id, backed by the modal-level `capSegmentOpen` open/closed state.
+   */
   function CapacityTab() {
     const filtered = capacity.filter(c =>
       !filter || c.segment_id.toLowerCase().includes(filter.toLowerCase())
@@ -1453,6 +1531,13 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   //    (event_type just rides along as a normal field on the payload). See
   //    addDefaults.outages / PLANNED_EVENT_ADD_DEFAULTS below for the two
   //    distinct "+ Add" seed values.
+  /**
+   * Renders the Outages data tab. Splits `outages` (all backed by the single
+   * SegmentOutage shape/API) into two groups by `event_type` and renders each
+   * with the local <OutageGroup> component, plus an "AI Outage Parser" launcher
+   * (opens <OutageParserModal>, toggled via the modal-level `outageParserOpen`
+   * state) that lets an admin bulk-replace outages/events from pasted text.
+   */
   function OutagesTab() {
     const filtered = outages.filter(o =>
       !filter || o.segment_id.toLowerCase().includes(filter.toLowerCase()) ||
@@ -1631,6 +1716,15 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   // ── Rules tab ────────────────────────────────────────────────────────────────
 
+  /**
+   * One row's worth of the flattened rules table. Each InterconnectRule record
+   * (`rules` prop) is keyed by node_id and bundles up to four independent
+   * facets — a list of disallowed system pairs, a list of allowed system
+   * pairs, a no_handoff flag, and a list of allowed handoff segments — so this
+   * union "flattens" all of those facets across all rules into one array of
+   * individually addressable rows (see the `flat` computation below), each
+   * tagged with `kind` so the table/cards can render and edit them uniformly.
+   */
   type FlatRule =
     | { node_id: string; idx: number; pair: DisallowedPair | AllowedPair; kind: 'blacklist' | 'whitelist' }
     | { node_id: string; kind: 'no_handoff' }
@@ -1639,7 +1733,20 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   // ── Rules tab ── interconnect rules: at a given node, which pairs of cable
   //    systems may (allowed) or may not (disallowed) hand off to each other.
   //    These constrain how the route search transits between systems.
+  /**
+   * Renders the Rules data tab. Unlike the other data tabs, one backend record
+   * (InterconnectRule, keyed by node_id) can hold several independently
+   * editable facets at once (disallowed pairs, allowed pairs, a no_handoff
+   * flag, allowed handoff segments) — see `FlatRule` above — so this tab
+   * flattens all rules into individual rows for display/edit/delete, then
+   * re-assembles the owning record's full shape on every write (see
+   * savePairEdit/saveHandoffSegEdit/deleteRule/addRule below), since the API
+   * always PUTs/POSTs the whole InterconnectRule, never a single facet.
+   */
   function RulesTab() {
+    /** Segments touching `nodeId` (as either endpoint), for the Handoff
+     *  Segment rule kind's segment picker — only segments that actually
+     *  terminate at the rule's node are valid choices. */
     function segmentOptsForNode(nodeId: string) {
       if (!nodeId) return []
       return segments
@@ -1668,6 +1775,9 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       return false
     })
 
+    /** Stable React key / editId for one flattened rule row — since a FlatRule
+     *  has no id of its own (it's a slice of a larger record), this derives
+     *  one from node_id + kind + its index within that facet's array. */
     function ruleKey(fp: FlatRule) {
       if (fp.kind === 'no_handoff') return `${fp.node_id}::no_handoff`
       return `${fp.node_id}::${fp.kind}::${(fp as { idx: number }).idx}`
@@ -1684,6 +1794,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     const isPairKind   = addKind === 'blacklist' || addKind === 'whitelist'
     const isEditPairKind = (editValues.kind as string) === 'blacklist' || (editValues.kind as string) === 'whitelist'
 
+    /** Colour-coded pill labelling a rule row's kind (Blacklist/Whitelist/No
+     *  Handoff/Handoff Seg), used in both the desktop table and mobile cards. */
     function typeBadge(kind: FlatRule['kind']) {
       const cfg: Record<FlatRule['kind'], { label: string; bg: string; color: string }> = {
         whitelist:       { label: 'Whitelist',   bg: 'rgba(166,227,161,0.15)', color: t.green },
@@ -1702,6 +1814,16 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       )
     }
 
+    /**
+     * Saves an edited blacklist/whitelist pair row back to its owning
+     * InterconnectRule. `kind` is the row's ORIGINAL facet (blacklist or
+     * whitelist); `editValues.kind` is what the admin picked in the edit form,
+     * which may differ — the two branches below handle that:
+     *   - same kind: just replace the pair at `idx` in that one array.
+     *   - kind changed: remove the pair from its old array (by idx) and append
+     *     it (with the edited values) to the other array, so a pair can be
+     *     "moved" from blacklist to whitelist (or vice versa) in one save.
+     */
     async function savePairEdit(node_id: string, idx: number, kind: 'blacklist' | 'whitelist') {
       const rule = rules.find(r => r.node_id === node_id)!
       const newKind = editValues.kind as 'blacklist' | 'whitelist'
@@ -1724,6 +1846,8 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       }
     }
 
+    /** Saves an edited Handoff Segment row: replaces the entry at `idx` within
+     *  `allowed_handoff_segments` and PUTs the whole array back. */
     async function saveHandoffSegEdit(node_id: string, idx: number) {
       const rule = rules.find(r => r.node_id === node_id)!
       const updated = { segment_id: String(editValues.segment_id), reason: String(editValues.reason) }
@@ -1731,6 +1855,16 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       await saveEdit(() => api.updateRule(node_id, { allowed_handoff_segments: newSegs }))
     }
 
+    /**
+     * Deletes one flattened rule row. Since a FlatRule is only a slice of its
+     * owning InterconnectRule, "deleting a row" means removing that one item
+     * from its facet's array (or clearing the no_handoff flag) and PUTting the
+     * rest of the record back — EXCEPT when that was the record's last
+     * remaining facet, in which case the whole InterconnectRule is deleted via
+     * api.deleteRule so no empty, meaningless record is left behind. Each
+     * branch below computes `remaining` (the count of everything else still on
+     * the record) to decide which of the two calls to make.
+     */
     async function deleteRule(fp: FlatRule) {
       const rule = rules.find(r => r.node_id === fp.node_id)!
 
@@ -1767,6 +1901,14 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       }
     }
 
+    /**
+     * Adds a new rule row of whatever kind is selected in the add form
+     * (`addValues.kind`). Because a rule facet lives inside a per-node
+     * InterconnectRule record, this must first check whether a record for
+     * `node_id` already exists: if so, it PATCHes just that facet's array
+     * (appending the new item, or flipping the no_handoff flag); if not, it
+     * POSTs a brand-new record with the other facets defaulted empty/false.
+     */
     async function addRule() {
       const { node_id, kind, system_a, system_b, reason, segment_id } = addValues as Record<string, string>
       const ruleKind = (kind || 'blacklist') as FlatRule['kind']
@@ -2031,6 +2173,18 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   // ── Notes tab ── free-text "solution notes" attached to a node or segment,
   //    each with a category + severity. `initialFocus` deep-links to one record
   //    when the modal was opened from a note badge elsewhere in the app.
+  /**
+   * Renders the Notes tab: a sub-tabbed panel (Notes / Categories) for
+   * free-text "solution notes" attached to a node or segment. UNLIKE every
+   * other tab in this file, notes/categories are NOT passed down as props
+   * from App — they're fetched by this component itself (`api.getSolutionNotes`
+   * / `api.getNoteCategories` in the effect below) and mutated via fully
+   * independent local state (all prefixed `l...`: lFilter/lEditId/lEditVals/
+   * lAdding/lAddVals/lSaving/lError/lDelConfirm), rather than the shared
+   * editId/editValues/etc. state RefDataModal declares for the six generic
+   * CRUD tabs. `initialFocus`, when set, pre-opens the add form targeting the
+   * given node/segment (deep-link from a note badge elsewhere in the app).
+   */
   function SolutionNotesPanel({ nodes: panelNodes, segments: panelSegments, initialFocus }: { nodes: CableNode[]; segments: CableSegment[]; initialFocus?: { kind: 'node' | 'segment'; id: string } }) {
     const [notes, setNotes] = useState<SolutionNote[]>([])
     const [categories, setCategories] = useState<NoteCategory[]>([])
@@ -2047,6 +2201,10 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     const [lError, setLError] = useState<string | null>(null)
     const [lDelConfirm, setLDelConfirm] = useState<string | null>(null)
 
+    // Fetch both notes and categories once on mount (this panel owns its own
+    // data — see docstring above — so it can't rely on RefDataModal's props).
+    // Runs in parallel since neither depends on the other; `loading` gates the
+    // whole panel's render below until both have resolved.
     useEffect(() => {
       Promise.all([api.getSolutionNotes(), api.getNoteCategories()])
         .then(([n, c]) => { setNotes(n); setCategories(c) })
@@ -2078,6 +2236,11 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       .sort((a, b) => a.order - b.order)
       .map(c => ({ value: c.id, label: c.label }))
 
+    // ── Local CRUD helpers (mirror saveEdit/saveAdd/confirmDelete above, but
+    //    operate on this panel's own `notes`/`categories` state directly —
+    //    via optimistic-ish array splicing on the API response — rather than
+    //    calling the modal-level onDataChange() refetch, since App never holds
+    //    this data.) ──
     async function saveNote() {
       setLSaving(true); setLError(null)
       try {
@@ -2168,6 +2331,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       !lFilter || c.label.toLowerCase().includes(lFilter.toLowerCase()) || c.applies_to.includes(lFilter.toLowerCase())
     )
 
+    /** Small colour-coded pill for a note's severity (info/warning/critical). */
     function SeverityBadge({ sev }: { sev: string }) {
       const color = SEVERITY_COLORS[sev as NoteSeverity] ?? t.blue
       return (
@@ -2182,6 +2346,9 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       )
     }
 
+    /** This panel's local Edit/Delete-with-inline-confirm buttons — a copy of
+     *  the modal-level <ActionsCell> that uses lDelConfirm/lSaving (this
+     *  panel's own state) instead of the shared deleteConfirmId/saving. */
     function ActionBtns({ id, onEdit, onDelete }: { id: string; onEdit: () => void; onDelete: () => void }) {
       return (
         <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
@@ -2421,6 +2588,11 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   const [reseedStatus, setReseedStatus] = useState<string | null>(null)
   const [reseedLoading, setReseedLoading] = useState(false)
 
+  /** Runs the backend's data-integrity validations (`api.getChecks()`) and
+   *  stores the pass/fail results, or a friendly error if the backend can't be
+   *  reached. Exposed at RefDataModal level (not inside ChecksTab) so it can
+   *  be triggered both by the auto-run effect below and the tab's own
+   *  "Re-run checks" button without recreating the tab's local state. */
   async function runChecks() {
     setCheckLoading(true); setCheckError(null)
     try {
@@ -2433,10 +2605,20 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     }
   }
 
+  // Auto-run the checks the first time the Checks tab is opened (checkResults
+  // still null), but not on every re-visit — switching away and back reuses
+  // the cached results until the admin explicitly clicks "Re-run checks".
   useEffect(() => { if (tab === 'checks' && checkResults === null) runChecks() }, [tab])
 
   // ── Checks tab ── runs data-integrity validations over the dataset and lists
   //    pass/fail results by severity (e.g. orphaned segments, bad coordinates).
+  /**
+   * Renders the Checks data tab: the pass/fail results from `runChecks`
+   * grouped into Errors / Warnings / Passed sections, plus an admin-only
+   * "Factory Reset — Destructive" panel that wipes Postgres and reseeds from
+   * the bundled JSON baseline (`runReseed` below) — clearly set apart with a
+   * red border/banner given it discards any API-made changes irreversibly.
+   */
   function ChecksTab() {
     const errors   = checkResults?.filter(c => !c.passed && c.severity === 'error')   ?? []
     const warnings = checkResults?.filter(c => !c.passed && c.severity === 'warning') ?? []
@@ -2461,6 +2643,11 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       </div>
     )
 
+    /** Calls the destructive admin reseed endpoint, which wipes Postgres and
+     *  reloads it from the bundled JSON baseline. Reports either a "skipped"
+     *  reason (e.g. the backend refuses to reseed in this environment) or the
+     *  per-table row counts restored, and triggers onDataChange() on success
+     *  so the whole app picks up the freshly reseeded dataset. */
     async function runReseed() {
       setReseedLoading(true); setReseedStatus(null)
       try {
@@ -2561,6 +2748,15 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
   // ── Config tab ── GLOBAL app settings (not per-record): the On-Net ownership
   //    classification and the map tile provider (with its live status light).
   //    Changes here persist via api.updateConfig and apply across the whole app.
+  /**
+   * Renders the Config data tab: a table of ownership types with a per-row
+   * On-Net/Off-Net toggle (backed by `isOnNet`/`toggleOnNet`), a "Reset to
+   * defaults" button, and (admin-only) the map tile provider switch with its
+   * live reachability status light (`mapsStatus`, driven by the effect near
+   * the top of RefDataModal). All writes here go straight to api.updateConfig
+   * and are global — they affect every user of the app, not just this admin's
+   * session — unlike every other tab, which edits one record at a time.
+   */
   function ConfigTab() {
     const allOwnership = [
       { value: 'owned',                label: 'Owned' },

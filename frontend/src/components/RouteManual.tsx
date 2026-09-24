@@ -29,16 +29,33 @@ import { candidateColor } from './Map'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+/** One hop already committed to the manual route: the segment traversed and
+ *  the node arrived at on the far end of it. */
 export interface ManualStep {
   nodeId:    string
   segmentId: string
 }
 
+/**
+ * The full state of an in-progress (or finished) manually-built route.
+ * Owned by the host (App.tsx / MobileLayout.tsx), not by this component, so
+ * that the map can read/drive it too (e.g. highlighting candidates, handling
+ * node clicks as hop picks). `steps` is empty for a fresh route that has only
+ * an origin set; the "current node" the user is extending from is always
+ * `steps.length ? steps[steps.length - 1].nodeId : originId`.
+ */
 export interface ManualState {
   originId:  string
   steps:     ManualStep[]   // each step: the segment taken + node arrived at
 }
 
+/**
+ * One candidate next hop offered from the current node: the neighbour node
+ * and the segment connecting to it, plus the data needed to render its stat
+ * chips (the owning system's margin, and the segment's available/total
+ * capacity in Tbps — either capacity field is null when no capacity row
+ * exists for that segment).
+ */
 export interface NextHopCandidate {
   nodeId:         string
   segmentId:      string
@@ -51,6 +68,8 @@ export interface NextHopCandidate {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/** Human-readable labels for the CableSegment.ownership enum, used on the
+ *  candidate-hop stat chips and the progressive metro map. */
 const OWNERSHIP_LABEL: Record<string, string> = {
   owned:                'Owned',
   consortium:           'Consortium',
@@ -59,11 +78,31 @@ const OWNERSHIP_LABEL: Record<string, string> = {
   offnet_resell:        'Offnet Resell',
 }
 
+/** Look up a cable system's commercial margin by id.
+ * @returns The system's margin, or null if the system id isn't found or has
+ *   no margin recorded. */
 function getMargin(systemId: string, systems: CableSystem[]): number | null {
   return systems.find(s => s.id === systemId)?.margin ?? null
 }
 
-/** All direct neighbours of a node (excluding any already in the locked path) */
+/**
+ * All direct neighbours of a node (excluding any already in the locked path).
+ * This is the core of the manual builder: rather than solving a path, it
+ * simply enumerates every segment touching `currentNodeId` and turns each
+ * into a NextHopCandidate the user can pick from.
+ * @param currentNodeId The node the user is currently extending the route from.
+ * @param visitedNodeIds Every node already on the path (origin + all step
+ *   nodes) — a candidate landing on one of these is dropped so the manual
+ *   builder can never loop back on itself.
+ * @param segments The full segment list to scan for neighbours of currentNodeId.
+ * @param nodesById Lookup for resolving a neighbour segment's far-end node id
+ *   to its full CableNode record.
+ * @param systems Used to resolve each candidate segment's owning system margin.
+ * @param capacityBySegId Used to resolve each candidate segment's available/total capacity.
+ * @returns Candidates sorted owned-ownership first, then by ascending latency
+ *   within each ownership tier — so the "best" (cheapest, lowest-latency)
+ *   options surface at the top of the Next Hop list.
+ */
 export function computeCandidates(
   currentNodeId: string,
   visitedNodeIds: Set<string>,
@@ -74,13 +113,15 @@ export function computeCandidates(
 ): NextHopCandidate[] {
   const out: NextHopCandidate[] = []
   for (const seg of segments) {
+    // A segment is a candidate only if one of its two endpoints IS the
+    // current node; peerId becomes the OTHER endpoint (the node we'd land on).
     let peerId: string | null = null
     if (seg.start_node_id === currentNodeId) peerId = seg.end_node_id
     else if (seg.end_node_id === currentNodeId) peerId = seg.start_node_id
-    if (!peerId) continue
+    if (!peerId) continue   // segment doesn't touch the current node at all
     if (visitedNodeIds.has(peerId)) continue   // no loops
     const node = nodesById[peerId]
-    if (!node) continue
+    if (!node) continue   // defensive: skip if node data is missing/stale
     const cap = capacityBySegId[seg.id]
     out.push({
       nodeId:       peerId,
@@ -101,7 +142,23 @@ export function computeCandidates(
   })
 }
 
-/** Build a Route object from a completed ManualState */
+/**
+ * Build a Route object from a completed ManualState, so the manually-picked
+ * path can flow through the same RouteList/pin/project/export machinery as a
+ * solver-produced route.
+ * @param state The finished (or in-progress) manual route: origin + ordered steps.
+ * @param _nodesById Unused (kept for a symmetrical signature with call sites
+ *   that already have a nodesById lookup handy); node names are not needed
+ *   here since Route only stores node ids.
+ * @param segmentsById Lookup used to expand each step's segmentId into a full
+ *   RouteSegmentDetail snapshot.
+ * @returns A Route with a synthetic `manual-<timestamp>` id, aggregate
+ *   distance/latency/cost totals (summed across steps), and
+ *   end_to_end_reliability computed as the PRODUCT of each segment's
+ *   reliability (matching how the backend solver computes path reliability —
+ *   independent failures multiply, they don't average). `diversity_group` is
+ *   always 0 since a manual route has no notion of a diverse pairing.
+ */
 export function assembleRoute(
   state: ManualState,
   _nodesById: Record<string, CableNode>,
@@ -126,6 +183,9 @@ export function assembleRoute(
   const totalKm      = segDetails.reduce((a, s) => a + s.length_km, 0)
   const totalLatency = segDetails.reduce((a, s) => a + s.latency, 0)
   const totalCost    = segDetails.reduce((a, s) => a + s.cost_weight, 0)
+  // Product (not sum/average) of per-segment reliability: end-to-end
+  // reliability of a series of independent links is the probability that
+  // ALL of them are simultaneously up.
   const reliability  = segDetails.reduce((a, s) => a * s.reliability, 1)
   return {
     id:                    `manual-${Date.now()}`,
@@ -141,6 +201,9 @@ export function assembleRoute(
 
 // ── RouteManual panel ─────────────────────────────────────────────────────────
 
+/** Props shared by the single-panel {@link RouteManual} component. All
+ *  callbacks are provided by the host (App.tsx / MobileLayout.tsx), which
+ *  owns `state` and applies the resulting mutations. */
 interface Props {
   nodes:    CableNode[]
   segments: CableSegment[]
@@ -155,6 +218,23 @@ interface Props {
   onNetOwnership: string[]
 }
 
+/**
+ * Single-panel manual route builder, mounted by MobileLayout.tsx (phones
+ * get one column, so origin search / running stats / next-hop candidates /
+ * progressive path map are combined into tabs here instead of split across
+ * separate desktop panels the way RouteManualLeft/RouteManualMiddle are).
+ *
+ * Renders one of two things depending on `state`:
+ *  - state === null: {@link OriginSearch} — pick a starting node.
+ *  - state set: a header with Undo/Finish/Discard controls and a running
+ *    stats strip, plus a 'path' / 'nexthop' tab switcher — 'path' shows the
+ *    {@link ManualMetroMap} built so far, 'nexthop' shows the filterable
+ *    list of {@link NextHopCandidate}s computed via computeCandidates().
+ *
+ * All hop/candidate computation is memoised off `state` and the reference
+ * data arrays so re-renders triggered by unrelated App.tsx state don't
+ * recompute the neighbour scan.
+ */
 export function RouteManual({ nodes, segments, systems, capacity, state, onStart, onPickHop, onUndo, onFinish, onDiscard, onNetOwnership }: Props) {
   const t = useTheme()
   const [tab, setTab]       = useState<'nexthop' | 'path'>('nexthop')
@@ -165,10 +245,14 @@ export function RouteManual({ nodes, segments, systems, capacity, state, onStart
   const capacityBySegId = useMemo(() => Object.fromEntries(capacity.map(c => [c.segment_id, c])), [capacity])
   const onNetSet        = useMemo(() => new Set(onNetOwnership), [onNetOwnership])
 
+  // The node the user is extending FROM right now: the last step's arrival
+  // node if any hops have been picked yet, otherwise the origin itself.
   const currentNodeId = state
     ? (state.steps.length ? state.steps[state.steps.length - 1].nodeId : state.originId)
     : null
 
+  // Every node already on the path (origin + all steps so far), passed to
+  // computeCandidates() so it can exclude them and keep the route loop-free.
   const visitedIds = useMemo(() => {
     if (!state) return new Set<string>()
     return new Set([state.originId, ...state.steps.map(s => s.nodeId)])
@@ -179,6 +263,8 @@ export function RouteManual({ nodes, segments, systems, capacity, state, onStart
     return computeCandidates(currentNodeId, visitedIds, segments, nodesById, systems, capacityBySegId)
   }, [currentNodeId, visitedIds, segments, nodesById, systems, capacityBySegId])
 
+  // Free-text filter over the Next Hop candidate list — matches on the
+  // neighbour node's id/name/country or the connecting segment's system id.
   const filtered = search.trim()
     ? candidates.filter(c => {
         const q = search.toLowerCase()
@@ -190,6 +276,9 @@ export function RouteManual({ nodes, segments, systems, capacity, state, onStart
     : candidates
 
   // Assemble running stats
+  // Aggregate distance/latency/on-net% across every step committed so far,
+  // for the header's live stat strip. null while no hops are picked yet, so
+  // the strip is hidden entirely rather than showing all-zero stats.
   const runningStats = useMemo(() => {
     if (!state || state.steps.length === 0) return null
     const segs = state.steps.map(s => segmentsById[s.segmentId]).filter(Boolean) as CableSegment[]
@@ -387,6 +476,17 @@ export function RouteManual({ nodes, segments, systems, capacity, state, onStart
 
 const AMBER = '#f9a825'
 
+/**
+ * Vertical "metro map" style rendering of the manual route built so far: a
+ * dot for each node (blue for the origin, green for the current end, amber
+ * for everything in between; smaller for branching units) connected by
+ * tracked segment cards showing system, type, ON-NET status, distance and
+ * latency. Used by both the single-panel {@link RouteManual} (path tab) and
+ * the desktop {@link RouteManualMiddle} panel.
+ * @param nodeIds Ordered node ids along the path: [originId, ...step node ids].
+ * @param segments The segments taken for each step, in the same order (so
+ *   segments[i-1] is the segment that led TO nodeIds[i]).
+ */
 function ManualMetroMap({ nodeIds, segments, nodesById, onNetSet }: {
   nodeIds:   string[]
   segments:  CableSegment[]
@@ -397,6 +497,9 @@ function ManualMetroMap({ nodeIds, segments, nodesById, onNetSet }: {
   return (
     <div style={{ paddingBottom: 4 }}>
       {nodeIds.map((nodeId, i) => {
+        // segments is one element shorter than nodeIds (n hops connect n+1
+        // nodes), so segments[i-1] is the hop that led TO nodeIds[i]; it is
+        // undefined for i===0 (the origin has no incoming segment).
         const seg     = segments[i - 1]   // segment that led TO this node (undefined for origin)
         const node    = nodesById[nodeId]
         const isBU    = node?.type === 'branching_unit'
@@ -484,6 +587,12 @@ function ManualMetroMap({ nodeIds, segments, nodesById, onNetSet }: {
 
 // ── Origin search panel ───────────────────────────────────────────────────────
 
+/**
+ * Initial panel shown before a manual route has an origin: a live-filtering
+ * node search (by name, country, or id — up to 8 matches shown) plus a short
+ * "How it works" explainer. Calling `onStart(nodeId)` (via search result
+ * click, or a map click handled upstream by the host) sets ManualState.
+ */
 function OriginSearch({ nodes, onStart, card }: {
   nodes: CableNode[]
   onStart: (nodeId: string) => void
@@ -573,6 +682,10 @@ function OriginSearch({ nodes, onStart, card }: {
 
 // ── Stat chip ─────────────────────────────────────────────────────────────────
 
+/** Small "value label" chip used in candidate rows and running-stat strips
+ *  (e.g. "120 km", "owned" in green). When `value` is empty, only the label
+ *  is shown (used for the ownership/type indicators that have no numeric
+ *  value of their own). */
 function Stat({ label, value, color, bold }: { label: string; value: string; color?: string; bold?: boolean }) {
   const t = useTheme()
   return (
@@ -584,6 +697,10 @@ function Stat({ label, value, color, bold }: { label: string; value: string; col
 
 // ── Desktop split-panel components ────────────────────────────────────────────
 
+/** Props shared by the desktop split-panel variant. Unlike the single-panel
+ *  {@link RouteManual}, `candidates` is computed by the host and passed in
+ *  (rather than derived internally) so both RouteManualLeft and the map can
+ *  share the same computeCandidates() result without recomputing it twice. */
 interface DesktopProps {
   nodes:          CableNode[]
   segments:       CableSegment[]
@@ -607,6 +724,8 @@ export function RouteManualLeft({ nodes, segments, systems: _systems, capacity: 
   const segmentsById    = useMemo(() => Object.fromEntries(segments.map(s => [s.id, s])), [segments])
   const onNetSet        = useMemo(() => new Set(onNetOwnership), [onNetOwnership])
 
+  // Free-text filter over the host-supplied candidate list (same matching
+  // rules as the single-panel RouteManual: node id/name/country or system id).
   const filtered = search.trim()
     ? candidates.filter(c => {
         const q = search.toLowerCase()
@@ -617,6 +736,8 @@ export function RouteManualLeft({ nodes, segments, systems: _systems, capacity: 
       })
     : candidates
 
+  // Aggregate distance/latency/on-net% across the committed steps for the
+  // header's live stat strip; null (strip hidden) until the first hop is picked.
   const runningStats = useMemo(() => {
     if (!state || state.steps.length === 0) return null
     const segs = state.steps.map(s => segmentsById[s.segmentId]).filter(Boolean) as CableSegment[]

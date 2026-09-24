@@ -73,6 +73,15 @@ const SegmentExpandContext = createContext<((segmentId: string) => void) | null>
 /** How complete a project circuit's technical enrichment (A/Z-End specs) is. */
 type EnrichLevel = 'none' | 'partial' | 'full'
 
+/**
+ * Classify how complete a project circuit's technical enrichment is, for the
+ * Enrich badge dot on a pinned route (red/amber/green).
+ * @param c The project circuit linked to a pin (undefined if the pin isn't
+ *   attached to a project circuit yet).
+ * @returns 'none' when nothing is filled in, 'full' when both A/Z-End
+ *   site/access-type fields AND the core service_type/bandwidth/protection
+ *   fields are filled, otherwise 'partial'.
+ */
 function enrichLevel(c: ProjectCircuit | undefined): EnrichLevel {
   if (!c) return 'none'
   const endFilled = (e: EndpointConfig) => !!(e.customer_site_name && e.access_type)
@@ -85,6 +94,13 @@ function enrichLevel(c: ProjectCircuit | undefined): EnrichLevel {
   return anyFilled ? 'partial' : 'none'
 }
 
+/**
+ * Hook: true when the viewport is narrower than the mobile breakpoint
+ * (768px). Tracks window resize via an effect-registered listener so cards
+ * can switch between the always-visible desktop tooltip and the mobile
+ * tap-to-expand segment breakdown.
+ * @returns Whether the current window width is < 768px.
+ */
 function useIsMobile(): boolean {
   const [mobile, setMobile] = useState(() => window.innerWidth < 768)
   useEffect(() => {
@@ -95,6 +111,8 @@ function useIsMobile(): boolean {
   return mobile
 }
 
+/** Result classes for classifyRoute(): fully on our own network, fully off
+ *  it, or a blend of both. */
 type NetClass = 'on_net' | 'off_net' | 'mixed'
 
 /** Classify a route as On-Net / Off-Net / Mixed by what fraction of its wet
@@ -122,8 +140,13 @@ function classifyRoute(route: Route, onNetOwnership: Set<string>): { type: NetCl
 // thing a second implementation would get backwards. All this layer does is
 // turn those answers into a label.
 
+/** Which lifecycle rule flagged a hop: 'rfs' = not built yet (Ready For
+ *  Service is still in the future), 'eol' = already retired (End Of Life). */
 type LifecycleKind = 'rfs' | 'eol'
 
+/** The lifecycle status computed for one reference segment on a given
+ *  service date — either it isn't built yet (kind: 'rfs') or it has already
+ *  retired (kind: 'eol'). Produced by segmentLifecycle(). */
 interface SegmentLifecycle {
   kind: LifecycleKind
   /** "RFS Q2 2027" / "EOL Q4 2026" / "RFS unknown" — what the badge shows. */
@@ -145,6 +168,12 @@ const NO_LIFECYCLE: Record<string, SegmentLifecycle> = {}
 /** One hop of a route paired with the reason it is unusable. */
 interface LifecycleHit { seg: RouteSegmentDetail; life: SegmentLifecycle }
 
+/**
+ * Format a single lifecycle badge label, e.g. "RFS Q2 2027" / "EOL Q4 2026",
+ * or "RFS unknown" / "EOL unknown" when the governing quarter is missing.
+ * @param kind Whether this is an unbuilt ('rfs') or retired ('eol') hop.
+ * @param quarter The governing quarter string (e.g. "2027-Q2"), or null.
+ */
 function lifecycleLabel(kind: LifecycleKind, quarter: string | null): string {
   const prefix = kind === 'eol' ? 'EOL' : 'RFS'
   // A row flagged planned/eol with a missing or malformed quarter still has to
@@ -239,6 +268,8 @@ function pickGoverning(hits: LifecycleHit[], kind: LifecycleKind): LifecycleHit 
   })
 }
 
+/** Render each lifecycle-affected hop as one bullet line for a route-level
+ *  tooltip, e.g. "  • SEG123 (SYS-A) — RFS Q2 2027". */
 function lifecycleLines(hits: LifecycleHit[]): string[] {
   return hits.map(h => `  • ${h.seg.segment_id} (${h.seg.system_id}) — ${h.life.label}`)
 }
@@ -287,11 +318,17 @@ function routeLifecycle(route: Route, lifecycleById: Record<string, SegmentLifec
   return { kind, label: governing.life.label, tooltip: lines.join('\n') }
 }
 
+// How many routes are shown per section (Worker/Protect, or pairs) by
+// default, and the range the "Show" +/- stepper can move it within.
 const DEFAULT_SHOWN = 5
 const MIN_SHOWN = 1
 const MAX_SHOWN = 10
+// Hard cap on simultaneously pinned routes (enforced via `canPin` below).
 const MAX_PINS = 10
 
+/** Props for {@link RouteList}. See the file-header docblock above for the
+ *  narrative description of each group of props (results, pins, sorting,
+ *  pairing, project integration, cable lifecycle). */
 interface Props {
   primaryRoutes: Route[]
   diverseRoutes: Route[]
@@ -342,16 +379,26 @@ interface Props {
   onDataChange?: () => void
 }
 
+/** The dimensions a user (or the NLP assistant via externalSortKey) can sort
+ *  the route list by. See SORT_OPTIONS for each key's icon/label/direction
+ *  and sortRoutes() for the actual comparator. */
 export type SortKey = 'hops' | 'distance' | 'latency' | 'availability' | 'margin' | 'capacity' | 'ownership'
 
+/** Sort precedence for the 'ownership' SortKey: On-Net routes first, then
+ *  Mixed, then Off-Net (ties within a class broken by on-net percentage). */
 const NET_ORDER = { on_net: 0, mixed: 1, off_net: 2 }
 
+/** Maps the backend's `optimiseFor` pool-strategy key (and a couple of
+ *  legacy aliases like 'length'/'cost') to the human-readable label shown in
+ *  the "filtered by …" summary line. */
 const OPTIMISE_LABELS: Record<string, string> = {
   hops: 'Hops', distance: 'Distance', length: 'Distance',
   latency: 'Latency', margin: 'Margin', cost: 'Margin',
   capacity: 'Capacity', ownership: 'Ownership', outages: 'No Outages',
 }
 
+/** Definition of each sort button in the sort bar: its SortKey, the icon and
+ *  label shown on the button, and its natural (un-flipped) direction. */
 const SORT_OPTIONS: { key: SortKey; icon: string; label: string; dir: 'asc' | 'desc' }[] = [
   { key: 'hops',         icon: '⬡',  label: 'Hops',      dir: 'asc'  },
   { key: 'distance',     icon: '↔',  label: 'Dist',      dir: 'asc'  },
@@ -378,14 +425,22 @@ function computeRouteMargin(route: Route, systemsById: Record<string, CableSyste
   return weightedSum / totalKm
 }
 
+/** True if any of the route's hops has a live outage entry in `outagesById`
+ *  (drives the red "UNDER REPAIR" badge and the outage push-down sort). */
 function routeHasOutage(route: Route, outagesById: Record<string, SegmentOutage>): boolean {
   return route.segments.some(s => !!outagesById[s.segment_id])
 }
 
+/** True if any of the route's hops has a future planned-work entry in
+ *  `plannedById` (drives the quieter amber "planned work" badge; never
+ *  affects sort order, unlike routeHasOutage). */
 function routeHasPlannedEvent(route: Route, plannedById: Record<string, SegmentOutage>): boolean {
   return route.segments.some(s => !!plannedById[s.segment_id])
 }
 
+/** Stable identity for a route derived from its ordered node list — used to
+ *  detect "is this route already pinned" without relying on the route's
+ *  (possibly regenerated) `id`. */
 function routeKey(r: Route) { return r.nodes.join('|') }
 
 /** A route's usable capacity is limited by its lowest-capacity wet segment.
@@ -517,6 +572,9 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
 
   // When clicking either route in a pair, select/deselect both together.
   // Uses functional updater chaining so both toggles apply to the same state snapshot.
+  /** Toggle `clickedId`'s selection via onSelectRoute, then bring its pair
+   *  partner (`partnerId`) into the same selected/deselected state — so
+   *  ticking a worker or protect card always selects the whole pair. */
   function selectPair(clickedId: string, partnerId: string) {
     const selectingOn = !selectedRouteIds.includes(clickedId)
     onSelectRoute(clickedId)
@@ -524,6 +582,13 @@ export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRo
     if (partnerOn !== selectingOn) onSelectRoute(partnerId)
   }
 
+  /**
+   * Sort worker/protect pairs by applying the normal single-route sort to
+   * each pair's "effective worker" (the primary route, or the diverse route
+   * when that pair has been flipped via flippedPairIds), then re-associating
+   * the sorted worker routes back to their pair objects. Returns null
+   * unchanged when there are no pairs.
+   */
   function applyPairSort(ps: typeof pairs): typeof pairs {
     if (!ps) return ps
     // Sort by effective worker stats — when flipped, the diverse route is the worker
@@ -1054,6 +1119,9 @@ function PairCard({
   )
 }
 
+/** One-line collapsed representation of a pinned route, shown when the
+ *  pinned-routes bar is toggled to "Compress": colour strip, circuit/search
+ *  label, the wet cable systems it uses, and an unpin control. */
 function CompressedPinCard({ pinned, onUnpin, systemsById }: {
   pinned: PinnedRoute
   onUnpin: () => void
@@ -1546,6 +1614,9 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
   )
 }
 
+/** Small pill showing the route's weighted-average margin score, coloured
+ *  green (>=7.5), orange (>=4.5) or red (below). Renders nothing when margin
+ *  data is unavailable for the route's systems. */
 function MarginBadge({ margin }: { margin: number | null }) {
   const t = useTheme()
   if (margin == null) return null
@@ -1630,6 +1701,9 @@ function RouteLifecycleBadge({ lifecycle }: { lifecycle: RouteLifecycle }) {
   )
 }
 
+/** ON-NET / OFF-NET / MIXED n% pill for a route, derived via classifyRoute().
+ *  Green for fully on-net, red for fully off-net, orange with the on-net
+ *  percentage for anything in between. */
 function NetBadge({ route, onNetSet }: { route: Route; onNetSet: Set<string> }) {
   const t = useTheme()
   const { type, onNetPct } = classifyRoute(route, onNetSet)
@@ -1648,6 +1722,13 @@ function NetBadge({ route, onNetSet }: { route: Route; onNetSet: Set<string> }) 
   )
 }
 
+/**
+ * One side (worker or protect) of the side-by-side "Path Comparison" view for
+ * a diversity pair: a vertical metro-style list of node dots and segment
+ * cards, with any node/segment shared between the two legs highlighted in
+ * orange ("SHARED"). Used both by PairCard's expanded breakdown and by
+ * PinnedRouteCard's pinned-pair comparison.
+ */
 function PairBreakdown({ route, outagesById, plannedById, sharedIds, accentColor, nodesById, sharedNodeIds, lifecycleById = NO_LIFECYCLE }: {
   route: Route
   outagesById: Record<string, SegmentOutage>
@@ -1774,6 +1855,15 @@ function PairBreakdown({ route, outagesById, plannedById, sharedIds, accentColor
   )
 }
 
+/**
+ * The full per-segment table shown in a route's expanded breakdown (mobile
+ * tap-to-expand, or the desktop hover tooltip via SegmentTooltip): one row
+ * per hop with system, ON-NET/OFF-NET, lifecycle, outage/planned-work
+ * indicators, node pair, distance/latency/cost/availability, and capacity.
+ * Rows are ordered along the route (by the lower of each hop's two endpoint
+ * indices in route.nodes) rather than in whatever order route.segments
+ * happens to store them, so the breakdown reads start-to-end.
+ */
 function SegmentBreakdownRows({ route, capacityById, outagesById, plannedById, onNetSet, lifecycleById = NO_LIFECYCLE }: {
   route: Route
   capacityById: Record<string, SegmentCapacity>
@@ -1918,6 +2008,13 @@ function SegmentBreakdownRows({ route, capacityById, outagesById, plannedById, o
   )
 }
 
+/**
+ * Desktop-only floating tooltip (rendered via createPortal into document.body)
+ * that shows the full SegmentBreakdownRows for a route next to the hovered
+ * card. Clamps itself back onto the viewport after measuring its own
+ * rendered size (see the useLayoutEffect below) since the segment count, and
+ * therefore the tooltip's height, isn't known until it has rendered once.
+ */
 function SegmentTooltip({ route, capacityById, outagesById, plannedById, pos, onNetSet, onMouseEnter, onMouseLeave, lifecycleById = NO_LIFECYCLE }: {
   route: Route
   capacityById: Record<string, SegmentCapacity>
@@ -1976,6 +2073,8 @@ function SegmentTooltip({ route, capacityById, outagesById, plannedById, pos, on
   )
 }
 
+/** Reformat a strict "YYYY-MM-DD" date string to "DD-MM-YYYY" for display;
+ *  returns "Date TBC" for null/undefined/"TBC"/any non-matching string. */
 function formatRepairDate(date: string | null | undefined): string {
   if (!date || date === 'TBC') return 'Date TBC'
   const m = date.match(/^(\d{4})-(\d{2})-(\d{2})$/)
@@ -1983,6 +2082,11 @@ function formatRepairDate(date: string | null | undefined): string {
   return 'Date TBC'
 }
 
+/** The LATEST estimated repair date across all of a route's outage-affected
+ *  hops, formatted for the route-level OutageBadge — a route isn't fully
+ *  repaired until its slowest-to-fix hop is back, so quoting the earliest
+ *  hop's date would understate how long the route stays impaired. Returns
+ *  "Date TBC" when no hop has a usable date. */
 function latestRepairDate(route: Route, outagesById: Record<string, SegmentOutage>): string {
   const isoDates = route.segments
     .map(s => outagesById[s.segment_id]?.estimated_repair_date)
@@ -1997,6 +2101,10 @@ function latestRepairDate(route: Route, outagesById: Record<string, SegmentOutag
   return formatRepairDate(isoDates[isoDates.length - 1])
 }
 
+/** The EARLIEST planned-work start date across all of a route's
+ *  planned-event hops, formatted for the route-level PlannedEventBadge — the
+ *  soonest disruption is the one worth surfacing at a glance. Returns
+ *  "Date TBC" when no hop has a usable date. */
 function earliestPlannedStart(route: Route, plannedById: Record<string, SegmentOutage>): string {
   const isoDates = route.segments
     .map(s => plannedById[s.segment_id]?.planned_start)
@@ -2009,6 +2117,8 @@ function earliestPlannedStart(route: Route, plannedById: Record<string, SegmentO
   return formatRepairDate(isoDates[0])
 }
 
+/** Loud red "UNDER REPAIR" pill plus the latest estimated repair date, shown
+ *  on a route card when any of its hops has a live outage. */
 function OutageBadge({ repairDate }: { repairDate: string }) {
   const t = useTheme()
   return (
@@ -2042,6 +2152,8 @@ function PlannedEventBadge({ startDate }: { startDate: string }) {
   )
 }
 
+/** Shared style object for section headers ("Worker Routes", "Protect
+ *  Routes", "📌 Pinned Routes") — small uppercase faint label. */
 function sectionLabelStyle(t: ReturnType<typeof useTheme>): React.CSSProperties {
   return {
     fontSize: 10, fontWeight: 700, color: t.textFaint,

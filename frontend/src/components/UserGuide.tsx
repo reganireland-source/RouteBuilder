@@ -31,6 +31,10 @@ import { ProductHistory } from './ProductHistory'
 import type { CableNode, CableSegment, CableSystem, FeatureRequest } from '../types'
 
 
+// Static copy for the "Flip, Pin & Export"-style step-by-step how-to shown on
+// the Product Overview page (page 1). Purely presentational data — each row
+// is rendered by mapping over this array (see `STEPS.map(...)` below), so
+// adding/reordering a step is a one-line edit here with no JSX changes needed.
 const STEPS = [
   { title: 'Open RouteFinder', desc: 'Select the RouteBuilder top-level tab, then the RouteFinder sub-tab. TSABuddy appears at the top — use it for natural language, or configure the search manually below.' },
   { title: 'Select Origin & Destination', desc: 'Type a city or node name in the search boxes. The live combobox filters as you type — select the specific landing station or PoP you need. Use the ⇅ swap button between the two fields to flip origin and destination instantly.' },
@@ -41,6 +45,11 @@ const STEPS = [
   { title: 'Flip, Pin & Export', desc: 'In a diversity pair, click ⇅ to swap Worker and Protect roles — the route data (path, stats, map colour) trades places completely. Pin up to 5 routes using 📍, then export a straight-line diagram. Click ⬡ SLD → choose a version label (Proposal / Draft / Final) → Export PDF for a branded diagram, or Export DrawIO for an editable DrawIO / Visio XML file.' },
 ]
 
+// Static roadmap tiles rendered near the bottom of the Product Overview page.
+// This is a curated, hand-written subset (not the full backlog) — for the
+// complete, categorised backlog + live user-submitted requests, see the
+// `COMPLETED_FEATURES` / `IN_DEV_FEATURES` / `BACKLOG_FEATURES` arrays and the
+// Feature Backlog page (page 6) further down this file.
 const ROADMAP = [
   { icon: '📶', title: 'Real-Time Network Data',       desc: 'Network capacity from Inventory systems, outage feeds from TSM, and live latency data from NMS — removing the lag between network events and commercial decisions.', tag: 'In Planning', color: '#22c55e' },
   { icon: '💵', title: 'Quoting & Pricing Integration', desc: 'Bridge margin scores to actual pricing outputs, enabling indicative quotes directly from a route design.', tag: 'In Planning', color: '#f97316' },
@@ -52,28 +61,103 @@ const ROADMAP = [
  *  one edit here plus one row in `pageTabs` — not a hunt through unions. */
 type Page = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 
+/**
+ * Props for {@link UserGuide}.
+ *
+ * These are the live network entities (from the app's top-level fetch/state)
+ * that the guide reads purely to compute display counts — e.g. "an
+ * {nodeCount}-node subsea network" — so the copy always reflects the real,
+ * current network size instead of a hard-coded number that would drift out
+ * of date. The guide never mutates or persists these; it is read-only.
+ */
 interface Props {
+  /** All cable landing stations / PoPs / branching units currently loaded. */
   nodes: CableNode[]
+  /** All wet + terrestrial segments currently loaded. */
   segments: CableSegment[]
+  /** All cable systems currently loaded (includes the synthetic 'TERRESTRIAL' system — see `systemCount` below, which filters it out for display). */
   systems: CableSystem[]
 }
 
+/**
+ * UserGuide — full-screen, paginated in-app help / product guide & onboarding
+ * screen (the only export of this file).
+ *
+ * Rendered as a fixed-position overlay by the parent (App.tsx / MobileLayout)
+ * when the user opens help; this component itself renders only the guide's
+ * content — the backdrop and close button live in the parent. It is a pure
+ * "view" over its `nodes` / `segments` / `systems` props (used only to
+ * interpolate live counts into the copy) plus its own local UI state — it
+ * does not fetch network data itself.
+ *
+ * State machine, in brief:
+ *  - `page` (1–9) selects which of the nine guide pages is shown; each page's
+ *    JSX is built as a local `const` (e.g. `overview`, `arch`, `algo`, …)
+ *    further down, and a chain of `if (page === N) return <pageConst>`
+ *    statements does the actual switching (see below in this function body).
+ *  - `printAll` switches the component into a special "print everything"
+ *    mode (see the second `useEffect` below and the print-portal branch at
+ *    the end of the function) used by the "Export as PDF" button, which
+ *    prints the whole guide as one document rather than just the current page.
+ *  - `featureRequests` / `reqForm` / `reqSubmitting` / `reqDone` back the
+ *    feature-request form on the Feature Backlog page (page 6) — see
+ *    `submitFeatureRequest` further down.
+ *
+ * @param props.nodes    Live node list, used only to compute display counts (e.g. "an N-node network").
+ * @param props.segments Live segment list, used only to compute display counts.
+ * @param props.systems  Live cable system list, used only to compute display counts.
+ * @returns The JSX for whichever guide page is currently selected (or, in
+ *   print-all mode, a portal containing every page stacked for printing).
+ */
 export function UserGuide({ nodes, segments, systems }: Props) {
   const t = useTheme()
   const [page, setPage] = useState<Page>(1)
+  // When true, the component renders every page at once into an off-screen
+  // print portal and triggers window.print() — see the second useEffect and
+  // the "Print-all portal" branch near the end of this function.
   const [printAll, setPrintAll] = useState(false)
+  // Currently unused for reading/measuring — kept attached to the print
+  // portal element as a hook point (e.g. for future scroll/measurement
+  // needs) without altering behaviour.
   const printRef = useRef<HTMLDivElement>(null)
+  // Feature-request board state (Feature Backlog page, page 6): the list of
+  // requests fetched from the backend, the controlled form for submitting a
+  // new one, and its submit/success UI flags.
   const [featureRequests, setFeatureRequests] = useState<FeatureRequest[]>([])
   const [reqForm, setReqForm] = useState({ title: '', description: '', category: '' })
   const [reqSubmitting, setReqSubmitting] = useState(false)
   const [reqDone, setReqDone] = useState(false)
 
+  // Lazily load feature requests only when the Feature Backlog page (6) is
+  // actually opened, rather than on every mount — avoids an unnecessary
+  // network call for users who never visit that page. Re-runs on every
+  // navigation to page 6 (not just the first), so the list stays fresh if
+  // the user leaves and comes back after submitting a request elsewhere.
+  // Errors are swallowed (`.catch(() => {})`) so a failed fetch just leaves
+  // the list empty rather than crashing the guide.
   useEffect(() => {
     if (page === 6) {
       api.getFeatureRequests().then(setFeatureRequests).catch(() => {})
     }
   }, [page])
 
+  // Drives the "print the whole guide as one PDF" flow triggered by
+  // `handlePrint` (which just sets `printAll` true). While `printAll` is
+  // true, every guide page is rendered into a single off-screen portal (see
+  // the end of this function) and this effect:
+  //   1. Injects a scoped @media print stylesheet that hides everything on
+  //      the page except the print portal, and forces the portal to lay out
+  //      as a normal static, full-width document (undoing the off-screen
+  //      fixed positioning used to keep it invisible on screen) with exact
+  //      colour reproduction and A4 page margins.
+  //   2. Calls window.print() after a short delay (see below) once the
+  //      style + portal have had a chance to paint.
+  //   3. Listens for the browser's 'afterprint' event to flip `printAll`
+  //      back off and remove the injected stylesheet once the print dialog
+  //      closes (whether printed or cancelled).
+  // The cleanup function guards against the effect re-running or the
+  // component unmounting mid-print: it clears the pending timer and removes
+  // both the event listener and the stylesheet so nothing is leaked.
   useEffect(() => {
     if (!printAll) return
     const style = document.createElement('style')
@@ -100,6 +184,10 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       document.getElementById('rb-print-style')?.remove()
     }
     window.addEventListener('afterprint', afterPrint)
+    // 300ms delay gives React time to commit the print-portal DOM (every
+    // page rendered at once) and the browser time to paint it before the
+    // print dialog is invoked — calling window.print() synchronously risks
+    // printing a portal that hasn't finished rendering yet.
     const timer = setTimeout(() => window.print(), 300)
     return () => {
       clearTimeout(timer)
@@ -108,12 +196,22 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     }
   }, [printAll])
 
+  /** Kicks off the "print whole guide as PDF" flow — see the printAll useEffect above. */
   const handlePrint = () => setPrintAll(true)
 
+  // Live counts interpolated into the guide's copy throughout (e.g. "an
+  // {nodeCount}-node subsea network") so the marketing/product-facing text
+  // never goes stale as the network grows. 'TERRESTRIAL' is a synthetic
+  // system id used internally to group backhaul segments and is excluded
+  // from the customer-facing system count.
   const nodeCount    = nodes.length
   const segmentCount = segments.length
   const systemCount  = systems.filter(s => s.id !== 'TERRESTRIAL').length
 
+  // Full feature catalogue rendered on the Product Overview page (page 1).
+  // Declared inside the component body (rather than as a module-level
+  // constant like STEPS/ROADMAP) because several entries interpolate the
+  // live nodeCount/segmentCount/systemCount values computed just above.
   const FEATURES = [
     { icon: '🗺', title: 'PoP Route Builder',
       desc: `Find optimal paths between any two nodes on our ${nodeCount}-node subsea network. Configure wet, full or terrestrial diversity, enforce via/avoid constraints on specific nodes, segments or cable systems, and see all viable paths ranked instantly. The live map uses colour and size to distinguish node types — large orange dots for CLS (Landing Stations), grading down through Primary, Secondary, Extension PoPs to small amber Branching Units. Place names read in English worldwide, including across Japan, Korea, China and Taiwan, so the map is presentable to a customer as it stands.` },
@@ -183,6 +281,13 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       desc: `A built-in UAT test suite that exercises the routing algorithm against ${48} defined scenarios — endpoint connectivity, wet and full diversity, node/system/country constraints, latency budgets, and edge cases. Each test runs the live API, checks assertions, and shows a metro-map route visualisation. Known network limitations are flagged in amber so a "fail" result is always explained in context. Open via the 🧪 Algo Eval button in the control menu. Run history is stored in the browser for up to 20 runs.` },
   ]
 
+  /**
+   * Returns the theme-aware base inline-style object for a bordered "card"
+   * container (background, border, radius, padding), reused across nearly
+   * every guide page for visual consistency. `style` is shallow-merged on
+   * top so callers can override/extend individual properties (e.g. adding
+   * `borderLeft` for an accent stripe) without duplicating the base styles.
+   */
   const card = (style?: Record<string, unknown>): Record<string, unknown> => ({
     background: t.bgCard,
     border: `1px solid ${t.border}`,
@@ -191,12 +296,28 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     ...style,
   })
 
+  /** Shared inline-style object for the small uppercase "eyebrow" label placed above each page section (e.g. "SYSTEM ARCHITECTURE"). */
   const sectionLabel: Record<string, unknown> = {
     fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
     color: t.blue, marginBottom: 14,
   }
 
   // ── Shared page helpers (used across normal + print-all rendering) ──────────
+  // Everything below is a small presentational-only render helper: given
+  // plain data (strings/arrays), it returns a styled JSX fragment. None of
+  // them hold state or side effects — they exist purely to avoid repeating
+  // the same inline-style JSX across the many guide pages below. The print
+  // portal (see the end of this component) reuses these exact same page
+  // consts (`overview`, `arch`, …) rather than re-rendering separately, which
+  // is exactly why these helpers must render with no interaction required
+  // (no hover-only or click-to-expand content) — see the file header docblock.
+
+  /**
+   * Renders one "tier" card — a large, icon-led block with a title, a
+   * one-line sub-heading, a paragraph of detail and a row of small pill
+   * badges. Used on pages that compare a small number of high-level options
+   * side by side (e.g. auth models, deployment tiers).
+   */
   const tier = (
     bg: string, border: string, icon: string,
     title: string, sub: string, badges: string[],
@@ -219,6 +340,13 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     </div>
   )
 
+  /**
+   * Renders a numbered, vertically-connected step sequence inside a `card()`
+   * with a coloured left accent border — a small flowchart for one process
+   * (e.g. "how the search algorithm resolves a route"). The first step is
+   * highlighted (filled circle); a connecting line is drawn between each
+   * step except after the last one.
+   */
   const flow = (num: string, color: string, title: string, steps: string[]) => (
     <div style={{ ...card() as React.CSSProperties, borderLeft: `4px solid ${color}`, paddingLeft: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
@@ -239,6 +367,13 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     </div>
   )
 
+  /**
+   * Renders one stage of a horizontal pipeline diagram — a numbered,
+   * coloured box with an icon, title, short description and a prominent
+   * count/result label at the bottom. Meant to be placed side-by-side with
+   * `algoArrow` between instances to show a left-to-right data flow (e.g.
+   * "N nodes → filter → M candidate routes").
+   */
   const pipeBox = (num: string, color: string, icon: string, title: string, desc: string, countLabel: string) => (
     <div style={{ flex: 1, minWidth: 0, background: color + '14', border: `2px solid ${color}`, borderRadius: 12, padding: '16px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 6 }}>
       <div style={{ width: 26, height: 26, borderRadius: '50%', background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{num}</div>
@@ -249,8 +384,15 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     </div>
   )
 
+  /** A single "›" separator glyph dropped between `pipeBox` elements to imply left-to-right data flow in a pipeline diagram. Precomputed once (not a function) since it takes no parameters and never varies. */
   const algoArrow = <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', color: t.textFaint, fontSize: 20 }}>›</div>
 
+  /**
+   * Renders one row describing a single constraint/algorithm rule: an icon,
+   * a name, a small coloured status/type badge, and a description line.
+   * Used on the Search Algorithm page to list constraint types (via/avoid,
+   * country, etc.) with their enforcement badge (e.g. "HARD").
+   */
   const constraintRowAlgo = (icon: string, name: string, badge: string, badgeColor: string, desc: string) => (
     <div style={{ ...card() as React.CSSProperties, display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px' }}>
       <span style={{ fontSize: 18, flexShrink: 0, lineHeight: 1.4 }}>{icon}</span>
@@ -264,6 +406,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     </div>
   )
 
+  /** Renders a small labelled chip (icon + bold label + muted sub-text) — a compact way to list independent "dimensions" or facts (e.g. sort dimensions, capability flags) in a grid. */
   const dimChip = (icon: string, label: string, sub: string) => (
     <div style={{ background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 8, padding: '10px 12px', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
       <span style={{ fontSize: 15, flexShrink: 0, marginTop: 1 }}>{icon}</span>
@@ -274,6 +417,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     </div>
   )
 
+  /** Renders a small centered chip describing one route-list sort option: icon, the sort key's short label, its direction indicator, and a description. Mirrors the sort controls shown in the actual RouteFinder results UI. */
   const sortChip = (icon: string, key: string, dir: string, desc: string) => (
     <div style={{ background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
       <div style={{ fontSize: 16, marginBottom: 4 }}>{icon}</div>
@@ -283,6 +427,13 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     </div>
   )
 
+  /**
+   * Renders a data-model "entity" card for the Data Model page: a title with
+   * a coloured left accent, followed by a mini field table (field name,
+   * type, description) laid out as CSS-grid rows separated by top borders —
+   * essentially a lightweight schema diagram for one database entity (e.g.
+   * Node, Segment, CableSystem).
+   */
   const entityCard = (
     icon: string, name: string, color: string,
     fields: { field: string; type: string; desc: string }[],
@@ -304,6 +455,12 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     </div>
   )
 
+  /**
+   * Renders a "TODAY vs TOMORROW" comparison row (used on the Current vs
+   * Planned network-date feature explanation): a labelled, coloured field
+   * name on the left and two side-by-side columns contrasting current
+   * behaviour against the future/planned-date behaviour.
+   */
   const todayTomorrowRow = (field: string, color: string, today: string, tomorrow: string) => (
     <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 1fr', gap: 12, padding: '10px 12px', borderRadius: 6, background: t.bgCard, border: `1px solid ${t.border}`, alignItems: 'start' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -322,6 +479,16 @@ export function UserGuide({ nodes, segments, systems }: Props) {
   )
 
   // ── Page switcher tabs ─────────────────────────────────────────────────────
+  /**
+   * The pill-button navigation bar rendered at the top of every normal
+   * (non print-all) guide page. Clicking a tab calls `setPage`, which drives
+   * the `if (page === N) return <pageConst>` routing chain further down this
+   * component. `[p, label]` tuples are typed as `[Page, string][]` so a typo
+   * in a page number would be a compile error, not a silent no-op tab.
+   * Intentionally omitted (via `{!printAll && pageTabs}`) from every page's
+   * JSX when `printAll` is true, since page navigation is meaningless once
+   * every page is being printed as one continuous document.
+   */
   const pageTabs = (
     <div style={{
       // Wraps: at nine pages the bar no longer fits one line on a laptop, and
@@ -359,7 +526,12 @@ export function UserGuide({ nodes, segments, systems }: Props) {
   )
 
 
-  // ── Architecture page ──────────────────────────────────────────────────────
+  // ── Architecture page (page 2) ─────────────────────────────────────────────
+  // Static content page explaining the technical architecture (browser →
+  // API backend → Postgres / Claude AI). Built once per render as plain JSX
+  // (not a component) purely so it can be reused verbatim both for normal
+  // single-page display (`if (page === 2) return arch`, below) and for the
+  // print-all portal at the end of this file, without re-running any logic.
   const arch = (
     <div style={{
       maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
@@ -685,9 +857,19 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         </div>
     </div>
   )
+  // Early-return page routing: while `page` is 2 and we are NOT in print-all
+  // mode, short-circuit and render only the Architecture page. `printAll`
+  // gates every one of these returns because in print-all mode every page
+  // const still needs to be defined so the print portal at the end of this
+  // function can stack all of them — an early return here would skip
+  // defining the remaining pages (algo, dataModel, …) entirely.
   if (page === 2 && !printAll) return arch
 
   // ── Page 3: Search Algorithm ──────────────────────────────────────────────
+  // Static content page walking through how route search actually works —
+  // graph construction, diversity/constraint enforcement, scoring — using
+  // the `flow` / `pipeBox` / `algoArrow` / `constraintRowAlgo` helpers above
+  // to render step sequences and pipeline diagrams from plain data.
   const algo = (
     <div style={{
       maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
@@ -922,9 +1104,12 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         </div>
     </div>
   )
-  if (page === 3 && !printAll) return algo
+  if (page === 3 && !printAll) return algo  // see the routing note above `if (page === 2 …)`
 
   // ── Page 4: Data Model ────────────────────────────────────────────────────
+  // Static content page documenting the core data entities (Node, Segment,
+  // CableSystem, etc.) via `entityCard()` — a readable schema reference for
+  // engineers/AI tools working with the backend's data model.
   const dataModel = (
     <div style={{
       maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
@@ -1227,6 +1412,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
   if (page === 4 && !printAll) return dataModel
 
   // ── Page 5: Customer Solution Projects ────────────────────────────────────
+  // Static content page walking through the customer-solution-project
+  // workflow (circuits, A/Z-end enrichment, SLD export).
   const projectsGuide = (
     <div style={{
       maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
@@ -1531,7 +1718,14 @@ export function UserGuide({ nodes, segments, systems }: Props) {
   if (page === 5 && !printAll) return projectsGuide
 
   // ── Page 6: Feature Backlog ────────────────────────────────────────────────
+  // Unlike the other pages, this one is NOT purely static: it combines
+  // hard-coded shipped/in-progress/backlog data (the three arrays just below)
+  // with live, user-submitted feature requests fetched from the backend (see
+  // the `page === 6` useEffect near the top of this component) and lets the
+  // current user submit a new request via the controlled form further down
+  // (`reqForm` state + `submitFeatureRequest`).
 
+  /** Fixed list of categories offered in the feature-request form's dropdown; also used to group/label entries in the completed/in-development/backlog arrays below. */
   const FEATURE_CATEGORIES = [
     'Route Search & Discovery',
     'Manual Route Builder',
@@ -1546,6 +1740,12 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     'Security & Access',
   ]
 
+  /**
+   * Hand-maintained catalogue of shipped features, one row per feature, each
+   * tagged with a `category` from `FEATURE_CATEGORIES`. This is manually
+   * kept in sync with reality (not derived from anything at build/runtime)
+   * — rendered via `featureCard(..., 'completed', 'done')` further down.
+   */
   const COMPLETED_FEATURES: { title: string; category: string; desc: string }[] = [
     { title: 'PoP Route Builder',             category: 'Route Search & Discovery',  desc: 'Graph-based engine finding optimal paths between any two network nodes, ranked by latency, hops, margin or capacity.' },
     { title: 'Diversity Pairs — Worker/Protect',category: 'Route Search & Discovery', desc: '1+1 diversity search returning matched worker/protect pairs with full flip capability.' },
@@ -1587,10 +1787,12 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     { title: 'Google Maps / Free Maps Toggle', category: 'UI/UX & Design',       desc: 'Admins can switch the live map\'s base layer between the free tiles (Esri, no key required) and Google Maps from Ref Data → Config, with a live status light confirming the chosen provider is actually reachable before you rely on it.' },
   ]
 
+  /** Features currently being actively built. Rendered via `featureCard(..., 'in_development', 'dev')`. */
   const IN_DEV_FEATURES: { title: string; category: string; desc: string }[] = [
     { title: 'Feature Backlog & Requests', category: 'UI/UX & Design', desc: 'This page — product backlog visibility and user feature request submission.' },
   ]
 
+  /** Hand-curated backlog items not yet started. Rendered via `featureCard(..., 'backlog', 'bl')`, alongside live user-submitted `featureRequests` rendered the same way (see the `if (page === 6)` JSX further down). */
   const BACKLOG_FEATURES: { title: string; category: string; desc: string }[] = [
     { title: 'Real-Time Capacity from Inventory',  category: 'Integration & Data Feeds', desc: 'Live capacity feed from Veritas inventory — total and available per segment updated as circuits are provisioned.' },
     { title: 'Automatic Outage Feed from TSM',     category: 'Integration & Data Feeds', desc: 'Fault records pushed automatically from Telstra Service Management (ServiceNow) on creation and status change.' },
@@ -1606,6 +1808,26 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     { title: 'Pricing Engine Integration',         category: 'Route Search & Discovery',  desc: 'Auto-derive margin from live IRU/lease cost data and commercial agreements.' },
   ]
 
+  /**
+   * Submits the current `reqForm` (title/description/category) as a new
+   * feature request via the backend API, on the Feature Backlog page.
+   *
+   * Flow:
+   *  1. Client-side guard — bails silently if title is blank/whitespace-only
+   *     or no category was chosen (the submit button is also disabled in
+   *     that case, so this is a defence-in-depth check, not the primary UX).
+   *  2. Sets `reqSubmitting` so the button can show a "Submitting…" state.
+   *  3. POSTs the form via `api.createFeatureRequest`, and on success:
+   *     appends the server's returned record (with its assigned id) to the
+   *     local `featureRequests` list so it appears immediately without a
+   *     refetch, clears the form, and flips `reqDone` on for a transient
+   *     success message that auto-hides itself after 4 seconds.
+   *  4. On failure, the error is deliberately swallowed (`catch { /* ignore
+   *     *\/ }`) — the form simply stays filled in and not marked done, so
+   *     the user can see nothing happened and retry; there's no error UI.
+   *  `setReqSubmitting(false)` runs unconditionally after the try/catch so
+   *  the button unlocks whether the request succeeded or failed.
+   */
   async function submitFeatureRequest() {
     if (!reqForm.title.trim() || !reqForm.category) return
     setReqSubmitting(true)
@@ -1619,8 +1841,17 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     setReqSubmitting(false)
   }
 
+  /** Theme colour keyed by feature status, used for the status badge background/text in `featureCard`. */
   const statusColor = { backlog: t.textFaint, in_development: t.orange, completed: t.green }
 
+  /**
+   * Renders one feature-catalogue card (title, category badge coloured by
+   * `status`, description). `extra` is appended to `title` to form the React
+   * `key` — needed because the same feature title could theoretically repeat
+   * across different source arrays/status buckets, and a user-submitted
+   * `FeatureRequest`'s `id` is passed as `extra` to guarantee uniqueness for
+   * those entries specifically.
+   */
   const featureCard = (title: string, category: string, desc: string, status: 'completed' | 'in_development' | 'backlog', extra?: string) => (
     <div key={title + extra} style={{
       background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 8,
@@ -1638,6 +1869,11 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     </div>
   )
 
+  // The Feature Backlog page itself (page 6): completed / in-development /
+  // backlog feature lists (from the arrays above) plus the live
+  // `featureRequests` fetched from the backend, all rendered through
+  // `featureCard`, and the controlled feature-request submission form
+  // wired to `reqForm` state and `submitFeatureRequest`.
   const backlogPage = (
     <div style={{
       maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
@@ -1751,6 +1987,13 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {/* Button is disabled while a submit is in flight OR the
+                  required fields (title, category) aren't filled — mirroring
+                  the same guard at the top of submitFeatureRequest() as a
+                  belt-and-braces UX affordance. The grey/blue styling below
+                  intentionally re-checks only the required-fields part (not
+                  reqSubmitting) so the button still looks "active" (blue)
+                  while a valid submission is in progress, just unclickable. */}
               <button
                 onClick={submitFeatureRequest}
                 disabled={reqSubmitting || !reqForm.title.trim() || !reqForm.category}
@@ -1763,6 +2006,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               >
                 {reqSubmitting ? 'Submitting…' : 'Submit Request'}
               </button>
+              {/* Transient success confirmation — shown while reqDone is true, which
+                  submitFeatureRequest() sets on success and clears again after 4s. */}
               {reqDone && (
                 <span style={{ fontSize: 11, color: t.green, fontWeight: 600 }}>
                   ✓ Request added to backlog
@@ -1792,6 +2037,9 @@ export function UserGuide({ nodes, segments, systems }: Props) {
   if (page === 6 && !printAll) return backlogPage
 
   // ── Page 7: IT & Enterprise Readiness ─────────────────────────────────────
+  // Static content page for IT/security stakeholders — deployment stack,
+  // dependency list, auth model comparison, and a compliance-style
+  // control-status table.
   const itPage = (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 16px 60px', fontFamily: 'system-ui, sans-serif', color: t.text }}>
       {!printAll && pageTabs}
@@ -2156,6 +2404,10 @@ export function UserGuide({ nodes, segments, systems }: Props) {
   if (page === 7 && !printAll) return itPage
 
   // ── Page 8: Algorithm Evaluation ──────────────────────────────────────────
+  // Static content page documenting the built-in UAT test suite (the actual
+  // suite/runner lives elsewhere in the app, opened via the "🧪 Algo Eval"
+  // control-menu button) — what it tests, how to read results, and where run
+  // history is stored (client-side, in the browser, per the copy below).
   const algoEvalPage = (
     <div style={{
       maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
@@ -2412,6 +2664,13 @@ export function UserGuide({ nodes, segments, systems }: Props) {
   if (page === 9 && !printAll) return historyPage
 
   // ── Page 1: Product Overview ───────────────────────────────────────────────
+  // The default/landing page (see the unconditional `return overview` at the
+  // very end of this component, which serves as the implicit "page === 1"
+  // branch — page 1 has no explicit `if (page === 1) return overview` guard
+  // because it's simply what falls through once no other page/printAll
+  // branch above has already returned). Marketing-style hero, feature
+  // catalogue (`FEATURES`, defined near the top of this component), the
+  // step-by-step how-to (`STEPS`) and the `ROADMAP` teaser.
   const overview = (
     <div style={{
       maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
@@ -3259,6 +3518,15 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     </div>
   )
   // ── Print-all portal ──────────────────────────────────────────────────────
+  // When printAll is true, none of the `if (page === N && !printAll)` guards
+  // above fired, so execution falls all the way through to here with every
+  // page const (overview, arch, algo, dataModel, projectsGuide, backlogPage,
+  // itPage, algoEvalPage, historyPage) already built. This assembles them
+  // into one off-screen document and renders it via a portal so it lives
+  // outside this component's own DOM subtree, directly under <body> — which
+  // is what lets the @media print rule injected by the printAll useEffect
+  // (above) hide literally everything else on the page with a single
+  // `body > *:not(#rb-guide-print-portal)` selector.
   if (printAll) {
     const printContent = (
       <div
@@ -3266,11 +3534,25 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         id="rb-guide-print-portal"
         style={{
           background: t.bgBase,
+          // Positioned two viewport-widths off to the left (not
+          // display:none) so it still renders and lays out normally on
+          // screen — necessary because a display:none element produces no
+          // printable content in most browsers. The injected print
+          // stylesheet overrides this back to `position: static` only
+          // inside the print media query, so on screen it stays invisible.
           position: 'fixed', top: 0, left: '-200vw', width: '100vw',
           WebkitPrintColorAdjust: 'exact',
           printColorAdjust: 'exact',
         } as React.CSSProperties}
       >
+        {/* Each page is wrapped so print engines break to a new sheet
+            between pages (`page-break-after` + its standard `break-after`
+            equivalent, set for cross-browser support) — except the very
+            last one, which naturally ends the document without a trailing
+            blank page. Order here matches the page-tab order (1–8);
+            note the Feature Backlog page (page 6 / `backlogPage`) is
+            deliberately NOT included — it holds the live, per-user
+            feature-request form, which has no sensible printed form. */}
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{overview}</div>
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{arch}</div>
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{algo}</div>
@@ -3283,6 +3565,11 @@ export function UserGuide({ nodes, segments, systems }: Props) {
     )
     return createPortal(printContent, document.body)
   }
+
+  // Default / fallback render path: reached only when printAll is false and
+  // page is 1 (no earlier `if (page === N && !printAll)` branch matched).
+  // This is effectively the implicit "page === 1" case — see the comment on
+  // `overview` above for why there's no explicit `if (page === 1)` guard.
 
   return overview
 }
