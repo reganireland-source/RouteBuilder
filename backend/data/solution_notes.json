@@ -1,0 +1,22 @@
+[
+  {
+    "id": "note-unity-hawlax-1",
+    "node_id": null,
+    "segment_id": "UNITY-HAW-LAX",
+    "category_id": "engineering",
+    "title": "Landing party maintenance window",
+    "text": "The Hawaii-side cable landing party schedules planned maintenance in the first two weeks of each quarter. Avoid quoting hard cutover dates inside that window \u2014 confirmed with the local NOC lead after the Q1 2025 outage.",
+    "severity": "warning",
+    "created_at": "2026-09-24"
+  },
+  {
+    "id": "note-unity-hawlax-2",
+    "node_id": null,
+    "segment_id": "UNITY-HAW-LAX",
+    "category_id": "commercial",
+    "title": "Preferred consortium contact for expedited capacity",
+    "text": "For rush capacity requests on this leg, go direct to the UNITY consortium commercial desk rather than the standard portal \u2014 cuts typical turnaround from 10 business days to under 48 hours. Relationship owned by the APAC solutions team.",
+    "severity": "info",
+    "created_at": "2026-09-24"
+  }
+]
