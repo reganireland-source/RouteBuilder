@@ -136,6 +136,9 @@ const HIGH_CONTRAST_BACKHAUL_COLOR = '#5b21b6'
  *  a mid-tone color. */
 const SATELLITE_DEFAULT_SEGMENT_COLOR = '#f4f7ff'
 
+/** The subset of Leaflet's Polyline `pathOptions` this file threads through
+ *  its own styling ladder (color/weight/opacity/dashArray) — kept as its own
+ *  named type purely so applyMapStyleContrast's signature stays readable. */
 interface SegPathOptions { color: string; weight: number; opacity: number; dashArray: string | undefined }
 
 /** The map-style-specific overrides to the segment styling ladder — pulled
@@ -320,6 +323,17 @@ interface Props {
 }
 
 
+/**
+ * Forces Leaflet to recompute its internal size after the side panel is
+ * resized/opened/closed. Leaflet caches the pixel size of its container at
+ * mount and after each explicit `invalidateSize()` call; it has no way to
+ * observe a CSS-driven resize of that container on its own, so without this
+ * the map would keep rendering tiles/markers using stale dimensions (visibly
+ * cropped or offset) whenever `panelWidth` changes. The 310ms delay lets the
+ * panel's own CSS transition finish first so Leaflet measures the *final*
+ * size rather than a mid-transition one. Renders nothing; purely an
+ * imperative useMap() side effect.
+ */
 function MapResizer({ panelWidth }: { panelWidth?: number }) {
   const map = useMap()
   useEffect(() => {
@@ -329,6 +343,14 @@ function MapResizer({ panelWidth }: { panelWidth?: number }) {
   return null
 }
 
+/**
+ * Keeps the RouteManual step-by-step build in view as it grows: every locked
+ * node (origin + confirmed steps) plus every currently-offered next-hop
+ * candidate is collected into one bounding box and the map is fit to it
+ * whenever the path or candidate set changes. Renders nothing; purely an
+ * imperative useMap() side effect, same pattern as MapFlyTo/MapFlyToNode/
+ * MapFitBounds below.
+ */
 function ManualFitBounds({ manualState, manualCandidates, nodes }: {
   manualState: ManualState | null | undefined
   manualCandidates: NextHopCandidate[]
@@ -423,6 +445,15 @@ function MapFitBounds({ target }: { target: { bounds: [[number, number], [number
   return null
 }
 
+/**
+ * Flies/fits the map to a Country Viewer highlight. A single-point country
+ * (a tiny island state whose bounds collapse to under half a degree in both
+ * dimensions) gets a `flyTo` on its centroid instead of `fitBounds`, since
+ * fitting a near-zero-area box would either do nothing useful or zoom in
+ * absurdly far; anything larger fits its full bounding box. Re-runs only on
+ * `highlight?.countryCode` (not on every highlight field), so re-selecting
+ * the same country doesn't re-trigger the animation. Renders nothing.
+ */
 function MapFlyTo({ highlight }: { highlight: CountryHighlight | null | undefined }) {
   const map = useMap()
   useEffect(() => {
@@ -455,6 +486,10 @@ const CANDIDATE_PALETTE = [
   '#facc15',  // yellow
 ]
 
+/** Looks up a next-hop candidate's colour by its position in the candidate
+ *  list, wrapping around CANDIDATE_PALETTE if there are more candidates than
+ *  colours. Exported so RouteManual's own candidate list cards can use the
+ *  exact same index → colour mapping as the map dots. */
 export function candidateColor(index: number): string {
   return CANDIDATE_PALETTE[index % CANDIDATE_PALETTE.length]
 }
