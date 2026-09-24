@@ -1,156 +1,1417 @@
-import { useState } from 'react'
-import type { CableNode, CableSegment, DiversityType, RouteRequest } from '../types'
+/**
+ * ============================================================================
+ *  SearchForm.tsx — the route search form (routebuilder mode, left panel).
+ * ============================================================================
+ *
+ * Mounted by App.tsx in the left panel when mode === 'routebuilder' (and by
+ * MobileLayout). It gathers everything needed to describe a route search and,
+ * on submit, hands App a fully-built `RouteRequest` via the `onSearch` prop;
+ * App then calls the backend and renders the results in RouteList.
+ *
+ * WHAT THE USER PICKS:
+ *   • Origin & destination nodes (via the type-ahead <NodeCombobox>), with a
+ *     ⇅ swap button.
+ *   • Diversity type — whether/how to also compute a physically separate backup
+ *     path (none / wet / full / full-node / terrestrial variants).
+ *   • "Optimise for" objective (hops / distance / latency / margin / …).
+ *   • Advanced constraints (in a modal): force-include or avoid specific nodes,
+ *     segments, cable systems or whole countries, plus max wet/terrestrial hops.
+ *
+ * KEY PROPS:
+ *   • nodes / segments / systems — reference data used to populate the pickers.
+ *   • onSearch(req) — called with the assembled RouteRequest on submit.
+ *   • loading — disables/animates the submit button while a search runs.
+ *   • prefilledOrigin / prefilledDest — origin/dest pushed in from a map click
+ *     or another panel (synced into local state via effects).
+ *   • prefill — a full partial RouteRequest pushed in from the NLP assistant;
+ *     a new object reference re-applies it to every field.
+ *
+ * All the field state lives locally here; handleSubmit() bundles it into the
+ * RouteRequest shape the backend expects.
+ * ============================================================================
+ */
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
+import type { CableNode, CableSegment, CableSystem, DiversityType, RouteRequest } from '../types'
+import { useTheme } from '../theme'
 
+/** Props for {@link SearchForm}. See the file header for the full picture of
+ *  how prefilledOrigin/prefilledDest/prefill interact with local field state. */
 interface Props {
   nodes: CableNode[]
   segments: CableSegment[]
+  systems?: CableSystem[]
   onSearch: (req: RouteRequest) => void
   loading: boolean
+  prefilledOrigin?: string
+  prefilledDest?: string
+  prefill?: Partial<RouteRequest>
+  /** Same global KML Mode the Control menu toggles — not a second, separate
+   *  flag — so switching it here or there stays in sync everywhere it's used. */
+  kmlMode: boolean
+  onToggleKmlMode: () => void
 }
 
-export function SearchForm({ nodes, segments, onSearch, loading }: Props) {
-  const [startNode, setStartNode] = useState('')
-  const [endNode, setEndNode] = useState('')
-  const [diversity, setDiversity] = useState<DiversityType>('none')
-  const [mustInclude, setMustInclude] = useState<string[]>([])
-  const [mustAvoidNodes, setMustAvoidNodes] = useState<string[]>([])
-  const [mustAvoidSegs, setMustAvoidSegs] = useState<string[]>([])
+const COUNTRY_NAMES: Record<string, string> = {
+  AE: 'United Arab Emirates',
+  AU: 'Australia',
+  CN: 'China',
+  DE: 'Germany',
+  DJ: 'Djibouti',
+  EG: 'Egypt',
+  FJ: 'Fiji',
+  FR: 'France',
+  GB: 'United Kingdom',
+  GR: 'Greece',
+  GU: 'Guam',
+  HK: 'Hong Kong',
+  ID: 'Indonesia',
+  IN: 'India',
+  IT: 'Italy',
+  JP: 'Japan',
+  KH: 'Cambodia',
+  KR: 'South Korea',
+  LK: 'Sri Lanka',
+  MM: 'Myanmar',
+  MP: 'Northern Mariana Islands',
+  MY: 'Malaysia',
+  NZ: 'New Zealand',
+  OM: 'Oman',
+  PH: 'Philippines',
+  PK: 'Pakistan',
+  QA: 'Qatar',
+  SA: 'Saudi Arabia',
+  SG: 'Singapore',
+  TH: 'Thailand',
+  TW: 'Taiwan',
+  US: 'United States',
+  VN: 'Vietnam',
+  VU: 'Vanuatu',
+  YE: 'Yemen',
+}
 
-  const sortedNodes = [...nodes].sort((a, b) => a.name.localeCompare(b.name))
+/** ISO country code → display name, falling back to the raw code when unknown. */
+function countryName(code: string) {
+  return COUNTRY_NAMES[code] ?? code
+}
 
-  function toggleMulti(id: string, list: string[], setter: (v: string[]) => void) {
-    setter(list.includes(id) ? list.filter(x => x !== id) : [...list, id])
+/** Add `id` to a multi-select list if absent, else remove it (immutably). */
+function toggleMulti(id: string, list: string[], setter: (v: string[]) => void) {
+  setter(list.includes(id) ? list.filter(x => x !== id) : [...list, id])
+}
+
+// Metadata for the tabs inside the Advanced Constraints modal (label, icon,
+// which include/avoid list each drives). `id` is also the key used to look up
+// each tab's current chips/hasValue via AdvancedConstraintsModal's getChips()
+// and to clear it via clearConstraint() — it must match the switch cases there.
+const CONSTRAINT_DEFS = [
+  {
+    id: 'optimise_for',
+    label: 'Optimise For',
+    icon: '🎯',
+    description: 'Controls which 30 routes are kept in the search pool. Auto (default) draws from multiple dimensions — picking the best routes for hops, distance, latency, margin, capacity, and on-net ownership. Setting a specific dimension fills all 30 slots with the best routes for that single metric.',
+  },
+  {
+    id: 'max_hops',
+    label: 'Max Hops',
+    icon: '⬡',
+    description: 'Limits how many cable segments the route may traverse. Each segment counts as one hop — so a route through 4 nodes has 3 hops. Wet hops cross ocean; terrestrial hops cross land. Leave a field blank to apply no limit for that type.',
+  },
+  {
+    id: 'must_include_systems',
+    label: 'Must Include Systems',
+    icon: '📡',
+    description: 'At least one segment from every selected cable system must appear on the route. Use this to ensure the path rides a particular submarine cable system.',
+  },
+  {
+    id: 'must_avoid_systems',
+    label: 'Must Avoid Systems',
+    icon: '🛑',
+    description: 'No segments from any selected system will be used. Use this to route entirely clear of a cable system — for example, one affected by an outage or excluded by commercial policy.',
+  },
+  {
+    id: 'must_include_countries',
+    label: 'Must Include Countries',
+    icon: '🌍',
+    description: 'The route must transit at least one non-BU landing node in each selected country. Use to enforce geographic landing requirements — for example, a circuit that must land in Japan.',
+  },
+  {
+    id: 'must_avoid_countries',
+    label: 'Must Avoid Countries',
+    icon: '🌐',
+    description: 'The route will not transit any landing node in selected countries. Use to enforce geopolitical, licensing, security, or operational constraints — for example, avoiding a country for information-security reasons.',
+  },
+  {
+    id: 'must_include_segments',
+    label: 'Must Include Segments',
+    icon: '🔗',
+    description: 'The route must traverse every segment selected here. Use this to lock in a specific cable section — for example, a preferred submarine segment that must carry the traffic.',
+  },
+  {
+    id: 'must_avoid_segments',
+    label: 'Must Avoid Segments',
+    icon: '✂️',
+    description: 'The route will not traverse any selected segment. Use this to exclude a cable section that is under maintenance, congested, or otherwise at risk.',
+  },
+  {
+    id: 'must_include_nodes',
+    label: 'Must Include Nodes',
+    icon: '📍',
+    description: 'The route must pass through every node selected here. Use this to ensure traffic visits a specific landing station or PoP on the way between origin and destination.',
+  },
+  {
+    id: 'must_avoid_nodes',
+    label: 'Must Avoid Nodes',
+    icon: '🚫',
+    description: 'The route will not pass through any selected node. Use this to exclude a facility that is unavailable, restricted, or otherwise not suitable for the route.',
+  },
+]
+
+/** One choice in the "Optimise For" picker: the RouteRequest.optimise_for
+ *  value it sends (empty string = Auto/unset), plus the copy shown when it's
+ *  selected (what it does, and the tradeoff of picking it). */
+interface OptimiseOption {
+  value: string; label: string; icon: string
+  explain?: string; better?: string; worse?: string
+}
+// The catalogue of "Optimise For" choices rendered as buttons in the modal's
+// optimise_for tab, each with its own explain/better/worse copy shown when active.
+const OPTIMISE_OPTIONS: OptimiseOption[] = [
+  { value: '', label: 'Auto', icon: '✦' },
+  {
+    value: 'hops', label: 'Hops', icon: '○',
+    explain: 'Fills the pool with the 30 routes that cross the fewest cable segments end-to-end. Each segment — submarine or terrestrial — counts as one hop regardless of its length.',
+    better: 'Fewer hops → simpler, more direct path with fewer points of failure and less exposure to faults',
+    worse: 'More hops → greater complexity, more physical infrastructure in the path, higher cumulative failure risk',
+  },
+  {
+    value: 'distance', label: 'Distance', icon: '↔',
+    explain: 'Fills the pool with the 30 shortest routes by total cable kilometres. Shorter routes are usually faster and less expensive to operate.',
+    better: 'Fewer km → more direct path, lower propagation delay, often lower cost',
+    worse: 'More km → longer geographic detour, higher latency, more cable to maintain',
+  },
+  {
+    value: 'latency', label: 'Latency', icon: '⚡',
+    explain: 'Fills the pool with the 30 routes that have the lowest end-to-end round-trip propagation delay — the time it takes for a signal to travel the full route and back.',
+    better: 'Lower ms → faster signal, better for trading, real-time applications and latency-sensitive enterprise customers',
+    worse: 'Higher ms → more delay, impacts interactive applications and time-critical workloads',
+  },
+  {
+    value: 'margin', label: 'Margin', icon: '$',
+    explain: 'Fills the pool with the 30 routes that carry the best commercial margin. Margin is calculated from the ownership type of each cable system, weighted by segment length. Owned and IRU capacity score highest.',
+    better: 'Higher margin → more owned/IRU/consortium segments, stronger commercial return on every circuit sold',
+    worse: 'Lower margin → more resell or off-net segments, lower return, more dependency on third-party pricing',
+  },
+  {
+    value: 'capacity', label: 'Capacity', icon: '◈',
+    explain: 'Fills the pool with the 30 routes that have the most available bandwidth at the bottleneck — the segment with the least free capacity on the path. More available capacity means more inventory to sell.',
+    better: 'Higher available Tbps → more room to commit circuits, lower congestion risk, greater commercial headroom',
+    worse: 'Lower available Tbps → congested or nearly full segments, limited ability to place new services',
+  },
+  {
+    value: 'ownership', label: 'Ownership', icon: '◉',
+    explain: 'Fills the pool with the 30 routes where the highest proportion of segments are on-net — owned, IRU or consortium. Routes with resell or off-net segments score lower even if they are shorter or cheaper.',
+    better: 'More on-net → owned infrastructure, full commercial control, higher margins, no third-party dependency',
+    worse: 'More off-net → reliance on third parties, lower margins, less pricing control, resale exposure',
+  },
+  {
+    value: 'outages', label: 'No Outages', icon: '🚢',
+    explain: 'Filters the pool to only include routes where no segment has a current active outage. If no outage-free routes exist, falls back to cost-ordered routes so results are never empty.',
+    better: 'All segments healthy → no disruption risk, full operational capacity available on every hop',
+    worse: 'If outages are widespread, the qualifying pool may be smaller than 30 routes',
+  },
+]
+
+/** Reusable searchable multi-select list: filter box + checkable rows, used for
+ *  the system / country constraint pickers. */
+function FilteredMulti({ items, selected, onToggle, placeholder, listHeight = 130 }: {
+  items: { id: string; primary: string; secondary?: string }[]
+  selected: string[]
+  onToggle: (id: string) => void
+  placeholder: string
+  listHeight?: number
+}) {
+  const t = useTheme()
+  const [query, setQuery] = useState('')
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const base = q
+      ? items.filter(it =>
+          it.id.toLowerCase().includes(q) ||
+          it.primary.toLowerCase().includes(q) ||
+          (it.secondary ?? '').toLowerCase().includes(q)
+        )
+      : items
+    return base.slice(0, 50)
+  }, [query, items])
+
+  const selectedItems = items.filter(it => selected.includes(it.id))
+
+  return (
+    <div style={{ border: `1px solid ${t.border}`, borderRadius: 4, background: t.bgInput, overflow: 'hidden' }}>
+      {selectedItems.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: '6px 8px', borderBottom: `1px solid ${t.border}` }}>
+          {selectedItems.map(it => (
+            <span
+              key={it.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onToggle(it.id)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(it.id) } }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '2px 6px', borderRadius: 10,
+                background: t.blue + '22', border: `1px solid ${t.blue}44`,
+                color: t.blue, fontSize: 11, cursor: 'pointer',
+              }}
+            >
+              {it.primary} <span style={{ fontSize: 13, lineHeight: 1 }}>×</span>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        style={{
+          width: '100%', padding: '5px 8px', border: 'none',
+          borderBottom: `1px solid ${t.border}`, background: t.bgInput,
+          color: t.text, fontSize: 12, boxSizing: 'border-box', outline: 'none',
+        }}
+      />
+      <div style={{ maxHeight: listHeight, overflowY: 'auto' }}>
+        {visible.length === 0
+          ? <div style={{ padding: '8px 10px', fontSize: 12, color: t.textFaintest }}>No matches</div>
+          : visible.map(it => {
+              const isSelected = selected.includes(it.id)
+              return (
+                <div
+                  key={it.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onToggle(it.id)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(it.id) } }}
+                  style={{
+                    padding: '5px 8px', cursor: 'pointer', fontSize: 12,
+                    background: isSelected ? t.blue + '18' : 'transparent',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}
+                >
+                  <span style={{ color: isSelected ? t.blue : t.text, fontWeight: isSelected ? 600 : 400, flex: 1 }}>
+                    {it.primary}
+                  </span>
+                  {it.secondary && (
+                    <span style={{ color: t.textFaintest, fontSize: 10 }}>{it.secondary}</span>
+                  )}
+                </div>
+              )
+            })
+        }
+      </div>
+    </div>
+  )
+}
+
+/** Like FilteredMulti but specialised for choosing nodes (searches id/name/
+ *  country and can exclude certain ids, e.g. the current origin/destination). */
+function FilteredNodeMulti({ nodes, exclude, selected, onToggle, listHeight = 130 }: {
+  nodes: CableNode[]
+  exclude: string[]
+  selected: string[]
+  onToggle: (id: string) => void
+  listHeight?: number
+}) {
+  const t = useTheme()
+  const [query, setQuery] = useState('')
+
+  const typeTag = (n: CableNode) => n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : n.type === 'primary_pop' ? '1°PoP' : n.type === 'secondary_pop' ? '2°PoP' : n.type === 'off_net' ? 'Off-Net' : 'ExtPoP'
+
+  const pool = nodes.filter(n => n.type !== 'branching_unit' && !exclude.includes(n.id))
+
+  const visible: CableNode[] = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const base = q
+      ? pool.filter(n =>
+          n.id.toLowerCase().includes(q) ||
+          n.name.toLowerCase().includes(q) ||
+          countryName(n.country).toLowerCase().includes(q) ||
+          n.country.toLowerCase().includes(q) ||
+          (n.owner ?? '').toLowerCase().includes(q)
+        )
+      : pool
+    return base.slice(0, 50)
+  }, [query, pool])
+
+  const selectedNodes = pool.filter(n => selected.includes(n.id))
+
+  return (
+    <div style={{ border: `1px solid ${t.border}`, borderRadius: 4, background: t.bgInput, overflow: 'hidden' }}>
+      {selectedNodes.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, padding: '6px 8px', borderBottom: `1px solid ${t.border}` }}>
+          {selectedNodes.map(n => (
+            <span
+              key={n.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onToggle(n.id)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(n.id) } }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '2px 6px', borderRadius: 10,
+                background: t.blue + '22', border: `1px solid ${t.blue}44`,
+                color: t.blue, fontSize: 11, cursor: 'pointer',
+              }}
+            >
+              {n.name} <span style={{ fontSize: 13, lineHeight: 1 }}>×</span>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        placeholder="Filter nodes…"
+        style={{
+          width: '100%', padding: '5px 8px', border: 'none',
+          borderBottom: `1px solid ${t.border}`, background: t.bgInput,
+          color: t.text, fontSize: 12, boxSizing: 'border-box', outline: 'none',
+        }}
+      />
+      <div style={{ maxHeight: listHeight, overflowY: 'auto' }}>
+        {visible.length === 0
+          ? <div style={{ padding: '8px 10px', fontSize: 12, color: t.textFaintest }}>No nodes match</div>
+          : visible.map(n => {
+              const isSelected = selected.includes(n.id)
+              return (
+                <div
+                  key={n.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onToggle(n.id)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(n.id) } }}
+                  style={{
+                    padding: '5px 8px', cursor: 'pointer', fontSize: 12,
+                    background: isSelected ? t.blue + '18' : 'transparent',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}
+                >
+                  <span style={{
+                    fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 3, flexShrink: 0,
+                    background: n.type === 'landing_station' ? t.blue + '22' : t.orange + '22',
+                    color: n.type === 'landing_station' ? t.blue : t.orange,
+                  }}>{typeTag(n)}</span>
+                  <span style={{ color: isSelected ? t.blue : t.text, fontWeight: isSelected ? 600 : 400, flex: 1 }}>
+                    {n.name}
+                  </span>
+                  <span style={{ color: t.textFaintest, fontSize: 10 }}>{n.id}</span>
+                </div>
+              )
+            })
+        }
+      </div>
+    </div>
+  )
+}
+
+/** −/+ stepper for a "max hops" numeric constraint (blank = unlimited). */
+function HopStepper({ label, icon, value, onChange }: {
+  label: string
+  icon: string
+  value: number | ''
+  onChange: (v: number | '') => void
+}) {
+  const t = useTheme()
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20 }}>
+      <div style={{ fontSize: 36, lineHeight: 1, marginTop: 4 }}>{icon}</div>
+      <div>
+        <div style={{
+          fontSize: 11, fontWeight: 700, color: t.textMuted,
+          textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12,
+        }}>{label}</div>
+        <div style={{
+          display: 'flex', alignItems: 'center',
+          border: `1px solid ${t.border}`, borderRadius: 6, overflow: 'hidden',
+          width: 'fit-content',
+        }}>
+          <button
+            type="button"
+            onClick={() => onChange(value === '' || (value as number) <= 1 ? '' : (value as number) - 1)}
+            style={{
+              width: 38, height: 38, background: t.bgDeep, border: 'none',
+              cursor: 'pointer', color: t.text, fontSize: 22,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >−</button>
+          <div style={{ width: 1, height: 38, background: t.border, flexShrink: 0 }} />
+          <input
+            type="number"
+            min={1}
+            value={value}
+            onChange={e => {
+              const raw = e.target.value
+              if (raw === '') { onChange(''); return }
+              const n = parseInt(raw, 10)
+              if (!isNaN(n) && n >= 1) onChange(n)
+            }}
+            placeholder="∞"
+            style={{
+              width: 80, height: 38, textAlign: 'center',
+              background: t.bgInput, border: 'none',
+              color: value === '' ? t.textFaint : t.text,
+              fontSize: 18, fontWeight: 700, outline: 'none', padding: 0,
+            }}
+          />
+          <div style={{ width: 1, height: 38, background: t.border, flexShrink: 0 }} />
+          <button
+            type="button"
+            onClick={() => onChange(value === '' ? 1 : (value as number) + 1)}
+            style={{
+              width: 38, height: 38, background: t.bgDeep, border: 'none',
+              cursor: 'pointer', color: t.text, fontSize: 22,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >+</button>
+        </div>
+        <div style={{ marginTop: 8, fontSize: 12, color: t.textFaint }}>
+          {value === '' ? 'No limit applied' : `Maximum ${value} hop${value === 1 ? '' : 's'}`}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Type-ahead combobox for choosing a single node (origin or destination):
+ *  filters as you type, supports keyboard navigation, stores the node id. */
+function NodeCombobox({ nodes, value, onChange, placeholder, id }: {
+  nodes: CableNode[]
+  value: string
+  onChange: (id: string) => void
+  placeholder: string
+  /** Pairs with an external `<label htmlFor={id}>` — the input only exists
+   *  while nothing is selected (a selected node renders as a read-only chip
+   *  instead), so the id/label pairing applies to that search state. */
+  id?: string
+}) {
+  const t = useTheme()
+  const [query, setQuery]       = useState('')
+  const [open, setOpen]         = useState(false)
+  const [activeIdx, setActiveIdx] = useState(-1)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const inputRef     = useRef<HTMLInputElement>(null)
+  const listRef      = useRef<HTMLDivElement>(null)
+
+  const selectedNode = nodes.find(n => n.id === value)
+
+  const filtered: CableNode[] = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return []
+    return nodes
+      .filter(n => n.type !== 'branching_unit')
+      .filter(n =>
+        n.id.toLowerCase().includes(q) ||
+        n.name.toLowerCase().includes(q) ||
+        countryName(n.country).toLowerCase().includes(q) ||
+        n.country.toLowerCase().includes(q) ||
+        (n.owner ?? '').toLowerCase().includes(q) ||
+        (n.trading_name ?? '').toLowerCase().includes(q)
+      )
+      .slice(0, 25)
+  }, [query, nodes])
+
+  useEffect(() => { setActiveIdx(-1) }, [filtered])
+
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+        setQuery('')
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [])
+
+  function select(id: string) {
+    onChange(id)
+    setOpen(false)
+    setQuery('')
+    setActiveIdx(-1)
   }
 
+  function clear() {
+    onChange('')
+    setQuery('')
+    setOpen(false)
+    setTimeout(() => inputRef.current?.focus(), 0)
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Escape') { setOpen(false); setQuery(''); return }
+    if (!open || filtered.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setActiveIdx((i: number) => Math.min(i + 1, filtered.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setActiveIdx((i: number) => Math.max(i - 1, 0))
+    } else if (e.key === 'Enter' && activeIdx >= 0) {
+      e.preventDefault()
+      select(filtered[activeIdx].id)
+    }
+  }
+
+  const typeTag = (n: CableNode) =>
+    n.type === 'landing_station' ? 'CLS' : n.type === 'branching_unit' ? 'BU' : n.type === 'primary_pop' ? '1°PoP' : n.type === 'secondary_pop' ? '2°PoP' : 'ExtPoP'
+
+  const inputBase: React.CSSProperties = {
+    width: '100%', padding: '6px 8px', borderRadius: 4,
+    border: `1px solid ${t.border}`, background: t.bgInput, color: t.text,
+    fontSize: 13, boxSizing: 'border-box',
+  }
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      {selectedNode ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '6px 8px', borderRadius: 4,
+          border: `1px solid ${t.blue}`, background: t.bgInput,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: 13, color: t.text, fontWeight: 500 }}>{selectedNode.name}</span>
+            <span style={{ fontSize: 11, color: t.textFaint, marginLeft: 6 }}>
+              {selectedNode.id} · {typeTag(selectedNode)} · {countryName(selectedNode.country)}
+            </span>
+          </div>
+          <button
+            type="button" onClick={clear}
+            style={{
+              flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer',
+              color: t.textFaint, fontSize: 16, lineHeight: 1, padding: '0 2px',
+            }}
+          >×</button>
+        </div>
+      ) : (
+        <input
+          id={id}
+          ref={inputRef}
+          value={query}
+          placeholder={placeholder}
+          onChange={e => { setQuery(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={onKeyDown}
+          style={inputBase}
+          autoComplete="off"
+        />
+      )}
+
+      {open && filtered.length > 0 && (
+        <div
+          ref={listRef}
+          style={{
+            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 1000,
+            background: t.bgPanel, border: `1px solid ${t.border}`,
+            borderRadius: 6, maxHeight: 240, overflowY: 'auto',
+            boxShadow: '0 8px 28px rgba(0,0,0,0.35)',
+          }}
+        >
+          {filtered.map((n, i) => (
+            <div
+              key={n.id}
+              onMouseDown={() => select(n.id)}
+              style={{
+                padding: '8px 12px', cursor: 'pointer',
+                background: i === activeIdx ? t.bgDeep : 'transparent',
+                borderBottom: i < filtered.length - 1 ? `1px solid ${t.border}` : 'none',
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 500, color: t.text }}>{n.name}</div>
+              <div style={{ fontSize: 11, color: t.textFaint, marginTop: 1 }}>
+                <span style={{
+                  display: 'inline-block', fontSize: 9, fontWeight: 700,
+                  padding: '1px 4px', borderRadius: 3, marginRight: 5,
+                  background: n.type === 'landing_station' ? t.blue + '22' : t.orange + '22',
+                  color: n.type === 'landing_station' ? t.blue : t.orange,
+                }}>{typeTag(n)}</span>
+                {n.id} · {countryName(n.country)}{n.owner ? ` · ${n.owner}` : ''}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {open && query.trim().length > 0 && filtered.length === 0 && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 1000,
+          background: t.bgPanel, border: `1px solid ${t.border}`,
+          borderRadius: 6, padding: '10px 12px',
+          boxShadow: '0 8px 28px rgba(0,0,0,0.35)',
+        }}>
+          <span style={{ fontSize: 12, color: t.textFaint }}>No nodes match "{query}"</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Same local-copy pattern as RouteList.tsx/RefDataModal.tsx's own
+ *  `useIsMobile` — no shared hook module exists for this in the codebase. */
+function useIsMobile(): boolean {
+  const [mobile, setMobile] = useState(() => window.innerWidth < 768)
+  useEffect(() => {
+    const handler = () => setMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+  return mobile
+}
+
+/** The Advanced Constraints modal: tabbed include/avoid pickers for nodes,
+ *  segments, systems and countries, plus max wet/terrestrial hop steppers.
+ *  Edits the constraint state owned by the parent SearchForm. */
+function AdvancedConstraintsModal({
+  open, onClose,
+  nodes, segments, systemOptions,
+  startNode, endNode,
+  mustIncludeNodes, setMustIncludeNodes,
+  mustAvoidNodes, setMustAvoidNodes,
+  mustAvoidSegs, setMustAvoidSegs,
+  mustIncludeSegs, setMustIncludeSegs,
+  mustIncludeSystems, setMustIncludeSystems,
+  mustAvoidSystems, setMustAvoidSystems,
+  mustIncludeCountries, setMustIncludeCountries,
+  mustAvoidCountries, setMustAvoidCountries,
+  countryOptions,
+  maxWetHops, setMaxWetHops,
+  maxTerrestrialHops, setMaxTerrestrialHops,
+  optimiseFor, setOptimiseFor,
+  activeTab, setActiveTab,
+  onClearAll,
+}: {
+  open: boolean
+  onClose: () => void
+  nodes: CableNode[]
+  segments: CableSegment[]
+  systemOptions: { id: string; name: string }[]
+  startNode: string
+  endNode: string
+  mustIncludeNodes: string[]
+  setMustIncludeNodes: (v: string[]) => void
+  mustAvoidNodes: string[]
+  setMustAvoidNodes: (v: string[]) => void
+  mustAvoidSegs: string[]
+  setMustAvoidSegs: (v: string[]) => void
+  mustIncludeSegs: string[]
+  setMustIncludeSegs: (v: string[]) => void
+  mustIncludeSystems: string[]
+  setMustIncludeSystems: (v: string[]) => void
+  mustAvoidSystems: string[]
+  setMustAvoidSystems: (v: string[]) => void
+  mustIncludeCountries: string[]
+  setMustIncludeCountries: (v: string[]) => void
+  mustAvoidCountries: string[]
+  setMustAvoidCountries: (v: string[]) => void
+  countryOptions: { id: string; name: string }[]
+  maxWetHops: number | ''
+  setMaxWetHops: (v: number | '') => void
+  maxTerrestrialHops: number | ''
+  setMaxTerrestrialHops: (v: number | '') => void
+  optimiseFor: string
+  setOptimiseFor: (v: string) => void
+  activeTab: string
+  setActiveTab: (v: string) => void
+  onClearAll: () => void
+}) {
+  const t = useTheme()
+  const isMobile = useIsMobile()
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  const totalCount =
+    mustIncludeNodes.length + mustAvoidNodes.length +
+    mustAvoidSegs.length + mustIncludeSegs.length +
+    mustIncludeSystems.length + mustAvoidSystems.length +
+    mustIncludeCountries.length + mustAvoidCountries.length +
+    (maxWetHops !== '' ? 1 : 0) + (maxTerrestrialHops !== '' ? 1 : 0) +
+    (optimiseFor !== '' ? 1 : 0)
+
+  /** For the sidebar row of a given constraint tab: resolve its selected ids
+   *  (nodes/segments/systems/countries) to display names for the small chip
+   *  preview, and report whether that tab currently has anything set. */
+  function getChips(id: string): { chips: string[]; hasValue: boolean } {
+    switch (id) {
+      case 'must_include_nodes':
+        return { chips: mustIncludeNodes.map(nid => nodes.find(n => n.id === nid)?.name ?? nid), hasValue: mustIncludeNodes.length > 0 }
+      case 'must_avoid_nodes':
+        return { chips: mustAvoidNodes.map(nid => nodes.find(n => n.id === nid)?.name ?? nid), hasValue: mustAvoidNodes.length > 0 }
+      case 'must_include_segments':
+        return { chips: mustIncludeSegs.map(sid => segments.find(s => s.id === sid)?.name ?? sid), hasValue: mustIncludeSegs.length > 0 }
+      case 'must_avoid_segments':
+        return { chips: mustAvoidSegs.map(sid => segments.find(s => s.id === sid)?.name ?? sid), hasValue: mustAvoidSegs.length > 0 }
+      case 'must_include_systems':
+        return { chips: mustIncludeSystems.map(sid => systemOptions.find(s => s.id === sid)?.name ?? sid), hasValue: mustIncludeSystems.length > 0 }
+      case 'must_avoid_systems':
+        return { chips: mustAvoidSystems.map(sid => systemOptions.find(s => s.id === sid)?.name ?? sid), hasValue: mustAvoidSystems.length > 0 }
+      case 'must_include_countries':
+        return { chips: mustIncludeCountries.map(c => countryOptions.find(o => o.id === c)?.name ?? c), hasValue: mustIncludeCountries.length > 0 }
+      case 'must_avoid_countries':
+        return { chips: mustAvoidCountries.map(c => countryOptions.find(o => o.id === c)?.name ?? c), hasValue: mustAvoidCountries.length > 0 }
+      case 'max_hops': {
+        const chips: string[] = []
+        if (maxWetHops !== '') chips.push(`🌊 Wet: ${maxWetHops}`)
+        if (maxTerrestrialHops !== '') chips.push(`⛰️ Land: ${maxTerrestrialHops}`)
+        return { chips, hasValue: chips.length > 0 }
+      }
+      case 'optimise_for': {
+        if (!optimiseFor) return { chips: [], hasValue: false }
+        const opt = OPTIMISE_OPTIONS.find(o => o.value === optimiseFor)
+        return { chips: [opt?.label ?? optimiseFor], hasValue: true }
+      }
+      default: return { chips: [], hasValue: false }
+    }
+  }
+
+  /** Reset just the one constraint tab identified by `id` back to empty,
+   *  leaving every other tab's selection untouched. Used by each sidebar
+   *  row's own × button. */
+  function clearConstraint(id: string) {
+    switch (id) {
+      case 'must_include_nodes': setMustIncludeNodes([]); break
+      case 'must_avoid_nodes': setMustAvoidNodes([]); break
+      case 'must_include_segments': setMustIncludeSegs([]); break
+      case 'must_avoid_segments': setMustAvoidSegs([]); break
+      case 'must_include_systems': setMustIncludeSystems([]); break
+      case 'must_avoid_systems': setMustAvoidSystems([]); break
+      case 'must_include_countries': setMustIncludeCountries([]); break
+      case 'must_avoid_countries': setMustAvoidCountries([]); break
+      case 'max_hops': setMaxWetHops(''); setMaxTerrestrialHops(''); break
+      case 'optimise_for': setOptimiseFor(''); break
+    }
+  }
+
+  const activeDef = CONSTRAINT_DEFS.find(d => d.id === activeTab) ?? CONSTRAINT_DEFS[0]
+  const LIST_H = 300
+
+  /** Render the content pane for whichever constraint tab is active: a
+   *  FilteredNodeMulti/FilteredMulti picker for the list-based constraints,
+   *  paired HopStepper controls for max_hops, or the optimise_for button
+   *  grid with its explain/better/worse copy. */
+  function renderPanel() {
+    switch (activeTab) {
+      case 'must_include_nodes':
+        return <FilteredNodeMulti nodes={nodes} exclude={[startNode, endNode]} selected={mustIncludeNodes} onToggle={id => toggleMulti(id, mustIncludeNodes, setMustIncludeNodes)} listHeight={LIST_H} />
+      case 'must_avoid_nodes':
+        return <FilteredNodeMulti nodes={nodes} exclude={[startNode, endNode]} selected={mustAvoidNodes} onToggle={id => toggleMulti(id, mustAvoidNodes, setMustAvoidNodes)} listHeight={LIST_H} />
+      case 'must_include_segments':
+        return <FilteredMulti items={segments.map(s => ({ id: s.id, primary: s.name, secondary: s.id }))} selected={mustIncludeSegs} onToggle={id => toggleMulti(id, mustIncludeSegs, setMustIncludeSegs)} placeholder="Filter segments…" listHeight={LIST_H} />
+      case 'must_avoid_segments':
+        return <FilteredMulti items={segments.map(s => ({ id: s.id, primary: s.name, secondary: s.id }))} selected={mustAvoidSegs} onToggle={id => toggleMulti(id, mustAvoidSegs, setMustAvoidSegs)} placeholder="Filter segments…" listHeight={LIST_H} />
+      case 'must_include_systems':
+        return <FilteredMulti items={systemOptions.map(s => ({ id: s.id, primary: s.id, secondary: s.name }))} selected={mustIncludeSystems} onToggle={id => toggleMulti(id, mustIncludeSystems, setMustIncludeSystems)} placeholder="Filter systems…" listHeight={LIST_H} />
+      case 'must_avoid_systems':
+        return <FilteredMulti items={systemOptions.map(s => ({ id: s.id, primary: s.id, secondary: s.name }))} selected={mustAvoidSystems} onToggle={id => toggleMulti(id, mustAvoidSystems, setMustAvoidSystems)} placeholder="Filter systems…" listHeight={LIST_H} />
+      case 'must_include_countries':
+        return <FilteredMulti items={countryOptions.map(c => ({ id: c.id, primary: c.name, secondary: c.id }))} selected={mustIncludeCountries} onToggle={id => toggleMulti(id, mustIncludeCountries, setMustIncludeCountries)} placeholder="Filter countries…" listHeight={LIST_H} />
+      case 'must_avoid_countries':
+        return <FilteredMulti items={countryOptions.map(c => ({ id: c.id, primary: c.name, secondary: c.id }))} selected={mustAvoidCountries} onToggle={id => toggleMulti(id, mustAvoidCountries, setMustAvoidCountries)} placeholder="Filter countries…" listHeight={LIST_H} />
+      case 'max_hops':
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+            <HopStepper label="Max Wet Hops" icon="🌊" value={maxWetHops} onChange={setMaxWetHops} />
+            <div style={{ height: 1, background: t.border }} />
+            <HopStepper label="Max Terrestrial Hops" icon="⛰️" value={maxTerrestrialHops} onChange={setMaxTerrestrialHops} />
+          </div>
+        )
+      case 'optimise_for': {
+        const selectedOpt = OPTIMISE_OPTIONS.find(o => o.value === optimiseFor && optimiseFor !== '')
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              {OPTIMISE_OPTIONS.map(opt => {
+                const sel = optimiseFor === opt.value
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setOptimiseFor(opt.value)}
+                    style={{
+                      padding: '8px 18px', borderRadius: 8,
+                      border: `1px solid ${sel ? t.blue : t.border}`,
+                      background: sel ? t.blue + '22' : 'transparent',
+                      color: sel ? t.blue : t.textMuted,
+                      cursor: 'pointer',
+                      fontWeight: sel ? 700 : 400,
+                      fontSize: 13,
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      fontFamily: 'system-ui, sans-serif',
+                    }}
+                  >
+                    <span>{opt.icon}</span>{opt.label}
+                  </button>
+                )
+              })}
+            </div>
+            {selectedOpt && (
+              <div style={{
+                padding: '16px 18px', borderRadius: 10,
+                background: t.bgActiveSort,
+                border: `1px solid ${t.blue}44`,
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: t.blue, marginBottom: 8 }}>
+                  {selectedOpt.icon} {selectedOpt.label}
+                </div>
+                <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.65, margin: '0 0 14px' }}>
+                  {selectedOpt.explain}
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ fontSize: 11, color: t.green, lineHeight: 1.5 }}>
+                    <span style={{ fontWeight: 700 }}>↑ Better: </span>{selectedOpt.better}
+                  </div>
+                  <div style={{ fontSize: 11, color: t.red, lineHeight: 1.5 }}>
+                    <span style={{ fontWeight: 700 }}>↓ Worse: </span>{selectedOpt.worse}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      }
+      default: return null
+    }
+  }
+
+  if (!open) return null
+
+  return createPortal(
+    <>
+      <div
+        role="presentation"
+        onClick={onClose}
+        style={{ position: 'fixed', inset: 0, zIndex: 1999, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(2px)' }}
+      />
+      <div style={{
+        position: 'fixed', zIndex: 2000,
+        top: '50%', left: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 780, maxWidth: 'calc(100vw - 40px)',
+        height: 560, maxHeight: 'calc(100vh - 80px)',
+        background: t.bgPanel,
+        border: `1px solid ${t.border}`,
+        borderRadius: 10,
+        boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        fontFamily: 'system-ui, sans-serif',
+      }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 18px',
+          borderBottom: `1px solid ${t.border}`,
+          background: t.bgDeep,
+          flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: t.text, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              Advanced Constraints
+            </span>
+            {totalCount > 0 && (
+              <span style={{
+                fontSize: 10, fontWeight: 700,
+                background: t.blue + '22', color: t.blue,
+                borderRadius: 10, padding: '2px 8px',
+              }}>{totalCount} active</span>
+            )}
+          </div>
+          <button
+            type="button" onClick={onClose}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textFaint, fontSize: 20, lineHeight: 1, padding: '0 4px' }}
+          >×</button>
+        </div>
+
+        {/* Body — stacks sidebar above content on mobile instead of squeezing
+            it into a fixed 210px rail alongside an already-narrowed modal
+            (that left as little as ~125px for the content pane on a phone). */}
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', flex: 1, overflow: 'hidden' }}>
+          {/* Sidebar */}
+          <div style={{
+            width: isMobile ? '100%' : 210,
+            maxHeight: isMobile ? '38%' : undefined,
+            flexShrink: 0,
+            borderRight: isMobile ? 'none' : `1px solid ${t.border}`,
+            borderBottom: isMobile ? `1px solid ${t.border}` : 'none',
+            display: 'flex', flexDirection: 'column',
+            background: t.bgDeep,
+          }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '6px 0' }}>
+              {CONSTRAINT_DEFS.map(def => {
+                const isActive = activeTab === def.id
+                const { chips, hasValue } = getChips(def.id)
+                return (
+                  <div
+                    key={def.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setActiveTab(def.id)}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveTab(def.id) } }}
+                    style={{
+                      padding: '9px 12px',
+                      cursor: 'pointer',
+                      background: isActive ? t.blue + '18' : 'transparent',
+                      borderLeft: `3px solid ${isActive ? t.blue : 'transparent'}`,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {hasValue && (
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: t.blue, flexShrink: 0 }} />
+                      )}
+                      {'icon' in def && (
+                        <span style={{ fontSize: 13, lineHeight: 1, flexShrink: 0 }}>{(def as { icon: string }).icon}</span>
+                      )}
+                      <span style={{
+                        flex: 1, fontSize: 12, fontWeight: 600,
+                        color: isActive ? t.text : hasValue ? t.textMuted : t.textFaint,
+                      }}>
+                        {def.label}
+                      </span>
+                      {hasValue && (
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); clearConstraint(def.id) }}
+                          style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: t.textFaint, fontSize: 14, lineHeight: 1,
+                            padding: '0 2px', flexShrink: 0,
+                          }}
+                        >×</button>
+                      )}
+                    </div>
+                    {chips.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 5, paddingLeft: 12 }}>
+                        {chips.slice(0, 3).map((chip, i) => (
+                          <span key={i} style={{
+                            fontSize: 9, padding: '1px 5px', borderRadius: 8,
+                            background: t.blue + '1a', color: t.blue,
+                            fontWeight: 600, maxWidth: 155,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            display: 'inline-block',
+                          }}>{chip}</span>
+                        ))}
+                        {chips.length > 3 && (
+                          <span style={{ fontSize: 9, color: t.textFaint, alignSelf: 'center' }}>
+                            +{chips.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Clear All */}
+            <div style={{ padding: '10px 12px', borderTop: `1px solid ${t.border}`, flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={onClearAll}
+                disabled={totalCount === 0}
+                style={{
+                  width: '100%', padding: '7px', borderRadius: 4,
+                  border: `1px solid ${totalCount > 0 ? t.red + '55' : 'transparent'}`,
+                  background: totalCount > 0 ? t.red + '10' : 'transparent',
+                  color: totalCount > 0 ? t.red : t.textFaintest,
+                  fontSize: 11, fontWeight: 700,
+                  cursor: totalCount > 0 ? 'pointer' : 'default',
+                  letterSpacing: '0.04em', textTransform: 'uppercase',
+                }}
+              >Clear All</button>
+            </div>
+          </div>
+
+          {/* Content panel */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+            {/* Description */}
+            <div style={{ padding: '16px 20px 14px', borderBottom: `1px solid ${t.border}`, flexShrink: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 6 }}>
+                {activeDef.label}
+              </div>
+              <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.65 }}>
+                {activeDef.description}
+              </div>
+            </div>
+
+            {/* Parameter input */}
+            <div style={{ flex: 1, padding: '16px 20px', overflowY: 'auto' }}>
+              {renderPanel()}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+          padding: '10px 18px',
+          borderTop: `1px solid ${t.border}`,
+          background: t.bgDeep,
+          flexShrink: 0,
+          gap: 10,
+        }}>
+          {totalCount > 0 && (
+            <span style={{ fontSize: 11, color: t.textFaint, marginRight: 'auto' }}>
+              <span style={{ color: t.blue, fontWeight: 600 }}>{totalCount}</span> constraint{totalCount !== 1 ? 's' : ''} active
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '7px 24px', borderRadius: 6,
+              border: `1px solid ${t.blue}`,
+              background: t.blue,
+              color: '#0f172a',
+              fontSize: 13, fontWeight: 700,
+              cursor: 'pointer',
+              letterSpacing: '0.02em',
+            }}
+          >Apply</button>
+        </div>
+      </div>
+    </>,
+    document.body
+  )
+}
+
+/**
+ * The route search form. Owns all the search-field state (endpoints, diversity,
+ * optimise-for, and every advanced constraint) and, on submit, assembles it into
+ * a RouteRequest passed to `onSearch`. Effects keep it in sync with origin/dest
+ * pushed from map clicks (prefilledOrigin/Dest) and full prefills from the NLP
+ * assistant (prefill).
+ */
+/** The Route Builder panel's own switch for the same global KML Mode the
+ *  Control menu toggles (kept out of SearchForm's own body since that
+ *  function is already over the cognitive-complexity budget). */
+function KmlModeToggle({ kmlMode, onToggle }: { kmlMode: boolean; onToggle: () => void }) {
+  const t = useTheme()
+  const title = kmlMode
+    ? 'KML Mode is on — routes trace real surveyed KMZ geometry where a segment has it, straight lines elsewhere. Click to turn off.'
+    : 'KML Mode is off — routes are drawn as straight lines/waypoints only. Click to use surveyed KMZ geometry where available.'
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onToggle}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        alignSelf: 'flex-start',
+        padding: '4px 10px', borderRadius: 12,
+        border: `1px solid ${kmlMode ? t.blue : t.border}`,
+        background: kmlMode ? t.blue + '18' : t.bgDeep,
+        color: kmlMode ? t.blue : t.textMuted,
+        cursor: 'pointer', fontSize: 11, fontWeight: 600,
+      }}
+    >🛰 KML Mode {kmlMode ? 'ON' : 'OFF'}</button>
+  )
+}
+
+export function SearchForm({ nodes, segments, systems = [], onSearch, loading, prefilledOrigin = '', prefilledDest = '', prefill, kmlMode, onToggleKmlMode }: Props) {
+  const t = useTheme()
+  const [startNode, setStartNode] = useState(prefilledOrigin)
+  const [endNode, setEndNode] = useState(prefilledDest)
+  const [diversity, setDiversity] = useState<DiversityType>('none')
+  const [mustIncludeNodes, setMustIncludeNodes] = useState<string[]>([])
+  const [mustAvoidNodes, setMustAvoidNodes] = useState<string[]>([])
+  const [mustAvoidSegs, setMustAvoidSegs] = useState<string[]>([])
+  const [mustIncludeSegs, setMustIncludeSegs] = useState<string[]>([])
+  const [mustIncludeSystems, setMustIncludeSystems] = useState<string[]>([])
+  const [mustAvoidSystems, setMustAvoidSystems] = useState<string[]>([])
+  const [mustIncludeCountries, setMustIncludeCountries] = useState<string[]>([])
+  const [mustAvoidCountries, setMustAvoidCountries] = useState<string[]>([])
+  const [maxWetHops, setMaxWetHops] = useState<number | ''>('')
+  const [maxTerrestrialHops, setMaxTerrestrialHops] = useState<number | ''>('')
+  const [optimiseFor, setOptimiseFor] = useState<string>('')
+  const [modalOpen, setModalOpen] = useState(false)
+  const [activeConstraintTab, setActiveConstraintTab] = useState('must_include_nodes')
+
+  // Sync external prefill (from TSABuddy) — new object reference = new fill
+  useEffect(() => {
+    if (!prefill) return
+    if (prefill.start_node_id)     setStartNode(prefill.start_node_id)
+    if (prefill.end_node_id)       setEndNode(prefill.end_node_id)
+    if (prefill.diversity)         setDiversity(prefill.diversity)
+    if (prefill.must_include_nodes)    setMustIncludeNodes(prefill.must_include_nodes)
+    if (prefill.must_avoid_nodes)      setMustAvoidNodes(prefill.must_avoid_nodes)
+    if (prefill.must_include_segments) setMustIncludeSegs(prefill.must_include_segments)
+    if (prefill.must_avoid_segments)   setMustAvoidSegs(prefill.must_avoid_segments)
+    if (prefill.must_include_systems)  setMustIncludeSystems(prefill.must_include_systems)
+    if (prefill.must_avoid_systems)    setMustAvoidSystems(prefill.must_avoid_systems)
+    if (prefill.must_include_countries) setMustIncludeCountries(prefill.must_include_countries)
+    if (prefill.must_avoid_countries)   setMustAvoidCountries(prefill.must_avoid_countries)
+    if (prefill.max_wet_hops != null)         setMaxWetHops(prefill.max_wet_hops)
+    if (prefill.max_terrestrial_hops != null) setMaxTerrestrialHops(prefill.max_terrestrial_hops)
+    if (prefill.optimise_for != null)         setOptimiseFor(prefill.optimise_for)
+    const hasAdvanced = (
+      (prefill.must_include_nodes?.length    ?? 0) > 0 ||
+      (prefill.must_avoid_nodes?.length      ?? 0) > 0 ||
+      (prefill.must_include_segments?.length ?? 0) > 0 ||
+      (prefill.must_avoid_segments?.length   ?? 0) > 0 ||
+      (prefill.must_include_systems?.length  ?? 0) > 0 ||
+      (prefill.must_avoid_systems?.length    ?? 0) > 0 ||
+      (prefill.must_include_countries?.length ?? 0) > 0 ||
+      (prefill.must_avoid_countries?.length   ?? 0) > 0 ||
+      prefill.max_wet_hops != null ||
+      prefill.max_terrestrial_hops != null ||
+      prefill.optimise_for != null
+    )
+    // Computed for a possible future "open the Advanced Constraints modal
+    // automatically when a prefill sets any advanced field" behavior, but
+    // that wiring isn't present yet — `void` just satisfies the unused-var
+    // lint rule without silently dropping the computation.
+    void hasAdvanced
+  }, [prefill])
+
+  // Sync origin/dest set from map node clicks
+  useEffect(() => { if (prefilledOrigin) setStartNode(prefilledOrigin) }, [prefilledOrigin])
+  useEffect(() => { if (prefilledDest)   setEndNode(prefilledDest)   }, [prefilledDest])
+
+  // Build the must_include/avoid_systems picker's option list from the systems
+  // actually referenced by a segment (not the full `systems` prop, which may
+  // include systems with no segments loaded) — dedup ids, then resolve each to
+  // its display name, falling back to the raw id if not found in `systems`.
+  const segmentSystemIds = [...new Set(segments.map(s => s.system_id))]
+  const systemOptions = segmentSystemIds.map(id => {
+    const sys = systems.find(s => s.id === id)
+    return { id, name: sys?.name ?? id }
+  }).sort((a, b) => a.id.localeCompare(b.id))
+
+  // Build the must_include/avoid_countries picker's option list: every
+  // distinct country a non-branching-unit node sits in, alphabetised by name.
+  const countryOptions = useMemo(() => {
+    const seen = new Set<string>()
+    const opts: { id: string; name: string }[] = []
+    for (const n of nodes) {
+      if (n.type !== 'branching_unit' && !seen.has(n.country)) {
+        seen.add(n.country)
+        opts.push({ id: n.country, name: countryName(n.country) })
+      }
+    }
+    return opts.sort((a, b) => a.name.localeCompare(b.name))
+  }, [nodes])
+
+  /** Bundle all the field state into a RouteRequest and fire onSearch. Requires
+   *  both endpoints; blank "max hops" become undefined (unlimited). */
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!startNode || !endNode) return
     onSearch({
       start_node_id: startNode,
       end_node_id: endNode,
-      must_include_nodes: mustInclude,
+      must_include_nodes: mustIncludeNodes,
       must_avoid_nodes: mustAvoidNodes,
       must_avoid_segments: mustAvoidSegs,
+      must_include_segments: mustIncludeSegs,
+      must_include_systems: mustIncludeSystems,
+      must_avoid_systems: mustAvoidSystems,
+      must_include_countries: mustIncludeCountries,
+      must_avoid_countries: mustAvoidCountries,
       diversity,
+      max_wet_hops: maxWetHops === '' ? undefined : maxWetHops as number,
+      max_terrestrial_hops: maxTerrestrialHops === '' ? undefined : maxTerrestrialHops as number,
+      optimise_for: optimiseFor || undefined,
     })
+  }
+
+  /** Reset every advanced constraint back to empty. */
+  function clearAllConstraints() {
+    setMustIncludeNodes([])
+    setMustAvoidNodes([])
+    setMustAvoidSegs([])
+    setMustIncludeSegs([])
+    setMustIncludeSystems([])
+    setMustAvoidSystems([])
+    setMustIncludeCountries([])
+    setMustAvoidCountries([])
+    setMaxWetHops('')
+    setMaxTerrestrialHops('')
+    setOptimiseFor('')
+    setActiveConstraintTab('must_include_nodes')
   }
 
   const selectStyle: React.CSSProperties = {
     width: '100%', padding: '6px 8px', borderRadius: 4,
-    border: '1px solid #444', background: '#1e1e2e', color: '#cdd6f4',
+    border: `1px solid ${t.border}`, background: t.bgInput, color: t.text,
     fontSize: 13,
   }
 
-  const multiBoxStyle: React.CSSProperties = {
-    maxHeight: 120, overflowY: 'auto', border: '1px solid #444',
-    borderRadius: 4, padding: '4px 0', background: '#1e1e2e',
+  const labelStyle: React.CSSProperties = {
+    display: 'block', fontSize: 11, fontWeight: 600,
+    color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.05em',
+    marginBottom: 4,
   }
 
-  const multiItemStyle = (selected: boolean): React.CSSProperties => ({
-    padding: '3px 8px', cursor: 'pointer', fontSize: 12,
-    background: selected ? '#313244' : 'transparent',
-    color: selected ? '#89b4fa' : '#cdd6f4',
-  })
+  const advancedCount =
+    mustIncludeNodes.length + mustAvoidNodes.length +
+    mustAvoidSegs.length + mustIncludeSegs.length +
+    mustIncludeSystems.length + mustAvoidSystems.length +
+    mustIncludeCountries.length + mustAvoidCountries.length +
+    (maxWetHops !== '' ? 1 : 0) + (maxTerrestrialHops !== '' ? 1 : 0) +
+    (optimiseFor !== '' ? 1 : 0)
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div>
-        <label style={labelStyle}>Origin</label>
-        <select value={startNode} onChange={e => setStartNode(e.target.value)} style={selectStyle} required>
-          <option value="">Select origin...</option>
-          {sortedNodes.map(n => (
-            <option key={n.id} value={n.id}>{n.name} ({n.id})</option>
-          ))}
-        </select>
+      <KmlModeToggle kmlMode={kmlMode} onToggle={onToggleKmlMode} />
+
+      <div style={{ position: 'relative' }}>
+        <label htmlFor="search-origin" style={labelStyle}>Origin</label>
+        <NodeCombobox id="search-origin" nodes={nodes} value={startNode} onChange={setStartNode} placeholder="Search city, code, country, owner…" />
+
+        {/* Flip origin ↔ destination — Google Maps style */}
+        <button
+          type="button"
+          title="Swap origin and destination"
+          onClick={() => { setStartNode(endNode); setEndNode(startNode) }}
+          style={{
+            position: 'absolute', right: -2, top: '50%',
+            transform: 'translateY(-50%)',
+            width: 26, height: 26, borderRadius: '50%',
+            border: `1px solid ${t.border}`,
+            background: t.bgDeep,
+            color: t.textMuted,
+            cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 14, lineHeight: 1,
+            zIndex: 1,
+          }}
+        >⇅</button>
       </div>
 
       <div>
-        <label style={labelStyle}>Destination</label>
-        <select value={endNode} onChange={e => setEndNode(e.target.value)} style={selectStyle} required>
-          <option value="">Select destination...</option>
-          {sortedNodes.map(n => (
-            <option key={n.id} value={n.id}>{n.name} ({n.id})</option>
-          ))}
-        </select>
+        <label htmlFor="search-destination" style={labelStyle}>Destination</label>
+        <NodeCombobox id="search-destination" nodes={nodes} value={endNode} onChange={setEndNode} placeholder="Search city, code, country, owner…" />
       </div>
 
       <div>
-        <label style={labelStyle}>Diversity</label>
-        <select value={diversity} onChange={e => setDiversity(e.target.value as DiversityType)} style={selectStyle}>
+        <label htmlFor="search-diversity" style={labelStyle}>Diversity</label>
+        <select id="search-diversity" value={diversity} onChange={e => setDiversity(e.target.value as DiversityType)} style={selectStyle}>
           <option value="none">None</option>
-          <option value="wet">Wet segment diversity</option>
-          <option value="terrestrial">Terrestrial diversity</option>
-          <option value="full">Full diversity</option>
+          <option value="terrestrial_origin">Terrestrial Diversity — Origin End Only</option>
+          <option value="terrestrial_destination">Terrestrial Diversity — Destination End Only</option>
+          <option value="terrestrial_both">Terrestrial Diversity — Both Ends</option>
+          <option value="wet">Wet Diversity</option>
+          <option value="full">Full Diversity — Segments Only</option>
+          <option value="full_nodes">Full Diversity — Segments and Nodes</option>
         </select>
       </div>
 
-      <div>
-        <label style={labelStyle}>Must Include Nodes</label>
-        <div style={multiBoxStyle}>
-          {sortedNodes
-            .filter(n => n.id !== startNode && n.id !== endNode)
-            .map(n => (
-              <div
-                key={n.id}
-                style={multiItemStyle(mustInclude.includes(n.id))}
-                onClick={() => toggleMulti(n.id, mustInclude, setMustInclude)}
-              >
-                {n.name} ({n.id})
-              </div>
-            ))}
-        </div>
-      </div>
+      {/* Advanced Constraints button */}
+      <button
+        type="button"
+        onClick={() => setModalOpen(true)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '8px 12px', borderRadius: 6,
+          border: `1px solid ${advancedCount > 0 ? t.blue + '66' : t.border}`,
+          background: advancedCount > 0 ? t.blue + '0d' : t.bgDeep,
+          cursor: 'pointer',
+          color: advancedCount > 0 ? t.blue : t.textMuted,
+          fontSize: 11, fontWeight: 700,
+          textTransform: 'uppercase', letterSpacing: '0.06em',
+        }}
+      >
+        <span>Advanced Constraints</span>
+        {advancedCount > 0 && (
+          <span style={{
+            fontSize: 10, fontWeight: 700,
+            background: t.blue + '22', color: t.blue,
+            borderRadius: 10, padding: '1px 7px',
+          }}>{advancedCount}</span>
+        )}
+      </button>
 
-      <div>
-        <label style={labelStyle}>Must Avoid Nodes</label>
-        <div style={multiBoxStyle}>
-          {sortedNodes
-            .filter(n => n.id !== startNode && n.id !== endNode)
-            .map(n => (
-              <div
-                key={n.id}
-                style={multiItemStyle(mustAvoidNodes.includes(n.id))}
-                onClick={() => toggleMulti(n.id, mustAvoidNodes, setMustAvoidNodes)}
-              >
-                {n.name} ({n.id})
-              </div>
-            ))}
-        </div>
-      </div>
+      <AdvancedConstraintsModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        nodes={nodes}
+        segments={segments}
+        systemOptions={systemOptions}
+        startNode={startNode}
+        endNode={endNode}
+        mustIncludeNodes={mustIncludeNodes}
+        setMustIncludeNodes={setMustIncludeNodes}
+        mustAvoidNodes={mustAvoidNodes}
+        setMustAvoidNodes={setMustAvoidNodes}
+        mustAvoidSegs={mustAvoidSegs}
+        setMustAvoidSegs={setMustAvoidSegs}
+        mustIncludeSegs={mustIncludeSegs}
+        setMustIncludeSegs={setMustIncludeSegs}
+        mustIncludeSystems={mustIncludeSystems}
+        setMustIncludeSystems={setMustIncludeSystems}
+        mustAvoidSystems={mustAvoidSystems}
+        setMustAvoidSystems={setMustAvoidSystems}
+        mustIncludeCountries={mustIncludeCountries}
+        setMustIncludeCountries={setMustIncludeCountries}
+        mustAvoidCountries={mustAvoidCountries}
+        setMustAvoidCountries={setMustAvoidCountries}
+        countryOptions={countryOptions}
+        maxWetHops={maxWetHops}
+        setMaxWetHops={setMaxWetHops}
+        maxTerrestrialHops={maxTerrestrialHops}
+        setMaxTerrestrialHops={setMaxTerrestrialHops}
+        optimiseFor={optimiseFor}
+        setOptimiseFor={setOptimiseFor}
+        activeTab={activeConstraintTab}
+        setActiveTab={setActiveConstraintTab}
+        onClearAll={clearAllConstraints}
+      />
 
-      <div>
-        <label style={labelStyle}>Must Avoid Segments</label>
-        <div style={multiBoxStyle}>
-          {segments.map(s => (
-            <div
-              key={s.id}
-              style={multiItemStyle(mustAvoidSegs.includes(s.id))}
-              onClick={() => toggleMulti(s.id, mustAvoidSegs, setMustAvoidSegs)}
-            >
-              {s.name}
-            </div>
-          ))}
-        </div>
-      </div>
+      <style>{`
+        @keyframes sea-sweep {
+          0%   { background-position: 0% 50% }
+          100% { background-position: 100% 50% }
+        }
+      `}</style>
 
       <button
         type="submit"
         disabled={loading || !startNode || !endNode}
+        className="rb-btn-motion"
         style={{
           padding: '8px 16px', borderRadius: 4, border: 'none',
-          background: loading ? '#444' : '#89b4fa', color: '#1e1e2e',
-          fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
-          fontSize: 14,
+          fontWeight: 600, fontSize: 14,
+          cursor: loading ? 'not-allowed' : (!startNode || !endNode) ? 'not-allowed' : 'pointer',
+          // DESIGN.md's button-primary-disabled recipe names a literal
+          // #0b1220 disabled-text hex, but checked against Dusk's actual
+          // borderSubtle (#4a4f72) that pairing is only 2.36:1 — the literal
+          // was evidently tuned against Light's pale borderSubtle (#ccd0da)
+          // and never verified against Dark/Dusk's much darker one. t.text
+          // is the theme's own primary foreground, deliberately paired with
+          // that same theme's borderSubtle everywhere else it's used
+          // (light-on-dark in Dark/Dusk, dark-on-light in Light) — 5.47:1
+          // here, and the token that should have been used to begin with
+          // rather than a cross-theme literal.
+          color: (!startNode && !loading) || (!endNode && !loading) ? t.text : '#e0f2fe',
+          background: loading
+            ? 'linear-gradient(90deg, #1e3a8a, #1d4ed8, #0ea5e9, #bae6fd, #e0f2fe, #bae6fd, #0ea5e9, #1d4ed8, #1e3a8a)'
+            : (!startNode || !endNode)
+              ? t.borderSubtle
+              : t.blue,
+          backgroundSize: loading ? '300% 100%' : '100% 100%',
+          animation: loading ? 'sea-sweep 1.6s ease-in-out infinite alternate' : 'none',
+          transition: 'background 0.3s',
         }}
       >
-        {loading ? 'Searching...' : 'Find Routes'}
+        {loading ? '🌊 Searching…' : 'Find Routes'}
       </button>
     </form>
   )
-}
-
-const labelStyle: React.CSSProperties = {
-  display: 'block', fontSize: 11, fontWeight: 600,
-  color: '#a6adc8', textTransform: 'uppercase', letterSpacing: '0.05em',
-  marginBottom: 4,
 }

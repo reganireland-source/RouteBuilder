@@ -1,9 +1,38 @@
+/**
+ * main.tsx — application entry point (loaded by index.html via Vite).
+ *
+ * Mounts the React tree into the #root element under StrictMode. The tree is wrapped in
+ * AuthProvider (session/auth context) and AuthGate, which blocks rendering of the main
+ * App until the visitor is let in — by the shared access password (PasswordGate) or a
+ * real Okta sign-in (OktaGate), chosen by VITE_AUTH_MODE; see components/AuthGate.tsx.
+ * App itself contains the entire RouteBuilder UI (map, route search sidebar, admin
+ * modals, etc.).
+ */
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+// Leaflet's stylesheet, bundled from the npm package rather than fetched from
+// unpkg.com at runtime (SonarQube Web:S5725). Loading it from a CDN without an
+// SRI hash meant a compromised or hijacked CDN could serve arbitrary CSS into
+// the app, and it made first paint depend on a third party being reachable.
+// The version is pinned by package.json/package-lock.json like any other
+// dependency, so it cannot drift underneath us.
+import 'leaflet/dist/leaflet.css'
 import App from './App'
+import { AuthGate } from './components/AuthGate'
+import { AuthProvider } from './context/AuthContext'
+import { SegmentHoverProvider } from './context/SegmentHoverContext'
+import { TooltipSettingsProvider } from './context/TooltipSettingsContext'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <AuthProvider>
+      <AuthGate>
+        <SegmentHoverProvider>
+          <TooltipSettingsProvider>
+            <App />
+          </TooltipSettingsProvider>
+        </SegmentHoverProvider>
+      </AuthGate>
+    </AuthProvider>
   </React.StrictMode>
 )

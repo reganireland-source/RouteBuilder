@@ -1,0 +1,1410 @@
+/**
+ * MobileLayout — the complete mobile UI for RouteBuilder. App.tsx renders this
+ * component instead of its desktop layout whenever the viewport is narrower
+ * than 768px (see useIsMobile in App.tsx), passing down ALL application state
+ * and handlers as props. It mirrors the desktop feature set but rearranges it
+ * for touch: nothing here owns domain state — routes, pins, projects, mode,
+ * and map toggles all live in App.tsx; this file only keeps presentational
+ * state (bottom-sheet snap position, drawer/dialog visibility, SLD prompt).
+ *
+ * Layout differences from desktop App.tsx:
+ * - The map is full-screen underneath everything, instead of a right-hand pane
+ *   beside fixed 440px/520px left and middle panels.
+ * - A draggable-feeling bottom sheet (two snap points: "peek" at 76px and
+ *   "full" at 91% of the viewport) replaces the left + middle panels. It holds
+ *   the same tab structure (RouteBuilder → RouteFinder/RouteManual;
+ *   NetworkExplorer → City Pairs/Cables/Nodes/Country/Outages; Guide) and
+ *   embeds the same child components: NlpChat (TSABuddy), SearchForm,
+ *   RouteList, RouteManual (single-panel variant rather than the desktop
+ *   Left/Middle split), CityPairPanel, SystemViewer, NodeFinder,
+ *   CountryViewer, OutagePanel, plus the project mode banner and HealthBar.
+ * - A top-right "Controls" drawer reproduces the desktop control menu's map
+ *   toggles (outages, labels, hide non-active, subsea/backhaul only), theme
+ *   cycling, and openers for Projects, Capacity Dashboard, and RefDataModal.
+ *   The desktop-only Algo Eval screen and the Country Node Diagram button are
+ *   not offered on mobile.
+ * - While RouteManual is mid-build, the sheet auto-snaps to "peek" and a
+ *   floating strip shows hops/km/ms with Undo / Done / options buttons.
+ * - SLD export prompt offers PDF only (via generateStraightLineDiagram);
+ *   desktop additionally offers DrawIO and Visio exports.
+ * Sibling overlays (ProjectsModal, UserGuide, pin-to-project and route-finish
+ * dialogs) are portalled by App.tsx itself in its mobile branch, not here.
+ * No direct backend calls — everything goes through the callback props.
+ */
+import { lazy, Suspense, useState, useEffect, type Dispatch, type SetStateAction } from 'react'
+import { createPortal } from 'react-dom'
+import { NetworkMap } from './Map'
+import type { MapStyle } from './Map'
+import { SearchForm } from './SearchForm'
+import { RouteList } from './RouteList'
+import type { SortKey } from './RouteList'
+import { SystemViewer } from './SystemViewer'
+import { CountryViewer } from './CountryViewer'
+import { NodeFinder } from './NodeFinder'
+import { CityPairPanel } from './CityPairPanel'
+import { RouteManual } from './RouteManual'
+import type { ManualState, NextHopCandidate } from './RouteManual'
+import { OutagePanel } from './OutagePanel'
+import { NodeFullView } from './NodeFullView'
+import { SegmentFullView } from './SegmentFullView'
+import { AssetSearch } from './AssetSearch'
+import { AssetFilterBar } from './AssetFilterBar'
+import type { AssetHit } from '../utils/assetSearch'
+import { ServiceDateSelector } from './ServiceDateSelector'
+import { FutureNetworkBanner } from './FutureNetworkBanner'
+import { CURRENT_CHOICE, type ServiceDateChoice } from '../utils/serviceDate'
+import { HealthBar } from './HealthBar'
+import { useTheme } from '../theme'
+import type { ThemeMode } from '../theme'
+import { useTooltipSettings } from '../context/TooltipSettingsContext'
+import type {
+  AppConfig, AppMode, AssetFilterMatch, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule,
+  NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage,
+  SelectedSystem, DiversityType, HazardFeed, HazardAssetView, HazardOwnerView, KmlPathInfo,
+} from '../types'
+
+// Lazily, for the same reason App.tsx does: an eager import on EITHER side
+// puts the module back in the initial bundle and cancels the other's split.
+const RefDataModal = lazy(() => import('./RefDataModal').then(m => ({ default: m.RefDataModal })))
+const CapacityDashboard = lazy(() => import('./CapacityDashboard').then(m => ({ default: m.CapacityDashboard })))
+
+const NLP_ENABLED = import.meta.env.VITE_ENABLE_NLP !== 'false'
+const NlpChat = NLP_ENABLED
+  ? lazy(() => import('./NlpChat'))
+  : null
+
+// ── Sheet snap positions ────────────────────────────────────────────────────
+type SheetSnap = 'peek' | 'full'
+
+const PEEK_H = 88   // handle (40px, bumped from 28 for a comfortable touch target) + tab bar (~48px)
+// A FIXED top clearance, not a fraction of height: the old 9% (FULL_F=0.91)
+// gave a normal tall phone (e.g. 844px) a 76px glimpse of map above the
+// "full" sheet, but the same fraction starves that glimpse on a short,
+// squarish screen (e.g. a 533px-tall square display, where 9% is only
+// 48px) even though the header content sitting in it is the same absolute
+// height either way. A fixed clearance keeps that glimpse roughly constant
+// across every device instead of shrinking exactly where it's needed most.
+const FULL_TOP_CLEARANCE = 96
+// The sheet's search form, tabs and lists were all tuned for a ~360-430px
+// phone body. A squarish high-density touch screen (see isSquarishTouchViewport
+// in App.tsx) can report a much wider viewport than that despite being a
+// small physical device, and stretching those same rows edge-to-edge across
+// it doesn't make them more usable — a search field over 1000px wide just
+// looks like an unfinished desktop form, not a phone form. Capping the
+// sheet's own width and centering it keeps its density exactly as designed
+// on any viewport, while the map underneath still uses the full width it's
+// actually built to use. No-op on a normal phone (min(100%, 520px) = 100%
+// under 520px wide).
+const SHEET_MAX_W = 520
+
+/** Resolve a snap position to a pixel height for the sheet. 'peek' is the
+ *  fixed PEEK_H; 'full' is computed live from the current viewport height
+ *  (window.innerHeight) minus FULL_TOP_CLEARANCE, so it stays correct across
+ *  orientation changes and different device heights without a resize listener
+ *  — it's only read at the moment a snap is applied (see doSnap below), not
+ *  kept continuously in sync while the sheet sits still. */
+function snapPx(snap: SheetSnap): number {
+  if (snap === 'peek') return PEEK_H
+  return Math.round(window.innerHeight - FULL_TOP_CLEARANCE)
+}
+
+// ── Props ───────────────────────────────────────────────────────────────────
+/** Props for {@link MobileLayout}. Mirrors the state and callbacks App.tsx
+ *  also feeds its desktop three-panel layout (left/middle panels + right map)
+ *  — see the file header for how this component rearranges the same surface
+ *  for touch. MobileLayout owns no domain state itself; every value here is
+ *  either read-only reference/result data or a callback that reports back
+ *  up to App.tsx, which is the single source of truth in both layouts. */
+export interface MobileLayoutProps {
+  nodes: CableNode[]
+  segments: CableSegment[]
+  systems: CableSystem[]
+  capacity: SegmentCapacity[]
+  outages: SegmentOutage[]
+  rules: InterconnectRule[]
+  response: RouteResponse | null
+  selectedRoutes: Route[]
+  selectedRouteIds: string[]
+  pinnedRoutes: PinnedRoute[]
+  selectedSystems: SelectedSystem[]
+  mode: AppMode
+  loading: boolean
+  error: string | null
+  selectedNode: { node: CableNode; x: number; y: number } | null
+  selectedSegment: { segment: CableSegment; x: number; y: number } | null
+  searchPin: { lat: number; lng: number; label: string } | null
+  nearestNodeIds: string[]
+  prefilledOrigin: string
+  prefilledDest: string
+  lastSearchDiversity: DiversityType
+  refDataOpen: boolean
+  themeMode: ThemeMode
+  config: AppConfig
+  onSearch:          (req: RouteRequest) => void
+  onToggleRoute:     (id: string) => void
+  onPin:             (route: Route) => void
+  onUnpin:           (pinId: string) => void
+  onPinPair?:        (worker: Route, protect: Route) => void
+  onToggleSystem:    (systemId: string) => void
+  onSetOrigin:       (nodeId: string) => void
+  onSetDest:         (nodeId: string) => void
+  onSetPair:         (originId: string, destId: string) => void
+  /** Node-code lookup: fly the map to this node and open its info. */
+  onGoToNode?:       (nodeId: string) => void
+  flyToNode?:        { lat: number; lng: number; key: number }
+  /** Asset Search picked something — the parent navigates to it. */
+  onAssetSelect?:    (hit: AssetHit) => void
+  fitBounds?:        { bounds: [[number, number], [number, number]]; key: number }
+  spotlightNodeId?:  string | null
+  /** Effective ISO service date, for the route cards' lifecycle badges. */
+  serviceDate?:      string | null
+  /** Current vs Planned network — see utils/serviceDate.ts. */
+  serviceChoice?:    ServiceDateChoice
+  onServiceChoiceChange?: (next: ServiceDateChoice) => void
+  /** Segments filtered to the chosen service date, for every read-only view. */
+  visibleSegments?:  CableSegment[]
+  onNodeClick:       (node: CableNode, x: number, y: number) => void
+  onSegmentClick:    (segment: CableSegment, x: number, y: number) => void
+  onCloseSegment:    () => void
+  onPinChange:       (pin: { lat: number; lng: number; label: string } | null, ids: string[]) => void
+  onCloseNode:       () => void
+  onOpenRefData:     () => void
+  onCloseRefData:    () => void
+  onDataChange:      () => Promise<void>
+  switchMode:        (m: AppMode) => void
+  clearSearch:       () => void
+  clearAll:          () => void
+  cycleTheme:                    () => void
+  mapStyle:                      MapStyle
+  onMapStyleChange:              (s: MapStyle) => void
+  onToggleHideNonActive:         () => void
+  onToggleShowSegmentLabels:     () => void
+  onToggleShowNodeLabels:        () => void
+  onToggleShowAllOutages:        () => void
+  onToggleShowPlannedEvents:     () => void
+  onToggleSubseaOnly:            () => void
+  onToggleBackhaulOnly:          () => void
+  /** "Living World" — the 16-bit ocean easter eggs. On by default. */
+  livingWorld:                   boolean
+  onToggleLivingWorld:           () => void
+  /** "Network Hazards" — the live disaster overlay. Off by default. */
+  hazardsOn:                     boolean
+  onToggleHazards:               () => void
+  hazardAssetView:               HazardAssetView
+  onHazardAssetViewChange:       (next: HazardAssetView) => void
+  hazardOwnerView:               HazardOwnerView
+  onHazardOwnerViewChange:       (next: HazardOwnerView) => void
+  kmlPaths:                      Record<string, KmlPathInfo>
+  kmlMode:                       boolean
+  onToggleKmlMode:               () => void
+  hazardFeed:                    HazardFeed | null
+  hazardsLoading:                boolean
+  hazardsError:                  string | null
+  onRefreshHazards:              () => void
+  onApplySort?:                  (mode: NlpSortMode) => void
+  nlpSortKey?:                   SortKey
+  nlpPushOutages?:               boolean
+  optimiseFor?:                  string
+  flippedPairIds?:               Set<string>
+  onFlipPair?:                   (pairId: string) => void
+  onAddToProject?:               (route: Route, protectRoute?: Route) => void
+  onEnrichCircuit?:              (pin: PinnedRoute) => void
+  onOpenProjects?:               () => void
+  activeProject?:                Project | null
+  onExitProjectMode?:            () => void
+  onSwitchProject?:              () => void
+  onOpenGuide:                   () => void
+  // RouteManual
+  manualState?:                  ManualState | null
+  manualCandidates?:             NextHopCandidate[]
+  manualResults?:                Route[]
+  onManualNodeClick?:            (node: CableNode) => void
+  onManualPickHop?:              (c: NextHopCandidate) => void
+  onManualUndo?:                 () => void
+  onManualFinish?:               () => void
+  onManualDiscard?:              () => void
+  countryHighlight?:             CountryHighlight | null
+  onCountrySelect?:              (h: CountryHighlight | null) => void
+  /** Top-of-map Asset Filter bar — see AssetFilterBar.tsx. Same contract as
+   *  the desktop layout: App.tsx owns the computed match, this just mounts
+   *  the bar and passes the result on to NetworkMap. */
+  assetFilterMatch?:             AssetFilterMatch | null
+  onAssetFilterChange?:          (match: AssetFilterMatch) => void
+}
+
+/** The icon on the theme-cycle row — it advertises what you get NEXT, not now. */
+function nextThemeIcon(themeMode: ThemeMode): string {
+  if (themeMode === 'dark') return '🌅'
+  if (themeMode === 'dusk') return '☀️'
+  return '🌙'
+}
+
+/** The label on the theme-cycle row, matching nextThemeIcon. */
+function nextThemeLabel(themeMode: ThemeMode): string {
+  if (themeMode === 'dark') return 'Switch to Dusk'
+  if (themeMode === 'dusk') return 'Switch to Light'
+  return 'Switch to Dark'
+}
+
+/**
+ * The top-right "Controls" button and the drawer it opens: the mobile stand-in
+ * for the desktop control menu (map toggles, theme cycle, and the openers for
+ * Projects / Capacity / Reference Data). Presentational only — every toggle is
+ * a callback owned by App.tsx; the only state it touches is the caller's
+ * open/close flag.
+ */
+function MobileControlsDrawer({
+  open, setOpen, t, themeMode,
+  showAllOutages, showPlannedEvents, showSegmentLabels, showNodeLabels,
+  hideNonActive, subseaOnly, backhaulOnly, livingWorld, hazardsOn,
+  kmlMode, kmlCount, segmentCount,
+  onToggleShowAllOutages, onToggleShowPlannedEvents, onToggleShowSegmentLabels,
+  onToggleShowNodeLabels, onToggleHideNonActive, onToggleSubseaOnly, onToggleBackhaulOnly,
+  onToggleLivingWorld, onToggleHazards, onToggleKmlMode,
+  onOpenProjects, onOpenCapacity, onOpenRefData, cycleTheme,
+}: {
+  open: boolean
+  setOpen: Dispatch<SetStateAction<boolean>>
+  t: import('../theme').Theme
+  themeMode: ThemeMode
+  showAllOutages: boolean; showPlannedEvents: boolean; showSegmentLabels: boolean
+  showNodeLabels: boolean; hideNonActive: boolean; subseaOnly: boolean; backhaulOnly: boolean
+  livingWorld: boolean
+  hazardsOn: boolean
+  kmlMode: boolean
+  kmlCount: number
+  segmentCount: number
+  onToggleShowAllOutages: () => void
+  onToggleShowPlannedEvents: () => void
+  onToggleShowSegmentLabels: () => void
+  onToggleShowNodeLabels: () => void
+  onToggleHideNonActive: () => void
+  onToggleSubseaOnly: () => void
+  onToggleBackhaulOnly: () => void
+  onToggleLivingWorld: () => void
+  onToggleHazards: () => void
+  onToggleKmlMode: () => void
+  onOpenProjects?: () => void
+  onOpenCapacity: () => void
+  onOpenRefData: () => void
+  cycleTheme: () => void
+}) {
+  const { tooltipsEnabled, setTooltipsEnabled } = useTooltipSettings()
+  return (
+    <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 200 }}>
+
+      {/* Toggle button */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+          padding: '6px 10px', borderRadius: 10,
+          border: `1px solid ${open ? t.blue : t.border}`,
+          background: open ? t.blue + '22' : t.bgPanel + 'f0',
+          color: open ? t.blue : t.textMuted,
+          cursor: 'pointer',
+          boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 2px 10px rgba(0,0,0,0.5)',
+        }}
+      >
+        <span style={{ fontSize: 18, lineHeight: 1 }}>{open ? '✕' : '≡'}</span>
+        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1 }}>
+          {open ? 'Close' : 'Controls'}
+        </span>
+      </button>
+
+      {/* Drawer panel */}
+      {open && (
+        <>
+          {/* Backdrop to close on outside tap */}
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setOpen(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: -1, border: 'none', background: 'transparent', padding: 0, cursor: 'default' }}
+          />
+          <div style={{
+            position: 'absolute', top: 50, right: 0,
+            width: 220,
+            background: t.bgPanel,
+            border: `1px solid ${t.border}`,
+            borderRadius: 12,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            overflow: 'hidden',
+          }}>
+          {/* 14 rows (9 toggles + 3 actions + theme + tooltips) run to well
+              over 600px — fits inside a normal phone's height with room to
+              spare, but not inside a short/square display (this button's
+              own top:14 + this panel's top:50 already spend 64px before a
+              single row is drawn). This inner wrapper scrolls the rows
+              instead of the outer panel, which stays overflow:hidden so its
+              rounded corners still clip the first/last row's background. */}
+          <div style={{ maxHeight: 'calc(100vh - 76px)', overflowY: 'auto' }}>
+            {/* Toggles */}
+            {[
+              {
+                label: 'Show All Outages',
+                icon: '🚢',
+                active: showAllOutages,
+                color: t.red,
+                onClick: () => { onToggleShowAllOutages(); setOpen(false) },
+              },
+              {
+                label: 'Show Planned Events',
+                icon: '🗓️',
+                active: showPlannedEvents,
+                color: t.orange,
+                onClick: () => { onToggleShowPlannedEvents(); setOpen(false) },
+              },
+              {
+                label: 'Segment Labels',
+                icon: showSegmentLabels ? 'A⃝' : 'A',
+                active: showSegmentLabels,
+                color: t.blue,
+                onClick: () => { onToggleShowSegmentLabels(); setOpen(false) },
+              },
+              {
+                label: 'Node Labels',
+                icon: showNodeLabels ? '◉' : '◎',
+                active: showNodeLabels,
+                color: t.blue,
+                onClick: () => { onToggleShowNodeLabels(); setOpen(false) },
+              },
+              {
+                label: 'Hide Non-Active',
+                icon: hideNonActive ? '◉' : '◎',
+                active: hideNonActive,
+                color: t.blue,
+                onClick: () => { onToggleHideNonActive(); setOpen(false) },
+              },
+              {
+                label: 'Subsea Only',
+                icon: '🌊',
+                active: subseaOnly,
+                color: t.blue,
+                onClick: () => { onToggleSubseaOnly(); setOpen(false) },
+              },
+              {
+                label: 'Backhaul Only',
+                icon: '🗺',
+                active: backhaulOnly,
+                color: t.blue,
+                onClick: () => { onToggleBackhaulOnly(); setOpen(false) },
+              },
+              {
+                label: 'Living World',
+                icon: '🐋',
+                active: livingWorld,
+                color: t.green,
+                onClick: () => { onToggleLivingWorld(); setOpen(false) },
+              },
+              {
+                label: 'Network Hazards',
+                icon: '⚠️',
+                active: hazardsOn,
+                color: t.orange,
+                onClick: () => { onToggleHazards(); setOpen(false) },
+              },
+              {
+                // Coverage in the label for the same reason as desktop: "ON"
+                // alone does not say whether that is 3 cables or 300.
+                label: `KML Mode  ${kmlCount}/${segmentCount}`,
+                icon: '🛰',
+                active: kmlMode,
+                color: t.blue,
+                onClick: () => { onToggleKmlMode(); setOpen(false) },
+              },
+            ].map(item => (
+              <button
+                key={item.label}
+                onClick={item.onClick}
+                aria-pressed={item.active}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  width: '100%', padding: '13px 16px',
+                  background: item.active ? item.color + '18' : 'transparent',
+                  border: 'none', borderBottom: `1px solid ${t.border}`,
+                  cursor: 'pointer', textAlign: 'left',
+                }}
+              >
+                <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>{item.icon}</span>
+                <span style={{ fontSize: 13, color: item.active ? item.color : t.text, fontWeight: item.active ? 600 : 400 }}>
+                  {item.label}
+                </span>
+                {item.active && (
+                  <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: item.color, textTransform: 'uppercase', letterSpacing: '0.05em' }}>On</span>
+                )}
+              </button>
+            ))}
+
+            {/* Actions */}
+            {[
+              {
+                label: 'Projects',
+                icon: '📁',
+                onClick: () => { onOpenProjects?.(); setOpen(false) },
+              },
+              {
+                label: 'Network Capacity',
+                icon: '📊',
+                onClick: () => { onOpenCapacity(); setOpen(false) },
+              },
+              {
+                label: 'Reference Data',
+                icon: '⚙',
+                onClick: () => { onOpenRefData(); setOpen(false) },
+              },
+            ].map(item => (
+              <button
+                key={item.label}
+                onClick={item.onClick}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  width: '100%', padding: '13px 16px',
+                  background: 'transparent',
+                  border: 'none', borderBottom: `1px solid ${t.border}`,
+                  cursor: 'pointer', textAlign: 'left',
+                }}
+              >
+                <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>{item.icon}</span>
+                <span style={{ fontSize: 13, color: t.text }}>{item.label}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 14, color: t.textFaintest }}>›</span>
+              </button>
+            ))}
+
+            {/* Theme cycle */}
+            <button
+              onClick={() => { cycleTheme(); }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                width: '100%', padding: '13px 16px',
+                background: 'transparent', border: 'none',
+                cursor: 'pointer', textAlign: 'left',
+              }}
+            >
+              <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>
+                {nextThemeIcon(themeMode)}
+              </span>
+              <span style={{ fontSize: 13, color: t.text }}>
+                {nextThemeLabel(themeMode)}
+              </span>
+            </button>
+
+            {/* Tooltips toggle — on by default */}
+            <button
+              onClick={() => { setTooltipsEnabled(!tooltipsEnabled); setOpen(false) }}
+              aria-pressed={tooltipsEnabled}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                width: '100%', padding: '13px 16px',
+                background: tooltipsEnabled ? t.blue + '18' : 'transparent',
+                border: 'none', borderTop: `1px solid ${t.border}`,
+                cursor: 'pointer', textAlign: 'left',
+              }}
+            >
+              <span style={{ fontSize: 17, width: 22, textAlign: 'center' }}>{tooltipsEnabled ? '◉' : '◎'}</span>
+              <span style={{ fontSize: 13, color: tooltipsEnabled ? t.blue : t.text, fontWeight: tooltipsEnabled ? 600 : 400 }}>
+                Tooltips
+              </span>
+              {tooltipsEnabled && (
+                <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: t.blue, textTransform: 'uppercase', letterSpacing: '0.05em' }}>On</span>
+              )}
+            </button>
+          </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The floating strip shown while RouteManual is mid-build and the sheet is at
+ * "peek": running hop/km/ms totals for the route so far, plus Undo, Done and a
+ * way back up to the candidate list.
+ */
+function ManualBuildStrip({ steps, segments, candidateCount, t, onUndo, onFinish, onExpand }: {
+  steps: ManualState['steps']
+  segments: CableSegment[]
+  candidateCount: number
+  t: import('../theme').Theme
+  onUndo?: () => void
+  onFinish?: () => void
+  onExpand: () => void
+}) {
+  const hopCount = steps.length
+  const km = steps.reduce((a, s) => {
+    const seg = segments.find(x => x.id === s.segmentId)
+    return a + (seg?.length_km ?? 0)
+  }, 0)
+  const ms = steps.reduce((a, s) => {
+    const seg = segments.find(x => x.id === s.segmentId)
+    return a + (seg?.latency ?? 0)
+  }, 0)
+  return (
+    <div style={{
+      position: 'fixed', bottom: PEEK_H, left: '50%', transform: 'translateX(-50%)',
+      width: `min(100%, ${SHEET_MAX_W}px)`, zIndex: 49,
+      background: t.bgPanel + 'f8',
+      borderTop: `1px solid ${t.border}`,
+      padding: '8px 14px',
+      display: 'flex', alignItems: 'center', gap: 10,
+    }}>
+      {/* Stats */}
+      <div style={{ display: 'flex', gap: 12, flex: 1 }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{hopCount}</div>
+          <div style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Hops</div>
+        </div>
+        {hopCount > 0 && <>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{km.toLocaleString()}</div>
+            <div style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>km</div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{ms.toFixed(0)}</div>
+            <div style={{ fontSize: 11, color: t.textMuted, textTransform: 'uppercase', letterSpacing: '0.04em' }}>ms</div>
+          </div>
+        </>}
+      </div>
+      {/* Action buttons */}
+      <div style={{ display: 'flex', gap: 6 }}>
+        {hopCount > 0 && (
+          <button onClick={onUndo} style={{
+            padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+            border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted,
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}>↩</button>
+        )}
+        {hopCount > 0 && (
+          <button onClick={onFinish} style={{
+            padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+            border: 'none', background: t.green, color: '#fff',
+            cursor: 'pointer', fontFamily: 'inherit',
+          }}>✓ Done</button>
+        )}
+        <button onClick={onExpand} style={{
+          padding: '7px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+          border: `1px solid ${t.blue}66`, background: `${t.blue}18`, color: t.blue,
+          cursor: 'pointer', fontFamily: 'inherit',
+        }}>{candidateCount} options ›</button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * The sheet's top banner: shows either "Circuit Designer" (no active project)
+ * or the active project's name, and opens a small dropdown with actions to
+ * switch or exit project mode. The mobile equivalent of the project-mode
+ * indicator in App.tsx's desktop header. Presentational only — onSwitch/onExit
+ * are callbacks owned by App.tsx; this component just tracks its own
+ * open/closed dropdown state.
+ */
+function MobileModeBanner({ activeProject, onSwitch, onExit, t }: {
+  activeProject: Project | null
+  onSwitch: () => void
+  onExit: () => void
+  t: import('../theme').Theme
+}) {
+  const [open, setOpen] = useState(false)
+  const isProject = !!activeProject
+
+  return (
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+          padding: '8px 16px', border: 'none', cursor: 'pointer',
+          background: isProject ? `${t.blue}22` : t.bgPanel,
+          borderBottom: `1px solid ${isProject ? t.blue + '55' : t.border}`,
+          color: isProject ? t.blue : t.textMuted,
+          textAlign: 'left',
+        }}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+          {isProject
+            ? <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            : <><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></>
+          }
+        </svg>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {/* DESIGN.md's Label role (700/10px/uppercase/0.06em) undersized to
+              9px with an opacity stacked on top of an already-muted color —
+              two dimming steps on top of one another dropped this well under
+              WCAG AA. The button's own text color (blue when a project is
+              active, textMuted otherwise) is already the intended "quieter
+              than the value below it" signal; it doesn't need opacity too. */}
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', lineHeight: 1.2 }}>
+            {isProject ? 'Project Mode' : 'Mode'}
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: isProject ? t.blue : t.text, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {isProject ? (activeProject.name || 'Untitled Project') : 'Circuit Designer'}
+          </div>
+        </div>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.5, transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }}>
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+
+      {open && (
+        <>
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setOpen(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 499, border: 'none', background: 'transparent', padding: 0, cursor: 'default' }}
+          />
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 500,
+            background: t.bgPanel, border: `1px solid ${t.border}`,
+            borderTop: 'none', borderRadius: '0 0 8px 8px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            padding: 12, display: 'flex', flexDirection: 'column', gap: 8,
+          }}>
+            {isProject && (activeProject.opportunity_id || activeProject.circuits.length > 0) && (
+              <div style={{ fontSize: 11, color: t.textMuted, paddingBottom: 4, borderBottom: `1px solid ${t.border}` }}>
+                {activeProject.opportunity_id && <span>🔑 {activeProject.opportunity_id} · </span>}
+                {activeProject.circuits.length} circuit{activeProject.circuits.length !== 1 ? 's' : ''}
+              </div>
+            )}
+            {isProject ? (
+              <>
+                <button onClick={() => { setOpen(false); onSwitch() }} style={{ padding: '8px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, border: `1px solid ${t.blue}66`, background: `${t.blue}18`, color: t.blue, cursor: 'pointer', textAlign: 'left' }}>
+                  ⇄ Switch Project
+                </button>
+                <button onClick={() => { setOpen(false); onExit() }} style={{ padding: '8px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted, cursor: 'pointer', textAlign: 'left' }}>
+                  ✕ Exit to Circuit Designer
+                </button>
+              </>
+            ) : (
+              <button onClick={() => { setOpen(false); onSwitch() }} style={{ padding: '8px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, border: `1px solid ${t.blue}66`, background: `${t.blue}18`, color: t.blue, cursor: 'pointer', textAlign: 'left' }}>
+                📁 Open a Project
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+export function MobileLayout({
+  nodes, segments, systems, capacity, outages, rules,
+  response, selectedRoutes, selectedRouteIds, pinnedRoutes, selectedSystems,
+  mode, loading, error, selectedNode, selectedSegment, searchPin, nearestNodeIds,
+  prefilledOrigin, prefilledDest, lastSearchDiversity,
+  refDataOpen, themeMode, config,
+  onSearch, onToggleRoute, onPin, onUnpin, onPinPair, onToggleSystem,
+  onSetOrigin, onSetDest, onSetPair, onGoToNode, flyToNode, onAssetSelect, fitBounds, spotlightNodeId, serviceDate,
+  serviceChoice, onServiceChoiceChange, visibleSegments,
+  onNodeClick, onSegmentClick, onCloseSegment, onPinChange,
+  onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
+  switchMode, clearSearch, clearAll, cycleTheme, mapStyle, onMapStyleChange, onToggleHideNonActive, onToggleShowSegmentLabels, onToggleShowNodeLabels, onToggleShowAllOutages,
+  onToggleShowPlannedEvents,
+  onToggleSubseaOnly, onToggleBackhaulOnly, livingWorld, onToggleLivingWorld,
+  hazardsOn, onToggleHazards, hazardAssetView, onHazardAssetViewChange,
+  hazardOwnerView, onHazardOwnerViewChange,
+  kmlPaths, kmlMode, onToggleKmlMode,
+  hazardFeed, hazardsLoading, hazardsError, onRefreshHazards,
+  onApplySort, nlpSortKey, nlpPushOutages, optimiseFor, flippedPairIds, onFlipPair,
+  onAddToProject, onEnrichCircuit, onOpenProjects, activeProject, onExitProjectMode, onSwitchProject, onOpenGuide,
+  manualState, manualCandidates = [], manualResults = [], onManualNodeClick,
+  onManualPickHop, onManualUndo, onManualFinish, onManualDiscard,
+  countryHighlight, onCountrySelect,
+  assetFilterMatch, onAssetFilterChange,
+  hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false,
+  subseaOnly = false, backhaulOnly = false,
+}: MobileLayoutProps & {
+  hideNonActive?: boolean; showSegmentLabels?: boolean; showNodeLabels?: boolean; showAllOutages?: boolean; showPlannedEvents?: boolean
+  subseaOnly?: boolean; backhaulOnly?: boolean
+}) {
+  const t = useTheme()
+
+  const [sheetHeight, setSheetHeight] = useState(() => snapPx('full'))
+  const [snap, setSnap]               = useState<SheetSnap>('full')
+  const [animating, setAnimating]     = useState(false)
+  const [warnSwitchMode, setWarnSwitchMode] = useState<AppMode | null>(null)
+
+  const [capDashOpen, setCapDashOpen]     = useState(false)
+  const [drawerOpen, setDrawerOpen]       = useState(false)
+  const [sldVersionPrompt, setSldVersionPrompt] = useState(false)
+  const [sldVersion, setSldVersion]       = useState('')
+  const [searchPrefill, setSearchPrefill] = useState<import('../types').RouteRequest | undefined>(undefined)
+  const hasPins      = pinnedRoutes.length > 0
+  const hasResults   = response !== null || manualResults.length > 0
+  const manualBuilding = mode === 'routemanual' && !!manualState
+
+  // Auto-expand when results arrive or search starts
+  useEffect(() => {
+    if ((hasResults || loading) && snap === 'peek') doSnap('full')
+  }, [hasResults, loading]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-peek sheet when RouteManual is actively building so map is mostly visible
+  useEffect(() => {
+    if (manualBuilding && snap !== 'peek') doSnap('peek')
+  }, [manualBuilding]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Animate the sheet to the given snap position: flips on the CSS height
+   *  transition, sets the target snap + pixel height (computed fresh from the
+   *  current viewport via snapPx), then clears the "animating" flag after the
+   *  320ms transition duration so a later non-gesture height change (e.g. a
+   *  route arriving) doesn't itself animate. */
+  function doSnap(s: SheetSnap) {
+    setAnimating(true)
+    setSnap(s)
+    setSheetHeight(snapPx(s))
+    setTimeout(() => setAnimating(false), 320)
+  }
+
+  /** Flip the sheet between its two snap points — the handler for the sheet's
+   *  own drag-handle button. */
+  function toggleSheet() {
+    doSnap(snap === 'peek' ? 'full' : 'peek')
+  }
+
+  /** Top-level tab tap handler. If RouteManual is mid-build and the user taps
+   *  away to a different top-level tab, don't switch immediately — surface the
+   *  discard-confirmation dialog (warnSwitchMode) instead, since RouteManual's
+   *  in-progress route lives only in App.tsx's manualState and would be lost.
+   *  Otherwise switch modes and, if the sheet was peeking, expand it back to
+   *  full so the newly-selected panel is actually visible. */
+  function tapTab(next: AppMode) {
+    if (manualBuilding && next !== 'routemanual') {
+      setWarnSwitchMode(next)
+      return
+    }
+    switchMode(next)
+    if (snap === 'peek') doSnap('full')
+  }
+
+  // ── Styles ────────────────────────────────────────────────────────────────
+  const tabBtn = (active: boolean): React.CSSProperties => ({
+    flex: 1, padding: '10px 4px', border: 'none', cursor: 'pointer',
+    background: 'transparent',
+    color: active ? t.blue : t.textFaint,
+    fontSize: 11, fontWeight: active ? 700 : 400,
+    textTransform: 'uppercase', letterSpacing: '0.04em',
+    lineHeight: 1.25,
+    borderBottom: active ? `2px solid ${t.blue}` : '2px solid transparent',
+    transition: 'color 0.15s, border-color 0.15s',
+  })
+
+  // minHeight (not just padding) closes most of the gap to a comfortable
+  // touch target without inflating this pill's visual weight to match.
+  const smallBtn = (destructive = false): React.CSSProperties => ({
+    padding: '4px 10px', minHeight: 32, borderRadius: 4, border: `1px solid ${t.border}`,
+    background: 'transparent', color: destructive ? t.red : t.textMuted,
+    cursor: 'pointer', fontSize: 11, fontWeight: 600,
+  })
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  return (
+    <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', fontFamily: 'system-ui, sans-serif', color: t.text }}>
+
+      {/* ── Full-screen map ─────────────────────────────────────────────── */}
+      <div role="main" aria-label="Network map" style={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+        {nodes.length > 0 ? (
+          <NetworkMap
+            livingWorld={livingWorld}
+            hazardsOn={hazardsOn}
+            hazardAssetView={hazardAssetView}
+            onHazardAssetViewChange={onHazardAssetViewChange}
+            hazardOwnerView={hazardOwnerView}
+            onHazardOwnerViewChange={onHazardOwnerViewChange}
+            onNetOwnership={config.on_net_ownership}
+            hazardFeed={hazardFeed}
+            hazardsLoading={hazardsLoading}
+            hazardsError={hazardsError}
+            onRefreshHazards={onRefreshHazards}
+            nodes={nodes}
+            segments={visibleSegments ?? segments}
+            selectedRoutes={selectedRoutes}
+            capacity={capacity}
+            pinnedRoutes={pinnedRoutes}
+            selectedSystems={selectedSystems}
+            onNodeClick={mode === 'routemanual' && onManualNodeClick ? onManualNodeClick : onNodeClick}
+            onSegmentClick={mode === 'routemanual' ? undefined : onSegmentClick}
+            selectedSegmentId={selectedSegment?.segment.id ?? null}
+            selectedNodeId={selectedNode?.node.id ?? null}
+            controlsOpen={drawerOpen}
+            kmlPaths={kmlPaths}
+            kmlMode={kmlMode}
+            flyToNode={flyToNode}
+            fitBounds={fitBounds}
+            spotlightNodeId={spotlightNodeId}
+            searchPin={searchPin ?? undefined}
+            nearestNodeIds={nearestNodeIds}
+            hideNonActive={hideNonActive}
+            showSegmentLabels={showSegmentLabels}
+            showNodeLabels={showNodeLabels}
+            showAllOutages={showAllOutages}
+            showPlannedEvents={showPlannedEvents}
+            subseaOnly={subseaOnly}
+            backhaulOnly={backhaulOnly}
+            countryHighlight={countryHighlight}
+            assetFilter={assetFilterMatch}
+            outages={outages}
+            manualState={manualState}
+            manualCandidates={manualCandidates}
+            onManualNodeClick={onManualNodeClick}
+            manualMobileMode={manualBuilding}
+            mapsProvider={config.maps_provider}
+            mapStyle={mapStyle}
+            onMapStyleChange={onMapStyleChange}
+          />
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: t.textFaint, background: t.bgMap }}>
+            Loading network…
+          </div>
+        )}
+      </div>
+
+      {/* ── Top-left branding ───────────────────────────────────────────── */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onOpenGuide}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenGuide() } }}
+        title="Open platform guide"
+        style={{
+          position: 'absolute', top: 14, left: 14, zIndex: 100,
+          background: t.bgPanel + 'f0',
+          borderRadius: 10, padding: '5px 10px',
+          border: `1px solid ${t.border}`,
+          boxShadow: themeMode === 'light' ? '0 2px 8px rgba(0,0,0,0.15)' : '0 2px 10px rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+        }}
+      >
+        <img src="/favicon.svg" alt="" style={{ width: 22, height: 22, flexShrink: 0 }} />
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.text, lineHeight: 1.25 }}>RouteBuilder</div>
+          <div style={{ fontSize: 11, color: t.textFaint, letterSpacing: '0.02em', marginTop: 1 }}>International Telco</div>
+        </div>
+      </div>
+
+      {/* ── Asset Search, collapsed to a magnifier so it costs almost no
+             room in a header that already carries the logo and Controls. ── */}
+      {serviceChoice && onServiceChoiceChange && (
+        <div style={{ position: 'absolute', top: 14, right: 140, zIndex: 100 }}>
+          <ServiceDateSelector value={serviceChoice} onChange={onServiceChoiceChange} compact />
+        </div>
+      )}
+
+      {/* Future-network banner, full width under the header row. */}
+      {serviceChoice && onServiceChoiceChange && (
+        <div style={{ position: 'absolute', top: 62, left: 8, right: 8, zIndex: 1100 }}>
+          <FutureNetworkBanner value={serviceChoice} onReset={() => onServiceChoiceChange(CURRENT_CHOICE)} />
+        </div>
+      )}
+
+      {onAssetSelect && (
+        <div style={{ position: 'absolute', top: 14, right: 92, zIndex: 100 }}>
+          <AssetSearch
+            nodes={nodes}
+            segments={visibleSegments ?? segments}
+            systems={systems}
+            onSelect={hit => { doSnap('peek'); onAssetSelect(hit) }}
+            compact
+          />
+        </div>
+      )}
+
+      {/* ── Asset Filter — collapsed to an icon (matching AssetSearch's own
+             compact convention) and docked below Leaflet's zoom control,
+             its own row: the header (branding, search, service date,
+             Controls) already fills edge to edge, and the legend row spans
+             almost the full width beside it, so there is no shared row with
+             free space for a fifth element — a row of its own avoids fighting
+             either one for width. Zoom control measures 60-124px tall on a
+             phone viewport; 132 clears it with an 8px gap. ── */}
+      {onAssetSelect && onAssetFilterChange && (
+        <div style={{ position: 'absolute', top: 132, left: 8, zIndex: 1090 }}>
+          <AssetFilterBar
+            compact
+            nodes={nodes}
+            segments={visibleSegments ?? segments}
+            systems={systems}
+            capacity={capacity}
+            onNetOwnership={config.on_net_ownership}
+            onAssetSelect={hit => { doSnap('peek'); onAssetSelect(hit) }}
+            onFilterChange={onAssetFilterChange}
+          />
+        </div>
+      )}
+
+      {/* ── Top-right drawer toggle + panel ────────────────────────────── */}
+      <MobileControlsDrawer
+        kmlMode={kmlMode}
+        kmlCount={Object.keys(kmlPaths).length}
+        segmentCount={segments.length}
+        onToggleKmlMode={onToggleKmlMode}
+        open={drawerOpen}
+        setOpen={setDrawerOpen}
+        t={t}
+        themeMode={themeMode}
+        showAllOutages={showAllOutages}
+        showPlannedEvents={showPlannedEvents}
+        showSegmentLabels={showSegmentLabels}
+        showNodeLabels={showNodeLabels}
+        hideNonActive={hideNonActive}
+        subseaOnly={subseaOnly}
+        backhaulOnly={backhaulOnly}
+        onToggleShowAllOutages={onToggleShowAllOutages}
+        onToggleShowPlannedEvents={onToggleShowPlannedEvents}
+        onToggleShowSegmentLabels={onToggleShowSegmentLabels}
+        onToggleShowNodeLabels={onToggleShowNodeLabels}
+        onToggleHideNonActive={onToggleHideNonActive}
+        onToggleSubseaOnly={onToggleSubseaOnly}
+        onToggleBackhaulOnly={onToggleBackhaulOnly}
+        livingWorld={livingWorld}
+        onToggleLivingWorld={onToggleLivingWorld}
+        hazardsOn={hazardsOn}
+        onToggleHazards={onToggleHazards}
+        onOpenProjects={onOpenProjects}
+        onOpenCapacity={() => setCapDashOpen(true)}
+        onOpenRefData={onOpenRefData}
+        cycleTheme={cycleTheme}
+      />
+
+      {/* ── RouteManual floating build strip (shown only when building at peek) ── */}
+      {manualBuilding && snap === 'peek' && (
+        <ManualBuildStrip
+          steps={manualState!.steps}
+          segments={segments}
+          candidateCount={manualCandidates.length}
+          t={t}
+          onUndo={onManualUndo}
+          onFinish={onManualFinish}
+          onExpand={() => doSnap('full')}
+        />
+      )}
+
+      {/* ── Bottom sheet ────────────────────────────────────────────────── */}
+      <div
+        role="complementary" aria-label="Search, results and navigation"
+        style={{
+          position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
+          width: `min(100%, ${SHEET_MAX_W}px)`,
+          height: sheetHeight,
+          background: t.bgPanel,
+          borderRadius: '16px 16px 0 0',
+          boxShadow: '0 -4px 32px rgba(0,0,0,0.35)',
+          zIndex: 50,
+          display: 'flex', flexDirection: 'column',
+          overflow: 'hidden',
+          transition: animating ? 'height 0.3s cubic-bezier(0.4,0,0.2,1)' : 'none',
+        }}
+      >
+        {/* Sheet toggle button — the primary control for expanding/collapsing
+            the results sheet, so its 28px original height (well under a
+            comfortable touch target) mattered more than most; bumped to 40,
+            full width already made it easy to hit horizontally. */}
+        <button
+          onClick={toggleSheet}
+          style={{
+            flexShrink: 0, height: 40, width: '100%',
+            display: 'flex', justifyContent: 'center', alignItems: 'center',
+            cursor: 'pointer', background: 'transparent', border: 'none',
+            userSelect: 'none',
+          }}
+        >
+          <svg width="20" height="10" viewBox="0 0 20 10" fill="none" stroke={t.borderSubtle} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {snap === 'peek'
+              ? <polyline points="3,7 10,3 17,7"/>
+              : <polyline points="3,3 10,7 17,3"/>
+            }
+          </svg>
+        </button>
+
+        {/* Mode banner */}
+        <MobileModeBanner
+          activeProject={activeProject ?? null}
+          onSwitch={() => onSwitchProject?.()}
+          onExit={() => onExitProjectMode?.()}
+          t={t}
+        />
+
+        {/* ── Top-level tabs: RouteBuilder | NetworkExplorer | Guide ── */}
+        {(() => {
+          const isRouteBuilder   = mode === 'routebuilder' || mode === 'routemanual'
+          const isNetworkExplorer = mode === 'citypair' || mode === 'systemviewer' || mode === 'nodefinder' || mode === 'countryviewer' || mode === 'outageviewer'
+          return (
+            <div style={{ flexShrink: 0, display: 'flex', borderBottom: `1px solid ${t.border}` }}>
+              <button style={tabBtn(isRouteBuilder)}    onClick={() => tapTab(mode === 'routemanual' ? 'routemanual' : 'routebuilder')}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 2 }}>
+                  <path d="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z"/>
+                </svg>
+                <br/>RouteBuilder
+              </button>
+              <button style={tabBtn(isNetworkExplorer)} onClick={() => tapTab('citypair')}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 2 }}>
+                  <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+                <br/>NetworkExp.
+              </button>
+              <button style={tabBtn(false)} onClick={onOpenGuide}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 2 }}>
+                  <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <br/>Guide
+              </button>
+            </div>
+          )
+        })()}
+
+        {/* ── Sub-tabs for RouteBuilder ── */}
+        {(mode === 'routebuilder' || mode === 'routemanual') && (
+          <div style={{ flexShrink: 0, display: 'flex', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
+            <button style={tabBtn(mode === 'routebuilder')} onClick={() => tapTab('routebuilder')}>RouteFinder</button>
+            <button style={tabBtn(mode === 'routemanual')}  onClick={() => tapTab('routemanual')}>RouteManual</button>
+          </div>
+        )}
+
+        {/* ── Sub-tabs for NetworkExplorer ── */}
+        {(mode === 'citypair' || mode === 'systemviewer' || mode === 'nodefinder' || mode === 'countryviewer' || mode === 'outageviewer') && (
+          <div style={{ flexShrink: 0, display: 'flex', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
+            <button style={tabBtn(mode === 'citypair')}      onClick={() => tapTab('citypair')}>City Pairs</button>
+            <button style={tabBtn(mode === 'systemviewer')}  onClick={() => tapTab('systemviewer')}>Cables</button>
+            <button style={tabBtn(mode === 'nodefinder')}    onClick={() => tapTab('nodefinder')}>Nodes</button>
+            <button style={tabBtn(mode === 'countryviewer')} onClick={() => tapTab('countryviewer')}>Country</button>
+            <button style={tabBtn(mode === 'outageviewer')}  onClick={() => tapTab('outageviewer')}>Outages</button>
+          </div>
+        )}
+
+        {/* Scrollable content */}
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', overscrollBehavior: 'contain' } as React.CSSProperties}>
+
+          {/* ── RouteFinder mode ──────────────────────────────────────── */}
+          {mode === 'routebuilder' && (
+            <div style={{ padding: '14px 16px 32px' }}>
+
+              {/* Mini status / action bar */}
+              {(hasResults || hasPins || loading) && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  marginBottom: 14, paddingBottom: 12, borderBottom: `1px solid ${t.border}`,
+                }}>
+                  {loading    && <span style={{ fontSize: 11, color: t.blue }}>Searching…</span>}
+                  {hasResults && !loading && <span style={{ fontSize: 11, color: t.textFaintest }}>{(response?.primary_routes.length ?? 0) + (response?.diverse_routes.length ?? 0)} routes found</span>}
+                  {hasPins    && <span style={{ fontSize: 11, color: t.textFaintest }}>· {pinnedRoutes.length} pinned</span>}
+                  <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                    {hasPins    && <button onClick={() => { setSldVersion(''); setSldVersionPrompt(true) }} style={smallBtn()}>⬡ SLD</button>}
+                    {hasResults && <button onClick={clearSearch} style={smallBtn()}>Clear</button>}
+                    {(hasResults || hasPins) && <button onClick={clearAll} style={smallBtn(true)}>Clear All</button>}
+                  </div>
+                </div>
+              )}
+
+              {NlpChat && (
+                <Suspense fallback={null}>
+                  <NlpChat
+                    nodes={nodes}
+                    onSearch={onSearch}
+                    onSwitchMode={switchMode}
+                    onApplySort={onApplySort}
+                    onPrefill={req => setSearchPrefill({...req} as import('../types').RouteRequest)}
+                  />
+                </Suspense>
+              )}
+
+              <SearchForm
+                nodes={nodes} segments={segments} systems={systems}
+                onSearch={onSearch} loading={loading}
+                prefilledOrigin={prefilledOrigin} prefilledDest={prefilledDest}
+                prefill={searchPrefill}
+                kmlMode={kmlMode} onToggleKmlMode={onToggleKmlMode}
+              />
+
+              {error && (
+                <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 6, background: t.bgDeep, color: t.red, fontSize: 13 }}>
+                  {error}
+                </div>
+              )}
+
+              {!hasResults && !loading && !hasPins && (
+                <p style={{ color: t.textFaintest, fontSize: 13, marginTop: 14, lineHeight: 1.5 }}>
+                  Configure a route request above and press Search.
+                </p>
+              )}
+
+              {(hasResults || hasPins) && (
+                <div style={{ marginTop: 18 }}>
+                  <RouteList
+                    serviceDate={serviceDate ?? null}
+                    allSegments={segments}
+                    onDataChange={onDataChange}
+                    primaryRoutes={response?.primary_routes ?? []}
+                    diverseRoutes={response?.diverse_routes ?? []}
+                    totalFound={response?.total_found}
+                    selectedRouteIds={selectedRouteIds}
+                    onSelectRoute={onToggleRoute}
+                    nodes={nodes}
+                    systems={systems}
+                    capacity={capacity}
+                    outages={outages}
+                    pinnedRoutes={pinnedRoutes}
+                    onPin={onPin}
+                    onUnpin={onUnpin}
+                    onPinPair={onPinPair}
+                    diversityRequested={lastSearchDiversity !== 'none'}
+                    onNetOwnership={config.on_net_ownership}
+                    externalSortKey={nlpSortKey}
+                    externalPushOutagesDown={nlpPushOutages}
+                    optimiseFor={optimiseFor}
+                    flippedPairIds={flippedPairIds}
+                    onFlipPair={onFlipPair}
+                    onAddToProject={onAddToProject}
+                    onEnrichCircuit={onEnrichCircuit}
+                    activeProject={activeProject}
+                    onExitProjectMode={onExitProjectMode}
+                    onSwitchProject={onSwitchProject}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── RouteManual mode ──────────────────────────────────────── */}
+          {mode === 'routemanual' && (
+            <RouteManual
+              nodes={nodes}
+              segments={segments}
+              systems={systems}
+              capacity={capacity}
+              state={manualState ?? null}
+              onStart={(nodeId) => {
+                const node = nodes.find(n => n.id === nodeId)
+                if (node) onManualNodeClick?.(node)
+              }}
+              onPickHop={(c) => { onManualPickHop?.(c); doSnap('peek') }}
+              onUndo={onManualUndo ?? (() => {})}
+              onFinish={onManualFinish ?? (() => {})}
+              onDiscard={onManualDiscard ?? (() => {})}
+              onNetOwnership={config.on_net_ownership}
+            />
+          )}
+
+          {/* ── RouteManual results ───────────────────────────────────── */}
+          {mode === 'routemanual' && manualResults.length > 0 && (
+            <div style={{ padding: '0 16px 32px' }}>
+              <RouteList
+                serviceDate={serviceDate ?? null}
+                allSegments={segments}
+                onDataChange={onDataChange}
+                primaryRoutes={manualResults}
+                diverseRoutes={[]}
+                selectedRouteIds={selectedRouteIds}
+                onSelectRoute={onToggleRoute}
+                nodes={nodes}
+                systems={systems}
+                capacity={capacity}
+                outages={outages}
+                pinnedRoutes={pinnedRoutes}
+                onPin={onPin}
+                onUnpin={onUnpin}
+                diversityRequested={false}
+                onNetOwnership={config.on_net_ownership}
+                onAddToProject={onAddToProject}
+                activeProject={activeProject}
+              />
+            </div>
+          )}
+
+          {/* ── City Pair mode ────────────────────────────────────────── */}
+          {mode === 'citypair' && (
+            <div style={{ padding: '14px 16px 32px' }}>
+              <CityPairPanel nodes={nodes} segments={visibleSegments ?? segments} systems={systems} onNetOwnership={config.on_net_ownership} onPlanRoute={onSetPair} />
+            </div>
+          )}
+
+          {/* ── Systems mode ──────────────────────────────────────────── */}
+          {mode === 'systemviewer' && (
+            <div style={{ padding: '14px 16px 32px' }}>
+              <SystemViewer systems={systems} selected={selectedSystems} onToggle={onToggleSystem}
+                segments={segments} nodes={nodes} hasKml={id => !!kmlPaths[id]} />
+            </div>
+          )}
+
+          {/* ── Node Finder mode ──────────────────────────────────────── */}
+          {mode === 'nodefinder' && (
+            <div style={{ padding: '14px 16px 32px' }}>
+              <NodeFinder
+                nodes={nodes}
+                onPinChange={onPinChange}
+                onSetOrigin={onSetOrigin}
+                onSetDest={onSetDest}
+                onGoToNode={onGoToNode && (id => {
+                  // Drop the sheet to 'peek' first — otherwise the map flies
+                  // to the node behind a full-height panel and the user sees
+                  // nothing happen.
+                  doSnap('peek')
+                  onGoToNode(id)
+                })}
+              />
+            </div>
+          )}
+
+          {mode === 'countryviewer' && (
+            <div style={{ padding: '14px 16px 32px' }}>
+              <CountryViewer nodes={nodes} segments={visibleSegments ?? segments} systems={systems} onSelect={h => onCountrySelect?.(h)} />
+            </div>
+          )}
+
+          {mode === 'outageviewer' && (
+            <OutagePanel outages={outages} segments={segments} systems={systems} />
+          )}
+
+
+        </div>
+        <HealthBar dataLoaded={nodes.length > 0} />
+      </div>
+
+      {/* ── Node info panel ─────────────────────────────────────────────── */}
+      {/* On a phone a tap goes STRAIGHT to Full View rather than to the
+          floating NodeInfoPanel card. That card is a desktop idiom — it is a
+          fixed 380px wide and positions itself from the click's pixel
+          coordinates, which on a ~390px screen leaves it edge to edge and
+          pinned wherever the finger happened to land. Full View is the same
+          information laid out as a sheet, plus the segment fan-out, capacity
+          and notes, which is what "inquire on a node" wants on a phone
+          anyway. */}
+      {selectedNode && (
+        <NodeFullView
+          nodeId={selectedNode.node.id}
+          nodes={nodes}
+          segments={segments}
+          systems={systems}
+          capacity={capacity}
+          onClose={onCloseNode}
+          onDataChange={onDataChange}
+        />
+      )}
+
+      {/* ── Segment full view ───────────────────────────────────────────── */}
+      {/* Straight to Full View for the same reason as the node above: the
+          floating SegmentInfoPanel is a fixed 380px desktop card, which on a
+          ~390px screen would sit edge to edge wherever the finger landed. The
+          tap coordinates are still carried in state — they are simply not used
+          on this layout. */}
+      {selectedSegment && (
+        <SegmentFullView
+          segmentId={selectedSegment.segment.id}
+          nodes={nodes}
+          segments={segments}
+          systems={systems}
+          capacity={capacity}
+          outages={outages}
+          kmlPaths={kmlPaths}
+          onClose={onCloseSegment}
+          onDataChange={onDataChange}
+        />
+      )}
+
+      {/* ── Capacity dashboard ──────────────────────────────────────────── */}
+      {capDashOpen && (
+        <Suspense fallback={null}>
+          <CapacityDashboard
+            segments={segments} capacity={capacity}
+            onClose={() => setCapDashOpen(false)}
+          />
+        </Suspense>
+      )}
+
+      {/* ── Ref data modal ──────────────────────────────────────────────── */}
+      {refDataOpen && (
+        <Suspense fallback={null}>
+          <RefDataModal
+            kmlPaths={kmlPaths}
+            nodes={nodes} segments={segments} systems={systems}
+            capacity={capacity} outages={outages} rules={rules} config={config}
+            onDataChange={onDataChange}
+            onClose={onCloseRefData}
+          />
+        </Suspense>
+      )}
+
+      {/* ── Route-switch warning ────────────────────────────────────────────── */}
+      {warnSwitchMode !== null && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9600,
+          background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '0 16px',
+        }}>
+          <div style={{
+            background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 12,
+            padding: '24px 20px', width: '100%', maxWidth: 360, boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 8 }}>Discard route?</div>
+            <div style={{ fontSize: 13, color: t.textMuted, marginBottom: 20, lineHeight: 1.5 }}>
+              You're mid-build in RouteManual. Switching tabs will discard the route in progress.
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => { const m = warnSwitchMode; setWarnSwitchMode(null); switchMode(m); doSnap('full') }}
+                style={{ flex: 1, padding: '10px', borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: 'none', background: t.red, color: '#fff', fontFamily: 'inherit' }}
+              >Yes, discard route</button>
+              <button
+                onClick={() => setWarnSwitchMode(null)}
+                style={{ flex: 1, padding: '10px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted, fontFamily: 'inherit' }}
+              >Keep building</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── SLD version prompt ──────────────────────────────────────────────── */}
+      {sldVersionPrompt && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9500,
+          background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '0 16px',
+        }}>
+          <div style={{
+            background: t.bgCard, border: `1px solid ${t.border}`, borderRadius: 12,
+            padding: '24px 20px', width: '100%', maxWidth: 380, boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 4 }}>Export SLD</div>
+            <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 14 }}>Add an optional version label to the PDF.</div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+              {['Proposal', 'Draft', 'Final'].map(v => (
+                <button key={v} onClick={() => setSldVersion(v)}
+                  style={{
+                    flex: 1, padding: '8px 4px', borderRadius: 5, fontSize: 12, fontWeight: 600,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    border: `1px solid ${sldVersion === v ? t.blue : t.border}`,
+                    background: sldVersion === v ? `${t.blue}22` : 'transparent',
+                    color: sldVersion === v ? t.blue : t.textMuted,
+                  }}
+                >{v}</button>
+              ))}
+            </div>
+            <input
+              style={{
+                width: '100%', background: t.bgBase, border: `1px solid ${t.border}`,
+                borderRadius: 6, padding: '10px 12px', color: t.text, fontSize: 14,
+                outline: 'none', boxSizing: 'border-box', fontFamily: 'inherit', marginBottom: 16,
+              }}
+              placeholder="Or type a custom version…"
+              value={sldVersion}
+              onChange={e => setSldVersion(e.target.value)}
+            />
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={async () => { const { generateStraightLineDiagram } = await import('../utils/generateDiagram'); generateStraightLineDiagram(pinnedRoutes, nodes, sldVersion || undefined); setSldVersionPrompt(false) }}
+                style={{ flex: 1, padding: '10px', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: 'none', background: t.blue, color: t.bgCard, fontFamily: 'inherit' }}
+              >Generate PDF</button>
+              <button
+                onClick={() => setSldVersionPrompt(false)}
+                style={{ flex: 1, padding: '10px', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: 'pointer', border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted, fontFamily: 'inherit' }}
+              >Cancel</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+    </div>
+  )
+}

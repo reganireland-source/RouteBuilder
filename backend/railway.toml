@@ -2,5 +2,5 @@
 builder = "dockerfile"
 
 [deploy]
-healthcheckPath = "/health"
+healthcheckPath = "/api/health"
 restartPolicyType = "on_failure"

@@ -1,96 +1,1685 @@
-import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip } from 'react-leaflet'
-import type { CableNode, CableSegment, Route } from '../types'
+/**
+ * ============================================================================
+ * components/Map.tsx — The Leaflet world map at the heart of the app
+ * ============================================================================
+ *
+ * Renders every node and cable segment, plus all mode-specific overlays.
+ * Mounted by App.tsx (desktop) and MobileLayout.tsx (mobile); it is a pure
+ * presentational component — all state lives in the parent and arrives as
+ * props.
+ *
+ * RENDERING PIPELINE (per render):
+ *  1. Pacific-centred longitude normalisation. The network is Asia-Pacific
+ *     centric, so the map is centred on the Pacific (initial center lng 130,
+ *     maxBounds lng -25..345). normalizeLng() shifts any longitude < -30°
+ *     (the Americas) by +360° so e.g. Los Angeles (-118°) plots at 242°,
+ *     to the RIGHT of Asia. This lets transpacific cables draw as ONE
+ *     continuous polyline instead of splitting at the ±180° antimeridian.
+ *  2. Segment geometry. geoLines() builds each segment's polyline: if the
+ *     segment has `waypoints` (hand-placed ocean routing hints stored on the
+ *     CableSegment), the line threads through them and is smoothed with a
+ *     Catmull-Rom spline (catmullRom()) so cables look like gentle curves;
+ *     otherwise a straight line between the two endpoint nodes is drawn.
+ *  3. Segment styling. A precedence ladder decides each segment's colour /
+ *     weight / opacity: country-highlight > system-viewer colours > active
+ *     search routes (blue; protected pair green) > pinned-route colours >
+ *     dim "background network" grey. Terrestrial segments are dashed; a
+ *     segment with an active outage on a highlighted route is drawn red
+ *     with a distinctive dash pattern. `hideNonActive` removes background
+ *     segments entirely; `showAllOutages` switches to an outage-only map.
+ *     This entire ladder (and showAllOutages) only ever considers rows
+ *     where event_type !== 'planned_event' — i.e. real CURRENT outages —
+ *     so a future Planned Event can never make a segment look "down" here.
+ *     Planned Events are a wholly separate, additive overlay: when the
+ *     independent `showPlannedEvents` toggle is on, segments with an
+ *     active/upcoming planned_event row are drawn on top in amber/orange
+ *     with their own (more open) dash pattern, regardless of the ladder
+ *     above or of showAllOutages, so both overlays can be read together.
+ *  4. Node styling. NODE_STYLE defines the visual hierarchy by node type
+ *     (CLS largest/orange, then primary/secondary/extension PoPs, tiny
+ *     branching units, muted off-net). Nodes on routes/pins are recoloured
+ *     pink; system-viewer / country-viewer modes dim unrelated nodes.
+ *
+ * BASE LAYER: chosen from the `mapsProvider` prop (backend AppConfig
+ * .maps_provider), falling back to the VITE_MAPS_PROVIDER env var —
+ * 'google' mounts GoogleMutantLayer (Google tiles via leaflet
+ * googlemutant, dark-styled to match the theme, loading the Maps JS API
+ * on demand); anything else uses the free, keyless Esri raster TileLayer
+ * whose URL and attribution come from the active theme (see theme.ts).
+ *
+ * Also contains small imperative helpers driven through react-leaflet's
+ * useMap(): MapResizer (invalidate size when the side panel resizes),
+ * MapFlyTo (zoom to a country highlight) and ManualFitBounds (keep the
+ * RouteManual step-by-step build in view).
+ *
+ * The RouteManual overlays (locked path in amber, numbered/coloured
+ * next-hop candidate dots, origin picker) render on top when `manualState`
+ * is provided.
+ */
+
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import * as L from 'leaflet'
+import 'leaflet.gridlayer.googlemutant'
+import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet'
+import type { AssetFilterMatch, CableNode, CableSegment, CountryHighlight, HazardAssetView, HazardFeed, HazardOwnerView, HazardSeverity, KmlPathInfo, KmlPreviewLine, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
+import { isNodeOnNet, isSegmentOnNet } from '../utils/onNet'
+import { useTheme } from '../theme'
+import type { ManualState, NextHopCandidate } from './RouteManual'
+import { useSegmentHover } from '../context/SegmentHoverContext'
+import { normalizeLng, geoLines, NODE_STYLE, NODE_TYPE_LABEL } from '../mapGeometry'
+import { EditorMapLayer } from './EditorMapLayer'
+import { KmlChopMapLayer, type KmlChopMapLayerProps } from './KmlChopMapLayer'
+import { LivingWorldLayer } from './LivingWorldLayer'
+import { TravelingLightLayer } from './TravelingLightLayer'
+import type { ActiveLightSegment } from './TravelingLightLayer'
+import { HazardLayer, severityColor } from './HazardLayer'
+import { worstSeverityByAsset } from '../context/HazardContext'
+import { HazardStatusPanel } from './HazardStatusPanel'
+import { KmlPreviewLayer } from './KmlPreviewLayer'
+import type { EditorSubMode, EditorSelection, SegmentDraft } from '../state/editorState'
+import { emptySegmentDraft } from '../state/editorState'
+
+// Stable empty-Set fallback for optional Network Editor props, so a missing
+// pendingNodeIds prop doesn't create a new Set identity on every render.
+const EMPTY_STRING_SET: Set<string> = new Set()
+
+// Same reasoning for the on-net ownership list: it feeds a useMemo dep array,
+// so a fresh [] default would invalidate the hazard lens on every render.
+const EMPTY_OWNERSHIP: string[] = []
+
+// Stable empty default for the KML path map, for the same reason as the two
+// above: it feeds memo dependency lists and render loops.
+const EMPTY_KML_PATHS: Record<string, never> = {}
+
+// Stable empty default, same reasoning as the two above.
+const EMPTY_PREVIEW: KmlPreviewLine[] = []
+
+/** Stroke width of the invisible click/tap target laid under each cable.
+ *  Cables render at 1-3.5px. 14 is about a fingertip at this zoom and still
+ *  narrow enough that two parallel cables stay separately selectable. */
+const HIT_TARGET_WEIGHT = 14
+
+/** The map's base rendering — see MapStyleCard and the Props doc on `mapStyle`. */
+export type MapStyle = 'standard' | 'satellite' | 'contrast'
+
+// Esri's free, keyless World Imagery service — the same "Community Basemaps"
+// family as theme.ts's three tile sources, just the satellite/aerial member
+// of it rather than a Canvas/Street map. Reference is its matching labels
+// overlay (boundaries, place names), stacked the same way theme.ts's own
+// _Base/_Reference pairs already are.
+const SATELLITE_TILE_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+const SATELLITE_LABELS_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}'
+const SATELLITE_ATTRIBUTION = '&copy; <a href="https://www.esri.com/">Esri</a> &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+
+/** High-contrast mode's one fixed accent for backhaul (terrestrial)
+ *  segments — deliberately NOT a theme token: the whole point of this mode
+ *  is a single unmistakable hue against a desaturated map, independent of
+ *  which of the three themes is active. Two earlier attempts didn't hold
+ *  up: a saturated magenta sits at a mid luminance and doesn't punch
+ *  through a genuinely gray map, and a high-luminance yellow turned out to
+ *  fail the opposite way — real tile imagery, once grayscaled, is mostly
+ *  light (roads, labels, land), so a light hue nearly disappears into it.
+ *  A dark, vivid purple stays legible against that common light-gray case
+ *  while still reading as a hard edge on darker terrain/water, and it sits
+ *  outside every existing semantic color (red=error, green=healthy,
+ *  orange=warning, blue=the one UI accent, violet=Secondary PoP node), so
+ *  it reads as "the backhaul color" and nothing else. */
+const HIGH_CONTRAST_BACKHAUL_COLOR = '#5b21b6'
+
+/** Satellite mode's override for the plain background network — the
+ *  default muted t.mapInactiveSegment blue-gray at low opacity was tuned
+ *  against a flat basemap and gets swallowed by real photographic imagery
+ *  (Esri World Imagery is mostly saturated green/brown land and blue
+ *  ocean). Near-white reads as a hard edge against all of those at once,
+ *  the same reason chart/wayfinding lines drawn over satellite photography
+ *  (Google/Apple Maps included) default to white or near-white rather than
+ *  a mid-tone color. */
+const SATELLITE_DEFAULT_SEGMENT_COLOR = '#f4f7ff'
+
+/** The subset of Leaflet's Polyline `pathOptions` this file threads through
+ *  its own styling ladder (color/weight/opacity/dashArray) — kept as its own
+ *  named type purely so applyMapStyleContrast's signature stays readable. */
+interface SegPathOptions { color: string; weight: number; opacity: number; dashArray: string | undefined }
+
+/** The map-style-specific overrides to the segment styling ladder — pulled
+ *  out to its own function (rather than inline in the segment flatMap, an
+ *  already very large pre-existing function) purely to keep that
+ *  function's own cognitive-complexity budget from growing; see its call
+ *  site for where this sits in the ladder's precedence. Anything already
+ *  drawn as "down" is untouched, so the outage-red override still reads
+ *  normally.
+ *
+ *  `isDefaultNetworkColor` marks segments still on the ladder's own plain
+ *  "background network" color (not a route/system/country highlight, and
+ *  not already faded out by an active country lens) — only that tier gets
+ *  boosted, so a deliberately-dimmed or deliberately-colored segment isn't
+ *  overwritten by a mode meant to rescue the *unremarkable* majority of
+ *  the network from disappearing into the tiles. That check (`ladderColor`
+ *  vs `inactiveColor`, gated on `countryActive`) is done in here rather
+ *  than at the call site so it doesn't add to the already very large
+ *  ladder function's own cognitive-complexity budget. */
+function applyMapStyleContrast(
+  pathOptions: SegPathOptions,
+  mapStyle: MapStyle,
+  segType: string,
+  showAsDown: boolean,
+  countryActive: boolean,
+  ladderColor: string,
+  inactiveColor: string,
+): SegPathOptions {
+  if (showAsDown) return pathOptions
+  if (mapStyle === 'contrast' && segType === 'terrestrial') {
+    return { ...pathOptions, color: HIGH_CONTRAST_BACKHAUL_COLOR, weight: Math.max(pathOptions.weight, 3) }
+  }
+  const isDefaultNetworkColor = !countryActive && ladderColor === inactiveColor
+  if (mapStyle === 'satellite' && isDefaultNetworkColor) {
+    return {
+      ...pathOptions,
+      color: SATELLITE_DEFAULT_SEGMENT_COLOR,
+      weight: Math.max(pathOptions.weight, 2.5),
+      opacity: Math.max(pathOptions.opacity, 0.8),
+    }
+  }
+  return pathOptions
+}
+
+/** The map wrapper's conditional classes — pulled out of NetworkMap's own
+ *  body for the same reason as applyMapStyleContrast above (that function's
+ *  cognitive-complexity budget, not this logic's). */
+function mapWrapperClasses(bannerOffset: boolean, mapStyle: MapStyle): string | undefined {
+  const classes: string[] = []
+  if (bannerOffset) classes.push('rb-banner-offset')
+  if (mapStyle === 'contrast') classes.push('rb-high-contrast')
+  return classes.length > 0 ? classes.join(' ') : undefined
+}
+
+// Human-readable labels for the Ownership enum, used in segment tooltips.
+const OWNERSHIP_LABEL: Record<string, string> = {
+  owned:                'Owned',
+  consortium:           'Consortium',
+  iru:                  'IRU',
+  integrated_lit_lease: 'Int. Lit Lease',
+  offnet_resell:        'Offnet Resell',
+}
 
 interface Props {
   nodes: CableNode[]
   segments: CableSegment[]
   selectedRoutes: Route[]
-  primaryColor?: string
-  diverseColor?: string
+  capacity: SegmentCapacity[]
+  pinnedRoutes: PinnedRoute[]
+  selectedSystems: SelectedSystem[]
+  onNodeClick?: (node: CableNode, screenX: number, screenY: number) => void
+  /** Click/tap a cable to pin its details. Omitted (e.g. in the Network Editor,
+   *  where a segment click means "edit this path") leaves segments
+   *  non-clickable and the hover tooltip attached to the visible line. */
+  onSegmentClick?: (segment: CableSegment, screenX: number, screenY: number) => void
+  /** The segment whose info card is open, drawn emphasised. */
+  selectedSegmentId?: string | null
+  /** The node whose info card is open (click or Asset Search), pulsed on the
+   *  map so it stays unmistakable while its card is up — see the
+   *  rb-node-select-pulse ring rendered below. */
+  selectedNodeId?: string | null
+  /** Fly the map to one node. `key` is bumped by the caller on every request so
+   *  asking for the SAME node twice still flies (the user typed its code
+   *  again); without it the effect would see identical deps and do nothing. */
+  flyToNode?: { lat: number; lng: number; key: number }
+  /** Fit the map to an arbitrary box — a city's nodes, a segment's path, a
+   *  cable system's full extent. Same bumped `key` trick as flyToNode. */
+  fitBounds?: { bounds: [[number, number], [number, number]]; key: number }
+  /** True while the future-network banner is shown, so the zoom control can
+   *  drop below it instead of hiding under it. */
+  bannerOffset?: boolean
+  /** Node to call out after a search: drawn emphasised with its tooltip pinned
+   *  open. Used on mobile, where opening the full node panel would cover the
+   *  map and hide the fly-to the user just asked for. */
+  spotlightNodeId?: string | null
+  /** "Living World" — the 16-bit ocean easter eggs. On by default; see
+   *  LivingWorldLayer.tsx. Purely decorative and in its own non-interactive
+   *  pane, so it changes nothing about how the map behaves. */
+  livingWorld?: boolean
+  /** "Network Hazards" — the live disaster overlay. OFF by default; see
+   *  HazardLayer.tsx. Absent/undefined means the layer is not mounted at all. */
+  hazardFeed?: HazardFeed | null
+  hazardsOn?: boolean
+  /** How much of our own network to draw while the hazard layer is on. */
+  hazardAssetView?: HazardAssetView
+  onHazardAssetViewChange?: (next: HazardAssetView) => void
+  /** Which in-range assets the lens highlights (on-net only, or everything). */
+  hazardOwnerView?: HazardOwnerView
+  onHazardOwnerViewChange?: (next: HazardOwnerView) => void
+  /** Ownership types that count as on-net, from AppConfig.on_net_ownership. */
+  onNetOwnership?: string[]
+  /** The top-right Controls menu is open; the hazard panel moves out of its way. */
+  controlsOpen?: boolean
+  /** Cable route geometry on file — uploaded or synced from
+   *  submarinecablemap.com, see KmlPathInfo.source — keyed by segment id. */
+  kmlPaths?: Record<string, KmlPathInfo>
+  /** Draw routes on file where we have them, and mark which cables are which. */
+  kmlMode?: boolean
+  /** An import being reviewed, drawn over the network so the cuts can be
+   *  checked against it. Transient — never stored, cleared when review ends. */
+  kmlPreview?: KmlPreviewLine[]
+  /** Bumped per preview request so re-previewing the same path still re-fits. */
+  kmlPreviewKey?: number
+  hazardsLoading?: boolean
+  hazardsError?: string | null
+  onRefreshHazards?: () => void
+  searchPin?: { lat: number; lng: number; label: string }
+  nearestNodeIds?: string[]
+  hideNonActive?: boolean
+  showSegmentLabels?: boolean
+  showNodeLabels?: boolean
+  showAllOutages?: boolean
+  showPlannedEvents?: boolean
+  outages?: SegmentOutage[]
+  countryHighlight?: CountryHighlight | null
+  /** The top-of-map Asset Filter bar's current selection, already resolved to
+   *  matching id sets (see AssetFilterBar.tsx / utils/assetFilters.ts).
+   *  Undefined/inactive means "don't dim anything for this". */
+  assetFilter?: AssetFilterMatch | null
+  subseaOnly?: boolean
+  backhaulOnly?: boolean
+  panelWidth?: number
+  // RouteManual
+  manualState?: ManualState | null
+  manualCandidates?: NextHopCandidate[]
+  onManualNodeClick?: (node: CableNode) => void
+  manualMobileMode?: boolean   // enlarge candidate circles for touch
+  mapsProvider?: 'osm' | 'google'
+  /** Base rendering, independent of the light/dark/dusk theme: 'standard' is
+   *  the active theme's own tile set (unchanged default); 'satellite' swaps
+   *  in Esri's keyless World Imagery; 'contrast' keeps the theme's tiles but
+   *  desaturates them and gives backhaul segments a fixed, vivid accent —
+   *  see the MapStyleCard component below. Controlled by the parent (App.tsx
+   *  owns and persists the value) like every other map toggle. */
+  mapStyle?: MapStyle
+  onMapStyleChange?: (style: MapStyle) => void
+  // Network Editor — see EditorMapLayer.tsx. `nodes`/`segments`/`capacity` above
+  // already carry the derived (base + staged edits) arrays when this is active,
+  // so only the interaction-mode/selection state is needed here.
+  editorMode?: boolean
+  editorSubMode?: EditorSubMode
+  editorSelection?: EditorSelection
+  editorSegmentDraft?: SegmentDraft
+  pendingNodeIds?: Set<string>
+  pendingSegmentIds?: Set<string>
+  onEditorNodeDragEnd?: (nodeId: string, lat: number, lng: number, fromLat: number, fromLng: number) => void
+  onEditorNodeSelect?: (nodeId: string) => void
+  onEditorSegmentSelect?: (segmentId: string) => void
+  onEditorWaypointInsert?: (segmentId: string, insertIndex: number, lat: number, lng: number) => void
+  onEditorWaypointDragEnd?: (segmentId: string, index: number, lat: number, lng: number) => void
+  onEditorWaypointDelete?: (segmentId: string, index: number) => void
+  onEditorPickEndpoint?: (nodeId: string) => void
+  onEditorPickEmptySpace?: (lat: number, lng: number) => void
+  /** Whatever KmlChopImport.tsx's chop session currently needs drawn — the
+   *  whole KmlChopMapLayer prop set in one object, or null when no chop
+   *  session is open. See KmlChopMapLayer.tsx and KmlChopImport.tsx's own
+   *  module docstring for why this is a single bundled prop rather than the
+   *  ~15 separate ones Network Editor's own interactivity needed: this mode
+   *  has no node/segment CRUD of its own to thread through, only chains and
+   *  cuts that one component already owns end to end. */
+  kmlChop?: KmlChopMapLayerProps | null
 }
 
-const ROUTE_COLORS: Record<number, string> = {
-  1: '#89b4fa',
-  2: '#a6e3a1',
+
+/**
+ * Forces Leaflet to recompute its internal size after the side panel is
+ * resized/opened/closed. Leaflet caches the pixel size of its container at
+ * mount and after each explicit `invalidateSize()` call; it has no way to
+ * observe a CSS-driven resize of that container on its own, so without this
+ * the map would keep rendering tiles/markers using stale dimensions (visibly
+ * cropped or offset) whenever `panelWidth` changes. The 310ms delay lets the
+ * panel's own CSS transition finish first so Leaflet measures the *final*
+ * size rather than a mid-transition one. Renders nothing; purely an
+ * imperative useMap() side effect.
+ */
+function MapResizer({ panelWidth }: { panelWidth?: number }) {
+  const map = useMap()
+  useEffect(() => {
+    const timer = setTimeout(() => map.invalidateSize(), 310)
+    return () => clearTimeout(timer)
+  }, [panelWidth, map])
+  return null
 }
 
-export function Map({ nodes, segments, selectedRoutes }: Props) {
+/**
+ * Keeps the RouteManual step-by-step build in view as it grows: every locked
+ * node (origin + confirmed steps) plus every currently-offered next-hop
+ * candidate is collected into one bounding box and the map is fit to it
+ * whenever the path or candidate set changes. Renders nothing; purely an
+ * imperative useMap() side effect, same pattern as MapFlyTo/MapFlyToNode/
+ * MapFitBounds below.
+ */
+function ManualFitBounds({ manualState, manualCandidates, nodes }: {
+  manualState: ManualState | null | undefined
+  manualCandidates: NextHopCandidate[]
+  nodes: CableNode[]
+}) {
+  const map = useMap()
   const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
 
-  const activeSegmentIds = new Set(
-    selectedRoutes.flatMap(r => r.segments.map(s => s.segment_id))
+  useEffect(() => {
+    if (!manualState) return
+
+    const pts: [number, number][] = []
+
+    // Origin + all stepped nodes
+    const allNodeIds = [manualState.originId, ...manualState.steps.map(s => s.nodeId)]
+    for (const id of allNodeIds) {
+      const n = nodesById[id]
+      if (n) pts.push([n.lat, normalizeLng(n.lng)])
+    }
+
+    // All candidate nodes
+    for (const c of manualCandidates) {
+      const n = nodesById[c.node.id]
+      if (n) pts.push([n.lat, normalizeLng(n.lng)])
+    }
+
+    if (pts.length < 1) return
+
+    const lats = pts.map(p => p[0])
+    const lngs = pts.map(p => p[1])
+    const minLat = Math.min(...lats), maxLat = Math.max(...lats)
+    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs)
+
+    map.fitBounds([[minLat, minLng], [maxLat, maxLng]], {
+      padding: [60, 60], animate: true,
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    manualState?.originId,
+    manualState?.steps.length,
+    manualCandidates.length,
+    map,
+  ])
+
+  return null
+}
+
+/** Fly to a single node — used when someone looks a node up by its 4-alpha
+ *  code in Network Explorer. Longitude goes through normalizeLng for the same
+ *  reason every drawn coordinate does: this map is Pacific-centred, and a raw
+ *  American longitude would fly the long way round the world. */
+function MapFlyToNode({ target }: { target: { lat: number; lng: number; key: number } | undefined }) {
+  const map = useMap()
+  useEffect(() => {
+    if (!target) return
+    map.flyTo([target.lat, normalizeLng(target.lng)], 8, { duration: 1.2 })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target?.key, map])
+  return null
+}
+
+/**
+ * True on phone-width viewports. The legend is the only thing in this file that
+ * cares: stacked vertically it is ~140px tall, which the mobile bottom sheet
+ * sits on top of. A media query rather than a prop because the map is rendered
+ * from two different layouts and a narrow desktop window has the same problem.
+ */
+function useNarrowViewport(): boolean {
+  const [narrow, setNarrow] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth <= 640,
   )
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)')
+    const onChange = () => setNarrow(mq.matches)
+    onChange()
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  return narrow
+}
+
+/** Fit an arbitrary box, for Asset Search results that are not a single point
+ *  (a city's nodes, a segment's path, a whole cable system). The caller is
+ *  responsible for having normalised the longitudes — see normalizeLng. */
+function MapFitBounds({ target }: { target: { bounds: [[number, number], [number, number]]; key: number } | undefined }) {
+  const map = useMap()
+  useEffect(() => {
+    if (!target) return
+    map.fitBounds(target.bounds, { padding: [70, 70], maxZoom: 9, animate: true })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [target?.key, map])
+  return null
+}
+
+/**
+ * Flies/fits the map to a Country Viewer highlight. A single-point country
+ * (a tiny island state whose bounds collapse to under half a degree in both
+ * dimensions) gets a `flyTo` on its centroid instead of `fitBounds`, since
+ * fitting a near-zero-area box would either do nothing useful or zoom in
+ * absurdly far; anything larger fits its full bounding box. Re-runs only on
+ * `highlight?.countryCode` (not on every highlight field), so re-selecting
+ * the same country doesn't re-trigger the animation. Renders nothing.
+ */
+function MapFlyTo({ highlight }: { highlight: CountryHighlight | null | undefined }) {
+  const map = useMap()
+  useEffect(() => {
+    if (!highlight) return
+    const [[minLat, minLng], [maxLat, maxLng]] = highlight.boundsLL
+    const latSpan = maxLat - minLat
+    const lngSpan = maxLng - minLng
+    if (latSpan < 0.5 && lngSpan < 0.5) {
+      map.flyTo([highlight.centroid[0], highlight.centroid[1]], 8, { duration: 1.2 })
+    } else {
+      map.fitBounds([[minLat, minLng], [maxLat, maxLng]], {
+        padding: [80, 80], maxZoom: 7, animate: true,
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlight?.countryCode, map])
+  return null
+}
+
+
+/** Each next-hop candidate gets a unique colour by index — same index used in both map dots and list cards */
+const CANDIDATE_PALETTE = [
+  '#4ade80',  // green
+  '#60a5fa',  // blue
+  '#f59e0b',  // amber
+  '#a78bfa',  // purple
+  '#fb923c',  // orange
+  '#34d399',  // teal
+  '#f472b6',  // pink
+  '#facc15',  // yellow
+]
+
+/** Looks up a next-hop candidate's colour by its position in the candidate
+ *  list, wrapping around CANDIDATE_PALETTE if there are more candidates than
+ *  colours. Exported so RouteManual's own candidate list cards can use the
+ *  exact same index → colour mapping as the map dots. */
+export function candidateColor(index: number): string {
+  return CANDIDATE_PALETTE[index % CANDIDATE_PALETTE.length]
+}
+
+// Google Maps dark-mode styles (close to the dark CARTO palette)
+const GOOGLE_DARK_STYLES = [
+  { elementType: 'geometry',                                    stylers: [{ color: '#0f0f1a' }] },
+  { elementType: 'labels.text.fill',                            stylers: [{ color: '#6c6e80' }] },
+  { elementType: 'labels.text.stroke',                          stylers: [{ color: '#0f0f1a' }] },
+  { featureType: 'water',        elementType: 'geometry',       stylers: [{ color: '#090910' }] },
+  { featureType: 'water',        elementType: 'labels.text.fill', stylers: [{ color: '#3d4054' }] },
+  { featureType: 'landscape',    elementType: 'geometry',       stylers: [{ color: '#1a1a28' }] },
+  { featureType: 'road',         elementType: 'geometry',       stylers: [{ color: '#2a2a40' }] },
+  { featureType: 'road.highway', elementType: 'geometry',       stylers: [{ color: '#232340' }] },
+  { featureType: 'poi',          elementType: 'geometry',       stylers: [{ color: '#1a1a28' }] },
+  { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#2d2d4a' }] },
+  { featureType: 'transit',      elementType: 'geometry',       stylers: [{ color: '#1a1a28' }] },
+]
+
+/**
+ * Loads Google's Maps JS API on demand (once per page, via a shared
+ * `<script>` tag keyed by id so a second mount doesn't inject it twice) and
+ * mounts it into Leaflet through the `leaflet.gridlayer.googlemutant` plugin
+ * imported at the top of this file, which patches `L.gridLayer.googleMutant`
+ * onto the Leaflet namespace. Styled dark to match the app's non-light
+ * themes via GOOGLE_DARK_STYLES (Google's own Maps styling JSON), roadmap
+ * type only. Silently renders nothing if `VITE_GMAPS_API_KEY` is unset —
+ * this is a fallback layer, not a required one (see BaseTileLayers). Cleans
+ * up by removing its layer (but deliberately leaves the loaded script/API in
+ * place for any later remount to reuse).
+ */
+function GoogleMutantLayer({ themeId }: { themeId: string }) {
+  const map = useMap()
+  useEffect(() => {
+    const apiKey = import.meta.env.VITE_GMAPS_API_KEY
+    if (!apiKey) return
+
+    let mounted = true
+    let layer: L.Layer | null = null
+
+    const createLayer = () => {
+      if (!mounted) return
+      const factory = (L.gridLayer as unknown as Record<string, (...a: unknown[]) => L.Layer>).googleMutant
+      if (!factory) return
+      layer = factory({
+        type: 'roadmap',
+        styles: themeId !== 'light' ? GOOGLE_DARK_STYLES : [],
+      })
+      map.addLayer(layer)
+    }
+
+    const win = window as Window & { google?: { maps?: unknown } }
+    const scriptId = 'gmaps-js-api'
+
+    if (win.google?.maps) {
+      createLayer()
+    } else {
+      let script = document.getElementById(scriptId) as HTMLScriptElement | null
+      if (!script) {
+        script = document.createElement('script')
+        script.id = scriptId
+        script.async = true
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}`
+        document.head.appendChild(script)
+      }
+      script.addEventListener('load', createLayer)
+    }
+
+    return () => {
+      mounted = false
+      if (layer) map.removeLayer(layer)
+    }
+  }, [map, themeId])
+  return null
+}
+
+/**
+ * The map's base tile source — Google, Esri satellite imagery, or the
+ * active theme's own Esri tiles, depending on `mapsProvider`/`mapStyle`. An
+ * if/else chain (not a ternary) and its own function on purpose: this used
+ * to be an inline three-way ternary directly in NetworkMap's JSX, which
+ * both tripped the nested-ternary lint rule and (being a ternary in an
+ * already very large function) added to NetworkMap's own cognitive
+ * complexity for no real benefit — this reads the same either way.
+ */
+function BaseTileLayers({ mapsProvider, mapStyle, theme }: {
+  mapsProvider: 'osm' | 'google' | undefined
+  mapStyle: MapStyle
+  theme: ReturnType<typeof useTheme>
+}) {
+  if (mapsProvider === 'google' || (!mapsProvider && import.meta.env.VITE_MAPS_PROVIDER === 'google')) {
+    return <GoogleMutantLayer themeId={theme.themeId} />
+  }
+
+  if (mapStyle === 'satellite') {
+    // Independent of theme — satellite imagery replaces the tile source
+    // outright rather than the light/dark/dusk canvas styles. 'contrast'
+    // deliberately does NOT come through this branch: it keeps the theme's
+    // own tiles and desaturates them via CSS instead (see the
+    // .rb-high-contrast rule), so switching it on/off never re-fetches a
+    // different tile set.
+    return (
+      <>
+        <TileLayer key={SATELLITE_TILE_URL} url={SATELLITE_TILE_URL} attribution={SATELLITE_ATTRIBUTION} noWrap={false} />
+        <TileLayer key={SATELLITE_LABELS_URL} url={SATELLITE_LABELS_URL} noWrap={false} />
+      </>
+    )
+  }
 
   return (
+    <>
+      <TileLayer key={theme.mapTileUrl} url={theme.mapTileUrl} attribution={theme.mapAttribution} noWrap={false} />
+      {/* Esri's gray-canvas styles ship geography and place labels as two
+          separate tile sets (see theme.ts) — this is the transparent
+          labels overlay, stacked on top so text renders over the base. */}
+      {theme.mapLabelsUrl && (
+        <TileLayer key={theme.mapLabelsUrl} url={theme.mapLabelsUrl} noWrap={false} />
+      )}
+    </>
+  )
+}
+
+/**
+ * Format an ISO date string for the Planned Events tooltip window, e.g.
+ * "2026-08-12" → "12 Aug 2026". Falls back to the raw string if it doesn't
+ * parse as a date (defensive — planned dates are free-text until saved).
+ */
+function formatPlannedDate(iso: string): string {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return iso
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+/**
+ * Node-type key. Stacked in the bottom-left on a desktop; on a phone it becomes
+ * a short horizontal strip below the header instead, because the bottom sheet
+ * is anchored to the foot of the screen at every snap position and would cover
+ * it there however thin it was. Its own component so the map's render does not
+ * carry the layout branch.
+ */
+function NodeTypeLegend({ narrow }: { narrow: boolean }) {
+  const rows: [string, string][] = narrow
+    ? [
+        ['landing_station', 'CLS'], ['primary_pop', '1\u00b0 PoP'],
+        ['secondary_pop', '2\u00b0 PoP'], ['extension_pop', 'Ext'],
+        ['branching_unit', 'BU'], ['off_net', 'Off-Net'],
+      ]
+    : [
+        ['landing_station', 'CLS'], ['primary_pop', 'Primary PoP'],
+        ['secondary_pop', 'Secondary PoP'], ['extension_pop', 'Extension PoP'],
+        ['branching_unit', 'Branching Unit'], ['off_net', 'Off-Net Node'],
+      ]
+
+  return (
+    <div style={{
+      position: 'absolute', zIndex: 1000,
+      // 62px clears the header row (logo, search and Controls all end by 57px);
+      // left:52 clears Leaflet's own zoom control in the map's top-left corner.
+      ...(narrow ? { top: 62, left: 52, right: 8 } : { bottom: 28, left: 8 }),
+      background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(4px)',
+      border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7,
+      padding: narrow ? '5px 8px' : '7px 10px',
+      display: 'flex',
+      flexDirection: narrow ? 'row' : 'column',
+      flexWrap: narrow ? 'wrap' : 'nowrap',
+      justifyContent: narrow ? 'center' : undefined,
+      columnGap: narrow ? 11 : 0, rowGap: 4,
+      pointerEvents: 'none', userSelect: 'none',
+    }}>
+      {rows.map(([type, label]) => {
+        const ns = NODE_STYLE[type]
+        const sz = Math.round(ns.radius * 1.5)
+        return (
+          <div key={type} style={{ display: 'flex', alignItems: 'center', gap: narrow ? 5 : 7 }}>
+            <div style={{
+              width: sz, height: sz, borderRadius: '50%', flexShrink: 0,
+              background: ns.fill, border: `${ns.weight}px solid ${ns.color}`,
+              opacity: ns.opacity,
+            }} />
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.82)', whiteSpace: 'nowrap', fontFamily: 'system-ui, sans-serif' }}>{label}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+const MAP_STYLE_OPTS: { value: MapStyle; icon: string; label: string }[] = [
+  { value: 'standard',  icon: '🗺',  label: 'Standard' },
+  { value: 'satellite', icon: '🌐', label: 'Satellite' },
+  { value: 'contrast',  icon: '◐',  label: 'Contrast' },
+]
+
+/**
+ * Base-rendering picker — a small set of mutually-exclusive map styles as
+ * icon+label tiles, docked bottom-left like Google Maps' own style picker
+ * (the brief this was built against named that layout specifically). Sits
+ * ABOVE NodeTypeLegend on desktop (that one owns the bottom-left corner
+ * itself); NodeTypeLegend's row count is fixed at 6, so its rendered height
+ * is predictable and this can use a fixed clearance rather than measuring it.
+ * On a narrow viewport the legend relocates to a strip under the header
+ * instead (see NodeTypeLegend), which frees the bottom-left corner for this
+ * card there — it only needs to clear the bottom sheet's peek height.
+ */
+function MapStyleCard({ style, onChange, narrow, accent }: {
+  style: MapStyle; onChange?: (s: MapStyle) => void; narrow: boolean
+  /** theme.blue — this card's own chrome (background/border) intentionally
+   *  matches NodeTypeLegend's fixed dark-glass convention, same as that
+   *  component, but the ACTIVE-state indicator is the app's one accent
+   *  color and has to come from the theme like everywhere else it appears,
+   *  not a literal hex (that would only be correct for one of the three
+   *  themes and stay stuck on it after switching). */
+  accent: string
+}) {
+  if (!onChange) return null
+  return (
+    <div style={{
+      position: 'absolute', zIndex: 1000,
+      ...(narrow ? { bottom: 96, left: 8 } : { bottom: 178, left: 8 }),
+      background: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(4px)',
+      border: '1px solid rgba(255,255,255,0.1)', borderRadius: 7,
+      padding: 6, display: 'flex', gap: 4,
+    }}>
+      {MAP_STYLE_OPTS.map(opt => {
+        const active = style === opt.value
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            title={opt.label}
+            aria-pressed={active}
+            className="rb-btn-motion"
+            style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+              width: 58, padding: '6px 2px', borderRadius: 5,
+              border: `1px solid ${active ? accent : 'rgba(255,255,255,0.14)'}`,
+              background: active ? accent + '38' : 'transparent',
+              color: active ? accent : 'rgba(255,255,255,0.82)',
+              cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
+            }}
+          >
+            <span style={{ fontSize: 16, lineHeight: 1 }}>{opt.icon}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>{opt.label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * Which segments currently count as "active" (get a traveling light), and
+ * what colour — a Map, not a plain object, so later writes win when a
+ * segment qualifies more than once: a highlighted system fills in first, a
+ * highlighted route overrides it, and a direct segment selection — the most
+ * specific fact — overrides both, the same precedence order used everywhere
+ * else this file decides "whose color wins." Split out of
+ * computeActiveLightSegments purely to keep that (already extracted)
+ * function's own complexity down further — see its own comment for why any
+ * of this is pulled out of NetworkMap's body at all.
+ */
+function activeLightColorBySegment({
+  segments, systemViewerActive, systemColorMap, selectedGlowColor, selectedSegmentId, selectedColor,
+}: {
+  segments: CableSegment[]
+  systemViewerActive: boolean
+  systemColorMap: Record<string, string>
+  selectedGlowColor: Record<string, string>
+  selectedSegmentId: string | null
+  selectedColor: string
+}): Map<string, string> {
+  const colorByActiveSegment = new Map<string, string>()
+  if (systemViewerActive) {
+    for (const seg of segments) {
+      const c = systemColorMap[seg.system_id]
+      if (c) colorByActiveSegment.set(seg.id, c)
+    }
+  }
+  for (const [segId, c] of Object.entries(selectedGlowColor)) colorByActiveSegment.set(segId, c)
+  if (selectedSegmentId) colorByActiveSegment.set(selectedSegmentId, selectedColor)
+  return colorByActiveSegment
+}
+
+/**
+ * Which segments currently get a traveling light, and what colour — pulled
+ * out of NetworkMap's own body (an already very large function) purely to
+ * keep its cognitive-complexity budget from growing; see the render loop
+ * just above NetworkMap's return for how the ordinary segmentColor/
+ * segmentWeight ladder builds the exact same "who wins" facts this mirrors.
+ */
+function computeActiveLightSegments({
+  segments, segmentsById, nodesById, systemViewerActive, systemColorMap,
+  selectedGlowColor, selectedSegmentId, selectedColor, kmlMode, kmlPaths,
+}: {
+  segments: CableSegment[]
+  segmentsById: Record<string, CableSegment>
+  nodesById: Record<string, CableNode>
+  systemViewerActive: boolean
+  systemColorMap: Record<string, string>
+  selectedGlowColor: Record<string, string>
+  selectedSegmentId: string | null
+  selectedColor: string
+  kmlMode: boolean
+  kmlPaths: Record<string, KmlPathInfo>
+}): ActiveLightSegment[] {
+  const colorByActiveSegment = activeLightColorBySegment({
+    segments, systemViewerActive, systemColorMap, selectedGlowColor, selectedSegmentId, selectedColor,
+  })
+
+  const out: ActiveLightSegment[] = []
+  for (const [segId, color] of colorByActiveSegment) {
+    const seg = segmentsById[segId]
+    const start = seg && nodesById[seg.start_node_id]
+    const end = seg && nodesById[seg.end_node_id]
+    if (!seg || !start || !end) continue
+    const kml = kmlMode ? kmlPaths[seg.id] : undefined
+    const points = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined, kml?.display_path).flat()
+    if (points.length < 2) continue
+    out.push({ id: segId, points, color })
+  }
+  return out
+}
+
+// Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
+// within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
+// (typescript:S2424 / S2137).
+/**
+ * The Leaflet map component — renders the whole network (nodes + cable
+ * segments), every mode-specific overlay (RouteManual, Network Editor, KML
+ * Mode/preview/chop, hazards, Living World, traveling light, country/system/
+ * outage/planned-event highlighting, asset filtering) and the base tile
+ * layer, all driven purely by props (see the `Props` interface above for the
+ * full surface and the file header for the end-to-end rendering pipeline).
+ * Purely presentational: it owns no application state of its own — every
+ * toggle, selection and derived id-set is computed by the caller (App.tsx /
+ * MobileLayout.tsx) and handed down, and every click/drag is reported back
+ * up through callback props rather than mutating anything here.
+ */
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, selectedNodeId = null, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, controlsOpen = false, kmlPaths = EMPTY_KML_PATHS, kmlMode = false, kmlPreview = EMPTY_PREVIEW, kmlPreviewKey = 0, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, assetFilter, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, mapStyle = 'standard', onMapStyleChange, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace, kmlChop = null }: Props) {
+  const t = useTheme()
+  const narrowViewport = useNarrowViewport()
+  const { hoveredSegmentId } = useSegmentHover()
+  /**
+   * Worst hazard severity touching each of our assets, and whether that lens is
+   * active at all. Only computed while the layer is on AND the view is
+   * "in range" — when it is off or set to "all" this is an empty map and every
+   * lookup below falls straight through to the normal styling.
+   */
+  const hazardLens = hazardsOn && hazardAssetView === 'inRange'
+  const hazardSeverityByAsset = useMemo(
+    () => {
+      if (!hazardLens || !hazardFeed) return new Map<string, HazardSeverity>()
+      const worst = worstSeverityByAsset(hazardFeed.hazards)
+      if (hazardOwnerView === 'all') return worst
+      // On-net only: drop the off-net assets from the highlight set. Doing it
+      // HERE rather than in the two styling blocks below means an off-net asset
+      // simply looks like one that is out of range — it fades back with
+      // everything else instead of vanishing, so the network around a hazard
+      // stays readable as context.
+      const onNetSet = new Set(onNetOwnership)
+      const filtered = new Map<string, HazardSeverity>()
+      for (const node of nodes) {
+        const sev = worst.get(node.id)
+        if (sev !== undefined && isNodeOnNet(node)) filtered.set(node.id, sev)
+      }
+      for (const seg of segments) {
+        const sev = worst.get(seg.id)
+        if (sev !== undefined && isSegmentOnNet(seg, onNetSet)) filtered.set(seg.id, sev)
+      }
+      return filtered
+    },
+    [hazardLens, hazardFeed, hazardOwnerView, nodes, segments, onNetOwnership],
+  )
+  /** True while the network should not be drawn at all. */
+  const hideAllAssets = hazardsOn && hazardAssetView === 'none'
+
+  const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+  const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
+
+  // Real CURRENT outages only — a Planned Event (event_type === 'planned_event')
+  // must NEVER feed the "down" styling ladder below or the showAllOutages map.
+  // Legacy rows with no event_type stored default to 'outage'.
+  const realOutages = outages.filter(o => (o.event_type ?? 'outage') !== 'planned_event')
+  // Planned Events only — the separate, additive overlay driven by showPlannedEvents.
+  const plannedEvents = outages.filter(o => o.event_type === 'planned_event')
+
+  // segment_id → all faults on that segment (a segment can have multiple active faults)
+  const outagesBySegId = realOutages.reduce<Record<string, typeof realOutages>>((acc, o) => {
+    ;(acc[o.segment_id] ??= []).push(o)
+    return acc
+  }, {})
+  const outageSegIds = new Set(realOutages.map(o => o.segment_id))
+
+  // segment_id → all planned events on that segment, mirroring outagesBySegId above.
+  const plannedBySegId = plannedEvents.reduce<Record<string, typeof plannedEvents>>((acc, o) => {
+    ;(acc[o.segment_id] ??= []).push(o)
+    return acc
+  }, {})
+
+  // In outage-map mode, collect nodes that belong to downed (real-outage) segments
+  const outageNodeIds = showAllOutages
+    ? new Set(realOutages.flatMap(o => {
+        const seg = segments.find(s => s.id === o.segment_id)
+        return seg ? [seg.start_node_id, seg.end_node_id] : []
+      }))
+    : null
+
+  // Mirrors outageNodeIds above, but for the independent Planned Events overlay:
+  // nodes touching a segment with an active/upcoming planned event get highlighted
+  // whenever showPlannedEvents is on (additive — it never hides other nodes).
+  const plannedNodeIds = showPlannedEvents
+    ? new Set(plannedEvents.flatMap(o => {
+        const seg = segments.find(s => s.id === o.segment_id)
+        return seg ? [seg.start_node_id, seg.end_node_id] : []
+      }))
+    : null
+
+  // ── RouteManual derived state ──────────────────────────────────────────────
+  const manualActive   = !!manualState
+  const segmentsById   = Object.fromEntries(segments.map(s => [s.id, s]))
+
+  const systemViewerActive = selectedSystems.length > 0
+  const systemColorMap: Record<string, string> = Object.fromEntries(
+    selectedSystems.map(s => [s.systemId, s.color])
+  )
+
+  // Country viewer: node IDs for all endpoints of highlighted segments (includes BUs)
+  const countryActive = !!countryHighlight
+  const countryEndpointIds = new Set<string>()
+  if (countryHighlight) {
+    for (const seg of segments) {
+      if (countryHighlight.systemColors.has(seg.system_id) ||
+          countryHighlight.terrestrialSegIds.has(seg.id)) {
+        countryEndpointIds.add(seg.start_node_id)
+        countryEndpointIds.add(seg.end_node_id)
+      }
+    }
+  }
+
+  // Segment highlight: pinned first, active search on top
+  const segmentColor: Record<string, string> = {}
+  const segmentWeight: Record<string, number> = {}
+  const segmentOpacity: Record<string, number> = {}
+
+  for (const p of pinnedRoutes) {
+    for (const s of p.route.segments) {
+      segmentColor[s.segment_id] = p.color
+      segmentWeight[s.segment_id] = 2
+      segmentOpacity[s.segment_id] = 0.8
+    }
+  }
+  // Every segment of a route the user has clicked/selected also gets an
+  // "illuminated" glow halo underneath it (see the .rb-route-glow render
+  // below) — the ordinary color/weight/opacity bump above makes the line
+  // itself stand out; this makes the whole selected route visibly light up
+  // on the map rather than just look slightly thicker.
+  const selectedGlowColor: Record<string, string> = {}
+  for (const r of selectedRoutes) {
+    const color = r.id.startsWith('protected-') ? t.green : t.blue
+    for (const s of r.segments) {
+      segmentColor[s.segment_id] = color
+      segmentWeight[s.segment_id] = 3
+      segmentOpacity[s.segment_id] = 0.9
+      selectedGlowColor[s.segment_id] = color
+    }
+  }
+
+  // Traveling light (see TravelingLightLayer.tsx's own header and
+  // computeActiveLightSegments's own doc comment below — pulled out to a
+  // module-level function purely to keep this already very large function's
+  // own cognitive-complexity budget from growing).
+  const activeLightSegments = computeActiveLightSegments({
+    segments, segmentsById, nodesById, systemViewerActive, systemColorMap,
+    selectedGlowColor, selectedSegmentId, selectedColor: t.blue, kmlMode, kmlPaths,
+  })
+
+  // Nodes for routes/pins
+  const routeNodeIds = new Set([
+    ...selectedRoutes.flatMap(r => r.nodes),
+    ...pinnedRoutes.flatMap(p => p.route.nodes),
+  ])
+
+  // Nodes for selected systems (systemId -> color for first matching system)
+  const systemNodeColor: Record<string, string> = {}
+  if (systemViewerActive) {
+    for (const seg of segments) {
+      const color = systemColorMap[seg.system_id]
+      if (color) {
+        if (!systemNodeColor[seg.start_node_id]) systemNodeColor[seg.start_node_id] = color
+        if (!systemNodeColor[seg.end_node_id]) systemNodeColor[seg.end_node_id] = color
+      }
+    }
+  }
+
+  const wrapperClasses = mapWrapperClasses(bannerOffset, mapStyle)
+
+  return (
+    <div
+      className={wrapperClasses}
+      style={{ position: 'relative', height: '100%', width: '100%' }}
+    >
+    {/* Pulsing glow keyframes for the hovered-segment highlight below. A plain
+        <style> tag (not an external stylesheet) so the animation stays inline
+        with the rest of the bundle — see main.tsx's note on not fetching CSS
+        from a CDN. */}
+    <style>{`
+      @keyframes rb-route-glow-pulse {
+        0%, 100% { opacity: 0.08; stroke-width: 6;  }
+        50%      { opacity: 0.95; stroke-width: 28; }
+      }
+      .rb-route-glow {
+        animation: rb-route-glow-pulse 1s ease-in-out infinite;
+        filter: blur(2px);
+      }
+      /* Clicking an SVG path focuses it, and the browser's default focus ring is
+         a rectangle around the element's BOUNDING BOX — for a diagonal cable
+         that is a huge box spanning from one landing station to the other. It
+         looked like the map was drawing a stray rectangle. Suppressed for
+         pointer focus only: :focus-visible still draws a ring for keyboard Tab
+         users, who otherwise have no way to see which segment they are on. */
+      .leaflet-interactive:focus { outline: none; }
+      .leaflet-interactive:focus-visible {
+        outline: 2px solid #38bdf8;
+        outline-offset: 2px;
+      }
+      @keyframes rb-segment-glow-pulse {
+        0%, 100% { opacity: 0.15; stroke-width: 8;  }
+        50%      { opacity: 1;    stroke-width: 32; }
+      }
+      .rb-segment-glow {
+        animation: rb-segment-glow-pulse 1.4s ease-in-out infinite;
+        filter: blur(2px);
+      }
+      /* Selected-node ring — "this is the node the open card describes."
+         Same stroke-width/opacity pulse language as the route/segment glow
+         above (not an animated radius — geometry attributes like r/cx/cy
+         animate inconsistently across SVG renderers, stroke-width doesn't). */
+      @keyframes rb-node-select-pulse {
+        0%, 100% { opacity: 0.25; stroke-width: 2;  }
+        50%      { opacity: 1;    stroke-width: 10; }
+      }
+      .rb-node-select-pulse {
+        animation: rb-node-select-pulse 1.4s ease-in-out infinite;
+      }
+      /* High-contrast map style: desaturate the tiles (both the base and any
+         labels overlay live in this one Leaflet pane) rather than swapping
+         to a different tile source, so toggling it never re-fetches
+         anything. contrast()/brightness() keep the desaturated geography
+         from going muddy at typical zoom levels. Segment colors are handled
+         separately in the styling ladder below, not by this filter — an
+         element filter would desaturate the accent-colored cables too. */
+      .rb-high-contrast .leaflet-tile-pane {
+        filter: grayscale(1) contrast(1.15) brightness(1.05);
+      }
+      /* The future-network banner occupies the top of the map when a planned
+         date is active, so the zoom control drops below it. */
+      .rb-banner-offset .leaflet-top.leaflet-left .leaflet-control-zoom { margin-top: 44px; }
+      /* On a phone the app's logo card floats over the map's top-left corner,
+         which is exactly where Leaflet puts its zoom control — they overlapped,
+         and a tap on "+" landed on the logo (opening the guide) rather than
+         zooming. Push the control below the logo card, which ends at 53px. The
+         legend strip alongside it starts at left:52, so the two do not meet. */
+      @media (max-width: 640px) {
+        .leaflet-top.leaflet-left .leaflet-control-zoom { margin-top: 60px; }
+      }
+    `}</style>
+    <NodeTypeLegend narrow={narrowViewport} />
+    <MapStyleCard style={mapStyle} onChange={onMapStyleChange} narrow={narrowViewport} accent={t.blue} />
+    {hazardsOn && !editorMode && (
+      <HazardStatusPanel
+        feed={hazardFeed ?? null}
+        loading={hazardsLoading}
+        error={hazardsError}
+        onRefresh={onRefreshHazards ?? (() => {})}
+        assetView={hazardAssetView}
+        onAssetViewChange={onHazardAssetViewChange ?? (() => {})}
+        ownerView={hazardOwnerView}
+        onOwnerViewChange={onHazardOwnerViewChange ?? (() => {})}
+        narrow={narrowViewport}
+        controlsOpen={controlsOpen}
+      />
+    )}
     <MapContainer
       center={[10, 130]}
       zoom={3}
-      style={{ height: '100%', width: '100%', background: '#0f0f1a' }}
+      style={{ height: '100%', width: '100%', background: t.bgMap }}
       minZoom={2}
-      maxZoom={10}
+      maxZoom={18}
+      worldCopyJump={false}
+      maxBounds={[[-75, -25], [80, 345]]}
+      maxBoundsViscosity={1.0}
     >
-      <TileLayer
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-      />
+      <BaseTileLayers mapsProvider={mapsProvider} mapStyle={mapStyle} theme={t} />
 
-      {/* Render all cable segments as faint background lines */}
-      {segments.map(seg => {
+      <MapResizer panelWidth={panelWidth} />
+      <MapFlyTo highlight={countryHighlight} />
+      <MapFlyToNode target={flyToNode} />
+      <MapFitBounds target={fitBounds} />
+      <ManualFitBounds manualState={manualState} manualCandidates={manualCandidates} nodes={nodes} />
+
+      {/*
+        Selected-route glow — drawn first (so it sits under every segment line
+        rendered below, neon-tube style) for every segment belonging to a route
+        the user has clicked/selected, in that route's own colour. Purely
+        additive: the ordinary segment styling on top is unchanged, this just
+        makes the whole route visibly light up rather than only look thicker.
+      */}
+      {Object.keys(selectedGlowColor).length > 0 && segments.flatMap(seg => {
+        const glowColor = selectedGlowColor[seg.id]
+        if (!glowColor) return []
         const start = nodesById[seg.start_node_id]
         const end = nodesById[seg.end_node_id]
-        if (!start || !end) return null
-
-        const isActive = activeSegmentIds.has(seg.id)
-        const activeRoute = selectedRoutes.find(r => r.segments.some(s => s.segment_id === seg.id))
-        const color = activeRoute ? ROUTE_COLORS[activeRoute.diversity_group] ?? '#89b4fa' : '#2a2a3e'
-        const weight = isActive ? 3 : 1
-        const opacity = isActive ? 0.9 : 0.35
-
-        return (
+        if (!start || !end) return []
+        const kml = kmlMode ? kmlPaths[seg.id] : undefined
+        const lines = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined, kml?.display_path)
+        return lines.map((positions, i) => (
           <Polyline
-            key={seg.id}
-            positions={[
-              [start.lat, start.lng],
-              [end.lat, end.lng],
-            ]}
-            pathOptions={{
-              color,
-              weight,
-              opacity,
-              dashArray: seg.type === 'terrestrial' ? '6 4' : undefined,
-            }}
-          >
-            <Tooltip sticky>
-              <strong>{seg.name}</strong>
-              <br />{seg.system_id} · {seg.type}
-              <br />{seg.length_km.toLocaleString()} km · Cost: {seg.cost_weight}
-            </Tooltip>
-          </Polyline>
-        )
+            key={`route-glow-${seg.id}-${i}`}
+            positions={positions}
+            pathOptions={{ color: glowColor, weight: 9, opacity: 0.4, className: 'rb-route-glow', lineCap: 'round' }}
+            interactive={false}
+          />
+        ))
       })}
 
-      {/* Render nodes */}
+      {segments.flatMap(seg => {
+        const start = nodesById[seg.start_node_id]
+        const end = nodesById[seg.end_node_id]
+        if (!start || !end) return []
+
+        const isDown = outageSegIds.has(seg.id)
+        // Surveyed route when we have one and the mode is on; otherwise the
+        // waypoint spline exactly as before.
+        const kml = kmlMode ? kmlPaths[seg.id] : undefined
+        const lines = geoLines(
+          start.lat, start.lng, end.lat, end.lng,
+          seg.waypoints ?? undefined,
+          kml?.display_path,
+        )
+
+        const tooltip = (
+          <Tooltip sticky>
+            <strong>{seg.name}</strong>
+            <br />{seg.system_id} · {seg.type} · {OWNERSHIP_LABEL[seg.ownership] ?? seg.ownership}
+            <br />{start.name} → {end.name}
+            <br />{seg.length_km.toLocaleString()} km · {seg.latency} ms · Cost: {seg.cost_weight}
+            {kmlMode && (
+              <><br /><span style={{ fontWeight: 700 }}>
+                {kmlPaths[seg.id]
+                  ? `Surveyed route · ${kmlPaths[seg.id].point_count.toLocaleString()} pts`
+                  : 'Approximate (waypoints)'}
+              </span></>
+            )}
+            {capacityById[seg.id] && (() => {
+              const cap = capacityById[seg.id]
+              const pct = Math.round((cap.available_capacity_t / cap.total_capacity_t) * 100)
+              return <><br />Capacity: {cap.available_capacity_t}T / {cap.total_capacity_t}T available ({pct}%)</>
+            })()}
+          </Tooltip>
+        )
+
+        // Outage map mode: only show downed segments
+        if (showAllOutages) {
+          if (!isDown) return []
+          const segFaults = outagesBySegId[seg.id] ?? []
+          const outageTooltip = (
+            <Tooltip sticky className="outage-tooltip">
+              <strong>{seg.name}</strong>
+              <br />{start.name} → {end.name} · {seg.length_km.toLocaleString()} km
+              {segFaults.map(f => (
+                <span key={f.fault_id}>
+                  <br /><strong style={{ color: '#ef4444' }}>{f.fault_id}</strong> · {f.fault_date}
+                  {f.repair_start && <> · repair {f.repair_start}</>}
+                  <br /><span style={{ fontSize: 11 }}>{f.description}</span>
+                </span>
+              ))}
+            </Tooltip>
+          )
+          const pathOptions = {
+            color: '#ef4444', weight: 2.5, opacity: 0.95, dashArray: '6 3 2 3',
+          }
+          return lines.map((positions, i) => (
+            <Polyline key={`${seg.id}-${i}`} positions={positions} pathOptions={pathOptions}>
+              {i === 0 && outageTooltip}
+              {i === 0 && showSegmentLabels && (
+                <Tooltip permanent direction="center" className="seg-label" offset={[0, 0]}>{seg.id}</Tooltip>
+              )}
+            </Polyline>
+          ))
+        }
+
+        const isSubseaHighlight = countryActive && countryHighlight!.systemColors.has(seg.system_id) && !backhaulOnly
+        const isTerrestrialHighlight = countryActive && countryHighlight!.terrestrialSegIds.has(seg.id) && !subseaOnly
+        const isCountryHighlightedSeg = isSubseaHighlight || isTerrestrialHighlight
+        const isActiveSegment = !!segmentColor[seg.id] ||
+          !!(systemViewerActive && systemColorMap[seg.system_id]) ||
+          isCountryHighlightedSeg
+        if (hideAllAssets) return []
+        if (hideNonActive && !isActiveSegment) return []
+
+        let color: string
+        let weight: number
+        let opacity: number
+
+        if (countryActive) {
+          if (isSubseaHighlight) {
+            color = countryHighlight!.systemColors.get(seg.system_id)!; weight = 3.5; opacity = 0.95
+          } else if (isTerrestrialHighlight) {
+            color = '#0e7490'; weight = 2.5; opacity = 0.95
+          } else if (segmentColor[seg.id]) {
+            color = segmentColor[seg.id]; weight = segmentWeight[seg.id] ?? 2; opacity = 0.55
+          } else {
+            color = t.mapInactiveSegment; weight = 1; opacity = 0.04
+          }
+        } else if (systemViewerActive && systemColorMap[seg.system_id]) {
+          color  = systemColorMap[seg.system_id]
+          weight = 3
+          opacity = 0.9
+        } else if (systemViewerActive) {
+          color   = segmentColor[seg.id] ?? t.mapInactiveSegment
+          weight  = segmentWeight[seg.id] ?? 2
+          opacity = segmentOpacity[seg.id] ?? 0.08
+        } else {
+          color   = segmentColor[seg.id] ?? t.mapInactiveSegment
+          weight  = segmentWeight[seg.id] ?? 2
+          opacity = segmentOpacity[seg.id] ?? 0.35
+        }
+
+        // Only highlight as downed when segment is on an active route/pin
+        const showAsDown = isDown && isActiveSegment
+        let pathOptions = {
+          color:     showAsDown ? '#ef4444' : color,
+          weight:    showAsDown ? 2.5 : weight,
+          opacity:   showAsDown ? 0.95 : opacity,
+          dashArray: showAsDown ? '6 3 2 3' : seg.type === 'terrestrial' ? '6 4' : undefined,
+        }
+
+        // ── Map style contrast overrides ── accentuate the plain
+        // background network against each mode's basemap (see
+        // .rb-high-contrast above and the applyMapStyleContrast helper's
+        // own doc comment). Applied after the base ladder for the same
+        // reason the hazard lens is — removable without unpicking the
+        // precedence above — but before it, so a hazard on a segment still
+        // wins (a live hazard is a higher-priority fact than which basemap
+        // is showing).
+        pathOptions = applyMapStyleContrast(pathOptions, mapStyle, seg.type, showAsDown, countryActive, color, t.mapInactiveSegment)
+
+        // ── Hazard lens ──
+        // Applied AFTER the ladder above rather than as another branch inside
+        // it, so the country/system/route precedence it encodes is untouched
+        // and this can be removed without unpicking any of it.
+        const segHazard = hazardSeverityByAsset.get(seg.id)
+        if (hazardLens) {
+          pathOptions = segHazard
+            ? { ...pathOptions, color: severityColor(segHazard, t), weight: Math.max(pathOptions.weight, 3.5), opacity: 0.95 }
+            : { ...pathOptions, opacity: Math.min(pathOptions.opacity, 0.07) }
+        }
+
+        // ── KML Mode ── a surveyed route and a smoothed guess must not look
+        // identical, or the map quietly presents an approximation as truth.
+        //
+        // EMPHASISE THE SURVEYED FEW RATHER THAN SUPPRESS THE UNSURVEYED MANY.
+        // The first version did the opposite — faded every cable without a KML,
+        // borrowing the hazard lens idiom — and at the coverage this feature
+        // actually starts from it made the map look broken: with one segment
+        // uploaded, 321 of 322 cables dropped to near-invisible and the default
+        // view of the app was an empty ocean. Suppression only reads as "these
+        // ones, not those" when the two groups are comparable; emphasis reads
+        // correctly at every ratio, from 1/322 to 322/322.
+        //
+        // Weight rather than colour, because colour is already carrying route,
+        // system, country and outage state, and dash patterns are taken by
+        // terrestrial/outage/planned. The tooltip states it in words either way.
+        if (kmlMode && kml) {
+          pathOptions = {
+            ...pathOptions,
+            weight: pathOptions.weight + 0.8,
+            opacity: Math.max(pathOptions.opacity, 0.85),
+          }
+        }
+
+        // ── Asset Filter ── matches are emphasised, not just left alone —
+        // weight rather than colour, same reasoning as KML Mode just above
+        // (colour already carries route/system/country/outage state).
+        // Non-matches dim, same idiom as the hazard lens.
+        if (assetFilter?.active) {
+          if (assetFilter.segmentIds.has(seg.id)) {
+            pathOptions = { ...pathOptions, weight: pathOptions.weight + 1.2, opacity: Math.max(pathOptions.opacity, 0.95) }
+          } else {
+            pathOptions = { ...pathOptions, opacity: Math.min(pathOptions.opacity, 0.05) }
+          }
+        }
+
+        // ── Selection ── the card names one cable; this is what says WHICH.
+        // Applied last so it wins over the whole ladder above: if you clicked
+        // it, you want to see it, whatever mode the map is in.
+        if (seg.id === selectedSegmentId) {
+          pathOptions = {
+            ...pathOptions,
+            color: t.blue,
+            weight: Math.max(pathOptions.weight, 4),
+            opacity: 1,
+          }
+        }
+
+        const onSegClick = onSegmentClick
+          ? (e: L.LeafletMouseEvent) => {
+              e.originalEvent.stopPropagation()
+              onSegmentClick(seg, e.originalEvent.clientX, e.originalEvent.clientY)
+            }
+          : undefined
+
+        return lines.map((positions, i) => (
+          <Fragment key={`${seg.id}-${i}`}>
+            {/* Invisible fat line under the real one, purely to be clicked.
+                A cable is drawn 1-3.5px wide, which is a hard target with a
+                mouse and an unusable one with a fingertip. This carries the
+                click; the visible line below is left non-interactive for
+                pointers so the two can never fight over the same event. */}
+            {onSegClick && (
+              <Polyline
+                positions={positions}
+                pathOptions={{ color: '#000', weight: HIT_TARGET_WEIGHT, opacity: 0, lineCap: 'round' }}
+                eventHandlers={{ click: onSegClick }}
+              >
+                {i === 0 && tooltip}
+              </Polyline>
+            )}
+            <Polyline
+              positions={positions}
+              pathOptions={pathOptions}
+              interactive={!onSegClick}
+            >
+              {i === 0 && !onSegClick && tooltip}
+              {i === 0 && showSegmentLabels && isActiveSegment && (
+                <Tooltip permanent direction="center" className="seg-label" offset={[0, 0]}>
+                  {seg.id}
+                </Tooltip>
+              )}
+            </Polyline>
+          </Fragment>
+        ))
+      })}
+
+      {/*
+        Planned Events overlay — wholly additive and independent of the
+        precedence ladder / showAllOutages above (see the header comment).
+        Drawn on top so it stays visible whether or not a real outage is also
+        highlighted on the same segment; its dash pattern ('10 6', long/open)
+        is deliberately distinct from the outage dash ('6 3 2 3') so the two
+        never get confused when both toggles are on at once.
+      */}
+      {showPlannedEvents && segments.flatMap(seg => {
+        const start = nodesById[seg.start_node_id]
+        const end = nodesById[seg.end_node_id]
+        if (!start || !end) return []
+        const segEvents = plannedBySegId[seg.id]
+        if (!segEvents || segEvents.length === 0) return []
+
+        const lines = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined)
+        const plannedTooltip = (
+          <Tooltip sticky className="planned-event-tooltip">
+            <strong>{seg.name}</strong>
+            <br />{start.name} → {end.name} · {seg.length_km.toLocaleString()} km
+            {segEvents.map(f => (
+              <span key={f.fault_id}>
+                <br /><strong style={{ color: t.orange }}>{f.fault_id}</strong> · logged {f.fault_date}
+                {f.planned_start && f.planned_end && (
+                  <><br />Planned: {formatPlannedDate(f.planned_start)} – {formatPlannedDate(f.planned_end)}</>
+                )}
+                <br /><span style={{ fontSize: 11 }}>{f.description}</span>
+              </span>
+            ))}
+          </Tooltip>
+        )
+        const pathOptions = {
+          color: t.orange, weight: 2.5, opacity: 0.9, dashArray: '10 6',
+        }
+        return lines.map((positions, i) => (
+          <Polyline key={`planned-${seg.id}-${i}`} positions={positions} pathOptions={pathOptions}>
+            {i === 0 && plannedTooltip}
+          </Polyline>
+        ))
+      })}
+
       {nodes.map(node => {
-        const isOnRoute = selectedRoutes.some(r => r.nodes.includes(node.id))
+        const isRouteNode   = routeNodeIds.has(node.id)
+        const sysColor      = systemNodeColor[node.id]
+        const isSystemNode  = !!sysColor
+        const isDimmed      = systemViewerActive && !isSystemNode && !isRouteNode
+        const isCountryNode = countryActive && (countryHighlight!.nodeIds.has(node.id) || countryEndpointIds.has(node.id))
+
+        if (hideAllAssets) return null
+        // Outage map mode: only show nodes on downed segments
+        if (showAllOutages) {
+          if (!outageNodeIds?.has(node.id)) return null
+        } else if (hideNonActive && !isRouteNode && !isSystemNode) return null
+        const ns            = NODE_STYLE[node.type] ?? NODE_STYLE.extension_pop
+        const isBU          = node.type === 'branching_unit'
+        const isSpotlit     = spotlightNodeId === node.id
+        const isNearest     = isSpotlit || (nearestNodeIds?.includes(node.id) ?? false)
+
+        let color: string, fillColor: string, radius: number, weight: number
+        let fillOpacity: number, nodeOpacity: number
+
+        if (countryActive) {
+          if (isCountryNode) {
+            color = ns.color; fillColor = ns.fill; radius = ns.radius; weight = ns.weight
+            fillOpacity = ns.opacity; nodeOpacity = 1
+          } else {
+            color = t.borderSubtle; fillColor = t.border
+            radius = ns.radius; weight = 1
+            fillOpacity = 0.06; nodeOpacity = 0.06
+          }
+        } else {
+          color     = isNearest ? '#f9a825' : isRouteNode ? t.pink : isSystemNode ? sysColor : ns.color
+          fillColor = isNearest ? '#ffd54f' : isRouteNode ? t.pink : isSystemNode ? sysColor : ns.fill
+          radius    = isNearest ? Math.max(ns.radius + 2, 8) : isRouteNode || isSystemNode ? Math.max(ns.radius, 5) : ns.radius
+          weight    = isNearest ? 2.5 : isRouteNode || isSystemNode ? Math.max(ns.weight, 2) : ns.weight
+          fillOpacity = isDimmed ? 0.12 : ns.opacity
+          nodeOpacity = isDimmed ? 0.12 : ns.opacity
+        }
+
+        // ── Hazard lens ── see the matching block in the segment loop.
+        const nodeHazard = hazardSeverityByAsset.get(node.id)
+        if (hazardLens) {
+          if (nodeHazard) {
+            const hz = severityColor(nodeHazard, t)
+            color = hz; fillColor = hz
+            radius = Math.max(radius + 2, 7)
+            weight = Math.max(weight, 2.5)
+            fillOpacity = 0.85; nodeOpacity = 1
+          } else {
+            fillOpacity = Math.min(fillOpacity, 0.07)
+            nodeOpacity = Math.min(nodeOpacity, 0.07)
+          }
+        }
+
+        // ── Asset Filter ── see the matching block in the segment loop:
+        // matches get bigger/bolder/fully opaque, non-matches dim.
+        if (assetFilter?.active) {
+          if (assetFilter.nodeIds.has(node.id)) {
+            radius = Math.max(radius, ns.radius + 2)
+            weight = Math.max(weight, 2.5)
+            fillOpacity = Math.max(fillOpacity, ns.opacity)
+            nodeOpacity = 1
+          } else {
+            fillOpacity = Math.min(fillOpacity, 0.08)
+            nodeOpacity = Math.min(nodeOpacity, 0.08)
+          }
+        }
+
         return (
           <CircleMarker
             key={node.id}
-            center={[node.lat, node.lng]}
-            radius={isOnRoute ? 7 : 4}
-            pathOptions={{
-              color: isOnRoute ? '#f5c2e7' : '#45475a',
-              fillColor: isOnRoute ? '#f5c2e7' : '#313244',
-              fillOpacity: 1,
-              weight: isOnRoute ? 2 : 1,
-            }}
+            center={[node.lat, normalizeLng(node.lng)]}
+            radius={radius}
+            pathOptions={{ color, fillColor, fillOpacity, weight, opacity: nodeOpacity }}
+            eventHandlers={{ click: (e) => { e.originalEvent.stopPropagation(); onNodeClick?.(node, e.originalEvent.clientX, e.originalEvent.clientY) } }}
           >
-            <Tooltip>
+            {/* `key` forces a remount when the spotlight moves: react-leaflet
+                reads `permanent` only when the tooltip is first created, so
+                toggling the prop alone would never pin it open. */}
+            <Tooltip
+              key={isSpotlit ? 'pinned' : 'hover'}
+              permanent={isSpotlit}
+              direction={isSpotlit ? 'top' : 'auto'}
+              offset={isSpotlit ? [0, -radius - 4] : [0, 0]}
+            >
               <strong>{node.name}</strong> ({node.id})
-              <br />{node.country} · {node.type.replace('_', ' ')}
+              <br />{node.country} · {NODE_TYPE_LABEL[node.type] ?? node.type}
+              {node.owner && <><br />Owner: {node.owner}</>}
             </Tooltip>
+            {showNodeLabels && !isBU && (
+              <Tooltip permanent direction="top" className="node-label" offset={[0, -radius - 2]}>
+                {node.id}
+              </Tooltip>
+            )}
           </CircleMarker>
         )
       })}
+
+      {/*
+        Planned Events node highlight — mirrors the outageNodeIds/showAllOutages
+        pattern (nodes touching a highlighted segment get included), adapted to
+        the independent showPlannedEvents toggle. Unlike showAllOutages this
+        never hides other nodes: it's a non-interactive amber ring drawn on top
+        of whichever node marker is already there.
+      */}
+      {showPlannedEvents && plannedNodeIds && nodes.filter(n => plannedNodeIds.has(n.id)).map(node => {
+        const ns = NODE_STYLE[node.type] ?? NODE_STYLE.extension_pop
+        return (
+          <CircleMarker
+            key={`planned-node-${node.id}`}
+            center={[node.lat, normalizeLng(node.lng)]}
+            radius={ns.radius + 4}
+            pathOptions={{ color: t.orange, fillOpacity: 0, weight: 2, dashArray: '3 2' }}
+            interactive={false}
+          />
+        )
+      })}
+
+      {/*
+        Selected-node pulse — "this is the node whose card is open," for both
+        a map click (selectedNodeId) and an Asset Search jump (spotlightNodeId
+        — see spotlightNodeId's own doc comment on why that one's separate).
+        Usually the same node; a Set means either source lights it up without
+        drawing two overlapping rings if they ever briefly disagree.
+      */}
+      {[...new Set([selectedNodeId, spotlightNodeId].filter((id): id is string => !!id))].map(id => {
+        const node = nodesById[id]
+        if (!node) return null
+        const ns = NODE_STYLE[node.type] ?? NODE_STYLE.extension_pop
+        return (
+          <CircleMarker
+            key={`selected-pulse-${id}`}
+            center={[node.lat, normalizeLng(node.lng)]}
+            radius={ns.radius + 5}
+            pathOptions={{ color: t.blue, fillOpacity: 0, weight: 2, className: 'rb-node-select-pulse' }}
+            interactive={false}
+          />
+        )
+      })}
+
+      {searchPin && (
+        <CircleMarker
+          center={[searchPin.lat, normalizeLng(searchPin.lng)]}
+          radius={9}
+          pathOptions={{ color: '#fff', fillColor: '#ff6b35', fillOpacity: 0.95, weight: 2.5 }}
+        >
+          <Tooltip>
+            <strong>Search Location</strong><br />
+            {searchPin.label.length > 60 ? searchPin.label.slice(0, 57) + '…' : searchPin.label}
+          </Tooltip>
+        </CircleMarker>
+      )}
+
+      {/* ── RouteManual overlay ── */}
+      {manualActive && (
+        <>
+          {/* Locked path segments */}
+          {manualState!.steps.map(step => {
+            const seg = segmentsById[step.segmentId]
+            if (!seg) return null
+            const start = nodesById[seg.start_node_id]
+            const end   = nodesById[seg.end_node_id]
+            if (!start || !end) return null
+            const lines = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined)
+            return lines.map((positions, i) => (
+              <Polyline key={`manual-locked-${step.segmentId}-${i}`} positions={positions}
+                pathOptions={{ color: '#f9a825', weight: 3.5, opacity: 0.95 }} />
+            ))
+          })}
+
+          {/* Candidate node pulses — colour matches next-hop list cards */}
+          {manualCandidates.map((c, idx) => {
+            const node = nodesById[c.nodeId]
+            if (!node) return null
+            const color  = candidateColor(idx)
+            const radius = manualMobileMode ? 20 : 9
+            return (
+              <CircleMarker
+                key={`manual-cand-${c.segmentId}`}
+                center={[node.lat, normalizeLng(node.lng)]}
+                radius={radius}
+                pathOptions={{ color: '#fff', fillColor: color, fillOpacity: 0.9, weight: manualMobileMode ? 3 : 2 }}
+                eventHandlers={{ click: (e) => {
+                  e.originalEvent.stopPropagation()
+                  onManualNodeClick?.(node)
+                }}}
+              >
+                <Tooltip>
+                  <strong>{idx + 1}. {node.name}</strong><br />
+                  {c.segment.system_id} · {c.segment.length_km?.toLocaleString() ?? '?'} km · {c.segment.latency?.toFixed(1) ?? '?'} ms
+                </Tooltip>
+              </CircleMarker>
+            )
+          })}
+
+          {/* Locked path nodes */}
+          {[...(manualState ? [manualState.originId, ...manualState.steps.map(s => s.nodeId)] : [])].map((nodeId, idx, arr) => {
+            const node    = nodesById[nodeId]
+            if (!node) return null
+            const isOrigin  = idx === 0
+            const isCurrent = idx === arr.length - 1
+            const fillColor = isOrigin ? '#3b82f6' : isCurrent ? '#10b981' : '#f9a825'
+            return (
+              <CircleMarker
+                key={`manual-locked-node-${nodeId}-${idx}`}
+                center={[node.lat, normalizeLng(node.lng)]}
+                radius={isCurrent ? 8 : 6}
+                pathOptions={{ color: '#fff', fillColor, fillOpacity: 1, weight: 2 }}
+                eventHandlers={{ click: (e) => {
+                  e.originalEvent.stopPropagation()
+                  if (isCurrent) onManualNodeClick?.(node)
+                }}}
+              >
+                <Tooltip><strong>{node.name}</strong>{isOrigin ? ' (Origin)' : isCurrent ? ' — double-click to finish' : ''}</Tooltip>
+              </CircleMarker>
+            )
+          })}
+        </>
+      )}
+
+      {/* RouteManual: clickable ALL nodes when waiting for origin */}
+      {manualActive && !manualState?.originId && nodes.map(node => (
+        <CircleMarker
+          key={`manual-origin-${node.id}`}
+          center={[node.lat, normalizeLng(node.lng)]}
+          radius={5}
+          pathOptions={{ color: t.blue, fillColor: t.blue, fillOpacity: 0.3, weight: 1 }}
+          eventHandlers={{ click: (e) => { e.originalEvent.stopPropagation(); onManualNodeClick?.(node) } }}
+        />
+      ))}
+
+      {/*
+        Segment spotlight — draws a warm pulsing halo under whichever segment the
+        cursor is over in a route's Segment Breakdown panel (RouteList.tsx), or
+        that Asset Search just selected, via the shared SegmentHoverContext.
+        Drawn last so it sits above every other overlay; non-interactive so it
+        never steals clicks/hover from the real segment line underneath.
+
+        Traces the SAME geometry as the real line beneath it — the surveyed KML
+        route when KML Mode is on and one exists, the waypoint spline otherwise
+        (matching the main segment-render loop above) — never the straight/
+        waypoint path regardless of mode. A halo that outlines a different line
+        than the one it sits under would visibly drift off it wherever the two
+        diverge, defeating the entire point of a spotlight.
+      */}
+      {hoveredSegmentId && (() => {
+        const seg = segmentsById[hoveredSegmentId]
+        if (!seg) return null
+        const start = nodesById[seg.start_node_id]
+        const end = nodesById[seg.end_node_id]
+        if (!start || !end) return null
+        const kml = kmlMode ? kmlPaths[seg.id] : undefined
+        const lines = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined, kml?.display_path)
+        return lines.map((positions, i) => (
+          <Polyline
+            key={`glow-${seg.id}-${i}`}
+            positions={positions}
+            pathOptions={{ color: '#ff4500', weight: 8, opacity: 0.6, className: 'rb-segment-glow', lineCap: 'round' }}
+            interactive={false}
+          />
+        ))
+      })()}
+
+      {/* ── Living World — decorative sprites in their own pane under the
+             cables. Off in Network Editor: that mode is for precise work and
+             a passing whale is a distraction there. ── */}
+      {livingWorld && !editorMode && <LivingWorldLayer nodes={nodes} />}
+
+      {/* ── Traveling light — "this cable is active" feedback for whatever is
+             currently selected/highlighted (see TravelingLightLayer.tsx's own
+             header). Always mounted; a no-op with zero markers when nothing
+             qualifies. Off in Network Editor for the same reason as Living
+             World above. ── */}
+      {!editorMode && <TravelingLightLayer segments={activeLightSegments} />}
+      <KmlPreviewLayer lines={kmlPreview} fitKey={kmlPreviewKey} />
+
+      {/* ── Network Hazards — live disasters, in a pane ABOVE the cables so an
+             event can be seen to overlap a route. Off in Network Editor, where
+             the map is for precise topology work. ── */}
+      {hazardsOn && !editorMode && hazardFeed && <HazardLayer hazards={hazardFeed.hazards} />}
+
+      {/* ── Network Editor overlay — see EditorMapLayer.tsx ── */}
+      {editorMode && (
+        <EditorMapLayer
+          nodes={nodes}
+          segments={segments}
+          subMode={editorSubMode}
+          selection={editorSelection}
+          segmentDraft={editorSegmentDraft ?? emptySegmentDraft}
+          pendingNodeIds={pendingNodeIds ?? EMPTY_STRING_SET}
+          pendingSegmentIds={pendingSegmentIds ?? EMPTY_STRING_SET}
+          onNodeDragEnd={onEditorNodeDragEnd ?? (() => {})}
+          onNodeSelect={onEditorNodeSelect ?? (() => {})}
+          onSegmentSelect={onEditorSegmentSelect ?? (() => {})}
+          onWaypointInsert={onEditorWaypointInsert ?? (() => {})}
+          onWaypointDragEnd={onEditorWaypointDragEnd ?? (() => {})}
+          onWaypointDelete={onEditorWaypointDelete ?? (() => {})}
+          onPickEndpoint={onEditorPickEndpoint ?? (() => {})}
+          onPickEmptySpace={onEditorPickEmptySpace ?? (() => {})}
+        />
+      )}
+
+      {/* ── KML chop session — see KmlChopMapLayer.tsx / KmlChopImport.tsx ── */}
+      {kmlChop && <KmlChopMapLayer {...kmlChop} />}
     </MapContainer>
+    </div>
   )
 }

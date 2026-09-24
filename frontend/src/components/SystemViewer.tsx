@@ -1,0 +1,192 @@
+/**
+ * SystemViewer — sidebar panel for highlighting whole submarine cable systems on the map.
+ *
+ * A "system" is a named submarine cable (e.g. EAC, C2C). This panel shows a searchable
+ * list of all systems (the synthetic TERRESTRIAL pseudo-system is hidden) and lets the
+ * user toggle up to 5 of them at once. Each selected system is shown as a removable chip
+ * with the colour that the map uses to paint that system's segments, so the list acts as
+ * the legend for the highlight feature.
+ *
+ * Props:
+ *   - systems:  full list of CableSystem records loaded by the parent.
+ *   - selected: the currently highlighted systems (SelectedSystem = systemId + assigned colour).
+ *   - onToggle: called with a systemId to add/remove it from the selection; the parent owns
+ *               the selection state and colour assignment, this component is purely controlled.
+ *
+ * Mounted from: App.tsx (desktop sidebar, "Systems" mode) and MobileLayout.tsx (mobile tab).
+ * Behaviour notes: selection is capped at 5 — additional rows render disabled/dimmed until
+ * one is removed. Filtering matches system name or ID, case-insensitive.
+ * Backend endpoints: none — operates entirely on data passed in via props.
+ */
+import { useState } from 'react'
+import type { CableNode, CableSegment, CableSystem, SelectedSystem } from '../types'
+import { useTheme } from '../theme'
+
+interface Props {
+  systems: CableSystem[]
+  selected: SelectedSystem[]
+  onToggle: (systemId: string) => void
+  /** Needed to export a system's geometry — every segment that belongs to it. */
+  segments?: CableSegment[]
+  nodes?: CableNode[]
+  /** Which segments have route geometry on file (uploaded or synced from
+   *  submarinecablemap.com), from /api/kml/paths. */
+  hasKml?: (segmentId: string) => boolean
+}
+
+export function SystemViewer({ systems, selected, onToggle, segments, nodes, hasKml }: Props) {
+  const t = useTheme()
+  const [query, setQuery] = useState('')
+  const [exporting, setExporting] = useState<string | null>(null)
+
+  /**
+   * Download one cable system as a KML.
+   *
+   * Uses the route on file for every segment that has one (uploaded or synced)
+   * and the map's own approximation for the rest, and the file says which is
+   * which — see utils/generateKml.ts. Lazily imported so the exporter is not in the bundle
+   * for everyone who merely looks at a system.
+   */
+  async function exportSystem(systemId: string, systemName: string) {
+    if (!segments || !nodes) return
+    setExporting(systemId)
+    try {
+      const { exportSegmentsAsKml } = await import('../utils/exportKml')
+      const mine = segments.filter(s => s.system_id === systemId)
+      await exportSegmentsAsKml(mine, nodes, id => hasKml?.(id) ?? false, {
+        title: `${systemId} — ${systemName}`,
+        subtitle: `Every segment of the ${systemId} cable system.`,
+        filename: `${systemId}-${new Date().toISOString().slice(0, 10)}`,
+      })
+    } finally {
+      setExporting(null)
+    }
+  }
+
+  const displaySystems = systems.filter(s => s.id !== 'TERRESTRIAL')
+  const filtered = displaySystems.filter(s =>
+    query === '' ||
+    s.name.toLowerCase().includes(query.toLowerCase()) ||
+    s.id.toLowerCase().includes(query.toLowerCase())
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+      {/* Selected chips */}
+      {selected.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>
+            Selected ({selected.length}/5)
+          </div>
+          {selected.map(ss => {
+            const sys = systems.find(s => s.id === ss.systemId)
+            return (
+              <div key={ss.systemId} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '6px 8px', borderRadius: 5,
+                background: t.bgBase, border: `1px solid ${ss.color}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: ss.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{sys?.name ?? ss.systemId}</span>
+                  <span style={{ fontSize: 10, color: t.textFaint }}>{ss.systemId}</span>
+                </div>
+                <button
+                  onClick={() => onToggle(ss.systemId)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textFaint, fontSize: 16, padding: '0 2px', lineHeight: 1 }}
+                >×</button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Search */}
+      <input
+        type="text"
+        placeholder="Search cable systems…"
+        value={query}
+        onChange={e => setQuery(e.target.value)}
+        style={{
+          width: '100%', padding: '6px 8px', borderRadius: 4, boxSizing: 'border-box',
+          border: `1px solid ${t.border}`, background: t.bgInput, color: t.text,
+          fontSize: 13, outline: 'none',
+        }}
+      />
+
+      {/* List */}
+      <div style={{ border: `1px solid ${t.border}`, borderRadius: 4, background: t.bgInput, overflow: 'hidden' }}>
+        {filtered.map((sys, i) => {
+          const selectedEntry = selected.find(s => s.systemId === sys.id)
+          const isSelected = !!selectedEntry
+          const isDisabled = !isSelected && selected.length >= 5
+          return (
+            <div
+              key={sys.id}
+              role="button"
+              tabIndex={isDisabled ? -1 : 0}
+              onClick={() => !isDisabled && onToggle(sys.id)}
+              onKeyDown={e => { if (!isDisabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onToggle(sys.id) } }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '8px 10px', cursor: isDisabled ? 'not-allowed' : 'pointer',
+                borderBottom: i < filtered.length - 1 ? `1px solid ${t.border}` : 'none',
+                background: isSelected ? t.bgDeep : 'transparent',
+                opacity: isDisabled ? 0.35 : 1,
+                transition: 'background 0.1s',
+              }}
+            >
+              <div style={{
+                width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                background: isSelected ? selectedEntry!.color : 'transparent',
+                border: `2px solid ${isSelected ? selectedEntry!.color : t.borderSubtle}`,
+                transition: 'all 0.15s',
+              }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: isSelected ? 600 : 400, color: isSelected ? t.text : t.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {sys.name}
+                </div>
+                <div style={{ fontSize: 10, color: t.textFaint }}>{sys.id}</div>
+              </div>
+              {/* Export sits on the row rather than behind selection, because
+                  wanting a system's geometry is not the same as wanting it
+                  highlighted — and the five-system selection cap would
+                  otherwise limit what you can export. stopPropagation so it
+                  does not toggle the row it lives in. */}
+              {segments && nodes && (
+                <button
+                  onClick={e => { e.stopPropagation(); void exportSystem(sys.id, sys.name) }}
+                  disabled={exporting === sys.id}
+                  // The row this sits in is itself role="button", so without an
+                  // explicit label a screen reader announces the two together
+                  // as one control ("Australia-Japan Cable AJC ⬇ KML").
+                  aria-label={`Download ${sys.id} as KML`}
+                  title={`Download every ${sys.id} segment as a KML — routes on file where we have them (uploaded or synced), approximations marked as such`}
+                  style={{
+                    flexShrink: 0, padding: '3px 7px', borderRadius: 4, fontSize: 10,
+                    fontFamily: 'inherit', cursor: 'pointer',
+                    border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted,
+                  }}
+                >{exporting === sys.id ? '…' : '⬇ KML'}</button>
+              )}
+              <div style={{ display: 'none' }}>
+              </div>
+            </div>
+          )
+        })}
+        {filtered.length === 0 && (
+          <div style={{ padding: '14px 10px', fontSize: 12, color: t.textFaint, textAlign: 'center' }}>
+            No systems match "{query}"
+          </div>
+        )}
+      </div>
+
+      {selected.length === 0 && (
+        <p style={{ fontSize: 12, color: t.textFaintest, margin: 0 }}>
+          Select up to 5 systems to highlight their segments on the map.
+        </p>
+      )}
+    </div>
+  )
+}

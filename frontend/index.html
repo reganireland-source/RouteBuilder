@@ -2,15 +2,183 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
     <title>RouteBuilder</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
     />
+    <!-- Leaflet's CSS is imported in src/main.tsx and bundled by Vite. It used
+         to be pulled from unpkg.com here, which SonarQube flagged (Web:S5725):
+         a CDN <link> with no integrity hash lets a compromised CDN inject
+         arbitrary CSS, and makes rendering depend on a third-party host. -->
+
     <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
+      * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', system-ui, sans-serif; }
       html, body, #root { height: 100%; width: 100%; }
+      .sort-bar { scrollbar-width: none; -ms-overflow-style: none; }
+      .sort-bar::-webkit-scrollbar { display: none; }
+
+      /* ── Browser-native surfaces ─────────────────────────────────────────
+         The parts of the page React's inline styles can't reach — focus
+         rings, text selection, and scrollbars — otherwise render with
+         unthemed browser defaults, which look broken against this app's
+         dark chrome (an unstyled focus ring in particular is nearly
+         invisible on the dark/dusk themes' backgrounds, a real keyboard-
+         accessibility gap, not just a cosmetic one). --rb-* custom
+         properties are kept in sync with the active theme by App.tsx (see
+         its comment on the effect that sets them), so these stay correct
+         across all three themes and the fallback values below only apply
+         before the first paint sets them.
+
+         `!important` on the outline is deliberate and narrowly scoped: ~26
+         inputs/buttons across the app set `outline: 'none'` inline (to drop
+         the default browser ring) with no compensating focus treatment —
+         confirmed by inspection, not assumed — so without it these controls
+         would have zero visible focus indicator at all when tabbed to.
+         Inline styles otherwise always win over a stylesheet rule, and
+         fixing this at 26 call sites individually is far more error-prone
+         than the one global override. Outline never affects layout, so this
+         cannot fight any other inline style, `!important` or not. */
+      :focus-visible {
+        outline: 2px solid var(--rb-accent, #5b9cf6) !important;
+        outline-offset: 2px !important;
+        border-radius: 2px;
+      }
+      ::selection {
+        background: var(--rb-accent, #5b9cf6);
+        color: #0b1220;
+      }
+      html {
+        scrollbar-color: var(--rb-border-subtle, #4a4f72) var(--rb-bg-deep, #161828);
+      }
+      ::-webkit-scrollbar { width: 10px; height: 10px; }
+      ::-webkit-scrollbar-track { background: var(--rb-bg-deep, #161828); }
+      ::-webkit-scrollbar-thumb {
+        background: var(--rb-border-subtle, #4a4f72);
+        border-radius: 6px;
+        border: 2px solid var(--rb-bg-deep, #161828);
+      }
+      ::-webkit-scrollbar-thumb:hover { background: var(--rb-text-faintest, #505870); }
+      ::-webkit-scrollbar-corner { background: var(--rb-bg-deep, #161828); }
+      .seg-label {
+        background: rgba(0,0,0,0.55) !important;
+        border: none !important;
+        border-radius: 3px !important;
+        box-shadow: none !important;
+        color: #fff !important;
+        font-size: 10px !important;
+        font-weight: 600 !important;
+        padding: 1px 4px !important;
+        white-space: nowrap !important;
+        pointer-events: none !important;
+      }
+      .seg-label::before { display: none !important; }
+      .node-label {
+        background: rgba(20,20,40,0.72) !important;
+        border: none !important;
+        border-radius: 3px !important;
+        box-shadow: none !important;
+        color: #e0e0ff !important;
+        font-size: 9px !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.04em !important;
+        padding: 1px 4px !important;
+        white-space: nowrap !important;
+        pointer-events: none !important;
+      }
+      .node-label::before { display: none !important; }
+      .outage-tooltip {
+        max-width: 320px !important;
+        white-space: normal !important;
+        word-break: break-word !important;
+      }
+      /* Prevent iOS Safari auto-zoom on input focus (triggers when font-size < 16px) */
+      @media (max-width: 768px) {
+        input, select, textarea { font-size: 16px !important; }
+      }
+
+      /* Every Leaflet vector layer (CircleMarker, Polyline) gets this class
+         on its rendered SVG element — smoothing opacity/fill/stroke-width
+         changes here, once, covers node spotlight/selection and segment
+         highlight/dim across the whole map without touching Map.tsx's own
+         per-marker styling logic at all. Kept short (0.18s) so it reads as
+         responsive to a click, not as lag.
+         NOT `r` (radius): Leaflet's SVG renderer draws every CircleMarker as
+         a <path> arc (`d="M... A r,r 0..."`), never an actual SVG <circle>,
+         so there is no `r` attribute here for a transition to apply to —
+         confirmed by inspecting the rendered DOM, not assumed. A size
+         change redraws the path's `d` outright, which CSS cannot smoothly
+         interpolate between two different arcs. */
+      .leaflet-interactive {
+        transition: opacity 0.18s ease, fill-opacity 0.18s ease, stroke-opacity 0.18s ease, stroke-width 0.18s ease;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .leaflet-interactive { transition: none !important; }
+      }
+
+      /* ── Motion system ──────────────────────────────────────────────────
+         Shared entrance keyframes + utility classes for modals, dropdowns
+         and menus, so every popover in the app enters the same way instead
+         of each component inventing its own. Kept here (the one genuinely
+         global stylesheet — see main.tsx's own comment on why there's no
+         separate index.css) rather than as scoped per-component <style>
+         tags, unlike the existing bespoke animations (route glow, sea-sweep,
+         Living World bob) which stay where they are — those are one-off
+         effects tied to a single component, not shared chrome.
+
+         Curve: cubic-bezier(0.16, 1, 0.3, 1) ("ease-out-expo") on the
+         pop/dropdown entrances — a fast initial move that settles gently,
+         which reads as snappier and more "alive" than a linear or standard
+         ease-out over the same duration. Durations are short (120-180ms)
+         on purpose: these fire on every menu/modal open, so anything
+         slower would make frequently-used chrome feel sluggish rather than
+         polished. */
+      @keyframes rb-fade-in { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes rb-pop-in {
+        from { opacity: 0; transform: scale(0.96) translateY(2px); }
+        to   { opacity: 1; transform: scale(1) translateY(0); }
+      }
+      @keyframes rb-dropdown-in {
+        from { opacity: 0; transform: translateY(-6px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes rb-rise-in {
+        from { opacity: 0; transform: translateY(6px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+
+      .rb-anim-fade { animation: rb-fade-in 0.15s ease both; }
+      .rb-anim-pop { animation: rb-pop-in 0.16s cubic-bezier(0.16, 1, 0.3, 1) both; }
+      .rb-anim-dropdown { animation: rb-dropdown-in 0.14s cubic-bezier(0.16, 1, 0.3, 1) both; transform-origin: top; }
+      .rb-anim-rise { animation: rb-rise-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+      /* A tiny, consistent hover/press feel for chrome buttons — lift 1px on
+         hover, settle back down on press, rather than sitting dead still
+         until the click registers. Opt-in per element (.rb-btn-motion),
+         not a global `button` rule, so it never fights an existing
+         component's own hover styling. */
+      .rb-btn-motion { transition: transform 0.15s ease, opacity 0.15s ease; }
+      .rb-btn-motion:hover { transform: translateY(-1px); }
+      .rb-btn-motion:active { transform: translateY(0) scale(0.97); }
+
+      /* Respect the OS-level motion preference: every animation above
+         collapses to an instant, static state — same end result, no
+         movement. Matches the one place this codebase already did this
+         (LivingWorldLayer's bob animation). */
+      @media (prefers-reduced-motion: reduce) {
+        .rb-anim-fade, .rb-anim-pop, .rb-anim-dropdown, .rb-anim-rise {
+          animation: none !important;
+        }
+        .rb-btn-motion, .rb-btn-motion:hover, .rb-btn-motion:active {
+          transition: none !important;
+          transform: none !important;
+        }
+      }
     </style>
   </head>
   <body>

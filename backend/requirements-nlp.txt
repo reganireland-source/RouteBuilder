@@ -1,0 +1,8 @@
+# Optional NLP dependencies — only needed when NLP_ENABLED=true
+# Install with: pip install -r requirements-nlp.txt
+# Then set one of:
+#   ANTHROPIC_API_KEY=sk-ant-...           (uses Claude Haiku)
+#   OPENAI_API_KEY=sk-...                  (uses gpt-4o-mini)
+#   AZURE_OPENAI_ENDPOINT=https://...      (uses Azure OpenAI; also set AZURE_OPENAI_API_KEY + AZURE_OPENAI_DEPLOYMENT)
+anthropic>=0.40.0
+openai>=1.40.0

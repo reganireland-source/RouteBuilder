@@ -1,92 +1,2163 @@
-import type { Route, CableNode } from '../types'
+/**
+ * ============================================================================
+ *  RouteList.tsx — the middle-panel list of routes (results + pins).
+ * ============================================================================
+ *
+ * Mounted by App.tsx in the middle column (and by MobileLayout on phones). It
+ * renders, in order:
+ *   1. The pinned routes bar — routes the user kept on the map (props.pinnedRoutes),
+ *      shown as cards (or compressed chips) with unpin / add-to-project actions.
+ *   2. The search results — props.primaryRoutes and, when a diverse search was
+ *      run, props.diverseRoutes. When the two arrays line up they are shown as
+ *      worker/protect PAIRS (see PairCard); otherwise as individual RouteCards.
+ *
+ * KEY PROPS:
+ *   • primaryRoutes / diverseRoutes — the RouteResponse split; diverse = the
+ *     physically-separate backup paths for a diversity search.
+ *   • selectedRouteIds + onSelectRoute — which cards are ticked onto the map.
+ *   • pinnedRoutes + onPin/onUnpin/onPinPair — the persistent pin bar.
+ *   • onNetOwnership — Set of ownership types that count as On-Net (drives the
+ *     On-Net/Off-Net/Mixed badge and the "ownership" sort).
+ *   • externalSortKey / externalPushOutagesDown — sort intents pushed in from
+ *     the NLP assistant; otherwise the user controls sort via the header.
+ *   • flippedPairIds + onFlipPair — which worker/protect pairs are swapped.
+ *   • activeProject + onAddToProject / onEnrichCircuit — project integration.
+ *   • serviceDate + allSegments (both OPTIONAL) — the cable-lifecycle badges.
+ *     Absent/null ⇒ nothing lifecycle-related renders at all, so a search on
+ *     today's network looks exactly as it always did.
+ *
+ * SORTING lives here: the user picks a SortKey (hops/distance/latency/…); the
+ * sortRoutes() helper compares routes by that key, and outage-affected routes
+ * can optionally be pushed to the bottom. See SortKey and SORT_OPTIONS below.
+ *
+ * CABLE LIFECYCLE (RFS / EOL) BADGES: when a service date is supplied, every
+ * hop that is not usable on that date is badged in the Segment Breakdown with
+ * the quarter that governs it — "RFS Q2 2027" for cable that is not built yet,
+ * "EOL Q4 2026" for cable that has already retired — and the route card itself
+ * carries the single date that governs the whole path. Every date question is
+ * answered by utils/serviceDate.ts (the same rules the backend mirrors); this
+ * file only turns those answers into labels. See the block above
+ * segmentLifecycle() for the details.
+ *
+ * Glossary: diverse route = the physically separate backup path · on-net = on
+ * our own network · margin = the commercial score derived from a system's margin
+ * · RFS = Ready For Service (when a cable goes live) · EOL = End Of Life (when
+ * it is decommissioned).
+ * ============================================================================
+ */
+import { createContext, useContext, useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
+import type { Route, CableNode, CableSegment, CableSystem, RouteSegmentDetail, SegmentCapacity, SegmentOutage, PinnedRoute, Project, ProjectCircuit, EndpointConfig, SolutionNote } from '../types'
+import {
+  effectiveEolDate, effectiveRfsDate, formatQuarter,
+  isSegmentInServiceOn, isSegmentRetiredOn, quarterEndDate,
+} from '../utils/serviceDate'
+import { useTheme } from '../theme'
+import { api } from '../api/client'
+import { SolutionNotesOverlay } from './SolutionNotesOverlay'
+import { SegmentFullView } from './SegmentFullView'
+import { useSegmentHover } from '../context/SegmentHoverContext'
 
+/**
+ * "Open this segment's Full View" — supplied by RouteList, consumed by the
+ * Segment Breakdown rows several components below it.
+ *
+ * A context rather than a prop threaded through PairCard and RouteCard, for the
+ * same reason SegmentHoverContext already is: the breakdown rows are three
+ * levels down from the list and the two cards that hold them have nothing to do
+ * with the callback beyond passing it on. Null when the host did not supply the
+ * reference data a Full View needs, in which case no ⛶ renders at all.
+ */
+const SegmentExpandContext = createContext<((segmentId: string) => void) | null>(null)
+
+/** How complete a project circuit's technical enrichment (A/Z-End specs) is. */
+type EnrichLevel = 'none' | 'partial' | 'full'
+
+/**
+ * Classify how complete a project circuit's technical enrichment is, for the
+ * Enrich badge dot on a pinned route (red/amber/green).
+ * @param c The project circuit linked to a pin (undefined if the pin isn't
+ *   attached to a project circuit yet).
+ * @returns 'none' when nothing is filled in, 'full' when both A/Z-End
+ *   site/access-type fields AND the core service_type/bandwidth/protection
+ *   fields are filled, otherwise 'partial'.
+ */
+function enrichLevel(c: ProjectCircuit | undefined): EnrichLevel {
+  if (!c) return 'none'
+  const endFilled = (e: EndpointConfig) => !!(e.customer_site_name && e.access_type)
+  const coreFilled = !!(c.service_type && c.bandwidth && c.protection)
+  const endsFilled = endFilled(c.a_end) && endFilled(c.z_end)
+  if (coreFilled && endsFilled) return 'full'
+  const anyFilled = !!(c.service_type || c.bandwidth || c.protection ||
+    c.a_end.customer_site_name || c.a_end.access_type ||
+    c.z_end.customer_site_name || c.z_end.access_type)
+  return anyFilled ? 'partial' : 'none'
+}
+
+/**
+ * Hook: true when the viewport is narrower than the mobile breakpoint
+ * (768px). Tracks window resize via an effect-registered listener so cards
+ * can switch between the always-visible desktop tooltip and the mobile
+ * tap-to-expand segment breakdown.
+ * @returns Whether the current window width is < 768px.
+ */
+function useIsMobile(): boolean {
+  const [mobile, setMobile] = useState(() => window.innerWidth < 768)
+  useEffect(() => {
+    const handler = () => setMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
+  return mobile
+}
+
+/** Result classes for classifyRoute(): fully on our own network, fully off
+ *  it, or a blend of both. */
+type NetClass = 'on_net' | 'off_net' | 'mixed'
+
+/** Classify a route as On-Net / Off-Net / Mixed by what fraction of its wet
+ *  (submarine) distance runs over ownership types configured as On-Net. Returns
+ *  the class plus the on-net percentage (used for the badge and ownership sort). */
+function classifyRoute(route: Route, onNetOwnership: Set<string>): { type: NetClass; onNetPct: number } {
+  const wetSegs = route.segments.filter(s => s.type === 'wet')
+  if (wetSegs.length === 0) return { type: 'on_net', onNetPct: 100 }
+  const totalKm  = wetSegs.reduce((sum, s) => sum + s.length_km, 0)
+  const onNetKm  = wetSegs.filter(s => onNetOwnership.has(s.ownership)).reduce((sum, s) => sum + s.length_km, 0)
+  const pct = totalKm > 0 ? Math.round((onNetKm / totalKm) * 100) : 0
+  if (pct === 100) return { type: 'on_net',  onNetPct: 100 }
+  if (pct === 0)   return { type: 'off_net', onNetPct: 0 }
+  return { type: 'mixed', onNetPct: pct }
+}
+
+// ── Cable lifecycle (RFS / EOL) ─────────────────────────────────────────────
+//
+// A hop can fail to be usable on the selected service date in two ways: it is
+// not BUILT yet (RFS) or it is already RETIRED (EOL). Both questions are
+// answered by utils/serviceDate.ts, which is the browser mirror of
+// backend/app/rfs.py and is unit-tested there. NOTHING about quarters, date
+// comparison, or "the later of the segment and its system for RFS but the
+// EARLIER for EOL" is decided in this file — that asymmetry is exactly the
+// thing a second implementation would get backwards. All this layer does is
+// turn those answers into a label.
+
+/** Which lifecycle rule flagged a hop: 'rfs' = not built yet (Ready For
+ *  Service is still in the future), 'eol' = already retired (End Of Life). */
+type LifecycleKind = 'rfs' | 'eol'
+
+/** The lifecycle status computed for one reference segment on a given
+ *  service date — either it isn't built yet (kind: 'rfs') or it has already
+ *  retired (kind: 'eol'). Produced by segmentLifecycle(). */
+interface SegmentLifecycle {
+  kind: LifecycleKind
+  /** "RFS Q2 2027" / "EOL Q4 2026" / "RFS unknown" — what the badge shows. */
+  label: string
+  /** The governing quarter as stored ("2027-Q2"), or null when the row is
+   *  flagged planned/eol but its quarter is missing or malformed. */
+  quarter: string | null
+  /** The effective ISO date from serviceDate.ts, kept only so route-level code
+   *  can order hops without re-parsing quarters. Carries that module's
+   *  sentinels (9999-12-31 "never built" / 0000-01-01 "already gone"), which is
+   *  why an undated blocker correctly sorts to the worst end. */
+  sortDate: string
+}
+
+/** Shared empty map for the overwhelmingly common "no service date" case, so
+ *  the default costs no allocation and every lookup simply misses. */
+const NO_LIFECYCLE: Record<string, SegmentLifecycle> = {}
+
+/** One hop of a route paired with the reason it is unusable. */
+interface LifecycleHit { seg: RouteSegmentDetail; life: SegmentLifecycle }
+
+/**
+ * Format a single lifecycle badge label, e.g. "RFS Q2 2027" / "EOL Q4 2026",
+ * or "RFS unknown" / "EOL unknown" when the governing quarter is missing.
+ * @param kind Whether this is an unbuilt ('rfs') or retired ('eol') hop.
+ * @param quarter The governing quarter string (e.g. "2027-Q2"), or null.
+ */
+function lifecycleLabel(kind: LifecycleKind, quarter: string | null): string {
+  const prefix = kind === 'eol' ? 'EOL' : 'RFS'
+  // A row flagged planned/eol with a missing or malformed quarter still has to
+  // say so out loud — an empty badge would read as "fine".
+  return quarter ? `${prefix} ${formatQuarter(quarter)}` : `${prefix} unknown`
+}
+
+/**
+ * Which of the two candidate quarters produced `effective`.
+ *
+ * effectiveRfsDate()/effectiveEolDate() have already picked the governing row;
+ * the date they return IS that row's quarter-end, so we only have to ask which
+ * quarter resolves to it rather than re-deciding later-vs-earlier ourselves.
+ * Returns null when neither does — i.e. the quarter was missing or malformed
+ * and the helper fell back to a sentinel.
+ */
+function governingQuarter(effective: string, candidates: (string | null | undefined)[]): string | null {
+  for (const q of candidates) {
+    if (q && quarterEndDate(q) === effective) return q
+  }
+  return null
+}
+
+/** The lifecycle badge for one segment, or null when it is usable on the date. */
+function segmentLifecycle(
+  seg: CableSegment,
+  system: CableSystem | undefined,
+  serviceDate: string,
+): SegmentLifecycle | null {
+  // Retired is checked first and wins: a decommissioned hop is a dead end,
+  // whereas an unbuilt one still has a delivery date attached to it.
+  if (isSegmentRetiredOn(seg, system, serviceDate)) {
+    const effective = effectiveEolDate(seg, system)
+    const quarter = governingQuarter(effective, [
+      seg.eol_status === 'eol' ? seg.eol_quarter : null,
+      system?.eol_status === 'eol' ? system.eol_quarter : null,
+    ])
+    return { kind: 'eol', label: lifecycleLabel('eol', quarter), quarter, sortDate: effective }
+  }
+  if (!isSegmentInServiceOn(seg, system, serviceDate)) {
+    const effective = effectiveRfsDate(seg, system)
+    const quarter = governingQuarter(effective, [
+      seg.rfs_status === 'planned' ? seg.rfs_quarter : null,
+      system?.rfs_status === 'planned' ? system.rfs_quarter : null,
+    ])
+    return { kind: 'rfs', label: lifecycleLabel('rfs', quarter), quarter, sortDate: effective }
+  }
+  return null
+}
+
+/**
+ * segment_id → badge, for every reference segment that is NOT usable on
+ * `serviceDate`. Built once per render of the list and handed down, so a card
+ * only ever does a map lookup.
+ *
+ * The lookup has to go through the REFERENCE segments rather than the hops on
+ * the route: a Route carries RouteSegmentDetail, a denormalised snapshot that
+ * deliberately has no rfs_/eol_ fields on it. Returns the shared empty map when
+ * there is no service date (or no reference data), which is what keeps the
+ * "today's network" case byte-for-byte unchanged.
+ */
+function buildLifecycleMap(
+  refSegments: CableSegment[] | undefined,
+  systemsById: Record<string, CableSystem>,
+  serviceDate: string | null | undefined,
+): Record<string, SegmentLifecycle> {
+  if (!serviceDate || !refSegments?.length) return NO_LIFECYCLE
+  const out: Record<string, SegmentLifecycle> = {}
+  for (const seg of refSegments) {
+    const life = segmentLifecycle(seg, systemsById[seg.system_id], serviceDate)
+    if (life) out[seg.id] = life
+  }
+  return out
+}
+
+/** What the route CARD shows: one label plus the tooltip naming the culprits. */
+interface RouteLifecycle {
+  kind: LifecycleKind
+  label: string
+  tooltip: string
+}
+
+/** RFS → the hop that arrives LAST; EOL → the hop that goes FIRST. Ordered on
+ *  the effective ISO dates serviceDate.ts produced, never on the quarter
+ *  strings, so quarter parsing stays in exactly one module. */
+function pickGoverning(hits: LifecycleHit[], kind: LifecycleKind): LifecycleHit {
+  return hits.reduce((best, h) => {
+    const wins = kind === 'eol'
+      ? h.life.sortDate < best.life.sortDate
+      : h.life.sortDate > best.life.sortDate
+    return wins ? h : best
+  })
+}
+
+/** Render each lifecycle-affected hop as one bullet line for a route-level
+ *  tooltip, e.g. "  • SEG123 (SYS-A) — RFS Q2 2027". */
+function lifecycleLines(hits: LifecycleHit[]): string[] {
+  return hits.map(h => `  • ${h.seg.segment_id} (${h.seg.system_id}) — ${h.life.label}`)
+}
+
+/**
+ * The single lifecycle fact for a whole route.
+ *
+ * RFS — a path can only be sold once its LAST piece is built, so the route's
+ * date is the LATEST quarter across its hops. Not the first one encountered
+ * and not the earliest: quoting anything sooner would promise a circuit that
+ * still has an unbuilt cable in the middle of it.
+ *
+ * EOL — the exact mirror. A path dies with the FIRST piece to retire, so the
+ * route's date is the EARLIEST EOL quarter across its hops.
+ *
+ * A retired hop wins outright and SUPPRESSES the RFS badge, because the two
+ * facts are not equals: a route with a retired hop cannot be delivered at all,
+ * so showing an RFS date beside it would advertise a service date for a path
+ * that will never exist. The unbuilt hops are still listed in the tooltip, so
+ * the information is de-emphasised rather than hidden.
+ */
+function routeLifecycle(route: Route, lifecycleById: Record<string, SegmentLifecycle>): RouteLifecycle | null {
+  if (lifecycleById === NO_LIFECYCLE) return null
+  const hits: LifecycleHit[] = []
+  for (const seg of route.segments) {
+    const life = lifecycleById[seg.segment_id]
+    if (life) hits.push({ seg, life })
+  }
+  if (hits.length === 0) return null
+
+  const retired = hits.filter(h => h.life.kind === 'eol')
+  const unbuilt = hits.filter(h => h.life.kind === 'rfs')
+  const kind: LifecycleKind = retired.length > 0 ? 'eol' : 'rfs'
+  const governing = pickGoverning(kind === 'eol' ? retired : unbuilt, kind)
+
+  const lines: string[] = []
+  if (retired.length > 0) {
+    lines.push('Retired — this path cannot be delivered:', ...lifecycleLines(retired))
+  }
+  if (unbuilt.length > 0) {
+    lines.push(
+      retired.length > 0 ? 'Also not built yet:' : 'Not in service until the last of these is built:',
+      ...lifecycleLines(unbuilt),
+    )
+  }
+  return { kind, label: governing.life.label, tooltip: lines.join('\n') }
+}
+
+// How many routes are shown per section (Worker/Protect, or pairs) by
+// default, and the range the "Show" +/- stepper can move it within.
+const DEFAULT_SHOWN = 5
+const MIN_SHOWN = 1
+const MAX_SHOWN = 10
+// Hard cap on simultaneously pinned routes (enforced via `canPin` below).
+const MAX_PINS = 10
+
+/** Props for {@link RouteList}. See the file-header docblock above for the
+ *  narrative description of each group of props (results, pins, sorting,
+ *  pairing, project integration, cable lifecycle). */
 interface Props {
   primaryRoutes: Route[]
   diverseRoutes: Route[]
+  totalFound?: number
   selectedRouteIds: string[]
   onSelectRoute: (id: string) => void
   nodes: CableNode[]
+  systems: CableSystem[]
+  capacity: SegmentCapacity[]
+  outages?: SegmentOutage[]
+  pinnedRoutes: PinnedRoute[]
+  onPin: (route: Route) => void
+  onUnpin: (pinId: string) => void
+  diversityRequested?: boolean
+  onNetOwnership: string[]
+  // Optional external sort control (e.g. driven by TSABuddy)
+  externalSortKey?: SortKey
+  externalPushOutagesDown?: boolean
+  // Pool strategy label from last search (drives summary when no sort button active)
+  optimiseFor?: string
+  // Pair flip state (lifted to App so map reflects the swap)
+  flippedPairIds?: Set<string>
+  onFlipPair?: (pairId: string) => void
+  // Pin both legs of a diverse pair together
+  onPinPair?: (worker: Route, protect: Route) => void
+  // Add to project
+  onAddToProject?: (route: Route, protectRoute?: Route) => void
+  // Open circuit enrichment for a pinned route already in a project
+  onEnrichCircuit?: (pin: PinnedRoute) => void
+  // Active project for project mode banner
+  activeProject?: Project | null
+  onExitProjectMode?: () => void
+  onSwitchProject?: () => void
+  // Open RefData pre-filled to add a note for a node/segment
+  onOpenRefDataForNote?: (kind: 'node' | 'segment', id: string) => void
+  // ── Cable lifecycle badges (both optional; both required for any badge) ──
+  /** The ISO date the network is currently being viewed at —
+   *  resolveServiceDate(serviceChoice) from utils/serviceDate. null (the "All
+   *  planned" option) or absent means NO lifecycle badges anywhere. */
+  serviceDate?: string | null
+  /** The FULL, unfiltered reference segment list (App's `segments`, not
+   *  `visibleSegments`). Needed because a Route's hops are RouteSegmentDetail
+   *  snapshots with no rfs_/eol_ fields; the lifecycle status is looked up here
+   *  by segment id. Passing the filtered list would simply badge nothing. It is
+   *  also what the segment Full View reads, so without it no ⛶ is offered. */
+  allSegments?: CableSegment[]
+  /** Refetch hook, called after an admin edit in the segment Full View. */
+  onDataChange?: () => void
 }
 
-export function RouteList({ primaryRoutes, diverseRoutes, selectedRouteIds, onSelectRoute, nodes }: Props) {
-  const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+/** The dimensions a user (or the NLP assistant via externalSortKey) can sort
+ *  the route list by. See SORT_OPTIONS for each key's icon/label/direction
+ *  and sortRoutes() for the actual comparator. */
+export type SortKey = 'hops' | 'distance' | 'latency' | 'availability' | 'margin' | 'capacity' | 'ownership'
 
-  if (primaryRoutes.length === 0 && diverseRoutes.length === 0) {
-    return <p style={{ color: '#6c7086', fontSize: 13, padding: '8px 0' }}>No routes found.</p>
+/** Sort precedence for the 'ownership' SortKey: On-Net routes first, then
+ *  Mixed, then Off-Net (ties within a class broken by on-net percentage). */
+const NET_ORDER = { on_net: 0, mixed: 1, off_net: 2 }
+
+/** Maps the backend's `optimiseFor` pool-strategy key (and a couple of
+ *  legacy aliases like 'length'/'cost') to the human-readable label shown in
+ *  the "filtered by …" summary line. */
+const OPTIMISE_LABELS: Record<string, string> = {
+  hops: 'Hops', distance: 'Distance', length: 'Distance',
+  latency: 'Latency', margin: 'Margin', cost: 'Margin',
+  capacity: 'Capacity', ownership: 'Ownership', outages: 'No Outages',
+}
+
+/** Definition of each sort button in the sort bar: its SortKey, the icon and
+ *  label shown on the button, and its natural (un-flipped) direction. */
+const SORT_OPTIONS: { key: SortKey; icon: string; label: string; dir: 'asc' | 'desc' }[] = [
+  { key: 'hops',         icon: '⬡',  label: 'Hops',      dir: 'asc'  },
+  { key: 'distance',     icon: '↔',  label: 'Dist',      dir: 'asc'  },
+  { key: 'latency',      icon: '⚡', label: 'RTD',       dir: 'asc'  },
+  { key: 'availability', icon: '🛡', label: 'Avail',     dir: 'desc' },
+  { key: 'margin',       icon: '$',  label: 'Margin',    dir: 'desc' },
+  { key: 'capacity',     icon: '◈',  label: 'Capacity',  dir: 'desc' },
+  { key: 'ownership',    icon: '◉',  label: 'Own',       dir: 'desc' },
+]
+
+/** Distance-weighted average of the per-system margin across a route's wet
+ *  segments — the route's overall commercial "margin" score (null if unknown). */
+function computeRouteMargin(route: Route, systemsById: Record<string, CableSystem>): number | null {
+  const wetSegs = route.segments.filter(s => s.type === 'wet')
+  if (wetSegs.length === 0) return null
+  let totalKm = 0, weightedSum = 0
+  for (const s of wetSegs) {
+    const margin = systemsById[s.system_id]?.margin
+    if (margin == null) continue
+    totalKm += s.length_km
+    weightedSum += s.length_km * margin
+  }
+  if (totalKm === 0) return null
+  return weightedSum / totalKm
+}
+
+/** True if any of the route's hops has a live outage entry in `outagesById`
+ *  (drives the red "UNDER REPAIR" badge and the outage push-down sort). */
+function routeHasOutage(route: Route, outagesById: Record<string, SegmentOutage>): boolean {
+  return route.segments.some(s => !!outagesById[s.segment_id])
+}
+
+/** True if any of the route's hops has a future planned-work entry in
+ *  `plannedById` (drives the quieter amber "planned work" badge; never
+ *  affects sort order, unlike routeHasOutage). */
+function routeHasPlannedEvent(route: Route, plannedById: Record<string, SegmentOutage>): boolean {
+  return route.segments.some(s => !!plannedById[s.segment_id])
+}
+
+/** Stable identity for a route derived from its ordered node list — used to
+ *  detect "is this route already pinned" without relying on the route's
+ *  (possibly regenerated) `id`. */
+function routeKey(r: Route) { return r.nodes.join('|') }
+
+/** A route's usable capacity is limited by its lowest-capacity wet segment.
+ *  Returns that bottleneck capacity (in Tbps) and which system caused it. */
+function estimatedCapacity(route: Route, capacityById: Record<string, SegmentCapacity>): { cap: number; systemId: string | null } {
+  const wetSegs = route.segments.filter(s => s.type === 'wet')
+  if (wetSegs.length === 0) return { cap: 0, systemId: null }
+  let min = Infinity, bottleneck: string | null = null
+  for (const s of wetSegs) {
+    const avail = capacityById[s.segment_id]?.available_capacity_t ?? Infinity
+    if (avail < min) { min = avail; bottleneck = s.system_id }
+  }
+  return { cap: min === Infinity ? 0 : min, systemId: bottleneck }
+}
+
+/** Return a new array of `routes` sorted by the chosen `key`. Each key has a
+ *  natural direction (e.g. fewer hops / lower latency / higher availability
+ *  first); `dirFlipped` reverses it when the user re-clicks the active sort. */
+function sortRoutes(routes: Route[], key: SortKey, capacityById: Record<string, SegmentCapacity>, onNetSet: Set<string>, systemsById: Record<string, CableSystem>, dirFlipped = false): Route[] {
+  return [...routes].sort((a, b) => {
+    let result: number
+    switch (key) {
+      case 'hops':         result = (a.nodes.length - 1) - (b.nodes.length - 1); break
+      case 'distance':     result = a.total_length_km - b.total_length_km; break
+      case 'latency':      result = a.total_latency - b.total_latency; break
+      case 'availability': result = b.end_to_end_reliability - a.end_to_end_reliability; break
+      case 'margin':       result = (computeRouteMargin(b, systemsById) ?? 0) - (computeRouteMargin(a, systemsById) ?? 0); break
+      case 'capacity':     result = estimatedCapacity(b, capacityById).cap - estimatedCapacity(a, capacityById).cap; break
+      case 'ownership': {
+        const ac = classifyRoute(a, onNetSet), bc = classifyRoute(b, onNetSet)
+        const order = NET_ORDER[ac.type] - NET_ORDER[bc.type]
+        result = order !== 0 ? order : bc.onNetPct - ac.onNetPct
+        break
+      }
+      default: result = 0
+    }
+    return dirFlipped ? -result : result
+  })
+}
+
+/**
+ * The routes panel. Renders the pinned-routes bar and the (optionally paired)
+ * search results, with a sort header and per-card select/pin/project actions.
+ * Sorting and the "show N" count are local state here; selection, pins and
+ * project actions are lifted to App via the callback props.
+ */
+export function RouteList({ primaryRoutes, diverseRoutes, totalFound, selectedRouteIds, onSelectRoute, nodes, systems, capacity, outages = [], pinnedRoutes, onPin, onUnpin, diversityRequested, onNetOwnership, externalSortKey, externalPushOutagesDown, optimiseFor, flippedPairIds, onFlipPair, onPinPair, onAddToProject, onEnrichCircuit, activeProject, onOpenRefDataForNote, serviceDate, allSegments, onDataChange }: Props) {
+  const t = useTheme()
+  const onNetSet = new Set(onNetOwnership)
+  const systemsById = Object.fromEntries(systems.map(s => [s.id, s]))
+  // Built once for the whole list; NO_LIFECYCLE (and therefore no badge, no
+  // extra element, no layout shift) whenever serviceDate/allSegments are absent.
+  const lifecycleById = buildLifecycleMap(allSegments, systemsById, serviceDate)
+  const [internalSortKey, setInternalSortKey] = useState<SortKey | null>(null)
+  const [sortDirFlipped, setSortDirFlipped] = useState(false)
+  const [internalPushOutagesDown, setInternalPushOutagesDown] = useState(false)
+  const [pinsCompressed, setPinsCompressed] = useState(false)
+  const [shown, setShown] = useState(DEFAULT_SHOWN)
+
+  // Sync from external when provided (e.g. TSABuddy sets the sort)
+  useEffect(() => { if (externalSortKey !== undefined) { setInternalSortKey(externalSortKey); setSortDirFlipped(false) } }, [externalSortKey])
+  useEffect(() => { if (externalPushOutagesDown !== undefined) setInternalPushOutagesDown(externalPushOutagesDown) }, [externalPushOutagesDown])
+
+  const sortKey = internalSortKey
+  const pushOutagesDown = internalPushOutagesDown
+  const setSortKey = setInternalSortKey
+  const setPushOutagesDown = setInternalPushOutagesDown
+
+  const nodesById = Object.fromEntries(nodes.map(n => [n.id, n]))
+  const capacityById = Object.fromEntries(capacity.map(c => [c.segment_id, c]))
+  // Only real CURRENT outages drive the outage badge/push-down sort — a future
+  // Planned Event (event_type === 'planned_event') must never be mistaken for a
+  // live fault here. Legacy rows with no event_type stored default to 'outage'.
+  const outagesById = Object.fromEntries(outages.filter(o => (o.event_type ?? 'outage') !== 'planned_event').map(o => [o.segment_id, o]))
+  // Future scheduled works — shown alongside outages but with a deliberately
+  // less severe treatment (amber, smaller) since they are not down yet. Never
+  // affects sort order or route filtering — informational only.
+  const plannedById = Object.fromEntries(outages.filter(o => o.event_type === 'planned_event').map(o => [o.segment_id, o]))
+  const [notesRoute, setNotesRoute] = useState<Route | null>(null)
+  /** Which segment's Full View is open, if any. Only offered when the host
+   *  passed `allSegments` — the route's own hops are denormalised snapshots and
+   *  carry neither the waypoints nor the lifecycle fields the view shows. */
+  const [fullViewSegmentId, setFullViewSegmentId] = useState<string | null>(null)
+  const expandSegment = allSegments ? setFullViewSegmentId : null
+  const [allNotes, setAllNotes] = useState<SolutionNote[]>([])
+  useEffect(() => { api.getSolutionNotes().then(setAllNotes).catch(() => {}) }, [])
+
+  /** True if any solution note is attached to a node or segment on this route
+   *  (drives the little note badge on a card). */
+  function routeHasNotes(route: Route): boolean {
+    const nodeSet = new Set(route.nodes)
+    const segSet = new Set(route.segments.map(s => s.segment_id))
+    return allNotes.some(n => (n.node_id && nodeSet.has(n.node_id)) || (n.segment_id && segSet.has(n.segment_id)))
   }
 
+  const pinnedKeys = new Set(pinnedRoutes.map(p => routeKey(p.route)))
+  const canPin = pinnedRoutes.length < MAX_PINS
+
+  const hasResults = primaryRoutes.length > 0 || diverseRoutes.length > 0
+  const hasPins = pinnedRoutes.length > 0
+
+  if (!hasResults && !hasPins) {
+    return null
+  }
+
+  /** Apply the active sort to a list of routes, then (optionally) move any
+   *  outage-affected routes to the bottom. With no sort key and no push-down,
+   *  returns the routes in their original backend order. */
+  function applySort(routes: Route[]): Route[] {
+    if (sortKey === null) {
+      if (!pushOutagesDown) return routes
+      return [
+        ...routes.filter(r => !routeHasOutage(r, outagesById)),
+        ...routes.filter(r =>  routeHasOutage(r, outagesById)),
+      ]
+    }
+    const base = sortRoutes(routes, sortKey, capacityById, onNetSet, systemsById, sortDirFlipped)
+    if (!pushOutagesDown) return base
+    return [
+      ...base.filter(r => !routeHasOutage(r, outagesById)),
+      ...base.filter(r =>  routeHasOutage(r, outagesById)),
+    ]
+  }
+
+  // Build pairs when both arrays are same non-zero length (parallel arrays from backend)
+  const pairs = (diverseRoutes.length > 0 && diverseRoutes.length === primaryRoutes.length)
+    ? primaryRoutes.map((p, i) => ({ primary: p, diverse: diverseRoutes[i] }))
+    : null
+
+  // When clicking either route in a pair, select/deselect both together.
+  // Uses functional updater chaining so both toggles apply to the same state snapshot.
+  /** Toggle `clickedId`'s selection via onSelectRoute, then bring its pair
+   *  partner (`partnerId`) into the same selected/deselected state — so
+   *  ticking a worker or protect card always selects the whole pair. */
+  function selectPair(clickedId: string, partnerId: string) {
+    const selectingOn = !selectedRouteIds.includes(clickedId)
+    onSelectRoute(clickedId)
+    const partnerOn = selectedRouteIds.includes(partnerId)
+    if (partnerOn !== selectingOn) onSelectRoute(partnerId)
+  }
+
+  /**
+   * Sort worker/protect pairs by applying the normal single-route sort to
+   * each pair's "effective worker" (the primary route, or the diverse route
+   * when that pair has been flipped via flippedPairIds), then re-associating
+   * the sorted worker routes back to their pair objects. Returns null
+   * unchanged when there are no pairs.
+   */
+  function applyPairSort(ps: typeof pairs): typeof pairs {
+    if (!ps) return ps
+    // Sort by effective worker stats — when flipped, the diverse route is the worker
+    const withEffective = ps.map(p => ({
+      pair: p,
+      effectiveWorker: flippedPairIds?.has(p.primary.id) ? p.diverse : p.primary,
+    }))
+    const sortedWorkers = applySort(withEffective.map(x => x.effectiveWorker))
+    const workerIdToEntry = new Map(withEffective.map(x => [x.effectiveWorker.id, x.pair]))
+    return sortedWorkers.map(r => workerIdToEntry.get(r.id)).filter((p): p is NonNullable<typeof ps>[0] => Boolean(p))
+  }
+
+  const sortedPairs = applyPairSort(pairs)
+
+  const sorted = {
+    primary: pairs ? [] : applySort(primaryRoutes).slice(0, shown),
+    diverse:  pairs ? [] : applySort(diverseRoutes).slice(0, shown),
+  }
+
+  const summaryStored = pairs ? pairs.length : primaryRoutes.length
+  const summaryShown  = pairs
+    ? (sortedPairs?.slice(0, shown).length ?? 0)
+    : sorted.primary.length
+  const summaryFilterLabel = optimiseFor
+    ? (OPTIMISE_LABELS[optimiseFor] ?? optimiseFor)
+    : 'Default Weighting'
+  const summarySortLabel = sortKey !== null
+    ? (SORT_OPTIONS.find(o => o.key === sortKey)?.label ?? sortKey)
+    : 'Default'
+
   return (
+    <SegmentExpandContext.Provider value={expandSegment}>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {primaryRoutes.length > 0 && (
-        <div>
-          <div style={sectionLabelStyle}>Primary Routes</div>
-          {primaryRoutes.map(r => (
-            <RouteCard key={r.id} route={r} selected={selectedRouteIds.includes(r.id)} onSelect={onSelectRoute} nodesById={nodesById} color="#89b4fa" />
-          ))}
+
+      {/* Pinned routes section */}
+      {hasPins && (
+        <div style={{ marginBottom: hasResults ? 8 : 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4, gap: 6 }}>
+            {!activeProject && <div style={{ ...sectionLabelStyle(t), marginBottom: 0, flex: 1 }}>📌 Pinned Routes</div>}
+            {activeProject && <div style={{ flex: 1 }} />}
+            <button
+              onClick={() => setPinsCompressed(v => !v)}
+              style={{
+                fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 4, cursor: 'pointer',
+                border: `1px solid ${t.border}`, background: 'transparent',
+                color: t.textFaint, display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              {pinsCompressed
+                ? <><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 9l7 7 7-7"/></svg>Expand</>
+                : <><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 15l-7-7-7 7"/></svg>Compress</>
+              }
+            </button>
+          </div>
+          {(() => {
+            // Detect diversity pairs among pinned routes.
+            // Project pairs: share same circuitId (worker first, protect has "(Protect)" label).
+            // Ad-hoc pairs: same color, protect has "(Protect)" in searchLabel.
+            const protectPinIds = new Set<string>()
+            const protectByWorkerPinId = new Map<string, PinnedRoute>()
+            for (const p of pinnedRoutes) {
+              if (protectPinIds.has(p.pinId)) continue
+              const isProtect = p.searchLabel.includes('(Protect)')
+              if (isProtect) continue
+              // Find a protect partner
+              const partner = pinnedRoutes.find(q =>
+                q.pinId !== p.pinId &&
+                !protectPinIds.has(q.pinId) &&
+                q.searchLabel.includes('(Protect)') &&
+                (
+                  (p.circuitId && q.circuitId && p.circuitId === q.circuitId) ||
+                  (!p.circuitId && !q.circuitId && p.color === q.color)
+                )
+              )
+              if (partner) {
+                protectPinIds.add(partner.pinId)
+                protectByWorkerPinId.set(p.pinId, partner)
+              }
+            }
+            const visiblePins = pinnedRoutes.filter(p => !protectPinIds.has(p.pinId))
+
+            return pinsCompressed
+              ? visiblePins.map(p => (
+                  <CompressedPinCard
+                    key={p.pinId}
+                    pinned={p}
+                    onUnpin={() => {
+                      onUnpin(p.pinId)
+                      const partner = protectByWorkerPinId.get(p.pinId)
+                      if (partner) onUnpin(partner.pinId)
+                    }}
+                    systemsById={systemsById}
+                  />
+                ))
+              : visiblePins.map(p => (
+                  <PinnedRouteCard
+                    key={p.pinId}
+                    pinned={p}
+                    onUnpin={() => {
+                      onUnpin(p.pinId)
+                      const partner = protectByWorkerPinId.get(p.pinId)
+                      if (partner) onUnpin(partner.pinId)
+                    }}
+                    protectPin={protectByWorkerPinId.get(p.pinId)}
+                    nodesById={nodesById}
+                    capacityById={capacityById}
+                    outagesById={outagesById} plannedById={plannedById}
+                    onNetSet={onNetSet}
+                    systemsById={systemsById}
+                    lifecycleById={lifecycleById}
+                    onEnrichCircuit={onEnrichCircuit ? () => onEnrichCircuit(p) : undefined}
+                    onAddToProject={onAddToProject ? () => onAddToProject(p.route) : undefined}
+                    activeProject={activeProject}
+                    onShowNotes={setNotesRoute}
+                    hasNotes={routeHasNotes(p.route)}
+                  />
+                ))
+          })()}
         </div>
       )}
-      {diverseRoutes.length > 0 && (
-        <div>
-          <div style={sectionLabelStyle}>Diverse Routes</div>
-          {diverseRoutes.map(r => (
-            <RouteCard key={r.id} route={r} selected={selectedRouteIds.includes(r.id)} onSelect={onSelectRoute} nodesById={nodesById} color="#a6e3a1" />
-          ))}
+
+      {/* Sort bar — only shown when there are search results */}
+      {hasResults && (
+        <>
+          {/* Search result summary + show-N stepper */}
+          {summaryStored > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 0 8px' }}>
+              <div style={{ fontSize: 11, color: t.textFaint, lineHeight: 1.6 }}>
+                <span style={{ color: t.text, fontWeight: 600 }}>{totalFound || summaryStored}</span>
+                {' routes · '}
+                <span style={{ color: t.text, fontWeight: 600 }}>{summaryStored}</span>
+                {pairs ? ' pairs · ' : ' filtered by '}
+                {!pairs && <span style={{ color: t.blue, fontWeight: 600 }}>{summaryFilterLabel}</span>}
+                {!pairs && ' · '}
+                <span style={{ color: t.text, fontWeight: 600 }}>{summaryShown}</span>
+                {' shown · sorted by '}
+                <span style={{ color: t.blue, fontWeight: 600 }}>{summarySortLabel}</span>
+              </div>
+              {/* Routes-to-show stepper */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, marginLeft: 10 }}>
+                <span style={{ fontSize: 10, color: t.textFaint, letterSpacing: '0.04em' }}>Show</span>
+                <button
+                  onClick={() => setShown(v => Math.max(MIN_SHOWN, v - 1))}
+                  disabled={shown <= MIN_SHOWN}
+                  title="Show fewer routes"
+                  style={{
+                    width: 20, height: 20, borderRadius: 4, border: `1px solid ${t.border}`,
+                    background: 'transparent', color: shown <= MIN_SHOWN ? t.textFaintest : t.textMuted,
+                    cursor: shown <= MIN_SHOWN ? 'default' : 'pointer',
+                    fontSize: 14, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: 0,
+                  }}
+                >−</button>
+                <span style={{ fontSize: 12, fontWeight: 700, color: t.text, minWidth: 14, textAlign: 'center' }}>{shown}</span>
+                <button
+                  onClick={() => setShown(v => Math.min(MAX_SHOWN, v + 1))}
+                  disabled={shown >= MAX_SHOWN}
+                  title="Show more routes"
+                  style={{
+                    width: 20, height: 20, borderRadius: 4, border: `1px solid ${t.border}`,
+                    background: 'transparent', color: shown >= MAX_SHOWN ? t.textFaintest : t.textMuted,
+                    cursor: shown >= MAX_SHOWN ? 'default' : 'pointer',
+                    fontSize: 14, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: 0,
+                  }}
+                >+</button>
+              </div>
+            </div>
+          )}
+          <div className="sort-bar" style={{ display: 'flex', gap: 4, marginBottom: 4, overflowX: 'auto' }}>
+            {SORT_OPTIONS.map(opt => {
+              const active = sortKey === opt.key
+              const effectiveDir = (active && sortDirFlipped)
+                ? (opt.dir === 'asc' ? 'desc' : 'asc')
+                : opt.dir
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => {
+                    if (sortKey === opt.key) {
+                      setSortDirFlipped(v => !v)
+                    } else {
+                      setSortKey(opt.key)
+                      setSortDirFlipped(false)
+                    }
+                  }}
+                  title={`Sort by ${opt.label} (${effectiveDir === 'asc' ? 'lowest first' : 'highest first'}) — click again to flip`}
+                  style={{
+                    flex: '1 0 44px', display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    gap: 2, padding: '5px 3px', borderRadius: 6,
+                    border: `1px solid ${active ? t.blue : t.border}`,
+                    background: active ? t.bgActiveSort : t.bgCard,
+                    color: active ? t.blue : t.textFaint,
+                    cursor: 'pointer', fontSize: 10, fontWeight: active ? 700 : 400,
+                    letterSpacing: '0.04em', textTransform: 'uppercase', transition: 'all 0.15s',
+                  }}
+                >
+                  <span style={{ fontSize: 15, lineHeight: 1 }}>{opt.icon}</span>
+                  <span>{opt.label}</span>
+                  <span style={{ fontSize: 9, opacity: 0.7 }}>{effectiveDir === 'asc' ? '↑ least' : '↓ most'}</span>
+                </button>
+              )
+            })}
+            <button
+              onClick={() => setPushOutagesDown(v => !v)}
+              title="Push routes with segments under repair to the bottom"
+              style={{
+                flex: '1 0 44px', display: 'flex', flexDirection: 'column', alignItems: 'center',
+                gap: 2, padding: '5px 3px', borderRadius: 6,
+                border: `1px solid ${pushOutagesDown ? t.red : t.border}`,
+                background: pushOutagesDown ? t.red + '22' : t.bgCard,
+                color: pushOutagesDown ? t.red : t.textFaint,
+                cursor: 'pointer', fontSize: 10, fontWeight: pushOutagesDown ? 700 : 400,
+                letterSpacing: '0.04em', textTransform: 'uppercase', transition: 'all 0.15s',
+              }}
+            >
+              <span style={{ fontSize: 15, lineHeight: 1 }}>🚢</span>
+              <span>UP</span>
+              <span style={{ fontSize: 9, opacity: 0.7 }}>↓ last</span>
+            </button>
+          </div>
+
+          {pairs ? (
+            <>
+              {(sortedPairs ?? []).slice(0, shown).map((pair, idx) => (
+                <PairCard
+                  key={pair.primary.id}
+                  pair={pair}
+                  idx={idx}
+                  selected={(id) => selectedRouteIds.includes(id)}
+                  onSelectPair={selectPair}
+                  nodesById={nodesById}
+                  capacityById={capacityById}
+                  outagesById={outagesById} plannedById={plannedById}
+                  onNetSet={onNetSet}
+                  systemsById={systemsById}
+                  lifecycleById={lifecycleById}
+                  pinnedKeys={pinnedKeys}
+                  canPin={canPin}
+                  onPin={onPin}
+                  onPinPair={onPinPair}
+                  flipped={flippedPairIds?.has(pair.primary.id) ?? false}
+                  onFlip={() => onFlipPair?.(pair.primary.id)}
+                  onAddToProject={onAddToProject ? (w, p) => onAddToProject(w, p) : undefined}
+                  onShowNotes={setNotesRoute}
+                  routeHasNotes={routeHasNotes}
+                />
+              ))}
+              {(sortedPairs?.length ?? 0) === 0 && diversityRequested && (
+                <div style={{
+                  marginTop: 6, padding: '10px 14px', borderRadius: 6,
+                  border: `1px solid ${t.orange}`,
+                  background: t.bgCard,
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>⚠</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: t.orange, marginBottom: 2 }}>
+                      Diversity Requirement not able to be Met
+                    </div>
+                    <div style={{ fontSize: 11, color: t.textMuted }}>
+                      No segment-disjoint diverse path exists between these endpoints.
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {sorted.primary.length > 0 && (
+                <div>
+                  <div style={sectionLabelStyle(t)}>Worker Routes</div>
+                  {sorted.primary.map(r => (
+                    <RouteCard
+                      key={r.id} route={r}
+                      selected={selectedRouteIds.includes(r.id)}
+                      onSelect={onSelectRoute}
+                      nodesById={nodesById}
+                      capacityById={capacityById}
+                      outagesById={outagesById} plannedById={plannedById}
+                      color={t.blue}
+                      isPinned={pinnedKeys.has(routeKey(r))}
+                      canPin={canPin}
+                      onPin={onPin}
+                      onNetSet={onNetSet}
+                      systemsById={systemsById}
+                      lifecycleById={lifecycleById}
+                      onAddToProject={onAddToProject ? (route) => onAddToProject(route) : undefined}
+                      onShowNotes={setNotesRoute}
+                      hasNotes={routeHasNotes(r)}
+                    />
+                  ))}
+                </div>
+              )}
+              {sorted.diverse.length > 0 && (
+                <div>
+                  <div style={sectionLabelStyle(t)}>Protect Routes</div>
+                  {sorted.diverse.map(r => (
+                    <RouteCard
+                      key={r.id} route={r}
+                      selected={selectedRouteIds.includes(r.id)}
+                      onSelect={onSelectRoute}
+                      nodesById={nodesById}
+                      capacityById={capacityById}
+                      outagesById={outagesById} plannedById={plannedById}
+                      color={t.green}
+                      isPinned={pinnedKeys.has(routeKey(r))}
+                      canPin={canPin}
+                      onPin={onPin}
+                      onNetSet={onNetSet}
+                      systemsById={systemsById}
+                      lifecycleById={lifecycleById}
+                      onAddToProject={onAddToProject ? (route) => onAddToProject(route) : undefined}
+                      onShowNotes={setNotesRoute}
+                      hasNotes={routeHasNotes(r)}
+                    />
+                  ))}
+                </div>
+              )}
+              {sorted.diverse.length === 0 && diversityRequested && (
+                <div style={{
+                  marginTop: 6, padding: '10px 14px', borderRadius: 6,
+                  border: `1px solid ${t.orange}`,
+                  background: t.bgCard,
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <span style={{ fontSize: 16, lineHeight: 1 }}>⚠</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: t.orange, marginBottom: 2 }}>
+                      Diversity Requirement not able to be Met
+                    </div>
+                    <div style={{ fontSize: 11, color: t.textMuted }}>
+                      No segment-disjoint diverse path exists between these endpoints.
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </div>
+    {notesRoute && createPortal(
+      <SolutionNotesOverlay
+        route={notesRoute}
+        nodesById={nodesById}
+        onClose={() => setNotesRoute(null)}
+        onAddNote={onOpenRefDataForNote}
+      />,
+      document.body
+    )}
+    {fullViewSegmentId && allSegments && (
+      <SegmentFullView
+        segmentId={fullViewSegmentId}
+        nodes={nodes}
+        segments={allSegments}
+        systems={systems}
+        capacity={capacity}
+        outages={outages}
+        notes={allNotes}
+        onClose={() => setFullViewSegmentId(null)}
+        onDataChange={onDataChange}
+      />
+    )}
+    </SegmentExpandContext.Provider>
+  )
+}
+
+/** Card rendering a worker/protect diversity PAIR side by side: the two routes,
+ *  their shared vs. diverse segments, a flip (⇅) control to swap roles, and a
+ *  combined pin/add-to-project action. */
+function PairCard({
+  pair, idx, selected, onSelectPair,
+  nodesById, capacityById, outagesById, plannedById, onNetSet, systemsById,
+  lifecycleById = NO_LIFECYCLE,
+  pinnedKeys, canPin, onPin, onPinPair,
+  flipped, onFlip, onAddToProject,
+  onShowNotes, routeHasNotes,
+}: {
+  pair: { primary: Route; diverse: Route }
+  idx: number
+  selected: (id: string) => boolean
+  onSelectPair: (clickedId: string, partnerId: string) => void
+  nodesById: Record<string, { name: string; type?: string }>
+  capacityById: Record<string, SegmentCapacity>
+  outagesById: Record<string, SegmentOutage>
+  plannedById: Record<string, SegmentOutage>
+  onNetSet: Set<string>
+  systemsById: Record<string, CableSystem>
+  lifecycleById?: Record<string, SegmentLifecycle>
+  pinnedKeys: Set<string>
+  canPin: boolean
+  onPin: (route: Route) => void
+  onPinPair?: (worker: Route, protect: Route) => void
+  flipped: boolean
+  onFlip: () => void
+  onAddToProject?: (worker: Route, protect: Route) => void
+  onShowNotes?: (route: Route) => void
+  routeHasNotes?: (route: Route) => boolean
+}) {
+  const t = useTheme()
+  const [segmentsOpen, setSegmentsOpen] = useState(false)
+
+  const worker  = flipped ? { ...pair.diverse, id: pair.primary.id } : pair.primary
+  const protect = flipped ? { ...pair.primary, id: pair.diverse.id } : pair.diverse
+
+  const workerSegIds = new Set(worker.segments.map(s => s.segment_id))
+  const sharedIds = new Set(protect.segments.filter(s => workerSegIds.has(s.segment_id)).map(s => s.segment_id))
+
+  // Shared intermediate nodes (exclude endpoints — they're always the same for both routes)
+  const routeStart = worker.nodes[0]
+  const routeEnd = worker.nodes[worker.nodes.length - 1]
+  const workerNodeSet = new Set(worker.nodes)
+  const sharedNodeIds = new Set(
+    protect.nodes.filter(n => workerNodeSet.has(n) && n !== routeStart && n !== routeEnd)
+  )
+
+  return (
+    <div style={{ marginBottom: 6 }}>
+      {/* Pair label + breakdown toggle + flip button */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 2px 3px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ fontSize: 9, color: t.textFaint, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' as const }}>
+            Pair {idx + 1}
+          </div>
+          <button
+            onClick={e => { e.stopPropagation(); onFlip() }}
+            title="Flip worker/protect roles within this pair"
+            style={{
+              fontSize: 11, padding: '1px 5px', borderRadius: 4, cursor: 'pointer',
+              border: `1px solid ${flipped ? t.orange + '88' : t.border}`,
+              background: flipped ? t.orange + '18' : 'transparent',
+              color: flipped ? t.orange : t.textFaint, fontWeight: 600,
+              lineHeight: 1,
+            }}
+          >⇅</button>
+          {onAddToProject && (
+            <button
+              onClick={e => { e.stopPropagation(); onAddToProject(worker, protect) }}
+              title="Add pair to project (worker + protect)"
+              style={{
+                fontSize: 10, padding: '1px 6px', borderRadius: 4, cursor: 'pointer',
+                border: `1px solid ${t.border}`,
+                background: 'transparent',
+                color: t.textFaint, fontWeight: 600, lineHeight: 1,
+              }}
+            >📁 Add Pair</button>
+          )}
+        </div>
+        <button
+          onClick={e => { e.stopPropagation(); setSegmentsOpen(o => !o) }}
+          style={{
+            fontSize: 9, padding: '2px 7px', borderRadius: 4, cursor: 'pointer',
+            border: `1px solid ${segmentsOpen ? t.blue : t.border}`,
+            background: segmentsOpen ? t.blue + '18' : 'transparent',
+            color: segmentsOpen ? t.blue : t.textFaint, fontWeight: 600,
+            letterSpacing: '0.04em',
+          }}
+        >
+          ≡ Path Comparison {segmentsOpen ? '▴' : '▾'}
+        </button>
+      </div>
+
+      {/* Worker */}
+      <RouteCard
+        route={worker}
+        selected={selected(worker.id)}
+        onSelect={() => onSelectPair(worker.id, protect.id)}
+        nodesById={nodesById}
+        capacityById={capacityById}
+        outagesById={outagesById} plannedById={plannedById}
+        color={t.blue}
+        isPinned={pinnedKeys.has(routeKey(worker)) && pinnedKeys.has(routeKey(protect))}
+        canPin={canPin}
+        onPin={onPinPair ? () => onPinPair(worker, protect) : onPin}
+        onNetSet={onNetSet}
+        systemsById={systemsById}
+        lifecycleById={lifecycleById}
+        onShowNotes={onShowNotes}
+        hasNotes={routeHasNotes?.(worker)}
+      />
+
+      {/* Protect connector */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 6px 2px 14px' }}>
+        <div style={{ width: 1, height: 14, background: t.green + '66', flexShrink: 0 }} />
+        <span style={{ fontSize: 9, color: t.green, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase' as const }}>
+          ↳ protect
+        </span>
+      </div>
+
+      {/* Protect */}
+      <RouteCard
+        route={protect}
+        selected={selected(protect.id)}
+        onSelect={() => onSelectPair(protect.id, worker.id)}
+        nodesById={nodesById}
+        capacityById={capacityById}
+        outagesById={outagesById} plannedById={plannedById}
+        color={t.green}
+        isPinned={pinnedKeys.has(routeKey(worker)) && pinnedKeys.has(routeKey(protect))}
+        canPin={canPin}
+        onPin={onPinPair ? () => onPinPair(worker, protect) : onPin}
+        onNetSet={onNetSet}
+        systemsById={systemsById}
+        lifecycleById={lifecycleById}
+        onShowNotes={onShowNotes}
+        hasNotes={routeHasNotes?.(protect)}
+      />
+
+      {/* Side-by-side segment breakdown */}
+      {segmentsOpen && (
+        <div
+          role="presentation"
+          style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6, padding: '10px 10px 6px', borderRadius: 6, background: t.bgDeep, border: `1px solid ${t.border}` }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: t.blue, marginBottom: 6, letterSpacing: '0.04em' }}>🔵 Worker</div>
+            <PairBreakdown route={worker} outagesById={outagesById} lifecycleById={lifecycleById} plannedById={plannedById} sharedIds={sharedIds} accentColor={t.blue} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: t.green, marginBottom: 6, letterSpacing: '0.04em' }}>🟢 Protect</div>
+            <PairBreakdown route={protect} outagesById={outagesById} lifecycleById={lifecycleById} plannedById={plannedById} sharedIds={sharedIds} accentColor={t.green} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+          </div>
         </div>
       )}
     </div>
   )
 }
 
-function RouteCard({
-  route, selected, onSelect, nodesById, color,
-}: {
-  route: Route
-  selected: boolean
-  onSelect: (id: string) => void
-  nodesById: Record<string, { name: string }>
-  color: string
+/** One-line collapsed representation of a pinned route, shown when the
+ *  pinned-routes bar is toggled to "Compress": colour strip, circuit/search
+ *  label, the wet cable systems it uses, and an unpin control. */
+function CompressedPinCard({ pinned, onUnpin, systemsById }: {
+  pinned: PinnedRoute
+  onUnpin: () => void
+  systemsById: Record<string, CableSystem>
 }) {
-  const systems = [...new Set(route.segments.map(s => s.system_id))]
+  const t = useTheme()
+  const { route, color, circuitLabel, searchLabel } = pinned
+  const wetSystems = [...new Set(route.segments.filter(s => s.type === 'wet').map(s => s.system_id))]
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 8,
+      padding: '5px 10px', borderRadius: 6, marginBottom: 3,
+      border: `1px solid ${t.border}`, background: t.bgCard,
+      position: 'relative', overflow: 'hidden',
+    }}>
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, borderRadius: '6px 0 0 6px', background: color }} />
+      <div style={{ paddingLeft: 6, flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color, flexShrink: 0 }}>
+          {circuitLabel ?? searchLabel}
+        </span>
+        {wetSystems.length > 0 && (
+          <span style={{ fontSize: 10, color: t.textFaint, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {wetSystems.map(id => systemsById[id]?.name ?? id).join(' · ')}
+          </span>
+        )}
+      </div>
+      <button
+        onClick={onUnpin}
+        title="Unpin route"
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textFaint, fontSize: 14, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
+      >×</button>
+    </div>
+  )
+}
+
+/**
+ * Hover state that survives the cursor moving from a route card onto its
+ * Segment Breakdown tooltip, which isn't a DOM descendant of the card (it's
+ * rendered via createPortal next to it) — so a plain onMouseLeave on the card
+ * would close the tooltip the instant the cursor left it, before it could
+ * ever reach the tooltip to cursor over individual segments. enter() cancels
+ * any pending close; leaveWithGrace() schedules one a beat later so the
+ * card's leaveWithGrace() and the tooltip's enter() can race without a
+ * flicker when the cursor crosses the gap between them.
+ */
+function useHoverWithGrace() {
+  const [hovered, setHovered] = useState(false)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const enter = () => {
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null }
+    setHovered(true)
+  }
+  const leaveWithGrace = () => {
+    closeTimer.current = setTimeout(() => setHovered(false), 150)
+  }
+  useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current) }, [])
+  return { hovered, enter, leaveWithGrace }
+}
+
+/** A route in the pinned bar, drawn in its pin colour with an unpin control and
+ *  (in project mode) circuit label / enrichment actions. */
+function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById, plannedById, onNetSet, systemsById, lifecycleById = NO_LIFECYCLE, onEnrichCircuit, onAddToProject, activeProject, protectPin, onShowNotes, hasNotes }: {
+  pinned: PinnedRoute
+  onUnpin: () => void
+  nodesById: Record<string, { name: string; type?: string }>
+  capacityById: Record<string, SegmentCapacity>
+  outagesById: Record<string, SegmentOutage>
+  plannedById: Record<string, SegmentOutage>
+  onNetSet: Set<string>
+  systemsById: Record<string, CableSystem>
+  lifecycleById?: Record<string, SegmentLifecycle>
+  onEnrichCircuit?: () => void
+  onAddToProject?: () => void
+  activeProject?: Project | null
+  protectPin?: PinnedRoute
+  onShowNotes?: (route: Route) => void
+  hasNotes?: boolean
+}) {
+  const t = useTheme()
+  const isMobile = useIsMobile()
+  const { route, color, searchLabel, projectId, circuitLabel } = pinned
+  const circuit = activeProject?.circuits.find(c => c.circuit_id === pinned.circuitId)
+  const enrich = enrichLevel(circuit)
+  const { hovered, enter: enterHover, leaveWithGrace } = useHoverWithGrace()
+  const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
+  const [segmentsOpen, setSegmentsOpen] = useState(false)
+  const [pathCompareOpen, setPathCompareOpen] = useState(false)
+  const [enrichNudge, setEnrichNudge] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isMobile && hovered && cardRef.current) {
+      const rect = cardRef.current.getBoundingClientRect()
+      setTooltipPos({ top: rect.top, left: rect.right + 8 })
+    }
+  }, [hovered, isMobile])
+
+  const wetSystems = [...new Set(route.segments.filter(s => s.type === 'wet').map(s => s.system_id))]
   const reliabilityPct = (route.end_to_end_reliability * 100).toFixed(3)
+  const { cap: estCap, systemId: bottleneckId } = estimatedCapacity(route, capacityById)
+  const estCapColor = estCap < 0.5 ? t.red : estCap < 1.0 ? t.orange : t.green
+  const hasOutage = routeHasOutage(route, outagesById)
+  const repairDateLabel = hasOutage ? latestRepairDate(route, outagesById) : ''
+  const hasPlanned = routeHasPlannedEvent(route, plannedById)
+  const plannedStartLabel = hasPlanned ? earliestPlannedStart(route, plannedById) : ''
+  const routeMargin = computeRouteMargin(route, systemsById)
+  const lifecycle = routeLifecycle(route, lifecycleById)
 
   return (
     <div
-      onClick={() => onSelect(route.id)}
+      ref={cardRef}
+      onMouseEnter={() => !isMobile && enterHover()}
+      onMouseLeave={() => !isMobile && leaveWithGrace()}
       style={{
-        padding: '10px 12px', borderRadius: 6, marginBottom: 4, cursor: 'pointer',
-        border: `1px solid ${selected ? color : '#313244'}`,
-        background: selected ? '#1e1e2e' : '#181825',
-        transition: 'border-color 0.15s',
+        padding: '10px 12px', borderRadius: 6, marginBottom: 4,
+        border: `1px solid ${color}`,
+        background: t.bgCard,
+        position: 'relative',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color }}>
-          {route.id}
-        </span>
-        <span style={{ fontSize: 11, color: '#6c7086' }}>
-          {route.nodes.length - 1} hops
-        </span>
+      {/* Pin colour strip */}
+      <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, borderRadius: '6px 0 0 6px', background: color }} />
+
+      <div style={{ paddingLeft: 6 }}>
+        {/* Top row: circuit name (if set) or search label + enrich + unpin */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {circuitLabel
+              ? <span style={{ fontSize: 12, fontWeight: 700, color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{circuitLabel}</span>
+              : <span style={{ fontSize: 10, color: t.textFaint }}>📌 {searchLabel}</span>
+            }
+          </div>
+          {onAddToProject && !projectId && (
+            <button
+              onClick={onAddToProject}
+              title="Add to project"
+              style={{
+                fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 4, flexShrink: 0,
+                border: `1px solid ${t.border}`,
+                background: t.bgDeep,
+                color: t.textMuted,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+              }}
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+              </svg>
+              Add
+            </button>
+          )}
+          <button
+            onClick={() => {
+              if (!projectId) { setEnrichNudge(true); setTimeout(() => setEnrichNudge(false), 3000); return }
+              onEnrichCircuit?.()
+            }}
+            title={
+              !projectId ? 'Add to a project first'
+              : enrich === 'full' ? 'Fully enriched — click to review'
+              : enrich === 'partial' ? 'Partially enriched — click to complete'
+              : 'No attributes enriched — click to add details'
+            }
+            style={{
+              fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 4, flexShrink: 0,
+              border: `1px solid ${projectId ? t.blue + '88' : t.border}`,
+              background: projectId ? `${t.blue}18` : t.bgDeep,
+              color: projectId ? t.blue : t.textFaintest,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
+            </svg>
+            Enrich
+            {projectId && (
+              <span style={{
+                width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+                background: enrich === 'full' ? '#22c55e' : enrich === 'partial' ? '#f59e0b' : '#ef4444',
+                boxShadow: `0 0 4px ${enrich === 'full' ? '#22c55e' : enrich === 'partial' ? '#f59e0b' : '#ef4444'}99`,
+              }} />
+            )}
+          </button>
+          {onShowNotes && (
+            <button
+              onClick={() => onShowNotes(route)}
+              title={hasNotes ? 'View Solution Notes for this route' : 'No notes — click to open Solution Notes'}
+              style={{
+                fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, flexShrink: 0,
+                border: `1px solid ${hasNotes ? t.blue + '99' : 'transparent'}`,
+                background: hasNotes ? t.blue + '28' : 'transparent',
+                color: hasNotes ? t.blue : t.textFaintest,
+                opacity: hasNotes ? 1 : 0.3,
+                cursor: 'pointer',
+              }}
+            >📋 Notes</button>
+          )}
+          <button
+            onClick={onUnpin}
+            title="Unpin route"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textFaint, fontSize: 14, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}
+          >×</button>
+        </div>
+
+        {/* If circuit label shown above, show the search label as subtitle */}
+        {circuitLabel && (
+          <div style={{ fontSize: 10, color: t.textFaint, marginBottom: 3 }}>📌 {searchLabel}</div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flex: 1 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color }}>{route.id}</span>
+            <span style={{ fontSize: 11, fontWeight: 400, color: t.textMuted }}>{wetSystems.join(' · ')}</span>
+            <NetBadge route={route} onNetSet={onNetSet} />
+            <MarginBadge margin={routeMargin} />
+            {hasOutage && <OutageBadge repairDate={repairDateLabel} />}
+            {hasPlanned && <PlannedEventBadge startDate={plannedStartLabel} />}
+          {lifecycle && <RouteLifecycleBadge lifecycle={lifecycle} />}
+          </div>
+          <span style={{ fontSize: 11, color: t.textFaint, flexShrink: 0 }}>{route.nodes.length - 1} hops</span>
+        </div>
+
+        <div style={{ fontSize: 11, color: t.text, marginBottom: 6 }}>
+          {route.nodes.filter(id => nodesById[id]?.type !== 'branching_unit').map(id => nodesById[id]?.name ?? id).join(' → ')}
+        </div>
+
+        <div style={{ display: 'flex', gap: 12, fontSize: 11, color: t.textMuted, marginBottom: 5 }}>
+          <span>{route.total_length_km.toLocaleString()} km</span>
+          <span>RTD: <strong style={{ color: t.text }}>{(route.total_latency * 2).toFixed(0)} ms</strong></span>
+          <span>Avail: <strong style={{ color: t.text }}>{reliabilityPct}%</strong></span>
+        </div>
+
+        {enrichNudge && (
+          <div style={{ fontSize: 11, color: t.orange, marginBottom: 4 }}>Add to a project first via 📁</div>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{
+            flex: 1, display: 'flex', alignItems: 'center', gap: 6,
+            padding: '4px 8px', borderRadius: 4, background: t.bgDeep,
+            border: `1px solid ${t.border}`, fontSize: 11,
+          }}>
+            <span style={{ color: t.textFaint }}>◈ Est. Capacity</span>
+            <strong style={{ color: estCapColor }}>{estCap.toFixed(1)}T</strong>
+            <span style={{ color: t.textFaintest, fontSize: 10 }}>bottleneck:</span>
+            <span style={{ color: t.textFaint, fontSize: 10 }}>{bottleneckId ?? '—'}</span>
+          </div>
+          {isMobile && (
+            <button
+              onClick={() => setSegmentsOpen(o => !o)}
+              title="Toggle segment breakdown"
+              style={{
+                flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3,
+                padding: '4px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600,
+                border: `1px solid ${segmentsOpen ? color : t.border}`,
+                background: segmentsOpen ? (color + '22') : t.bgDeep,
+                color: segmentsOpen ? color : t.textFaint,
+                cursor: 'pointer', letterSpacing: '0.04em',
+              }}
+            >
+              ≡ {segmentsOpen ? '▴' : '▾'}
+            </button>
+          )}
+        </div>
+
+        {isMobile && segmentsOpen && (
+          <div style={{ marginTop: 8 }}>
+            <SegmentBreakdownRows route={route} capacityById={capacityById} lifecycleById={lifecycleById} outagesById={outagesById} plannedById={plannedById} onNetSet={onNetSet} />
+          </div>
+        )}
+
+        {/* Path comparison for diversity pairs */}
+        {protectPin && (() => {
+          const worker = route
+          const protect = protectPin.route
+          const workerSegIds = new Set(worker.segments.map(s => s.segment_id))
+          const sharedIds = new Set(protect.segments.filter(s => workerSegIds.has(s.segment_id)).map(s => s.segment_id))
+          const routeStart = worker.nodes[0]
+          const routeEnd = worker.nodes[worker.nodes.length - 1]
+          const workerNodeSet = new Set(worker.nodes)
+          const sharedNodeIds = new Set(protect.nodes.filter(n => workerNodeSet.has(n) && n !== routeStart && n !== routeEnd))
+          return (
+            <>
+              <button
+                onClick={() => setPathCompareOpen(o => !o)}
+                style={{
+                  marginTop: 6, width: '100%',
+                  fontSize: 9, padding: '3px 8px', borderRadius: 4, cursor: 'pointer',
+                  border: `1px solid ${pathCompareOpen ? t.blue : t.border}`,
+                  background: pathCompareOpen ? t.blue + '18' : 'transparent',
+                  color: pathCompareOpen ? t.blue : t.textFaint, fontWeight: 600,
+                  letterSpacing: '0.04em', textAlign: 'left',
+                }}
+              >
+                ≡ Path Comparison {pathCompareOpen ? '▴' : '▾'}
+              </button>
+              {pathCompareOpen && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6, padding: '10px 10px 6px', borderRadius: 6, background: t.bgDeep, border: `1px solid ${t.border}` }}>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: t.blue, marginBottom: 6, letterSpacing: '0.04em' }}>🔵 Worker</div>
+                    <PairBreakdown route={worker} outagesById={outagesById} lifecycleById={lifecycleById} plannedById={plannedById} sharedIds={sharedIds} accentColor={t.blue} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: t.green, marginBottom: 6, letterSpacing: '0.04em' }}>🟢 Protect</div>
+                    <PairBreakdown route={protect} outagesById={outagesById} lifecycleById={lifecycleById} plannedById={plannedById} sharedIds={sharedIds} accentColor={t.green} nodesById={nodesById} sharedNodeIds={sharedNodeIds} />
+                  </div>
+                </div>
+              )}
+            </>
+          )
+        })()}
+
       </div>
 
-      <div style={{ fontSize: 11, color: '#cdd6f4', marginBottom: 4 }}>
-        {route.nodes.map(id => nodesById[id]?.name ?? id).join(' → ')}
-      </div>
-
-      <div style={{ display: 'flex', gap: 12, fontSize: 11, color: '#a6adc8' }}>
-        <span>Cost: <strong style={{ color: '#cdd6f4' }}>{route.total_cost}</strong></span>
-        <span>{route.total_length_km.toLocaleString()} km</span>
-        <span>Avail: <strong style={{ color: '#cdd6f4' }}>{reliabilityPct}%</strong></span>
-      </div>
-
-      <div style={{ marginTop: 4, fontSize: 10, color: '#6c7086' }}>
-        {systems.join(' · ')}
-      </div>
+      {!isMobile && hovered && createPortal(
+        <SegmentTooltip route={route} capacityById={capacityById} lifecycleById={lifecycleById} outagesById={outagesById} plannedById={plannedById} pos={tooltipPos} onNetSet={onNetSet} onMouseEnter={enterHover} onMouseLeave={leaveWithGrace} />,
+        document.body
+      )}
     </div>
   )
 }
 
-const sectionLabelStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 700, color: '#6c7086',
-  textTransform: 'uppercase', letterSpacing: '0.08em',
-  marginBottom: 6, marginTop: 4,
+/** Card for a single (non-paired) route: path summary, key stats, margin/on-net
+ *  badges, capacity, and select / pin / add-to-project controls. */
+function RouteCard({ route, selected, onSelect, nodesById, capacityById, outagesById, plannedById, color, isPinned, canPin, onPin, onNetSet, systemsById, lifecycleById = NO_LIFECYCLE, onAddToProject, onShowNotes, hasNotes }: {
+  route: Route
+  selected: boolean
+  onSelect: (id: string) => void
+  nodesById: Record<string, { name: string; type?: string }>
+  capacityById: Record<string, SegmentCapacity>
+  outagesById: Record<string, SegmentOutage>
+  plannedById: Record<string, SegmentOutage>
+  color: string
+  isPinned: boolean
+  canPin: boolean
+  onPin: (route: Route) => void
+  onNetSet: Set<string>
+  systemsById: Record<string, CableSystem>
+  lifecycleById?: Record<string, SegmentLifecycle>
+  onAddToProject?: (route: Route) => void
+  onShowNotes?: (route: Route) => void
+  hasNotes?: boolean
+}) {
+  const t = useTheme()
+  const isMobile = useIsMobile()
+  const { hovered, enter: enterHover, leaveWithGrace } = useHoverWithGrace()
+  const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
+  const [segmentsOpen, setSegmentsOpen] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isMobile && hovered && cardRef.current) {
+      const rect = cardRef.current.getBoundingClientRect()
+      setTooltipPos({ top: rect.top, left: rect.right + 8 })
+    }
+  }, [hovered, isMobile])
+
+  const wetSystems = [...new Set(route.segments.filter(s => s.type === 'wet').map(s => s.system_id))]
+  const reliabilityPct = (route.end_to_end_reliability * 100).toFixed(3)
+  const { cap: estCap, systemId: bottleneckId } = estimatedCapacity(route, capacityById)
+  const estCapColor = estCap < 0.5 ? t.red : estCap < 1.0 ? t.orange : t.green
+  const pinDisabled = !isPinned && !canPin
+  const hasOutage = routeHasOutage(route, outagesById)
+  const repairDateLabel = hasOutage ? latestRepairDate(route, outagesById) : ''
+  const hasPlanned = routeHasPlannedEvent(route, plannedById)
+  const plannedStartLabel = hasPlanned ? earliestPlannedStart(route, plannedById) : ''
+  const routeMargin = computeRouteMargin(route, systemsById)
+  const lifecycle = routeLifecycle(route, lifecycleById)
+
+  return (
+    <div
+      ref={cardRef}
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelect(route.id)}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(route.id) } }}
+      onMouseEnter={() => !isMobile && enterHover()}
+      onMouseLeave={() => !isMobile && leaveWithGrace()}
+      style={{
+        padding: '10px 12px', borderRadius: 6, marginBottom: 4, cursor: 'pointer',
+        border: `1px solid ${selected ? color : t.border}`,
+        background: selected ? t.bgCardSelected : t.bgCard,
+        transition: 'border-color 0.15s',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flex: 1 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color }}>{route.id}</span>
+          <span style={{ fontSize: 11, fontWeight: 400, color: t.textMuted }}>{wetSystems.join(' · ')}</span>
+          <NetBadge route={route} onNetSet={onNetSet} />
+          <MarginBadge margin={routeMargin} />
+          {hasOutage && <OutageBadge repairDate={repairDateLabel} />}
+          {hasPlanned && <PlannedEventBadge startDate={plannedStartLabel} />}
+          {lifecycle && <RouteLifecycleBadge lifecycle={lifecycle} />}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <span style={{ fontSize: 11, color: t.textFaint }}>{route.nodes.length - 1} hops</span>
+          {onAddToProject && (
+            <button
+              onClick={e => { e.stopPropagation(); onAddToProject(route) }}
+              title="Add to project"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 12, lineHeight: 1, padding: '1px 3px', borderRadius: 3,
+                color: t.textFaint, transition: 'color 0.15s',
+              }}
+            >📁</button>
+          )}
+          {onShowNotes && (
+            <button
+              onClick={e => { e.stopPropagation(); onShowNotes(route) }}
+              title={hasNotes ? 'View Solution Notes for this route' : 'No notes — click to open Solution Notes'}
+              style={{
+                background: hasNotes ? t.blue + '28' : 'none',
+                border: hasNotes ? `1px solid ${t.blue}99` : 'none',
+                cursor: 'pointer',
+                fontSize: 11, lineHeight: 1, padding: '1px 3px', borderRadius: 3,
+                color: hasNotes ? t.blue : t.textFaintest,
+                opacity: hasNotes ? 1 : 0.3,
+                transition: 'color 0.15s',
+              }}
+            >📋</button>
+          )}
+          <button
+            onClick={e => { e.stopPropagation(); onPin(route) }}
+            title={isPinned ? 'Unpin route' : pinDisabled ? 'Max 10 routes pinned' : 'Pin route'}
+            style={{
+              background: 'none', border: 'none', cursor: pinDisabled ? 'not-allowed' : 'pointer',
+              fontSize: 13, lineHeight: 1, padding: '1px 3px', borderRadius: 3,
+              opacity: pinDisabled ? 0.3 : 1,
+              color: isPinned ? '#f9e2af' : t.textFaint,
+              transition: 'color 0.15s',
+            }}
+          >
+            {isPinned ? '📌' : '📍'}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ fontSize: 11, color: t.text, marginBottom: 6 }}>
+        {route.nodes.filter(id => nodesById[id]?.type !== 'branching_unit').map(id => nodesById[id]?.name ?? id).join(' → ')}
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, fontSize: 11, color: t.textMuted, marginBottom: 5 }}>
+        <span>{route.total_length_km.toLocaleString()} km</span>
+        <span>RTD: <strong style={{ color: t.text }}>{(route.total_latency * 2).toFixed(0)} ms</strong></span>
+        <span>Avail: <strong style={{ color: t.text }}>{reliabilityPct}%</strong></span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{
+          flex: 1, display: 'flex', alignItems: 'center', gap: 6,
+          padding: '4px 8px', borderRadius: 4, background: t.bgDeep,
+          border: `1px solid ${t.border}`, fontSize: 11,
+        }}>
+          <span style={{ color: t.textFaint }}>◈ Est. Capacity</span>
+          <strong style={{ color: estCapColor }}>{estCap.toFixed(1)}T</strong>
+          <span style={{ color: t.textFaintest, fontSize: 10 }}>bottleneck:</span>
+          <span style={{ color: t.textFaint, fontSize: 10 }}>{bottleneckId ?? '—'}</span>
+        </div>
+        {isMobile && (
+          <button
+            onClick={e => { e.stopPropagation(); setSegmentsOpen(o => !o) }}
+            title="Toggle segment breakdown"
+            style={{
+              flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3,
+              padding: '4px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600,
+              border: `1px solid ${segmentsOpen ? color : t.border}`,
+              background: segmentsOpen ? (color + '22') : t.bgDeep,
+              color: segmentsOpen ? color : t.textFaint,
+              cursor: 'pointer', letterSpacing: '0.04em',
+            }}
+          >
+            ≡ {segmentsOpen ? '▴' : '▾'}
+          </button>
+        )}
+      </div>
+
+      {isMobile && segmentsOpen && (
+        <div role="presentation" style={{ marginTop: 8 }} onClick={e => e.stopPropagation()}>
+          <SegmentBreakdownRows route={route} capacityById={capacityById} lifecycleById={lifecycleById} outagesById={outagesById} plannedById={plannedById} onNetSet={onNetSet} />
+        </div>
+      )}
+
+      {!isMobile && hovered && createPortal(
+        <SegmentTooltip route={route} capacityById={capacityById} lifecycleById={lifecycleById} outagesById={outagesById} plannedById={plannedById} pos={tooltipPos} onNetSet={onNetSet} onMouseEnter={enterHover} onMouseLeave={leaveWithGrace} />,
+        document.body
+      )}
+    </div>
+  )
+}
+
+/** Small pill showing the route's weighted-average margin score, coloured
+ *  green (>=7.5), orange (>=4.5) or red (below). Renders nothing when margin
+ *  data is unavailable for the route's systems. */
+function MarginBadge({ margin }: { margin: number | null }) {
+  const t = useTheme()
+  if (margin == null) return null
+  const color = margin >= 7.5 ? t.green : margin >= 4.5 ? t.orange : t.red
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
+      letterSpacing: '0.04em', whiteSpace: 'nowrap', textTransform: 'uppercase',
+      background: color + '22',
+      color,
+      border: `1px solid ${color + '55'}`,
+    }}>
+      Margin {margin.toFixed(1)}
+    </span>
+  )
+}
+
+/** Hover text for one hop's pill. The undated cases say why there is no date
+ *  rather than printing the word "unknown" into a sentence, because a missing
+ *  quarter is a data gap the user may be able to get fixed. */
+function segmentLifecycleTitle(lifecycle: SegmentLifecycle): string {
+  const { kind, quarter } = lifecycle
+  if (kind === 'eol') {
+    if (!quarter) return 'Retired — no EOL quarter is recorded, so this segment is treated as already gone'
+    return `Retired — out of service after the end of ${formatQuarter(quarter)}`
+  }
+  if (!quarter) return 'Not built yet — no RFS quarter is recorded, so there is no date to promise'
+  return `Not built yet — in service by the end of ${formatQuarter(quarter)}`
+}
+
+/**
+ * Per-hop lifecycle pill in the Segment Breakdown — "RFS Q2 2027" for cable
+ * that is not built yet, "EOL Q4 2026" for cable that has already retired.
+ *
+ * Orange in BOTH directions, deliberately: red is reserved here for faults and
+ * off-net, and a cable that is simply early or late in its life is a planning
+ * fact, not an error. Sized to match the ON-NET/OFF-NET pill it sits beside.
+ */
+function SegmentLifecycleBadge({ lifecycle }: { lifecycle: SegmentLifecycle }) {
+  const t = useTheme()
+  const title = segmentLifecycleTitle(lifecycle)
+  return (
+    <span
+      title={title}
+      style={{
+        fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
+        letterSpacing: '0.04em', whiteSpace: 'nowrap', cursor: 'help',
+        background: t.orange + '22', color: t.orange, border: `1px solid ${t.orange + '55'}`,
+      }}
+    >
+      {lifecycle.label}
+    </span>
+  )
+}
+
+/**
+ * The route-card counterpart: ONE date for the whole path (see routeLifecycle
+ * for which hop that comes from), with a tooltip naming the hops responsible so
+ * the user can see what is holding the route up.
+ *
+ * The retired case is drawn louder than the not-yet-built one — full-strength
+ * border, heavier fill, a ⛔ glyph — because the two are not equivalent: a
+ * future RFS is a route you can sell for later, a retired hop is a route you
+ * cannot sell at all. Still orange, not red: red is for live faults.
+ */
+function RouteLifecycleBadge({ lifecycle }: { lifecycle: RouteLifecycle }) {
+  const t = useTheme()
+  const isEol = lifecycle.kind === 'eol'
+  return (
+    <span
+      title={lifecycle.tooltip}
+      style={{
+        fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
+        letterSpacing: '0.04em', whiteSpace: 'nowrap', cursor: 'help',
+        background: t.orange + (isEol ? '33' : '22'),
+        color: t.orange,
+        border: `1px solid ${isEol ? t.orange : t.orange + '55'}`,
+      }}
+    >
+      {isEol ? `⛔ ${lifecycle.label}` : lifecycle.label}
+    </span>
+  )
+}
+
+/** ON-NET / OFF-NET / MIXED n% pill for a route, derived via classifyRoute().
+ *  Green for fully on-net, red for fully off-net, orange with the on-net
+ *  percentage for anything in between. */
+function NetBadge({ route, onNetSet }: { route: Route; onNetSet: Set<string> }) {
+  const t = useTheme()
+  const { type, onNetPct } = classifyRoute(route, onNetSet)
+  const badgeColor = type === 'on_net' ? t.green : type === 'off_net' ? t.red : t.orange
+  const label = type === 'on_net' ? 'ON-NET' : type === 'off_net' ? 'OFF-NET' : `MIXED ${onNetPct}%`
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
+      letterSpacing: '0.04em', whiteSpace: 'nowrap',
+      background: badgeColor + '22',
+      color: badgeColor,
+      border: `1px solid ${badgeColor + '55'}`,
+    }}>
+      {label}
+    </span>
+  )
+}
+
+/**
+ * One side (worker or protect) of the side-by-side "Path Comparison" view for
+ * a diversity pair: a vertical metro-style list of node dots and segment
+ * cards, with any node/segment shared between the two legs highlighted in
+ * orange ("SHARED"). Used both by PairCard's expanded breakdown and by
+ * PinnedRouteCard's pinned-pair comparison.
+ */
+function PairBreakdown({ route, outagesById, plannedById, sharedIds, accentColor, nodesById, sharedNodeIds, lifecycleById = NO_LIFECYCLE }: {
+  route: Route
+  outagesById: Record<string, SegmentOutage>
+  plannedById: Record<string, SegmentOutage>
+  lifecycleById?: Record<string, SegmentLifecycle>
+  sharedIds: Set<string>
+  accentColor: string
+  nodesById: Record<string, { name: string; type?: string }>
+  sharedNodeIds: Set<string>
+}) {
+  const t = useTheme()
+  // route.nodes has n+1 entries; route.segments has n entries.
+  // Layout: node[0] → segment[0] → node[1] → segment[1] → … → node[n]
+  // All node dots are centered at x=6 from the left (12px dot flush, or 8px BU dot + 2px margin).
+  // The track line (2px wide) sits at marginLeft:5 to bisect that 6px centre.
+  return (
+    <div style={{ paddingBottom: 4 }}>
+      {route.nodes.map((nodeId, i) => {
+        const seg = route.segments[i]           // undefined after last node
+        const node = nodesById[nodeId]
+        const isBU = node?.type === 'branching_unit'
+        const isSharedNode = sharedNodeIds.has(nodeId)
+        const nodeColor = isSharedNode ? t.orange : accentColor
+        const dotSize = isBU ? 8 : 12
+        const dotMarginLeft = isBU ? 2 : 0     // keeps both variants centred at x=6
+
+        // Segment details (computed only when seg exists)
+        const isSharedSeg = seg ? sharedIds.has(seg.segment_id) : false
+        const segOutage = seg ? outagesById[seg.segment_id] : undefined
+        const segPlanned = seg ? plannedById[seg.segment_id] : undefined
+        const segLife = seg ? lifecycleById[seg.segment_id] : undefined
+        const isWet = seg?.type === 'wet'
+        const trackColor = isSharedSeg ? t.orange + '99' : t.border
+
+        return (
+          <div key={`${nodeId}-${i}`}>
+            {/* ── Metro stop ─────────────────────────────────────── */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {/* Circle dot */}
+              <div style={{
+                width: dotSize, height: dotSize, borderRadius: '50%',
+                background: isSharedNode ? nodeColor : t.bgDeep,
+                border: `2px solid ${nodeColor}`,
+                flexShrink: 0,
+                marginLeft: dotMarginLeft,
+              }} />
+              {/* Label */}
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                  {isBU ? (
+                    <span style={{ fontSize: 8, color: t.textFaint, fontFamily: 'monospace' }}>
+                      ◈ {nodeId}
+                    </span>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: nodeColor, fontFamily: 'monospace', letterSpacing: '0.03em' }}>
+                        {nodeId}
+                      </span>
+                      {node?.name && node.name !== nodeId && (
+                        <span style={{ fontSize: 9, color: t.textMuted }}>
+                          {node.name}
+                        </span>
+                      )}
+                    </>
+                  )}
+                  {isSharedNode && (
+                    <span style={{
+                      fontSize: 7, fontWeight: 700, color: t.orange,
+                      background: t.orange + '22', padding: '1px 4px',
+                      borderRadius: 3, letterSpacing: '0.04em',
+                    }}>
+                      SHARED
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* ── Track + segment card (only between nodes) ──────── */}
+            {seg && (
+              <div style={{ display: 'flex', alignItems: 'stretch', margin: '2px 0' }}>
+                {/* Vertical track line — centred under the dot above */}
+                <div style={{
+                  width: 2, flexShrink: 0,
+                  background: trackColor,
+                  marginLeft: 5, borderRadius: 1,
+                }} />
+                {/* Segment card */}
+                <div style={{
+                  flex: 1, marginLeft: 10, marginTop: 3, marginBottom: 3,
+                  padding: '5px 7px', borderRadius: 4,
+                  border: `1px solid ${isSharedSeg ? t.orange : t.border}`,
+                  background: isSharedSeg ? t.orange + '14' : t.bgCard,
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: isWet ? accentColor : t.green }}>
+                      {seg.system_id}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {isSharedSeg && (
+                        <span style={{ fontSize: 8, fontWeight: 700, color: t.orange, background: t.orange + '22', padding: '1px 4px', borderRadius: 3, letterSpacing: '0.04em' }}>
+                          SHARED
+                        </span>
+                      )}
+                      {segLife && <SegmentLifecycleBadge lifecycle={segLife} />}
+                      {segOutage && <span style={{ fontSize: 11 }} title="Active outage">⚠️</span>}
+                      {segPlanned && <span style={{ fontSize: 11 }} title={`Planned work: ${segPlanned.planned_start ?? 'TBC'} – ${segPlanned.planned_end ?? 'TBC'}`}>🗓️</span>}
+                      <span style={{ fontSize: 9, color: t.textFaint, textTransform: 'uppercase' as const }}>{seg.type}</span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 9, color: t.textMuted, fontFamily: 'monospace', marginBottom: 1 }}>
+                    {seg.segment_id}
+                  </div>
+                  <div style={{ fontSize: 9, color: t.textFaint }}>
+                    {seg.length_km.toLocaleString()} km · {seg.latency ?? '—'} ms
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * The full per-segment table shown in a route's expanded breakdown (mobile
+ * tap-to-expand, or the desktop hover tooltip via SegmentTooltip): one row
+ * per hop with system, ON-NET/OFF-NET, lifecycle, outage/planned-work
+ * indicators, node pair, distance/latency/cost/availability, and capacity.
+ * Rows are ordered along the route (by the lower of each hop's two endpoint
+ * indices in route.nodes) rather than in whatever order route.segments
+ * happens to store them, so the breakdown reads start-to-end.
+ */
+function SegmentBreakdownRows({ route, capacityById, outagesById, plannedById, onNetSet, lifecycleById = NO_LIFECYCLE }: {
+  route: Route
+  capacityById: Record<string, SegmentCapacity>
+  outagesById: Record<string, SegmentOutage>
+  plannedById: Record<string, SegmentOutage>
+  onNetSet: Set<string>
+  lifecycleById?: Record<string, SegmentLifecycle>
+}) {
+  const t = useTheme()
+  const { hoveredSegmentId, setHoveredSegmentId } = useSegmentHover()
+  const expandSegment = useContext(SegmentExpandContext)
+  const nodeIndex = new Map(route.nodes.map((n, i) => [n, i]))
+  const sortedSegs = [...route.segments].sort((a, b) => {
+    const aIdx = Math.min(nodeIndex.get(a.start_node_id) ?? 0, nodeIndex.get(a.end_node_id) ?? 0)
+    const bIdx = Math.min(nodeIndex.get(b.start_node_id) ?? 0, nodeIndex.get(b.end_node_id) ?? 0)
+    return aIdx - bIdx
+  })
+  return (
+    <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 8 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+        Segment Breakdown
+      </div>
+      {sortedSegs.map(seg => {
+        const startIdx = nodeIndex.get(seg.start_node_id) ?? 0
+        const endIdx = nodeIndex.get(seg.end_node_id) ?? 1
+        const [displayStart, displayEnd] = startIdx <= endIdx
+          ? [seg.start_node_id, seg.end_node_id]
+          : [seg.end_node_id, seg.start_node_id]
+        const cap = capacityById[seg.segment_id]
+        const capPct = cap ? Math.round((cap.available_capacity_t / cap.total_capacity_t) * 100) : null
+        const onNet = seg.type === 'wet' ? onNetSet.has(seg.ownership) : null
+        const netColor = onNet === true ? t.green : onNet === false ? t.red : null
+        const netLabel = onNet === true ? 'ON-NET' : onNet === false ? 'OFF-NET' : null
+        const outage = outagesById[seg.segment_id]
+        const planned = plannedById[seg.segment_id]
+        const lifecycle = lifecycleById[seg.segment_id]
+        const isGlowing = hoveredSegmentId === seg.segment_id
+        return (
+          <div
+            key={seg.segment_id}
+            onMouseEnter={() => setHoveredSegmentId(seg.segment_id)}
+            onMouseLeave={() => setHoveredSegmentId(null)}
+            style={{
+              marginBottom: 6, paddingBottom: 6, borderBottom: `1px solid ${t.border}`,
+              marginLeft: -6, marginRight: -6, paddingLeft: 6, paddingRight: 6,
+              borderRadius: 4,
+              background: isGlowing ? t.orange + '1c' : 'transparent',
+              transition: 'background 0.15s',
+            }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: seg.type === 'wet' ? t.blue : t.green }}>
+                  {seg.system_id}
+                </span>
+                {netLabel && netColor && (
+                  <span style={{
+                    fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
+                    letterSpacing: '0.04em',
+                    background: netColor + '22', color: netColor, border: `1px solid ${netColor + '55'}`,
+                  }}>
+                    {netLabel}
+                  </span>
+                )}
+                {lifecycle && <SegmentLifecycleBadge lifecycle={lifecycle} />}
+                {outage && (
+                  <span
+                    title={[
+                      `Fault ID: ${outage.fault_id}`,
+                      `Fault Date: ${outage.fault_date}`,
+                      `Repair Start: ${outage.repair_start ?? 'TBC'}`,
+                      `ETA: ${outage.estimated_repair_date ?? 'TBC'}`,
+                      outage.description,
+                    ].join('\n')}
+                    style={{ cursor: 'help', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                  >
+                    <span style={{ fontSize: 13, lineHeight: 1 }}>⚠️🚢</span>
+                    <span style={{ fontSize: 10, fontWeight: 600, color: t.red }}>
+                      {formatRepairDate(outage.estimated_repair_date)}
+                    </span>
+                  </span>
+                )}
+                {/* Deliberately quieter than the outage indicator above (smaller
+                    icon, no bold red text) — a future planned window is not a
+                    current problem. */}
+                {planned && (
+                  <span
+                    title={[
+                      `Reference: ${planned.fault_id}`,
+                      `Raised: ${planned.fault_date}`,
+                      `Planned Start: ${planned.planned_start ?? 'TBC'}`,
+                      `Planned End: ${planned.planned_end ?? 'TBC'}`,
+                      planned.description,
+                    ].join('\n')}
+                    style={{ cursor: 'help', display: 'inline-flex', alignItems: 'center', gap: 3 }}
+                  >
+                    <span style={{ fontSize: 11, lineHeight: 1 }}>🗓️</span>
+                    <span style={{ fontSize: 10, fontWeight: 500, color: t.orange }}>
+                      {formatRepairDate(planned.planned_start)} – {formatRepairDate(planned.planned_end)}
+                    </span>
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                <span style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase' }}>{seg.type}</span>
+                {/* Expand to the segment's Full View. Hidden entirely rather than
+                    disabled when the host passed no reference segments: there is
+                    nothing behind it to show. */}
+                {expandSegment && (
+                  <button
+                    onClick={e => { e.stopPropagation(); expandSegment(seg.segment_id) }}
+                    title="Full view of this segment"
+                    aria-label={`Full view of segment ${seg.segment_id}`}
+                    style={{
+                      background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                      color: t.blue, fontSize: 12, lineHeight: 1,
+                    }}
+                  >⛶</button>
+                )}
+              </div>
+            </div>
+            <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2, fontFamily: 'monospace' }}>
+              {displayStart} → {displayEnd}
+              <span style={{ color: t.textFaint }}> | {seg.segment_id}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, fontSize: 10, color: t.textMuted, marginTop: 2 }}>
+              <span>{seg.length_km.toLocaleString()} km</span>
+              <span>{seg.latency} ms</span>
+              <span>Cost: {seg.cost_weight}</span>
+              <span>Avail: {(seg.reliability * 100).toFixed(2)}%</span>
+            </div>
+            {cap && (
+              <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2 }}>
+                Capacity: <span style={{ color: capPct! < 20 ? t.red : capPct! < 50 ? t.orange : t.green }}>
+                  {cap.available_capacity_t}T
+                </span> / {cap.total_capacity_t}T ({capPct}% free)
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * Desktop-only floating tooltip (rendered via createPortal into document.body)
+ * that shows the full SegmentBreakdownRows for a route next to the hovered
+ * card. Clamps itself back onto the viewport after measuring its own
+ * rendered size (see the useLayoutEffect below) since the segment count, and
+ * therefore the tooltip's height, isn't known until it has rendered once.
+ */
+function SegmentTooltip({ route, capacityById, outagesById, plannedById, pos, onNetSet, onMouseEnter, onMouseLeave, lifecycleById = NO_LIFECYCLE }: {
+  route: Route
+  capacityById: Record<string, SegmentCapacity>
+  outagesById: Record<string, SegmentOutage>
+  plannedById: Record<string, SegmentOutage>
+  lifecycleById?: Record<string, SegmentLifecycle>
+  pos: { top: number; left: number }
+  onNetSet: Set<string>
+  onMouseEnter?: () => void
+  onMouseLeave?: () => void
+}) {
+  const t = useTheme()
+  const ref = useRef<HTMLDivElement>(null)
+  const [clamped, setClamped] = useState(pos)
+  const { setHoveredSegmentId } = useSegmentHover()
+
+  // Whatever segment was glowing on the map because the cursor was over one of
+  // this tooltip's rows stops glowing the instant the tooltip itself goes away
+  // (mouse finally left both the card and the tooltip) — otherwise the last
+  // hovered segment would stay lit on the map with nothing pointing at it.
+  useEffect(() => () => setHoveredSegmentId(null), [setHoveredSegmentId])
+
+  // The caller only knows where the hovered card is, not how tall this tooltip will
+  // render once populated with a full segment list — that depends on the route's hop
+  // count and isn't known until after mount. So measure it here and pull the box back
+  // onto the screen (both edges) rather than letting it render past the viewport with
+  // no way to reach the clipped part, since it's a hover overlay with no scroll of its
+  // own. Re-measures whenever the anchor position or route (hop count) changes.
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const margin = 8
+    const { offsetHeight: h, offsetWidth: w } = el
+    const top = Math.max(margin, Math.min(pos.top, window.innerHeight - h - margin))
+    const left = Math.max(margin, Math.min(pos.left, window.innerWidth - w - margin))
+    setClamped({ top, left })
+  }, [pos.top, pos.left, route])
+
+  return (
+    <div
+      ref={ref}
+      role="presentation"
+      onClick={e => e.stopPropagation()}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={{
+        position: 'fixed', top: clamped.top, left: clamped.left, zIndex: 9999,
+        width: 300, maxHeight: 'calc(100vh - 16px)', overflowY: 'auto',
+        background: t.bgCard, border: `1px solid ${t.borderSubtle}`,
+        borderRadius: 6, padding: '10px 12px', boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+        fontFamily: 'system-ui, sans-serif', pointerEvents: 'auto',
+      }}
+    >
+      <SegmentBreakdownRows route={route} capacityById={capacityById} lifecycleById={lifecycleById} outagesById={outagesById} plannedById={plannedById} onNetSet={onNetSet} />
+    </div>
+  )
+}
+
+/** Reformat a strict "YYYY-MM-DD" date string to "DD-MM-YYYY" for display;
+ *  returns "Date TBC" for null/undefined/"TBC"/any non-matching string. */
+function formatRepairDate(date: string | null | undefined): string {
+  if (!date || date === 'TBC') return 'Date TBC'
+  const m = date.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`
+  return 'Date TBC'
+}
+
+/** The LATEST estimated repair date across all of a route's outage-affected
+ *  hops, formatted for the route-level OutageBadge — a route isn't fully
+ *  repaired until its slowest-to-fix hop is back, so quoting the earliest
+ *  hop's date would understate how long the route stays impaired. Returns
+ *  "Date TBC" when no hop has a usable date. */
+function latestRepairDate(route: Route, outagesById: Record<string, SegmentOutage>): string {
+  const isoDates = route.segments
+    .map(s => outagesById[s.segment_id]?.estimated_repair_date)
+    .filter((d): d is string => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d))
+    // The filter above guarantees strict YYYY-MM-DD, for which lexicographic
+    // order IS chronological order. The comparator is explicit and
+    // locale-INDEPENDENT on purpose: String.localeCompare could reorder these
+    // fixed-width numeric strings under some collations, and we then take the
+    // LAST element as the latest date.
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+  if (isoDates.length === 0) return 'Date TBC'
+  return formatRepairDate(isoDates[isoDates.length - 1])
+}
+
+/** The EARLIEST planned-work start date across all of a route's
+ *  planned-event hops, formatted for the route-level PlannedEventBadge — the
+ *  soonest disruption is the one worth surfacing at a glance. Returns
+ *  "Date TBC" when no hop has a usable date. */
+function earliestPlannedStart(route: Route, plannedById: Record<string, SegmentOutage>): string {
+  const isoDates = route.segments
+    .map(s => plannedById[s.segment_id]?.planned_start)
+    .filter((d): d is string => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d))
+    // Same rationale as latestRepairDate: strict YYYY-MM-DD sorts correctly
+    // with a plain, locale-independent comparator, and here we want the
+    // EARLIEST (soonest) window across the route rather than the latest.
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+  if (isoDates.length === 0) return 'Date TBC'
+  return formatRepairDate(isoDates[0])
+}
+
+/** Loud red "UNDER REPAIR" pill plus the latest estimated repair date, shown
+ *  on a route card when any of its hops has a live outage. */
+function OutageBadge({ repairDate }: { repairDate: string }) {
+  const t = useTheme()
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+      <span style={{
+        fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
+        letterSpacing: '0.04em',
+        background: t.red + '22', color: t.red, border: `1px solid ${t.red + '55'}`,
+      }}>
+        ⚠ 🚢 UNDER REPAIR
+      </span>
+      <span style={{ fontSize: 10, color: t.red, fontWeight: 600 }}>{repairDate}</span>
+    </span>
+  )
+}
+
+/**
+ * Deliberately quieter than OutageBadge — a future planned work window is not
+ * a current problem, so it gets plain text (no solid pill, no border, lighter
+ * weight) rather than the loud red "UNDER REPAIR" block. Shows the earliest
+ * upcoming planned_start across the route's segments; per-segment detail
+ * (including the full window and description) is in the segment breakdown.
+ */
+function PlannedEventBadge({ startDate }: { startDate: string }) {
+  const t = useTheme()
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', fontSize: 10, color: t.orange, fontWeight: 500 }}>
+      <span style={{ fontSize: 11, lineHeight: 1 }}>🗓️</span>
+      Planned work from {startDate}
+    </span>
+  )
+}
+
+/** Shared style object for section headers ("Worker Routes", "Protect
+ *  Routes", "📌 Pinned Routes") — small uppercase faint label. */
+function sectionLabelStyle(t: ReturnType<typeof useTheme>): React.CSSProperties {
+  return {
+    fontSize: 10, fontWeight: 700, color: t.textFaint,
+    textTransform: 'uppercase', letterSpacing: '0.08em',
+    marginBottom: 6, marginTop: 4,
+  }
 }
