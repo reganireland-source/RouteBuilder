@@ -35,6 +35,30 @@ interface PendingBase {
   lastError?: string
 }
 
+/**
+ * A single staged, not-yet-saved edit — the discriminated union at the heart
+ * of this file. One variant per user action the editor supports, each
+ * carrying a full-value snapshot (never a delta — see the module header's
+ * design notes) of what changed:
+ *  - `move-node`: an existing node's `from`/`to` position.
+ *  - `new-node`: a brand-new node not yet in the backend, keyed by `tempId`
+ *    (== its own chosen id — nodes get their real id up front, unlike some
+ *    systems that use a separate temp key) with its full `draft`.
+ *  - `delete-node`: an existing node to remove, with a `snapshot` (for undo/
+ *    display) and any segment ids being cascade-deleted alongside it.
+ *  - `edit-waypoints`: an existing segment's path, `from`/`to` the full
+ *    waypoint list (`from` may be null if the segment had none before).
+ *  - `new-segment`: a brand-new segment (+ its initial capacity draft), keyed
+ *    by `tempId` the same way as `new-node`.
+ *  - `delete-segment`: an existing segment to remove, with its `snapshot`
+ *    (+ capacity snapshot if it had one) and, if this deletion was staged as
+ *    part of a node's cascade delete, the triggering node's id in
+ *    `viaNodeCascade` (purely informational — see describeChange() in
+ *    EditorPendingPanel.tsx).
+ * `applyPendingChanges()` below folds an ordered list of these onto the real
+ * fetched data; `saveAll()` in networkEditorSave.ts turns them into the
+ * actual backend calls.
+ */
 export type PendingChange =
   | (PendingBase & { kind: 'move-node'; nodeId: string; from: [number, number]; to: [number, number] })
   | (PendingBase & { kind: 'new-node'; tempId: string; draft: CableNode })
@@ -43,11 +67,18 @@ export type PendingChange =
   | (PendingBase & { kind: 'new-segment'; tempId: string; draft: CableSegment; capacityDraft: SegmentCapacity })
   | (PendingBase & { kind: 'delete-segment'; segmentId: string; snapshot: CableSegment; capacitySnapshot?: SegmentCapacity; viaNodeCascade?: string })
 
+/** Which of the Network Editor's four interaction modes is active — see
+ *  NetworkEditor.tsx's file header for what each one does. */
 export type EditorSubMode = 'move' | 'waypoints' | 'create' | 'delete'
 
+/** The single node or segment currently clicked/selected on the map, or null
+ *  when nothing is selected. Only one thing can be selected at a time. */
 export type EditorSelection = { kind: 'node' | 'segment'; id: string } | null
 
 let changeCounter = 0
+/** Generates a unique, monotonically-distinguishable id for a new
+ *  PendingChange — timestamp plus an in-process counter, so two changes
+ *  created within the same millisecond still get distinct ids. */
 function nextChangeId(): string {
   changeCounter += 1
   return `chg-${Date.now()}-${changeCounter}`
@@ -74,6 +105,13 @@ export const emptySegmentDraft: SegmentDraft = { startNodeId: null, endNodeId: n
 export type SaveStatus = 'queued' | 'running' | 'ok' | 'error'
 export interface SaveProgressEntry { status: SaveStatus; message: string }
 
+/** The Network Editor's complete local (React) state, managed by
+ *  {@link editorReducer}. `pending`/`redoStack` are the staged-changes/undo
+ *  mechanism (see the file header); `selection`/`subMode`/`segmentDraft`
+ *  track the current UI interaction; `saveInFlight`/`saveProgress`/`saveLog`
+ *  track an in-progress or just-finished Save All run (see
+ *  networkEditorSave.ts's saveAll(), which App.tsx drives by dispatching
+ *  SAVE_START/SAVE_PROGRESS/SAVE_RESULT actions as it runs). */
 export interface EditorState {
   pending: PendingChange[]
   redoStack: PendingChange[]
@@ -85,6 +123,8 @@ export interface EditorState {
   saveLog: string[]
 }
 
+/** The Network Editor's state at mount / after a hard reset: nothing staged,
+ *  nothing selected, Move sub-mode active, no save in progress. */
 export const initialEditorState: EditorState = {
   pending: [],
   redoStack: [],
@@ -100,6 +140,29 @@ export const initialEditorState: EditorState = {
  *  collapse the discriminated union down to only its common keys. */
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
 
+/**
+ * Every action {@link editorReducer} handles.
+ *  - `MOVE_NODE`: drag/typed-coordinate move of an existing OR still-pending-
+ *    new node — the reducer itself decides which (see the 'MOVE_NODE' case).
+ *  - `ADD_CHANGE`: stage any other kind of PendingChange (new/delete node or
+ *    segment, waypoint edit). Takes a change missing `changeId`/`ts`, which
+ *    the reducer fills in — see DistributiveOmit below for why a plain Omit
+ *    can't be used for this.
+ *  - `UNDO`/`REDO`: pop/restore the most recent pending entry, using
+ *    `redoStack` as a stack (see file header).
+ *  - `DISCARD_ONE`/`DISCARD_ALL`: remove one or every pending change (and its
+ *    redo-stack counterpart, if any) without saving it.
+ *  - `SELECT`: set which node/segment is clicked on the map.
+ *  - `SET_SUBMODE`: switch Move/Waypoints/Create/Delete — also clears
+ *    selection and any in-progress Create-mode draft, since they don't carry
+ *    meaning across a sub-mode switch.
+ *  - `SET_SEGMENT_DRAFT`: update the in-progress "pick start/end node or drop
+ *    a new one" state for Create sub-mode.
+ *  - `SAVE_START`/`SAVE_PROGRESS`/`SAVE_RESULT`: drive the Save All progress
+ *    UI — dispatched by whatever calls networkEditorSave.ts's saveAll()
+ *    (before the run, on each step's progress callback, and with the final
+ *    result, respectively).
+ */
 export type EditorAction =
   | { type: 'MOVE_NODE'; nodeId: string; lat: number; lng: number; fromLat: number; fromLng: number }
   | { type: 'ADD_CHANGE'; change: DistributiveOmit<PendingChange, 'changeId' | 'ts'> }
@@ -114,6 +177,9 @@ export type EditorAction =
   | { type: 'SAVE_PROGRESS'; changeId: string; status: SaveStatus; message: string }
   | { type: 'SAVE_RESULT'; succeededChangeIds: string[]; errors: { changeId: string; message: string }[] }
 
+/** The Network Editor's single reducer — pure, synchronous, and the only
+ *  place EditorState ever changes. Every branch returns a new state object
+ *  (no in-place mutation); see each `case` below for its own behavior. */
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
     case 'MOVE_NODE': {
@@ -139,16 +205,24 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
       return { ...state, pending: [...state.pending, change], redoStack: [] }
     }
     case 'UNDO': {
+      // Move the most recently staged change from `pending` onto `redoStack`
+      // — it stays fully intact (full snapshot, same changeId), so REDO can
+      // simply move it back.
       if (state.pending.length === 0) return state
       const popped = state.pending[state.pending.length - 1]
       return { ...state, pending: state.pending.slice(0, -1), redoStack: [...state.redoStack, popped] }
     }
     case 'REDO': {
+      // The exact inverse of UNDO — pop the most recently undone change back
+      // onto the end of `pending`.
       if (state.redoStack.length === 0) return state
       const popped = state.redoStack[state.redoStack.length - 1]
       return { ...state, redoStack: state.redoStack.slice(0, -1), pending: [...state.pending, popped] }
     }
     case 'DISCARD_ONE':
+      // Remove by changeId from both lists — a discarded change might be
+      // sitting in `redoStack` rather than `pending` if the user had just
+      // undone it, so both are filtered defensively.
       return {
         ...state,
         pending: state.pending.filter(c => c.changeId !== action.changeId),
@@ -163,6 +237,9 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
     case 'SET_SEGMENT_DRAFT':
       return { ...state, segmentDraft: action.draft }
     case 'SAVE_START':
+      // Seed every currently-pending change's progress entry as 'queued' up
+      // front, so EditorPendingPanel can immediately show the full list of
+      // steps about to run rather than having entries pop in one at a time.
       return {
         ...state,
         saveInFlight: true,
@@ -170,12 +247,20 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         saveProgress: Object.fromEntries(state.pending.map(c => [c.changeId, { status: 'queued' as SaveStatus, message: 'Queued' }])),
       }
     case 'SAVE_PROGRESS':
+      // Update just that one change's live status/message, and append a
+      // formatted line (✗/✓/→ prefix) to the running saveLog transcript.
       return {
         ...state,
         saveProgress: { ...state.saveProgress, [action.changeId]: { status: action.status, message: action.message } },
         saveLog: [...state.saveLog, `${action.status === 'error' ? '✗' : action.status === 'ok' ? '✓' : '→'} ${action.message}`],
       }
     case 'SAVE_RESULT': {
+      // Drop every change that actually succeeded (it's now real backend
+      // data, not a pending edit anymore); anything left in `pending` after
+      // that filter either wasn't attempted or failed — failed ones get
+      // `lastError` attached so EditorPendingPanel can flag them and the user
+      // can retry or discard. `saveProgress`/`saveLog` are deliberately left
+      // as-is here so the just-finished run's summary stays visible.
       const errByChangeId = Object.fromEntries(action.errors.map(e => [e.changeId, e.message]))
       const pending = state.pending
         .filter(c => !action.succeededChangeIds.includes(c.changeId))

@@ -23,17 +23,34 @@ import { api } from '../api/client'
 import type { PendingChange, SaveStatus } from './editorState'
 import type { CableSegment } from '../types'
 
+/** What {@link saveAll} resolves with once every step has been attempted:
+ *  the changeIds that landed successfully (including ones superseded by a
+ *  later duplicate, which count as trivially "succeeded"), and the changeId
+ *  + human-readable message for every one that failed or was skipped. */
 export interface SaveAllResult {
   succeededChangeIds: string[]
   errors: { changeId: string; message: string }[]
 }
 
+/** Callback saveAll() invokes before and after each individual write, so the
+ *  caller (EditorPendingPanel, via dispatched SAVE_PROGRESS actions) can show
+ *  live per-change status. */
 export type ProgressFn = (changeId: string, status: SaveStatus, message: string) => void
 
 function errMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
 
+/**
+ * Runs every staged PendingChange against the backend, in dependency order
+ * (creates → moves/edits → deletes, with nodes always ahead of segments that
+ * might reference them and behind the segments that reference them on
+ * delete — see the numbered comments below for the exact ordering and why).
+ * Never throws: each step's failure is caught and recorded in the returned
+ * `errors` list rather than aborting the whole run, so one broken change
+ * doesn't block every other one from saving. See the file header for the
+ * overall "sequential, not atomic" design rationale.
+ */
 export async function saveAll(pending: PendingChange[], onProgress: ProgressFn = () => {}): Promise<SaveAllResult> {
   const succeededChangeIds: string[] = []
   const errors: { changeId: string; message: string }[] = []

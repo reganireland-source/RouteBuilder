@@ -79,11 +79,22 @@ const CABLE_IMPORT_RESEARCH_ENABLED = import.meta.env.VITE_ENABLE_CABLE_IMPORT_R
 // feature — a plain third-party HTTP fetch, proxied through the backend.
 const SCM_ENABLED = import.meta.env.VITE_ENABLE_SCM !== 'false'
 
+/** Props for the top-level {@link CableImportWizard} component. */
 interface Props {
+  /** All nodes currently in the network — used for existing-node matching in
+   *  step 2 (rankNodeCandidates) and id-collision checks. */
   nodes: CableNode[]
+  /** All segments currently in the network — passed through to step 3/4 for
+   *  id generation (generateSegmentId avoids collisions) and review counts. */
   segments: CableSegment[]
+  /** All cable systems currently in the network — used for step 1's system-id
+   *  collision check. */
   systems: CableSystem[]
+  /** Closes the wizard modal without necessarily having committed anything
+   *  (also used as the "Done" action once nothing further needs doing). */
   onClose: () => void
+  /** Called once after a successful commit so the parent re-fetches nodes/
+   *  segments/systems/capacity from the backend. */
   onDataChange: () => void
   /** Fired once, after a successful commit, ONLY when step 1 linked a
    *  submarinecablemap.com cable — App.tsx uses this to open Chop Import
@@ -93,6 +104,11 @@ interface Props {
 
 // ── Draft state ──────────────────────────────────────────────────────────
 
+/** Step 1's staged, string-typed working copy of a CableSystem — all numeric/
+ *  enum fields are kept as raw strings while being edited (so an in-progress
+ *  or invalid entry like "" or a half-typed number never has to round-trip
+ *  through parseFloat/parseInt) and only converted to the real CableSystem
+ *  shape at commit time, in commitSystem(). */
 interface SystemDraft {
   id: string
   name: string
@@ -106,6 +122,8 @@ interface SystemDraft {
   consortium_owners: string[]
 }
 
+/** A blank SystemDraft for the wizard's initial state — reasonable defaults
+ *  (planned/active) rather than leaving the enum fields unset. */
 function emptySystemDraft(): SystemDraft {
   return {
     id: '', name: '', description: '', margin: '',
@@ -114,6 +132,13 @@ function emptySystemDraft(): SystemDraft {
   }
 }
 
+/** Step 2's per-row draft: a single landing station on the cable, which the
+ *  reviewer either links to an existing CableNode ('existing'), resolves to a
+ *  brand-new one to be created at commit time ('new'), or hasn't decided on
+ *  yet ('unresolved'). `key` is a stable React/local-state identity that is
+ *  NOT the eventual node id (a 'new' row's real id lives in `newNodeId` and
+ *  may still be empty) — see landingNodeId()/landingAsNode() below for how
+ *  callers turn a row into an actual id or CableNode. */
 interface LandingDraft {
   key: string
   name: string
@@ -130,7 +155,11 @@ interface LandingDraft {
   newNodeOwner: string
 }
 
+/** Module-level counter backing each LandingDraft's stable `key` — a plain
+ *  incrementing id is enough since these keys never need to be globally
+ *  unique beyond this wizard instance's own React tree. */
 let landingKeySeq = 0
+/** A blank, fully-unresolved LandingDraft for a new landing-station row. */
 function emptyLandingDraft(): LandingDraft {
   landingKeySeq += 1
   return {
@@ -140,9 +169,17 @@ function emptyLandingDraft(): LandingDraft {
   }
 }
 
+/** Step 3's per-row draft: one proposed (or manually added) segment between
+ *  two landing rows, referenced by their `key` (not their eventual node id,
+ *  which may not exist yet — see startKey/endKey below and buildSegmentDraft).
+ *  Like SystemDraft, numeric fields are kept as raw strings while editable. */
 interface SegmentDraft {
   key: string
+  /** LandingDraft.key of this segment's start — a stable local-state
+   *  reference, resolved to a real node id only at commit time via
+   *  landingNodeId(). */
   startKey: string
+  /** LandingDraft.key of this segment's end — see startKey. */
   endKey: string
   id: string
   name: string
@@ -154,6 +191,8 @@ interface SegmentDraft {
   total_capacity_t: string
 }
 
+/** Module-level counter backing each SegmentDraft's stable `key` — see
+ *  landingKeySeq above for why a plain counter is sufficient here. */
 let segmentKeySeq = 0
 
 // ── Small local helpers ──────────────────────────────────────────────────
@@ -233,6 +272,13 @@ function LabeledField({ label, children }: { label: string; children: (id: strin
 
 // ── Step 1: Cable identity ───────────────────────────────────────────────
 
+/** Step 1's paired "status select + conditional quarter input" for either
+ *  RFS (Ready for Service) or EOL (End of Life) — the quarter text field only
+ *  renders while the status is the "not yet settled" value (`planned` for
+ *  RFS, `eol` for EOL), and is cleared whenever the status changes away from
+ *  it, mirroring the backend's own required-only-when-that-status models.py
+ *  validation (see identityStepValid's own comment below). `kind` picks
+ *  which pair of SystemDraft fields (rfs_* vs eol_*) this instance edits. */
 function StatusQuarterField({ draft, setDraft, kind }: {
   draft: SystemDraft
   setDraft: (d: SystemDraft) => void
@@ -280,6 +326,10 @@ function StatusQuarterField({ draft, setDraft, kind }: {
   )
 }
 
+/** Step 1's tag-style editor for SystemDraft.consortium_owners: a text input
+ *  plus Add button/Enter key appends a trimmed, deduped name; each existing
+ *  chip has its own × to remove it. Purely local UI state (`draftName`) for
+ *  the in-progress text; the committed list lives in the parent's `owners`. */
 function ConsortiumOwnersField({ owners, setOwners }: { owners: string[]; setOwners: (o: string[]) => void }) {
   const t = useTheme()
   const [draftName, setDraftName] = useState('')
@@ -355,6 +405,12 @@ function ResearchBanner({ meta, t }: { meta: { confidence: string; sources: stri
   )
 }
 
+/** Wizard step 1: cable identity form (name, id, description, RFS/EOL,
+ *  fibre pairs, margin, consortium owners) plus the optional Research button
+ *  and SCM link field. Renders as a single scrolling column; validity for
+ *  "can I move to step 2" is computed separately by identityStepValid(), not
+ *  here — this component only handles editing and locally-visible field
+ *  errors (id taken / too long). */
 function StepIdentity({
   draft, setDraft, systems, scmCables, scmQuery, setScmQuery, scmSelectedId, setScmSelectedId,
   researching, researchMeta, researchError, onResearch,
@@ -506,6 +562,10 @@ function ScmLinkField({ scmCables, query, setQuery, selectedId, setSelectedId }:
 
 // ── Step 2: Landing stations ─────────────────────────────────────────────
 
+/** One clickable row in a LandingRow's "possible existing matches" list —
+ *  shows the candidate node's id/name/distance and links this landing row to
+ *  it on click. `nameScore` is accepted (it's part of rankNodeCandidates'
+ *  output shape) but not rendered; distance is the only signal shown here. */
 function NodeCandidateRow({ candidate, onLink, t }: {
   candidate: { node: CableNode; distKm: number; nameScore: number }
   onLink: () => void
@@ -529,6 +589,15 @@ function NodeCandidateRow({ candidate, onLink, t }: {
   )
 }
 
+/** One editable landing-station row in step 2. Holds the name/lat/lng/city/
+ *  country fields plus the row's resolution state machine:
+ *  'unresolved' (default while any of those fields is edited — see each
+ *  field's onChange below) → either 'existing' (linked to a real node, via a
+ *  NodeCandidateRow click) or 'new' (committing to create a fresh node, via
+ *  "+ Create new CLS node"). While 'unresolved' and coordinates are present,
+ *  it live-ranks nearby existing nodes with rankNodeCandidates so the reviewer
+ *  can link instead of accidentally duplicating a station that already
+ *  exists. */
 function LandingRow({ row, index, onChange, onRemove, nodes, defaultOwner, takenIds }: {
   row: LandingDraft
   index: number
@@ -669,6 +738,11 @@ function LandingRow({ row, index, onChange, onRemove, nodes, defaultOwner, taken
   )
 }
 
+/** Wizard step 2: the ordered list of landing-station rows (order matters —
+ *  it drives step 3's default trunk-topology proposal) plus an "add another"
+ *  row button. For each row it computes `takenIds`, the set of ids that row's
+ *  own new-node code must not collide with (see the comment at its use site
+ *  below), then delegates all per-row editing to LandingRow. */
 function StepLandingStations({ rows, setRows, nodes, defaultOwner }: {
   rows: LandingDraft[]
   setRows: (rows: LandingDraft[]) => void
@@ -700,6 +774,8 @@ function StepLandingStations({ rows, setRows, nodes, defaultOwner }: {
   )
 }
 
+/** Dashed-border "+ Add …" button shared by step 2 (landing stations) and
+ *  step 3 (segments) — purely presentational, all behavior is `onClick`. */
 function AddRowButton({ label, onClick }: { label: string; onClick: () => void }) {
   const t = useTheme()
   return (
@@ -712,6 +788,15 @@ function AddRowButton({ label, onClick }: { label: string; onClick: () => void }
 
 // ── Step 3: Segment breakdown ────────────────────────────────────────────
 
+/** The default "one segment per consecutive landing pair" trunk-topology
+ *  proposal for step 3: filters to only the RESOLVED rows (unresolved rows
+ *  have no usable node id yet — see landingNodeId), keeps them in their
+ *  step-2 list order (which is what makes this a trunk chop rather than an
+ *  arbitrary graph), and builds one SegmentDraft per adjacent pair. Called
+ *  lazily the first time the reviewer reaches step 3 (see goToStep's
+ *  `proposalGenerated` guard) and again on demand via "↺ Reset to trunk
+ *  proposal" — never automatically re-run after that, since the reviewer may
+ *  have deliberately edited/merged/branched the auto-proposed rows by then. */
 function proposeSegments(landingRows: LandingDraft[], nodes: CableNode[], systemId: string): SegmentDraft[] {
   const resolved = landingRows.filter(r => landingNodeId(r) !== undefined)
   const drafts: SegmentDraft[] = []
@@ -723,6 +808,18 @@ function proposeSegments(landingRows: LandingDraft[], nodes: CableNode[], system
   return drafts
 }
 
+/** Builds one SegmentDraft between two landing rows, inferring sensible
+ *  defaults so the reviewer only has to override what's wrong:
+ *   - `type` is 'terrestrial' when both ends share a country code, else
+ *     'wet' (a same-country hop is presumed to be inland backhaul, not an
+ *     undersea stretch) — purely a starting guess, freely overridable below.
+ *   - `length_km`/`reliability`/`cost_weight` come from the same straight-
+ *     line-distance-driven suggestSegmentDefaults() NewSegmentForm.tsx uses,
+ *     via landingAsNode() to get real or synthesised lat/lng for each end.
+ *   - `id`/`name` reuse editorGeo.ts's own generators, passing an empty
+ *     existing-segments list (`[]`) so the SUGGESTED id is never blocked by
+ *     a real collision — the reviewer's own edits are validated for real
+ *     collisions separately, at commit time. */
 function buildSegmentDraft(
   start: LandingDraft, end: LandingDraft, nodes: CableNode[], systemId: string,
 ): SegmentDraft {
@@ -747,6 +844,11 @@ function buildSegmentDraft(
   }
 }
 
+/** One editable segment row in step 3. Its Start/End selects re-point
+ *  `startKey`/`endKey` at any landing row's key (not just adjacent ones),
+ *  which is how the wizard covers both "merge two hops into one" (skip a
+ *  middle landing) and "branch to a third landing" (repeat a start/end)
+ *  without dedicated merge/branch controls — see the file header comment. */
 function SegmentRow({ draft, landingRows, onChange, onRemove, t }: {
   draft: SegmentDraft
   landingRows: LandingDraft[]
@@ -829,6 +931,12 @@ function SegmentRow({ draft, landingRows, onChange, onRemove, t }: {
   )
 }
 
+/** Wizard step 3: the editable list of SegmentDrafts (initially auto-proposed
+ *  by proposeSegments(), see goToStep), each rendered via SegmentRow, plus
+ *  "+ Add segment" (a manual extra row, defaulted between the first two
+ *  landing rows — its Start/End are then expected to be re-pointed) and
+ *  "↺ Reset to trunk proposal" (discards all manual edits and re-derives the
+ *  straight one-per-adjacent-pair list from the current landing rows). */
 function StepSegments({ landingRows, segmentDrafts, setSegmentDrafts, nodes, systemId }: {
   landingRows: LandingDraft[]
   segmentDrafts: SegmentDraft[]
@@ -840,6 +948,8 @@ function StepSegments({ landingRows, segmentDrafts, setSegmentDrafts, nodes, sys
 
   function addSegment() {
     if (landingRows.length < 2) return
+    // Defaults to the first two landing rows purely as a starting point —
+    // the reviewer is expected to re-point Start/End on the new row.
     const draft = buildSegmentDraft(landingRows[0], landingRows[1], nodes, systemId)
     setSegmentDrafts([...segmentDrafts, draft])
   }
@@ -874,9 +984,17 @@ function StepSegments({ landingRows, segmentDrafts, setSegmentDrafts, nodes, sys
 
 // ── Step 4: Review & create ──────────────────────────────────────────────
 
+/** Lifecycle of one POST in commit()'s dependency-ordered run. */
 type CommitStatus = 'pending' | 'committing' | 'success' | 'fail'
+/** One row of step 4's live commit checklist — `key` matches the pattern
+ *  used to look it up again in commit()/commitSystem()/commitNewNode()/
+ *  commitSegment() (e.g. `node:${row.key}`, `segment:${draft.key}`,
+ *  `capacity:${draft.key}`), `reason` is only set once `status` is 'fail'. */
 interface CommitItem { key: string; label: string; status: CommitStatus; reason?: string }
 
+/** Returns a new CommitItem[] with the item matching `key` shallow-merged
+ *  with `patch` — used as the building block for the setItem() callback
+ *  commit() hands down to each per-resource commit helper. */
 function patchCommitItem(items: CommitItem[], key: string, patch: Partial<CommitItem>): CommitItem[] {
   return items.map(it => (it.key === key ? { ...it, ...patch } : it))
 }
@@ -890,6 +1008,9 @@ function commitStatusColor(status: CommitStatus, t: Theme): string {
   return t.textFaint
 }
 
+/** One line of step 4's commit checklist: a status icon/color driven by
+ *  commitStatusColor()/COMMIT_STATUS_ICON, the item's label, and — once
+ *  failed — its error reason. */
 function CommitRow({ item, t }: { item: CommitItem; t: Theme }) {
   const color = commitStatusColor(item.status, t)
   const icon = COMMIT_STATUS_ICON[item.status]
@@ -902,6 +1023,11 @@ function CommitRow({ item, t }: { item: CommitItem; t: Theme }) {
   )
 }
 
+/** Wizard step 4: a plain-English summary of what's about to be created
+ *  (cable name/id, counts of new vs linked-existing nodes, segment count)
+ *  and, once "Create Cable" has been clicked, the live commitItems checklist
+ *  below it (commitItems is null until then, so the checklist simply isn't
+ *  rendered pre-commit). */
 function StepReview({ system, landingRows, segmentDrafts, commitItems }: {
   system: SystemDraft
   landingRows: LandingDraft[]
@@ -932,6 +1058,7 @@ function StepReview({ system, landingRows, segmentDrafts, commitItems }: {
 
 const STEP_LABELS = ['Cable identity', 'Landing stations', 'Segment breakdown', 'Review & create']
 
+/** Matches the backend's expected rfs_quarter/eol_quarter format, e.g. "2027-Q3". */
 const QUARTER_PATTERN = /^\d{4}-Q[1-4]$/
 
 /** The backend rejects rfs_quarter/eol_quarter as required (and pattern-
@@ -970,6 +1097,10 @@ function landingStepValid(landingRows: LandingDraft[], nodes: CableNode[]): bool
   return true
 }
 
+/** Gates the footer's "Next →" button per step: delegates to
+ *  identityStepValid()/landingStepValid() for steps 1/2, requires at least
+ *  one proposed segment for step 3, and is always true for step 4 (whose own
+ *  "Create Cable" button has its own `committing` disabled-state instead). */
 function canAdvance(
   step: number, system: SystemDraft, systems: CableSystem[], landingRows: LandingDraft[], segmentDrafts: SegmentDraft[],
   nodes: CableNode[],
@@ -980,6 +1111,19 @@ function canAdvance(
   return true
 }
 
+/**
+ * Top-level modal component for the Cable Import wizard — the file's sole
+ * export. Owns all four steps' draft state (SystemDraft, LandingDraft[],
+ * SegmentDraft[]), the current step index, the Research feature's async
+ * state, the optional SCM-cable-link state, and the commit run's progress/
+ * result state. See the file header docblock for the overall step flow and
+ * hand-off design; see {@link commit} below for the actual POST ordering.
+ *
+ * Renders: a fixed full-screen scrim + centered dialog with a step-tabs
+ * strip, the current step's content (via renderStep), and a footer (via
+ * WizardFooter) — except once `done` is true, when the body switches to
+ * DonePanel instead of the current step.
+ */
 export function CableImportWizard({ nodes, segments, systems, onClose, onDataChange, onLinkGeometry }: Props) {
   const t = useTheme()
   const [step, setStep] = useState(1)
@@ -1015,6 +1159,14 @@ export function CableImportWizard({ nodes, segments, systems, onClose, onDataCha
   const [researchMeta, setResearchMeta] = useState<{ confidence: string; sources: string[]; notes: string } | null>(null)
   const [researchError, setResearchError] = useState<string | null>(null)
 
+  /** Calls the research_cable() backend endpoint for the current cable name
+   *  and pre-fills step 1's fields plus step 2's landing rows from the
+   *  result — see the `researching`/`researchMeta`/`researchError` block
+   *  comment above for the "propose, never silently commit" contract this
+   *  honours. Every `prev` field is only overwritten when the result actually
+   *  has a value for it (`res.x || prev.x` / `res.x ?? prev.x`), so a field
+   *  the reviewer already hand-edited before clicking Research is never
+   *  silently blown away by an empty/null result field. */
   async function runResearch() {
     const name = system.name.trim()
     if (!name) return
@@ -1045,6 +1197,11 @@ export function CableImportWizard({ nodes, segments, systems, onClose, onDataCha
     }
   }
 
+  /** Advances to `next`, lazily generating step 3's auto-proposal exactly
+   *  once (`proposalGenerated` guards against clobbering the reviewer's own
+   *  edits if they go back to step 2, forward again, then back to step 3 —
+   *  it only regenerates on an explicit "↺ Reset to trunk proposal" click,
+   *  handled separately inside StepSegments). */
   function goToStep(next: number) {
     if (next === 3 && !proposalGenerated) {
       setSegmentDrafts(proposeSegments(landingRows, nodes, system.id))
@@ -1053,6 +1210,22 @@ export function CableImportWizard({ nodes, segments, systems, onClose, onDataCha
     setStep(next)
   }
 
+  /** Step 4's "Create Cable" handler — POSTs everything in dependency order:
+   *  system, then every new node (segments may reference them), then every
+   *  segment (+ its capacity if given), matching the commit pattern already
+   *  established by hooks/useKmlChopState.ts's own commit(). Builds the
+   *  CommitItem checklist up front (one row per system/new-node/segment/
+   *  capacity-with-a-value) so StepReview has something to render from the
+   *  very first paint, then works through commitSystem/commitNewNode/
+   *  commitSegment one at a time, updating each row's status as it goes via
+   *  `setItem`. A failed system commit aborts the whole run immediately
+   *  (nothing downstream can succeed without it); a failed node or segment
+   *  commit does NOT — the loop keeps going so the reviewer sees every
+   *  failure in one pass rather than fixing one at a time. `succeeded`
+   *  collects only the segment ids that actually landed (see commitSegment's
+   *  own return-value comment), which becomes `committedSegmentIds` — the
+   *  list handed to onLinkGeometry if a submarinecablemap.com cable was
+   *  linked in step 1 (see DonePanel below). */
   async function commit() {
     setCommitting(true)
     const items: CommitItem[] = [
@@ -1132,6 +1305,9 @@ export function CableImportWizard({ nodes, segments, systems, onClose, onDataCha
   )
 }
 
+/** Picks which of the four step components to render for the current `step`
+ *  index (1-4) and threads through the slice of props each one needs —
+ *  factored out of the main component purely to keep its JSX body short. */
 function renderStep(step: number, props: {
   system: SystemDraft; setSystem: (s: SystemDraft) => void; systems: CableSystem[]
   landingRows: LandingDraft[]; setLandingRows: (r: LandingDraft[]) => void; nodes: CableNode[]
@@ -1177,6 +1353,10 @@ function renderStep(step: number, props: {
   )
 }
 
+/** The horizontal step-progress strip at the top of the dialog: each label
+ *  from STEP_LABELS gets a numbered circle, colored blue if it's the current
+ *  step or muted grey if already passed, faint otherwise. Purely a visual
+ *  indicator — clicking a tab does not navigate (only Back/Next do). */
 function StepTabs({ step, t }: { step: number; t: Theme }) {
   return (
     <div style={{ display: 'flex', gap: 4, padding: '10px 18px', borderBottom: `1px solid ${t.border}` }}>
@@ -1204,6 +1384,9 @@ function StepTabs({ step, t }: { step: number; t: Theme }) {
   )
 }
 
+/** Dialog footer: a Back button (disabled on step 1) and, on the right,
+ *  either "Next →" (gated by `canAdvance`, steps 1-3) or "Create Cable"
+ *  (step 4, gated by `committing` so it can't be double-clicked mid-commit). */
 function WizardFooter({ step, t, committing, canAdvance: advanceOk, onBack, onNext, onCommit }: {
   step: number; t: Theme; committing: boolean; canAdvance: boolean
   onBack: () => void; onNext: () => void; onCommit: () => void
@@ -1228,6 +1411,12 @@ function WizardFooter({ step, t, committing, canAdvance: advanceOk, onBack, onNe
   )
 }
 
+/** Replaces the step content after a successful commit. Branches on whether
+ *  step 1 linked a submarinecablemap.com cable: if so, offers a one-click
+ *  hand-off into Chop Import (via `onContinueToGeometry`, which calls
+ *  onLinkGeometry — see the Props/file-header comments on it); otherwise it
+ *  just tells the reviewer to open KML Import manually, since there's no
+ *  specific cable id to hand off to Chop Import automatically. */
 function DonePanel({ t, onClose, scmSelectedId, scmCableName, onContinueToGeometry }: {
   t: Theme; onClose: () => void
   scmSelectedId: string | null; scmCableName: string; onContinueToGeometry: () => void
@@ -1262,6 +1451,12 @@ function DonePanel({ t, onClose, scmSelectedId, scmCableName, onContinueToGeomet
 
 // ── Commit helpers ───────────────────────────────────────────────────────
 
+/** First step of commit(): POSTs the SystemDraft as a CableSystem, converting
+ *  its string-typed numeric/optional fields to their real types (empty
+ *  string → undefined/null as the API expects) and updates the 'system'
+ *  CommitItem's status accordingly. Returns whether it succeeded — commit()
+ *  aborts the rest of the run if this is false, since nodes/segments below
+ *  reference this system's id. */
 async function commitSystem(system: SystemDraft, setItem: (key: string, patch: Partial<CommitItem>) => void): Promise<boolean> {
   setItem('system', { status: 'committing' })
   try {
@@ -1281,6 +1476,11 @@ async function commitSystem(system: SystemDraft, setItem: (key: string, patch: P
   }
 }
 
+/** Second phase of commit(): POSTs one 'new'-resolution LandingDraft as a
+ *  CableNode, using its typed newNodeId/newNodeType/newNodeOwner fields.
+ *  Updates that row's own `node:${row.key}` CommitItem's status; unlike
+ *  commitSystem, a failure here does not abort the run (see commit()'s own
+ *  comment for why). */
 async function commitNewNode(row: LandingDraft, setItem: (key: string, patch: Partial<CommitItem>) => void): Promise<void> {
   const key = `node:${row.key}`
   setItem(key, { status: 'committing' })

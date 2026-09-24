@@ -25,16 +25,42 @@ import { nodeLabel } from '../utils/nodeLabel'
 import { pathLengthKm, suggestSegmentDefaults, generateSegmentId, generateSegmentName } from '../utils/editorGeo'
 import { LabeledInput, LabeledSelect, OWNERSHIP_OPTS, actionBtn } from './formFields'
 
+/** Props for {@link NewSegmentForm}. */
 interface Props {
   startNode: CableNode
   endNode: CableNode
+  /** All cable systems — used to populate the System select for a 'wet'
+   *  segment (terrestrial segments are always pinned to the synthetic
+   *  'TERRESTRIAL' system, see `effectiveSystemId` below). */
   systems: CableSystem[]
+  /** All existing segments — used only for id-collision checking (`idTaken`)
+   *  and passed straight through to generateSegmentId's own suggestion logic. */
   segments: CableSegment[]
   suggestedLengthKm?: number
   onCancel: () => void
+  /** Called with a fully-formed CableSegment + SegmentCapacity once the form
+   *  is valid and submitted. Never touches the backend itself — see the file
+   *  header comment for why (two different callers, two different "what
+   *  happens next"). */
   onCreate: (segment: CableSegment, capacity: SegmentCapacity) => void
 }
 
+/**
+ * Inline form for creating one CableSegment (+ its initial SegmentCapacity)
+ * between two already-existing nodes. See the file header docblock for why
+ * this is a standalone, caller-agnostic component rather than living only
+ * inside NetworkEditor.tsx.
+ *
+ * Owns all of the segment's editable fields as local state, pre-filled with
+ * plausible defaults (suggestSegmentDefaults()) derived from either the
+ * caller-supplied `suggestedLengthKm` or the great-circle distance between
+ * the two nodes (pathLengthKm()). The id/name fields and the latency/cost-
+ * weight/reliability defaults are RE-SUGGESTED (not locked) whenever type,
+ * system, or length change — see retype()/resystem()/relength() below — but
+ * the user can still freely overwrite any field by hand afterward; nothing
+ * here re-derives a field the user has directly edited themselves except via
+ * one of those three specific triggers.
+ */
 export function NewSegmentForm({ startNode, endNode, systems, segments, suggestedLengthKm, onCancel, onCreate }: Props) {
   const t = useTheme()
   const nonTerrestrialSystems = systems.filter(s => s.id !== 'TERRESTRIAL')
@@ -55,6 +81,10 @@ export function NewSegmentForm({ startNode, endNode, systems, segments, suggeste
   const [totalCap, setTotalCap] = useState('')
   const [availCap, setAvailCap] = useState('')
 
+  // Terrestrial segments always belong to the synthetic 'TERRESTRIAL' system
+  // regardless of whatever `systemId` was last selected while `type` was
+  // 'wet' — this is the value actually submitted (see the `system_id` field
+  // in the onCreate call below), not `systemId` itself.
   const effectiveSystemId = type === 'terrestrial' ? 'TERRESTRIAL' : systemId
   const [id, setId] = useState(() => generateSegmentId('wet', nonTerrestrialSystems[0]?.id ?? '', startNode, endNode, segments))
   const [name, setName] = useState(() => generateSegmentName('wet', nonTerrestrialSystems[0], startNode, endNode))
@@ -69,6 +99,10 @@ export function NewSegmentForm({ startNode, endNode, systems, segments, suggeste
     const d = suggestSegmentDefaults(parseFloat(lengthKm) || 0, next)
     setLatency(String(d.latency)); setCostWeight(String(d.cost_weight)); setReliability(String(d.reliability))
   }
+  /** Re-suggests id/name when the chosen System changes — a no-op while
+   *  `type === 'terrestrial'`, since the system is then always 'TERRESTRIAL'
+   *  regardless of `systemId` (see `effectiveSystemId`), so there is nothing
+   *  meaningful to re-derive from a system pick the UI doesn't even show. */
   function resystem(next: string) {
     setSystemId(next)
     if (type !== 'terrestrial') {
@@ -76,6 +110,8 @@ export function NewSegmentForm({ startNode, endNode, systems, segments, suggeste
       setName(generateSegmentName(type, systems.find(s => s.id === next), startNode, endNode))
     }
   }
+  /** Re-derives latency and cost weight (not id/name, which don't depend on
+   *  length) whenever the length field changes. */
   function relength(next: string) {
     setLengthKm(next)
     const d = suggestSegmentDefaults(parseFloat(next) || 0, type)

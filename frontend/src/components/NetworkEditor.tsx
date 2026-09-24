@@ -33,15 +33,22 @@ import { generateNodeId } from '../utils/editorGeo'
 import { LabeledInput, LabeledSelect, actionBtn } from './formFields'
 import { NewSegmentForm } from './NewSegmentForm'
 
+/** Props for {@link NetworkEditor}. */
 interface Props {
   nodes: CableNode[]
   segments: CableSegment[]
   systems: CableSystem[]
   capacity: SegmentCapacity[]
+  /** Currently active "dim everything but this country" clutter filter, or
+   *  null when unset — shared state with Country Viewer, see the file header. */
   countryHighlight: CountryHighlight | null
   onCountrySelect: (h: CountryHighlight | null) => void
+  /** Currently active "dim everything but these systems" clutter filter —
+   *  shared state with System Viewer, see the file header. */
   selectedSystems: SelectedSystem[]
   onToggleSystem: (systemId: string) => void
+  /** The staged-changes state this panel reads and edits — see
+   *  state/editorState.ts for the reducer and PendingChange shape. */
   editorState: EditorState
   dispatchEditor: (action: EditorAction) => void
 }
@@ -62,6 +69,16 @@ const NODE_TYPE_OPTS: { value: NodeType; label: string }[] = [
   { value: 'off_net', label: 'Off-Net Node' },
 ]
 
+/**
+ * Left-panel UI for Network Editor mode — see the file header docblock for
+ * the four sub-modes and how staging works. Renders the sub-mode strip, the
+ * sub-mode-specific panel (Move's NodeLatLngForm, Create's CreatePanel,
+ * Delete's DeletePanel — Waypoints has no dedicated form, since the actual
+ * editing happens on the map via EditorMapLayer.tsx), and the collapsible
+ * clutter filter. Derives `selectedNode`/`selectedSegment` from
+ * `editorState.selection`, which the map layer sets when the user clicks a
+ * node/segment on screen.
+ */
 export function NetworkEditor({
   nodes, segments, systems, capacity, countryHighlight, onCountrySelect,
   selectedSystems, onToggleSystem, editorState, dispatchEditor,
@@ -178,7 +195,10 @@ export function NetworkEditor({
 
 /** Typed lat/lng precision override for the node currently selected on the
  *  map — the alternative to dragging. Local text state so the fields don't
- *  fight the user's keystrokes while they're mid-edit; committed on blur/Enter. */
+ *  fight the user's keystrokes while they're mid-edit; committed on blur/Enter.
+ *  `key={selectedNode.id}` at the call site remounts this component whenever
+ *  the selection changes, so its local `lat`/`lng` state always starts fresh
+ *  from the newly selected node rather than carrying over stale text. */
 function NodeLatLngForm({ node, dispatchEditor }: { node: CableNode; dispatchEditor: (action: EditorAction) => void }) {
   const t = useTheme()
   const [lat, setLat] = useState(String(node.lat))
@@ -187,8 +207,17 @@ function NodeLatLngForm({ node, dispatchEditor }: { node: CableNode; dispatchEdi
   // rather than window.confirm — so it's async, hence the held-back coords.
   const [pendingMove, setPendingMove] = useState<{ lat: number; lng: number } | null>(null)
 
+  /** Reverts the text fields back to the node's actual (last-committed)
+   *  coordinates — used both on invalid input and after a cancelled confirm. */
   function reset() { setLat(String(node.lat)); setLng(String(node.lng)) }
 
+  /** Parses the typed lat/lng and, if both are valid numbers and actually
+   *  different from the node's current position, either dispatches the move
+   *  immediately (branching units — virtual points, no real-world coordinate
+   *  to get wrong) or holds it in `pendingMove` for the ConfirmDialog below
+   *  (physical sites — moving one is consequential enough to double-check).
+   *  Invalid input silently reverts via reset() rather than showing an error,
+   *  since the only invalid state here is "not parseable as a number". */
   function commit() {
     const parsedLat = parseFloat(lat)
     const parsedLng = parseFloat(lng)
@@ -235,6 +264,19 @@ function NodeLatLngForm({ node, dispatchEditor }: { node: CableNode; dispatchEdi
 
 // ── Create sub-mode ─────────────────────────────────────────────────────────
 
+/**
+ * Panel for the Create sub-mode — a small three-state machine driven by
+ * `editorState.segmentDraft` (see state/editorState.ts's SegmentDraft type):
+ *  1. `draft.newNodeAt` set → the user clicked empty map space; show
+ *     NewNodeForm to fill in the new node's details.
+ *  2. Both `startNodeId` and `endNodeId` resolved to real nodes → show
+ *     NewSegmentForm to fill in the segment connecting them.
+ *  3. Otherwise → a plain instructional prompt (and the confirmed start
+ *     node, if one is picked) telling the user what to click next.
+ * The actual node-clicking interaction lives in EditorMapLayer.tsx, which
+ * dispatches SET_SEGMENT_DRAFT as the user picks; this panel only reacts to
+ * the resulting draft state and supplies the two creation forms.
+ */
 function CreatePanel({ nodes, segments, systems, editorState, dispatchEditor }: {
   nodes: CableNode[]; segments: CableSegment[]; systems: CableSystem[]
   editorState: EditorState; dispatchEditor: (a: EditorAction) => void
@@ -293,6 +335,14 @@ function CreatePanel({ nodes, segments, systems, editorState, dispatchEditor }: 
   )
 }
 
+/** Form for creating a brand-new node at a specific point the user clicked
+ *  on the map (`at`). Suggests an id via generateNodeId() whenever type or
+ *  country changes (the id is derived from both), which the user can still
+ *  overwrite by hand. On submit, calls `onCreate` with a fully-formed
+ *  CableNode (always `verification_status: 'draft'`, matching every other
+ *  editor-created record) — the caller (CreatePanel) is responsible for
+ *  staging it as an ADD_CHANGE and wiring it up as the pending segment's
+ *  endpoint. */
 function NewNodeForm({ at, nodes, onCancel, onCreate }: {
   at: { lat: number; lng: number }; nodes: CableNode[]
   onCancel: () => void; onCreate: (node: CableNode) => void
@@ -344,6 +394,18 @@ function NewNodeForm({ at, nodes, onCancel, onCreate }: {
 
 // ── Delete sub-mode ─────────────────────────────────────────────────────────
 
+/**
+ * Panel for the Delete sub-mode. Renders one of three views depending on
+ * `editorState.selection` (passed in as `selectedNode`/`selectedSegment`):
+ *  - neither selected → instructional prompt.
+ *  - a segment selected → confirm-delete card; stages a single
+ *    'delete-segment' PendingChange (its capacity, if any, is implicitly
+ *    deleted alongside it by saveAll()).
+ *  - a node selected → confirm-delete card that also warns about, and
+ *    optionally cascades to, every segment still referencing that node (see
+ *    `referencing`/`cascade` below) — since orphaning a segment's endpoint id
+ *    would otherwise leave it pointing at a node that no longer exists.
+ */
 function DeletePanel({ segments, capacity, selectedNode, selectedSegment, dispatchEditor }: {
   segments: CableSegment[]; capacity: SegmentCapacity[]
   selectedNode: CableNode | null; selectedSegment: CableSegment | null
@@ -352,6 +414,8 @@ function DeletePanel({ segments, capacity, selectedNode, selectedSegment, dispat
   const t = useTheme()
   const [cascade, setCascade] = useState(false)
 
+  // Every segment that would be left pointing at a now-nonexistent node id
+  // if `selectedNode` were deleted without cascading.
   const referencing = selectedNode
     ? segments.filter(s => s.start_node_id === selectedNode.id || s.end_node_id === selectedNode.id)
     : []
@@ -409,6 +473,12 @@ function DeletePanel({ segments, capacity, selectedNode, selectedSegment, dispat
         <button
           onClick={() => {
             const cascadeIds = cascade ? referencing.map(s => s.id) : []
+            // Stage each cascaded segment's own 'delete-segment' change FIRST
+            // (each an independent, individually undoable/discardable entry —
+            // see editorState.ts's snapshot-per-entry design note), then the
+            // node's 'delete-node' change below records their ids in
+            // `cascadeSegmentIds` purely for saveAll()'s own dependency
+            // ordering (segments before the node they reference).
             if (cascade) {
               for (const seg of referencing) {
                 dispatchEditor({

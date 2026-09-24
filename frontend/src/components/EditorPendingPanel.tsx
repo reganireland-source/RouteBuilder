@@ -15,14 +15,25 @@ import type { EditorState, EditorAction, PendingChange, SaveStatus } from '../st
 import { useTheme } from '../theme'
 import { nodeLabel, nodeLabelById } from '../utils/nodeLabel'
 
+/** Props for {@link EditorPendingPanel}. */
 interface Props {
   state: EditorState
   dispatch: (action: EditorAction) => void
+  /** Current (real, not staged) nodes/segments — used only to resolve ids
+   *  into human-readable names/labels for the change list (see
+   *  describeChange() below); staged edits are read from `state.pending`
+   *  itself, not derived from these. */
   nodes: CableNode[]
   segments: CableSegment[]
+  /** Invoked by the "Save All" button — the actual save orchestration
+   *  (networkEditorSave.ts's saveAll(), plus dispatching SAVE_START/
+   *  SAVE_PROGRESS/SAVE_RESULT) lives in the parent, not in this panel. */
   onSaveAll: () => void
 }
 
+/** Turns one PendingChange into the single human-readable line shown for it
+ *  in the pending list — one case per PendingChange.kind, resolving node/
+ *  segment ids to names via the lookup maps built in EditorPendingPanel. */
 function describeChange(change: PendingChange, nodesById: Record<string, CableNode>, segmentsById: Record<string, CableSegment>): string {
   switch (change.kind) {
     case 'move-node': {
@@ -63,6 +74,16 @@ function StatusDot({ status, t }: { status: SaveStatus | undefined; t: ReturnTyp
   )
 }
 
+/**
+ * The Network Editor's staged-changes list — see the file header docblock.
+ * Renders, top to bottom: Undo/Redo/Discard-All controls; a live Save All
+ * progress card (only while `state.saveProgress` has entries, i.e. during or
+ * just after a save run) with an expandable step-by-step log; either an empty
+ * hint or the actual list of pending changes (each row combining
+ * describeChange()'s label, a per-change StatusDot, and a discard ×); and
+ * finally the Save All button itself (disabled mid-save) with an error
+ * summary line if any change carries a `lastError`.
+ */
 export function EditorPendingPanel({ state, dispatch, nodes, segments, onSaveAll }: Props) {
   const t = useTheme()
   const [confirmDiscardAll, setConfirmDiscardAll] = useState(false)

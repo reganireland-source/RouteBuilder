@@ -8,6 +8,9 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { useTheme, type Theme } from '../theme'
 import type { Ownership } from '../types'
 
+/** Ready-made options list for an Ownership `<select>` (via LabeledSelect) —
+ *  shared so every form that edits a segment's ownership uses the same
+ *  option order and labels. */
 export const OWNERSHIP_OPTS: { value: Ownership; label: string }[] = [
   { value: 'owned', label: 'Owned' },
   { value: 'consortium', label: 'Consortium' },
@@ -16,6 +19,8 @@ export const OWNERSHIP_OPTS: { value: Ownership; label: string }[] = [
   { value: 'offnet_resell', label: 'Offnet Resell' },
 ]
 
+/** Shared themed input/label CSS for this module's plain form fields —
+ *  a hook (not a plain function) only because it needs `useTheme()`. */
 export function useFieldStyles() {
   const t = useTheme()
   return {
@@ -28,6 +33,9 @@ export function useFieldStyles() {
   }
 }
 
+/** A labelled, themed text input with a stable id (via useId) tying the
+ *  `<label>` to the `<input>` for accessibility. `invalid` just switches the
+ *  border to red — validation logic itself always lives in the caller. */
 export function LabeledInput({ label, value, onChange, placeholder, invalid }: {
   label: string; value: string; onChange: (v: string) => void; placeholder?: string; invalid?: boolean
 }) {
@@ -47,6 +55,8 @@ export function LabeledInput({ label, value, onChange, placeholder, invalid }: {
   )
 }
 
+/** A labelled, themed `<select>` generic over its string-literal value type T
+ *  (e.g. an Ownership or a NodeType), same labelling approach as LabeledInput. */
 export function LabeledSelect<T extends string>({ label, value, onChange, options }: {
   label: string; value: T; onChange: (v: T) => void; options: { value: T; label: string }[]
 }) {
@@ -62,6 +72,9 @@ export function LabeledSelect<T extends string>({ label, value, onChange, option
   )
 }
 
+/** One selectable row in a {@link Typeahead}'s dropdown: a stable identity
+ *  (`id`, handed back verbatim on pick) and the display text it's filtered/
+ *  matched against (`label`). */
 export interface TypeaheadOption { id: string; label: string }
 
 /**
@@ -112,6 +125,8 @@ export function Typeahead({
     return () => document.removeEventListener('mousedown', onDocMouseDown)
   }, [])
 
+  // Plain case-insensitive substring filter, capped at 50 rows so a huge
+  // options list (e.g. every SCM cable) never renders an unbounded dropdown.
   const q = value.trim().toLowerCase()
   const filtered = (q ? options.filter(o => o.label.toLowerCase().includes(q)) : options).slice(0, 50)
 
@@ -120,6 +135,9 @@ export function Typeahead({
     setOpen(false)
   }
 
+  /** Standard listbox keyboard nav: Down/Up move `activeIdx` (opening the
+   *  dropdown if it's closed), Enter picks the currently-active row (only
+   *  while open and a row exists at that index), Escape closes without picking. */
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); setActiveIdx(i => Math.min(i + 1, filtered.length - 1)) }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)) }
@@ -146,6 +164,10 @@ export function Typeahead({
   )
 }
 
+/** The absolutely-positioned option list a {@link Typeahead} shows while
+ *  open — one row per filtered option (highlighting `activeIdx`, hover
+ *  updates it via `onHover`), or `emptyText` if given and nothing matches
+ *  (rendering nothing at all if `emptyText` is omitted). */
 function TypeaheadDropdown({ filtered, activeIdx, onHover, onPick, emptyText, t }: {
   filtered: TypeaheadOption[]; activeIdx: number
   onHover: (i: number) => void; onPick: (o: TypeaheadOption) => void
@@ -180,6 +202,10 @@ function TypeaheadDropdown({ filtered, activeIdx, onHover, onPick, emptyText, t 
   )
 }
 
+/** Shared button style-object factory for the editor's forms (NewSegmentForm,
+ *  NetworkEditor's New Node/Delete panels, etc.) — `kind` picks the visual
+ *  treatment (filled green 'primary', filled red 'danger', outlined
+ *  transparent 'ghost'), `disabled` dims it and forces the "default" cursor. */
 export function actionBtn(t: ReturnType<typeof useTheme>, kind: 'primary' | 'danger' | 'ghost', disabled = false) {
   let bg: string = 'transparent'
   let color = '#fff'
