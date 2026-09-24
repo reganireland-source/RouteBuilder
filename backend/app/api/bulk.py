@@ -1034,6 +1034,14 @@ def import_nodes(file: UploadFile = File(...), mode: BulkMode = Query("upsert"))
 
 @router.post("/import/segments")
 def import_segments(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    """POST /api/bulk/import/segments — actually apply a segments CSV. Like
+    import_nodes, builds each row via _merged(CableSegment, ...) so fields
+    this CSV doesn't carry — waypoints (explicitly preserved below) and the
+    RFS/EOL lifecycle fields — survive an import untouched instead of being
+    reset to their model defaults. New rows (no existing record to merge
+    onto) get sensible fallback defaults for missing columns (type="wet",
+    reliability=1, cost_weight=1, ownership="offnet_resell") rather than
+    failing to construct."""
     rows = _read_csv(file)
     existing = {s.id: s for s in load_segments()}
     updated  = dict(existing)
@@ -1098,6 +1106,11 @@ def import_segments(file: UploadFile = File(...), mode: BulkMode = Query("upsert
 
 @router.post("/import/systems")
 def import_systems(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    """POST /api/bulk/import/systems — actually apply a systems CSV. Builds
+    each row via _merged(CableSystem, ...), so RFS/EOL and
+    fiber_pair_count/consortium_owners — none of which this CSV format
+    carries — survive an import untouched for an existing system, and take
+    their CableSystem defaults (in_service/active, None) for a new one."""
     rows = _read_csv(file)
     existing = {s.id: s for s in load_systems()}
     updated  = dict(existing)
@@ -1144,6 +1157,11 @@ def import_systems(file: UploadFile = File(...), mode: BulkMode = Query("upsert"
 
 @router.post("/import/capacity")
 def import_capacity(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    """POST /api/bulk/import/capacity — actually apply a capacity CSV, keyed
+    by segment_id. Unlike the other import_* endpoints this constructs
+    SegmentCapacity directly (no _merged) since the model has only the two
+    numeric fields the CSV always carries in full, so there is nothing a
+    partial CSV row could leave stale."""
     rows = _read_csv(file)
     existing = {c.segment_id: c for c in load_capacity()}
     updated  = dict(existing)
@@ -1190,6 +1208,16 @@ def import_capacity(file: UploadFile = File(...), mode: BulkMode = Query("upsert
 
 @router.post("/import/coverage")
 def import_coverage(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    """POST /api/bulk/import/coverage — actually apply a coverage CSV. `mode`
+    is accepted for signature consistency with the other import_* endpoints
+    but unused: coverage rows only ever modify an existing node's
+    capabilities in place (see validate_coverage's docstring), so there is no
+    add/skip/delete distinction for add_only or full_replace to make — every
+    row for a known node_id is applied the same way regardless of `mode`.
+    Rebuilds the node's whole NodeCapabilities from the row's speed/category
+    cells (an empty cell clears that sub-block: `any([...])` is False, so
+    backbone/underlay/colocation end up None), and merges only `capabilities`
+    onto the existing Node via _merged so every other node field survives."""
     rows = _read_csv(file)
     nodes_list = load_nodes()
     by_id = {n.id: n for n in nodes_list}
