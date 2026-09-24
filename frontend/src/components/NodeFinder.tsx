@@ -136,6 +136,10 @@ const TYPE_SHORT: Record<CableNode['type'], string> = {
   off_net:         'Off-Net',
 }
 
+/** Result-card logo: the owner's real logo when one is on file in
+ *  {@link OWNER_LOGOS}, otherwise a generated colour tile with the owner's
+ *  first initial (colour hashed from the owner name so it's stable across
+ *  renders/reloads for the same owner). Renders nothing for an unnamed owner. */
 function OwnerLogo({ owner }: { owner?: string }) {
   if (!owner) return null
   const logoUrl = OWNER_LOGOS[owner]
@@ -162,6 +166,7 @@ function OwnerLogo({ owner }: { owner?: string }) {
   )
 }
 
+/** Great-circle distance between two lat/lng points, in kilometres. */
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371
   const dLat = (lat2 - lat1) * Math.PI / 180
@@ -205,6 +210,10 @@ function codeSuggestions(nodes: CableNode[], raw: string): CableNode[] {
   return hits.sort((a, b) => a.id.localeCompare(b.id)).slice(0, MAX_SUGGESTIONS)
 }
 
+/** Coordinates → country/address via Nominatim's `/reverse` endpoint. Used
+ *  for the "lat, lng" input path. Throws when the request itself fails (not
+ *  when Nominatim simply finds no address — that still resolves with an
+ *  empty/derived country code). */
 async function reverseGeocode(lat: number, lng: number): Promise<Geo> {
   const res = await fetch(
     `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`
@@ -219,6 +228,10 @@ async function reverseGeocode(lat: number, lng: number): Promise<Geo> {
   }
 }
 
+/** Free-text address → coordinates/country via Nominatim's `/search`
+ *  endpoint, taking the top result only. Throws both on a failed request and
+ *  on a request that succeeds but returns zero matches, so callers can show
+ *  one error message either way. */
 async function forwardGeocode(address: string): Promise<Geo> {
   const res = await fetch(
     `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1&addressdetails=1`
@@ -236,6 +249,8 @@ async function forwardGeocode(address: string): Promise<Geo> {
   }
 }
 
+/** Entry point for the address-search path: routes to reverseGeocode when the
+ *  input parses as a bare "lat, lng" pair, otherwise to forwardGeocode. */
 function geocode(raw: string): Promise<Geo> {
   const latLng = LAT_LNG_RE.exec(raw)
   return latLng
@@ -243,6 +258,10 @@ function geocode(raw: string): Promise<Geo> {
     : forwardGeocode(raw)
 }
 
+/** The three closest non-branching-unit nodes to `geo`, restricted to nodes in
+ *  the same country as the geocoded point (a global nearest-neighbour search
+ *  would too often surface a node on the wrong continent that happens to be
+ *  "closest" across an ocean). */
 function rankNearest(nodes: CableNode[], geo: Geo): Result[] {
   return nodes
     .filter(n => n.country === geo.countryCode && n.type !== 'branching_unit')
@@ -251,6 +270,13 @@ function rankNearest(nodes: CableNode[], geo: Geo): Result[] {
     .slice(0, 3)
 }
 
+/**
+ * NodeFinder — see file header for the full two-path (code lookup vs.
+ * address/lat-lng search) design. Owns the search box, the tap-ahead code
+ * suggestion list, loading/error state for the geocoding round trip, and the
+ * resulting card list; reports pin/highlight changes to the parent via
+ * `onPinChange` as the search state changes.
+ */
 export function NodeFinder({ nodes, onPinChange, onSetOrigin, onSetDest, onGoToNode }: Props) {
   const t = useTheme()
   const [query, setQuery] = useState('')

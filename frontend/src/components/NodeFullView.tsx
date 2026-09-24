@@ -99,6 +99,7 @@ interface EditDraft {
   on_net: string
 }
 
+/** Seed an {@link EditDraft} from a loaded {@link CableNode} for the edit form. */
 function draftFrom(n: CableNode): EditDraft {
   return {
     name: n.name ?? '',
@@ -636,6 +637,10 @@ function SegmentCapacityList({ t, node, nodeSegments, capacity, nodesById, onOpe
   )
 }
 
+/** One row of {@link SegmentCapacityList}: the far-end node label, a
+ *  used/total capacity readout (or "no capacity record" when none exists),
+ *  a thin utilisation bar, and an optional ⛶ button to open that segment's
+ *  own Full View. */
 function CapacityRow({ t, farLabel, cap, onOpenSegment }: {
   t: T; farLabel: string; cap: SegmentCapacity | undefined; onOpenSegment?: () => void
 }) {
@@ -675,6 +680,8 @@ function CapacityRow({ t, farLabel, cap, onOpenSegment }: {
   )
 }
 
+/** Display label for a node's `on_net` value, or undefined when unset (so the
+ *  identity list's `.filter(([, v]) => v)` skips the row entirely). */
 function onNetLabel(v: string | undefined): string | undefined {
   if (v === 'on_net') return 'On-Net'
   if (v === 'off_net') return 'Off-Net'

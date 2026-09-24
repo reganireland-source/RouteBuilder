@@ -284,6 +284,16 @@ function GapsTable({ gaps, t }: { gaps: KmlLibraryGap[]; t: Theme }) {
   )
 }
 
+/**
+ * KmlLibrary — modal dialog rendered via a React portal (so it sits above
+ * the rest of the app regardless of where it's mounted). See the file-level
+ * docblock above for the four tabs (Linked/Gaps/Orphans/Unused) and the
+ * philosophy behind them. Fetches its own data on mount (`fetchAll`) and
+ * after every mutation (`act`); admin-only actions (activate/delete a
+ * version, bulk-delete, clear unused files) are gated by `useAuth().isAdmin`.
+ * `onPreview`/`onDataChange` let the caller (the map/App shell) react to a
+ * "draw this route" click or a change that should trigger a data refetch.
+ */
 export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
   const t = useTheme()
   const { isAdmin } = useAuth()
@@ -333,6 +343,9 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
     return () => { alive = false }
   }, [apply])
 
+  /** Expand/collapse a Linked row's version history, lazily fetching its
+   *  versions the first time it's opened (cached in `versions` thereafter,
+   *  until `apply()` clears it on the next reload). */
   async function toggle(segmentId: string) {
     if (expanded === segmentId) { setExpanded(null); return }
     setExpanded(segmentId)
@@ -342,6 +355,11 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
     }
   }
 
+  /** Shared wrapper for every admin mutation (activate/delete a version,
+   *  bulk delete, clear unused files): sets the busy flag, runs `fn`,
+   *  reloads the library so the UI reflects the new state, and notifies the
+   *  parent via `onDataChange`. Centralised so every action gets the same
+   *  busy-state + error-handling + reload behaviour. */
   async function act(fn: () => Promise<unknown>) {
     setBusy(true); setError(null)
     try {
@@ -355,6 +373,10 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
     }
   }
 
+  /** Fetch a segment's full-resolution surveyed path and hand it to the
+   *  caller's `onPreview` to draw on the real map — the "◎ Map" button on a
+   *  Linked row. Uses the first (fixed) preview colour since only one route
+   *  is ever drawn this way. */
   async function preview(segmentId: string) {
     try {
       const full = await api.getKmlFullPath(segmentId)
@@ -364,11 +386,14 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
     }
   }
 
+  /** Confirmed "Clear all unused files" — deletes every uploaded blob that
+   *  no version points at. */
   async function clearAllUnused() {
     setConfirmClearAll(false)
     await act(() => api.clearKmlUnusedFiles())
   }
 
+  /** Add/remove one segment from the bulk-delete selection set. */
   function toggleSelect(segmentId: string) {
     setSelected(prev => {
       const next = new Set(prev)
@@ -377,6 +402,8 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
     })
   }
 
+  /** Confirmed bulk delete — removes EVERY version for each selected
+   *  segment (not just the active one). */
   async function deleteSelected() {
     setConfirmBulkDelete(false)
     await act(() => api.deleteSegmentsKml([...selected]))
@@ -388,6 +415,8 @@ export function KmlLibrary({ onClose, onDataChange, onPreview }: Props) {
 
   const linked = (data?.linked ?? []).filter(r => match(r.segment_id, r.name, r.system_id))
   const allVisibleSelected = linked.length > 0 && linked.every(r => selected.has(r.segment_id))
+  /** The header checkbox: select every currently-filtered Linked row, or
+   *  clear the selection entirely if all of them are already selected. */
   function toggleSelectAllVisible() {
     setSelected(allVisibleSelected ? new Set() : new Set(linked.map(r => r.segment_id)))
   }

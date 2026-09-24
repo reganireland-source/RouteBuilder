@@ -128,6 +128,16 @@ interface Props {
   zIndex?: number
 }
 
+/**
+ * The segment Full View modal. Portals `SegmentHeader` + `SegmentBody` into
+ * `document.body` inside `fullViewChrome`'s shared backdrop/dialog/layout
+ * context. Holds `current`/`stack` (ids, not segment objects — see the file
+ * header point 1) so that both same-type navigation (endpoint → parallel
+ * segment → back) and opening a stacked `NodeFullView` from an endpoint work
+ * without ever going stale after a refetch. See the file header for the full
+ * behavioural contract (navigation, in-place admin editing, string-held
+ * numeric drafts, and the geometry cross-check).
+ */
 export function SegmentFullView({
   segmentId, nodes, segments, systems, capacity, outages = [], notes, noteCategories,
   onClose, onDataChange, kmlPaths, zIndex = Z_FULL_VIEW_BASE,
@@ -343,6 +353,12 @@ function SegmentHeader({ t, phone, segment, current, nodesById, backTo, canEdit,
 
 // ── Body ──────────────────────────────────────────────────────────────────
 
+/**
+ * The scrollable body beneath the header: builds every card once (`diagramCard`,
+ * `identityCard`, ... `notesCard`) and then arranges the SAME set of card
+ * elements into either a two-column landscape layout or a single stacked
+ * column, so the two layouts can never carry different content by accident.
+ */
 function SegmentBody({
   t, segment, nodesById, segments, systems, capacity, outages, notes, noteCategories,
   editing, onOpenNode, onNavigateSegment, onSaved, onCancelEdit, kmlPaths, onDataChange,
@@ -716,6 +732,8 @@ function MetricsList({ t, segment }: { t: T; segment: CableSegment }) {
   )
 }
 
+/** Total/available/used figures plus a utilisation bar, or an `Empty` line
+ *  when the segment has no capacity record at all. */
 function CapacityBlock({ t, cap }: { t: T; cap?: SegmentCapacity }) {
   if (!cap) return <Empty t={t}>No capacity record for this segment.</Empty>
   const total = cap.total_capacity_t
@@ -867,6 +885,9 @@ interface EditDraft {
   waypoints: [number, number][]
 }
 
+/** Builds an `EditDraft` snapshot of `s` for the edit form to start from — see
+ *  `EditDraft`'s own docstring for why numbers are strings and waypoints are
+ *  deep-copied. */
 function draftFrom(s: CableSegment): EditDraft {
   return {
     name: s.name ?? '',
@@ -923,6 +944,8 @@ function validateLifecycle(draft: EditDraft): string | null {
   return null
 }
 
+/** Every waypoint must be a real coordinate: latitude in [-90, 90], longitude
+ *  in [-180, 180]. Returns the first violation found, or null when all pass. */
 function validateWaypoints(draft: EditDraft): string | null {
   for (const [lat, lng] of draft.waypoints) {
     if (!Number.isFinite(lat) || lat < -90 || lat > 90) return 'Every waypoint latitude must be between -90 and 90'
@@ -1078,6 +1101,7 @@ function WaypointEditor({ t, waypoints, onChange }: {
   )
 }
 
+/** Tiny icon-only button style for the waypoint editor's ↑/↓/× row controls. */
 function miniBtn(t: T, disabled: boolean, color?: string): React.CSSProperties {
   return {
     fontSize: 11, padding: '3px 7px', borderRadius: 3,

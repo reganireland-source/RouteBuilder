@@ -102,6 +102,21 @@ interface FetchResult {
   error: string | null
 }
 
+/**
+ * EntityNotesPanel — read-only, grouped-by-category list of solution notes for one
+ * node or segment. See the file header for the full behavior (grouping/ordering,
+ * the controlled-vs-self-fetching prop contract, and the client-side filtering
+ * rationale). Renders one of: a loading line, an error line, a "no notes" line, or
+ * the grouped note cards, depending on `loading`/`error`/`ownNotes.length`.
+ *
+ * @param kind        'node' or 'segment' — selects which id field on each note to
+ *                      match against, and which categories (`applies_to`) are shown.
+ * @param entityId    The node or segment id whose notes to display.
+ * @param notes       Optional pre-fetched notes (the FULL table — this panel does its
+ *                      own filtering). Supplying this switches the panel to controlled
+ *                      mode and it will never call the API itself.
+ * @param categories  Optional pre-fetched categories, paired with `notes`.
+ */
 export function EntityNotesPanel(props: Props) {
   const { kind, entityId } = props
   const t = useTheme()

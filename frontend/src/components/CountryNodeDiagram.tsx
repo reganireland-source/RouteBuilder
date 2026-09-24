@@ -37,6 +37,15 @@ interface Props {
   onClose: () => void
 }
 
+// ── Static styling tables ────────────────────────────────────────────────────
+// Deliberately a separate, hand-picked palette from mapGeometry's NODE_STYLE /
+// SegmentFanDiagram's theme colours: this view always renders on a fixed white
+// background (see the dialog's inline styles below), not the app's dark/light
+// theme, so its colours are chosen for contrast against white rather than
+// pulled from `useTheme()`.
+
+/** Fill colour per node type, tuned to read clearly on the white diagram
+ *  background (each entry's comment notes the brighter colour it replaced). */
 const NODE_COLOR: Record<string, string> = {
   landing_station: '#0369a1',   // ocean blue  (was neon cyan)
   primary_pop:     '#15803d',   // forest green (was bright green)
@@ -45,6 +54,7 @@ const NODE_COLOR: Record<string, string> = {
   branching_unit:  '#6b7280',   // gray         (keep)
   off_net:         '#374151',   // dark slate
 }
+/** Marker radius (px, in SVG user units) per node type. */
 const NODE_R: Record<string, number> = {
   landing_station: 10,
   primary_pop:     12,
@@ -53,6 +63,7 @@ const NODE_R: Record<string, number> = {
   branching_unit:   5,
   off_net:          8,
 }
+/** Short human-readable label per node type, used in tooltips and the info panel. */
 const TYPE_LABEL: Record<string, string> = {
   landing_station: 'CLS',
   primary_pop:     'Primary PoP',
@@ -62,7 +73,10 @@ const TYPE_LABEL: Record<string, string> = {
   off_net:         'Off-Net',
 }
 
-// 14 visually distinct segment colours — all dark enough to read on a light grey background
+// 14 visually distinct segment colours — all dark enough to read on a light grey background.
+// Cycled by index as internal edge GROUPS are discovered (see `routedEdges`),
+// so it's the ORDER groups are built in, not any property of the segment
+// itself, that determines which colour a given cable gets on a given render.
 const SEG_PALETTE = [
   '#0369a1', // ocean blue
   '#6d28d9', // violet
@@ -80,9 +94,14 @@ const SEG_PALETTE = [
   '#9a3412', // brick
 ]
 
+/** Colour for a subsea (wet) cable stub leaving the country, unless overridden
+ *  by `countryHighlight.systemColors` for that cable system. */
 const STUB_COLOR  = '#0369a1'  // deep blue (was neon cyan #22d3ee)
+/** Colour for a cross-country terrestrial link (a segment with exactly one end
+ *  inside the highlighted country). */
 const CROSS_COLOR = '#c2410c'  // burnt orange (was bright #fb923c)
 
+// ── Layout constants (SVG user units = px at zoom 1) ─────────────────────────
 const BOX_H    = 34    // half-side of routing box → 68×68 px
 const GW       = 300   // grid column spacing
 const GH       = 200   // grid row spacing
@@ -92,9 +111,33 @@ const GROUP_GAP = 20   // px gap between separate groups on the same (node, side
 const STUB_LEN = 100   // length of subsea stub lines
 const TURN_SEP = 20    // minimum px between any two parallel vertical (or horizontal) segments
 
+/** Which face of a node's square routing box a line enters/exits from. */
 type Side = 'left' | 'right' | 'top' | 'bottom'
 
 // ── Grid (BFS, topology only) ────────────────────────────────────────────────
+/**
+ * Assigns every in-country node a `[col, row]` position on an implicit grid,
+ * using breadth-first search over the INTERNAL (country-to-country) topology
+ * only — geographic coordinates are never consulted, because this is a
+ * schematic diagram, not a map (see the file header).
+ *
+ * Algorithm:
+ *  1. Build an adjacency list from `segs`, counting each node's degree (how
+ *     many internal segments touch it), and sort each node's neighbour list
+ *     by descending degree — so the BFS visits well-connected hubs first and
+ *     tends to place them earlier/centrally in reading order.
+ *  2. Start the BFS from the single highest-degree node in the whole set —
+ *     usually the country's main CLS or hub PoP — so the layout radiates out
+ *     from the most important site rather than an arbitrary one.
+ *  3. Any node BFS never reached (no internal segment connects it to the rest
+ *     — an isolated off-net site, say) is appended at the end in input order,
+ *     so it still gets a slot instead of being silently dropped.
+ *  4. Lay the resulting visit order out left-to-right, top-to-bottom in a grid
+ *     roughly `sqrt(n * 1.8)` columns wide — wider than a square grid so the
+ *     diagram reads as a landscape rectangle rather than a tall column.
+ *
+ * Returns an empty map for an empty node list (nothing to lay out).
+ */
 function buildGrid(nodes: CableNode[], segs: CableSegment[]): Map<string, [number, number]> {
   if (!nodes.length) return new Map()
   const nodeSet = new Set(nodes.map(n => n.id))
@@ -118,6 +161,8 @@ function buildGrid(nodes: CableNode[], segs: CableSegment[]): Map<string, [numbe
     for (const nb of adj.get(curr) ?? [])
       if (!visited.has(nb)) { visited.add(nb); q.push(nb) }
   }
+  // Nodes with no path to `startId` through internal segments (disconnected
+  // sub-components) never entered the queue above; give them slots too.
   for (const n of nodes) if (!visited.has(n.id)) order.push(n.id)
   const cols = Math.max(2, Math.ceil(Math.sqrt(order.length * 1.8)))
   const grid = new Map<string, [number, number]>()
@@ -126,6 +171,14 @@ function buildGrid(nodes: CableNode[], segs: CableSegment[]): Map<string, [numbe
 }
 
 // ── Orthogonal routing helpers ───────────────────────────────────────────────
+/**
+ * Picks which box face each end of an edge between grid cells `(c1,r1)` and
+ * `(c2,r2)` exits from, returning `[sideOfNode1, sideOfNode2]`. Same-column and
+ * same-row pairs exit through the obvious facing sides (top/bottom or
+ * left/right); a genuine diagonal exits top/bottom UNLESS it is strongly
+ * horizontal (more than 2:1 column-to-row distance) — see the inline comment
+ * below for why left/right is reserved for that case.
+ */
 function determineSides(c1: number, r1: number, c2: number, r2: number): [Side, Side] {
   const dc = c2 - c1, dr = r2 - r1
   if (dc === 0 && dr === 0) return ['right', 'left']
@@ -155,6 +208,25 @@ function portXY(cx: number, cy: number, side: Side, idx: number, total: number):
   return sidePort(cx, cy, side, off)
 }
 
+/**
+ * Builds the SVG path `d` string for one internal edge, routed with only
+ * horizontal and vertical strokes (an orthogonal/"Manhattan" route) so lines
+ * read as clean circuit-diagram traces rather than crossing diagonals.
+ *
+ * Three shapes, chosen by `exitSide` and `bypassOff`:
+ *  - **Bypass (V-H-V)**: used for a long same-row hop (`bypassOff > 0`, always
+ *    paired with a 'top' exit — see the `colSpan >= 2` override in
+ *    `routedEdges`). The line rises `bypassOff` above the row, runs across,
+ *    then drops back down, so it clears any nodes sitting between the two ends
+ *    instead of passing through their boxes.
+ *  - **Straight** (either shape): when source and destination already share a
+ *    y (for a horizontal exit) or x (for a vertical exit) within half a pixel,
+ *    draw a single straight segment rather than an unnecessary dogleg.
+ *  - **Dogleg (H-V-H or V-H-V)**: the general case. The turn sits at the
+ *    midpoint between the two ends, offset by `turnOff` so that when several
+ *    parallel edges share a face they turn at different points instead of
+ *    overlapping (see the "Global track spread" pass in `routedEdges`).
+ */
 function orthoPath(sx: number, sy: number, dx: number, dy: number, exitSide: Side, bypassOff = 0, turnOff = 0): string {
   const isH = exitSide === 'right' || exitSide === 'left'
   if (!isH && bypassOff > 0) {
@@ -217,6 +289,8 @@ function outwardSide(cx: number, cy: number, centX: number, centY: number): Side
   return dy >= 0 ? 'bottom' : 'top'
 }
 
+/** End point of a straight H/V stub of fixed length `STUB_LEN`, starting at
+ *  the box-edge port `(px, py)` and running outward along `side`. */
 function sideStubEnd(px: number, py: number, side: Side): [number, number] {
   const L = STUB_LEN
   switch (side) {
@@ -228,10 +302,21 @@ function sideStubEnd(px: number, py: number, side: Side): [number, number] {
 }
 
 // ── Types ────────────────────────────────────────────────────────────────────
+/** State for the hover tooltip: a title, detail lines, and the screen position
+ *  (`sx`/`sy`, updated as the mouse moves) it should be drawn near. */
 interface Tip { title: string; lines: string[]; sx: number; sy: number }
+/** The one thing currently click-selected (shown in the bottom-right info
+ *  panel), discriminated by `kind` — either a node or a segment (which also
+ *  carries the colour it was drawn in, so the info panel's accent matches). */
 type SelItem =
   | { kind: 'node'; node: CableNode }
   | { kind: 'seg';  seg: CableSegment; color: string }
+/**
+ * One fully-routed internal (in-country) terrestrial edge, ready to draw. Built
+ * by the `routedEdges` memo, which groups parallel segments between the same
+ * two nodes and assigns each a distinct port offset and turn position so
+ * parallel lines fan out instead of overlapping.
+ */
 interface RoutedEdge {
   seg: CableSegment; color: string
   /** Canonical src/dst node IDs (from first seg in group) */
@@ -239,17 +324,32 @@ interface RoutedEdge {
   sideA: Side; sideB: Side
   /** Pre-computed perpendicular port offsets */
   offA: number; offB: number
+  /** This edge's index within its parallel group, and the group's total size —
+   *  used to spread each edge's label along the line so labels from the same
+   *  group don't all land on top of each other. */
   groupLocalIdx: number; groupN: number
   /** >0 = bypass above the row; staggered per row so labels don't stack */
   bypassOff: number
   /** Stagger the source-side stub x so parallel bypass paths don't share the same vertical */
   turnOff: number
 }
+/** One fully-routed cross-country stub: a segment with exactly one end inside
+ *  the highlighted country, drawn as a straight H/V line from the box's
+ *  outward-facing side. `pIdx`/`pTotal` are this stub's position among the
+ *  `pTotal` parallel cross-country stubs sharing the same node, for port
+ *  spreading via `portXY`. */
 interface RoutedCross {
   seg: CableSegment; nodeId: string; side: Side; pIdx: number; pTotal: number
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
+/**
+ * Full-screen modal rendering the schematic node diagram for one country (see
+ * the file header for the overall rendering approach, layout algorithm and
+ * interaction model). Everything below — segment categorisation, grid layout,
+ * edge routing, and the zoom/pan/tooltip/selection state — is internal to this
+ * one component; there is nothing else in the module to compose it from.
+ */
 export function CountryNodeDiagram({
   nodes, segments, systems, capacity, countryHighlight, onClose,
 }: Props) {
@@ -260,7 +360,12 @@ export function CountryNodeDiagram({
   const [pan,  setPan]  = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const diagramRef  = useRef<HTMLDivElement>(null)
+  // Drag-to-pan bookkeeping: the mouse position and pan offset at drag-start
+  // (mx/my/px/py), so `moveDrag` computes an absolute new pan rather than
+  // accumulating per-frame deltas (which drifts under dropped mouse events).
   const dragRef     = useRef<{ mx: number; my: number; px: number; py: number } | null>(null)
+  // Distinguishes a click (select/deselect) from a drag that happens to end
+  // over the same element — see `dragMoved.current` checks in the handlers below.
   const dragMoved   = useRef(false)
 
   // Non-passive wheel listener so we can preventDefault (stops page scroll while zooming)
@@ -269,12 +374,20 @@ export function CountryNodeDiagram({
     if (!el) return
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
+      // Scroll up (negative deltaY) zooms in by a fixed 12% step per wheel
+      // tick; scroll down zooms out by the reciprocal, so the same number of
+      // ticks forward and back returns to the same zoom level.
       const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12
       const rect = el.getBoundingClientRect()
       const mx = e.clientX - rect.left
       const my = e.clientY - rect.top
       setZoom(pz => {
         const nz = Math.min(6, Math.max(0.15, pz * factor))
+        // Zoom "about the cursor": solve for the new pan (pp.x/pp.y) that
+        // keeps the content point under the mouse (mx, my) fixed on screen
+        // as zoom changes from pz to nz. Without this the diagram would zoom
+        // about its top-left corner and the cursor's target would drift away
+        // from the pointer with every tick.
         setPan(pp => ({
           x: mx - ((mx - pp.x) / pz) * nz,
           y: my - ((my - pp.y) / pz) * nz,
@@ -286,7 +399,11 @@ export function CountryNodeDiagram({
     return () => el.removeEventListener('wheel', onWheel)
   }, [])
 
-  // Fit diagram to container after first render (reads SVG size from DOM)
+  // Fit diagram to container after first render (reads SVG size from DOM).
+  // Duplicates `fitView` below rather than calling it, because `fitView` is
+  // defined after this effect and is recreated every render (not memoised),
+  // so depending on it here would either need a ref indirection or refire the
+  // effect on every render; a one-shot mount effect with its own copy is simpler.
   useEffect(() => {
     const el = diagramRef.current
     if (!el) return
@@ -300,11 +417,20 @@ export function CountryNodeDiagram({
     setPan({ x: (el.clientWidth - w * z) / 2, y: (el.clientHeight - h * z) / 2 })
   }, [])
 
+  /** Begins a pan drag on left-button mousedown, capturing the starting mouse
+   *  position and the pan offset at that moment (see `dragRef`'s docstring). */
   function startDrag(e: React.MouseEvent) {
     if (e.button !== 0) return
     dragRef.current = { mx: e.clientX, my: e.clientY, px: pan.x, py: pan.y }
     dragMoved.current = false
   }
+  /**
+   * Tracks the tooltip to the cursor on every move, and — once an active drag
+   * (`dragRef.current`) has moved more than a 3px threshold — pans the
+   * diagram by the cumulative mouse delta. The 3px threshold is what lets a
+   * still mousedown-then-mouseup register as a click (`dragMoved.current`
+   * stays false) rather than a zero-length drag.
+   */
   function moveDrag(e: React.MouseEvent) {
     setTip(p => p ? { ...p, sx: e.clientX, sy: e.clientY } : null)
     if (!dragRef.current) return
@@ -316,10 +442,15 @@ export function CountryNodeDiagram({
       setPan({ x: dragRef.current.px + dx, y: dragRef.current.py + dy })
     }
   }
+  /** Ends the current pan drag (mouseup or mouse-leave). */
   function endDrag() {
     dragRef.current = null
     setIsDragging(false)
   }
+  /** Resets zoom/pan so the whole SVG fits the container with an 8% margin
+   *  (the `* 0.92` factor), centred. Used both by the "⌂" zoom control and by
+   *  the mount-time auto-fit effect above (which keeps its own copy — see that
+   *  effect's comment for why it doesn't just call this function). */
   function fitView() {
     const el = diagramRef.current
     if (!el) return
@@ -336,10 +467,14 @@ export function CountryNodeDiagram({
   // `e` is optional so a keyboard activation (Enter/Space via navProps below,
   // which has no real mouse/pointer event to forward) can call these the same
   // way a click does.
+  /** Selects `seg` (opening its info panel), or deselects it when it was
+   *  already selected — a second click toggles the panel closed. */
   function clickSeg(seg: CableSegment, color: string, e?: React.SyntheticEvent) {
     e?.stopPropagation()
     setSelected(prev => prev?.kind === 'seg' && prev.seg.id === seg.id ? null : { kind: 'seg', seg, color })
   }
+  /** Selects `node` (opening its info panel), or deselects it when it was
+   *  already selected. */
   function clickNode(node: CableNode, e?: React.SyntheticEvent) {
     e?.stopPropagation()
     setSelected(prev => prev?.kind === 'node' && prev.node.id === node.id ? null : { kind: 'node', node })
@@ -371,8 +506,24 @@ export function CountryNodeDiagram({
     [countryNodes])
 
   // ── Segment categorisation ───────────────────────────────────────────────
+  // Splits every segment in the WHOLE network into exactly one of three
+  // buckets for this country's diagram:
+  //   - internal: terrestrial, both ends inside the country → drawn as a
+  //     routed H/V edge between two node boxes.
+  //   - cross:    terrestrial, exactly one end inside → drawn as a straight
+  //     H/V stub off the box's outward side (`crossRouting` below).
+  //   - stubs:    wet (submarine), one end a landing station INSIDE the
+  //     country whose far end is NOT inside it → drawn as a 45° diagonal stub
+  //     fanned from that CLS's outward corner (`stubsByCls` below).
+  // A wet segment whose far end IS also inside the country (an intra-country
+  // submarine hop) falls into none of the three — deliberately: it isn't a
+  // "leaving the country" cable, and the diagram has no internal-wet drawing
+  // mode, so such a segment is simply not drawn here.
   const { internalSegs, crossSegs, stubs } = useMemo(() => {
     const internal: CableSegment[] = [], cross: CableSegment[] = [], stubList: CableSegment[] = []
+    // De-dupes subsea stubs so multiple physical segments of the SAME cable
+    // system landing at the SAME CLS collapse into one stub line (keyed by
+    // system + CLS) rather than drawing an indistinguishable stack of them.
     const seen = new Set<string>()
     for (const seg of segments) {
       const sIn = countryHighlight.nodeIds.has(seg.start_node_id)
@@ -382,6 +533,9 @@ export function CountryNodeDiagram({
         else if (sIn || eIn) cross.push(seg)
       } else if (seg.type === 'wet') {
         const sCls = clsIds.has(seg.start_node_id), eCls = clsIds.has(seg.end_node_id)
+        // "Leaves the country": one end is an in-country CLS, and the OTHER
+        // end (not necessarily the CLS's own pair) is outside the country —
+        // covers a CLS-to-CLS cable as well as a CLS-to-BU/off-net one.
         if ((sCls && !eIn) || (eCls && !sIn)) {
           const clsId = sCls ? seg.start_node_id : seg.end_node_id
           const key = `${seg.system_id}|${clsId}`

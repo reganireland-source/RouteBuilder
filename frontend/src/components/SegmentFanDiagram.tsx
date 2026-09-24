@@ -280,6 +280,12 @@ function FanKey({ size, cx }: { size: number; cx: number }) {
   )
 }
 
+/**
+ * Draws `node` as a coloured disc at the centre of a square SVG, with one
+ * navigable spoke per segment touching it (see the file header for the layout
+ * and colour-encoding rules). Renders a "no segments" placeholder instead of an
+ * empty ring when `layoutSpokes` returns nothing.
+ */
 export function SegmentFanDiagram({ node, segments, nodesById, onSelectNode, size = 420 }: Props) {
   const t = useTheme()
   const [hovered, setHovered] = useState<string | null>(null)

@@ -416,9 +416,12 @@ export function KmlChopSourcePanel({ state, onClose }: { state: KmlChopState; on
   )
 }
 
+/** Glyph shown next to a commit row for each possible CommitRowStatus. */
 const COMMIT_ICON: Record<CommitRowStatus['status'], string> = {
   pending: '⋯', committing: '🔄', success: '✓', fail: '✗',
 }
+/** Theme colour matching a commit row's current status (green on success,
+ *  red on failure, blue mid-flight, muted while still pending). */
 function commitStatusColor(t: Theme, status: CommitRowStatus['status']): string {
   if (status === 'success') return t.green
   if (status === 'fail') return t.red

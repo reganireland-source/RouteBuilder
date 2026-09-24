@@ -38,6 +38,9 @@ const COUNTRY_NAMES: Record<string, string> = {
   FI: 'Finland', DE: 'Germany', BE: 'Belgium', AT: 'Austria', CH: 'Switzerland',
 }
 
+/** `n` evenly-spaced hues around the colour wheel, one per cable system
+ *  landing in the selected country, so the legend and map highlight never run
+ *  out of visually distinct colours regardless of how many systems land. */
 function genCountryColors(n: number): string[] {
   if (n === 0) return []
   return Array.from({ length: n }, (_, i) => {
@@ -46,6 +49,10 @@ function genCountryColors(n: number): string[] {
   })
 }
 
+/** Shifts far-western longitudes (< -30°) onto the +180..+360 range so a
+ *  country's node longitudes don't span the antimeridian discontinuity —
+ *  otherwise a Pacific country's min/max longitude (and so its bounding box
+ *  and centroid) would be computed across the wrong side of the date line. */
 function normalizeLng(lng: number): number {
   return lng < -30 ? lng + 360 : lng
 }
@@ -64,6 +71,13 @@ interface Props {
   onPrefillConsumed?: () => void
 }
 
+/**
+ * CountryViewer — see file header for the full picture. Owns the searchable
+ * country list and which country (if any) is selected, derives the
+ * {@link CountryHighlight} for the selection via `buildHighlight`, and pushes
+ * it to the parent through `onSelect` whenever the selection or underlying
+ * datasets change.
+ */
 export function CountryViewer({ nodes, segments, systems, onSelect, prefilledCountryCode, onPrefillConsumed }: Props) {
   const t = useTheme()
   const [query, setQuery] = useState('')
@@ -90,6 +104,18 @@ export function CountryViewer({ nodes, segments, systems, onSelect, prefilledCou
   const systemsById = useMemo(() =>
     Object.fromEntries(systems.map(s => [s.id, s])), [systems])
 
+  /**
+   * Compute everything the map should highlight for country `code`, or null
+   * when the country has no non-branching-unit nodes loaded (defensive —
+   * countryList is itself built from those same nodes, so this should only
+   * fail to find any if the dataset changed between renders).
+   *
+   * Colours are assigned only to systems that actually touch a landing
+   * station (CLS) here via a wet segment — a system merely passing through on
+   * a terrestrial backhaul segment doesn't count as "landing" in the country
+   * and gets no legend colour, though its terrestrial segments are still
+   * tracked separately in `terrestrialSegIds` for map highlighting.
+   */
   function buildHighlight(code: string): CountryHighlight | null {
     const countryNodes = nodes.filter(n => n.country === code && n.type !== 'branching_unit')
     if (countryNodes.length === 0) return null
@@ -156,6 +182,8 @@ export function CountryViewer({ nodes, segments, systems, onSelect, prefilledCou
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefilledCountryCode])
 
+  /** Toggle a country: clicking the already-selected one deselects it,
+   *  clicking any other selects it (replacing whatever was selected before). */
   function handleSelect(code: string) {
     setSelectedCode(prev => prev === code ? null : code)
   }

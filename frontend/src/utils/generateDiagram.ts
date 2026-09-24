@@ -102,12 +102,17 @@ const LABEL_W_SVC  = 35   // label column in service table
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/** "#rrggbb" → [r, g, b] (0–255 each), the RGB tuple jsPDF's set*Color calls want. */
 function hexToRgb(hex: string): RGB {
   const c = hex.replace('#', '')
   return [parseInt(c.slice(0,2),16), parseInt(c.slice(2,4),16), parseInt(c.slice(4,6),16)]
 }
 
+// Thin wrappers around jsPDF's fill/draw/text colour setters, taking an RGB
+// tuple instead of three separate args — just for brevity at the many call
+// sites below (setFill(doc, BLUE) vs doc.setFillColor(0, 100, 190)).
 function setFill(doc: jsPDF, c: RGB) { doc.setFillColor(...c) }
+/** Sets stroke (line) colour, and optionally line width in the same call. */
 function setStroke(doc: jsPDF, c: RGB, lw?: number) { doc.setDrawColor(...c); if (lw !== undefined) doc.setLineWidth(lw) }
 function setColor(doc: jsPDF, c: RGB) { doc.setTextColor(...c) }
 
@@ -118,6 +123,10 @@ function clamp(s: string | undefined, maxLen: number): string {
 }
 
 // ── Draw one attribute row (teal label | light-gray value) ────────────────────
+/** Draws one label/value row of an attribute table: a filled teal cell of
+ *  width `labelW` holding `label` in white, then a light-gray cell filling
+ *  the rest of `w` holding `value` (or an em-dash when absent) in dark gray.
+ *  Used for the A-End/Z-End and service-detail tables in `drawPanels`. */
 function attrRow(
   doc: jsPDF,
   x: number, y: number, w: number,

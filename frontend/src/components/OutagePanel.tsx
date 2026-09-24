@@ -48,6 +48,14 @@ interface Enriched extends SegmentOutage {
   sys?: CableSystem
 }
 
+/**
+ * OutagePanel — renders the Active Outages / Planned Events split view described
+ * in the file header.
+ *
+ * @param outages  Raw SegmentOutage records (both event types mixed together).
+ * @param segments Used to resolve each outage's segment name/system id.
+ * @param systems  Used to resolve each outage's human-readable system name.
+ */
 export function OutagePanel({ outages, segments, systems }: Props) {
   const t = useTheme()
   const [filter, setFilter] = useState('')
@@ -61,6 +69,8 @@ export function OutagePanel({ outages, segments, systems }: Props) {
     sys: o.segment_id ? sysById[segById[o.segment_id]?.system_id ?? ''] : undefined,
   })), [outages, segById, sysById])
 
+  /** A record matches the filter box if it's empty, or the search text (case-insensitive)
+   *  appears in the record's system id, segment name, description or fault id. */
   const matchesFilter = (o: Enriched) =>
     !filter.trim() ||
     o.seg?.system_id?.toLowerCase().includes(filter.toLowerCase()) ||
@@ -268,6 +278,13 @@ export function OutagePanel({ outages, segments, systems }: Props) {
   )
 }
 
+/**
+ * A small labelled date value used in the outage/planned-event cards.
+ * @param highlight      Render the value emphasised (bold + accent colour) — used
+ *                        for the "forward-looking" date (ETA repair / planned start/end).
+ * @param highlightColor Overrides the default highlight colour (defaults to the
+ *                        amber "REPAIRING" colour) — Planned Events pass the theme's orange.
+ */
 function DateChip({ label, value, highlight, highlightColor }: { label: string; value: string; highlight?: boolean; highlightColor?: string }) {
   const t = useTheme()
   const display = value.slice(0, 10)   // YYYY-MM-DD

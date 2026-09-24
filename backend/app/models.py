@@ -1,9 +1,53 @@
+"""
+Pydantic domain models — the single source of truth for the shape of every
+entity RouteBuilder deals with: network topology (Node, CableSystem,
+CableSegment, capacity, interconnect rules), route search (RouteRequest,
+Route, RouteResponse), solution/project data (Project, ProjectCircuit) and a
+few smaller lookups (interface types, tech enrichment lookups, outages/notes).
+
+These classes are the API contract in both directions: FastAPI uses them to
+validate incoming request bodies (a bad field is rejected as an HTTP 422
+before any endpoint code runs) and to shape outgoing JSON responses, and
+data_loader.py uses the same classes to parse the on-disk/DB JSON documents
+back into typed objects. Because one model serves both the "full record" POST
+shape and the persisted-row shape, most entities also get a companion
+`*Update` model here (e.g. NodeUpdate, CableSegmentUpdate) — an all-Optional
+sibling used for PATCH/PUT partial updates, so a client can send only the
+fields it wants to change.
+
+Other modules that lean heavily on these models: app/rfs.py (reads
+rfs_status/rfs_quarter/eol_status/eol_quarter off CableSystem/CableSegment),
+app/graph.py (builds the routing graph from Node/CableSegment/SegmentCapacity),
+app/api/bulk.py (CSV import derives its allow-lists from these enums so they
+can never drift from the API's own validation), and app/data_checks.py
+(cross-references raw JSON against the ID/type vocabularies defined here).
+
+Validation conventions used throughout this file (see individual models for
+specifics): geographic coordinates are constrained to valid WGS-84 ranges,
+physical/derived quantities (length, capacity, cost) are constrained
+non-negative, probabilities (reliability) are constrained to (0, 1], and
+paired lifecycle status/quarter fields (rfs_status/rfs_quarter,
+eol_status/eol_quarter) are cross-validated so a quarter is required exactly
+when the status says "not yet" / "retired" and forbidden otherwise.
+"""
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional
 from enum import Enum
 
 
 class NodeType(str, Enum):
+    """The role a Node plays in the network topology.
+
+    landing_station: where a submarine cable comes ashore.
+    primary_pop / secondary_pop / extension_pop: terrestrial points of
+      presence, in decreasing order of network significance.
+    branching_unit: an undersea junction where a cable system splits, not a
+      physical building — carries no address/verification fields in practice.
+    off_net: a node outside Telstra's own network, present for reference/
+      routing-boundary purposes only (see Node.on_net and the coverage checks
+      in data_checks.py, which exclude off_net nodes from "isolated node"
+      warnings since they are never expected to be wired in).
+    """
     landing_station = "landing_station"
     primary_pop     = "primary_pop"
     secondary_pop   = "secondary_pop"
@@ -13,11 +57,20 @@ class NodeType(str, Enum):
 
 
 class SegmentType(str, Enum):
+    """Physical medium of a CableSegment: undersea fibre, or a terrestrial
+    (land-based) link. Used to gate wet-hop/terrestrial-hop limits in route
+    search (RouteRequest.max_wet_hops / max_terrestrial_hops) and to pick
+    which speed-of-light plausibility check applies in data_checks.py."""
     wet = "wet"
     terrestrial = "terrestrial"
 
 
 class Ownership(str, Enum):
+    """How a CableSegment is held, from a commercial/capacity perspective —
+    owned outright, an IRU (indefeasible right of use), a consortium share,
+    a lit (managed) lease, or an off-net resale arrangement. Feeds the
+    on-net/off-net route styling (see app/api/config.py's on_net_ownership
+    setting) and the interconnect rules in InterconnectRule."""
     owned = "owned"
     iru = "iru"
     consortium = "consortium"
@@ -26,6 +79,11 @@ class Ownership(str, Enum):
 
 
 class DiversityType(str, Enum):
+    """A route-search constraint requesting that primary/protect route pairs
+    not share risk in the specified way — e.g. 'wet' asks for no shared
+    undersea segments, 'full' asks for no shared segments or nodes at all
+    (see 'full_nodes' for the node-only variant). Consumed by the route
+    search/diversity logic in app/pathfinder.py and app/graph.py."""
     none = "none"
     terrestrial_origin = "terrestrial_origin"
     terrestrial_destination = "terrestrial_destination"
@@ -36,6 +94,11 @@ class DiversityType(str, Enum):
 
 
 class VerificationStatus(str, Enum):
+    """Data-quality/review state of a Node or CableSegment record: 'draft'
+    (unreviewed, the default), 'under_verification' (review in progress), or
+    'verified' (checked against a source of truth). Purely informational —
+    does not gate route search — surfaced in the UI so operators know how
+    much to trust a given record."""
     draft = "draft"
     under_verification = "under_verification"
     verified = "verified"
@@ -65,12 +128,20 @@ class EolStatus(str, Enum):
 
 
 class BackboneCapabilities(BaseModel):
+    """Backbone product speed grades a Node can offer, one list per product:
+    IPT, EPL and EVPL. Each list holds speed-grade strings (e.g. "10G",
+    "100G") from the bulk-import vocabularies VALID_BB_SPEEDS in
+    app/api/bulk.py; None means "not offered / not recorded" rather than
+    "offered at no speed"."""
     ipt:  Optional[list[str]] = None
     epl:  Optional[list[str]] = None
     evpl: Optional[list[str]] = None
 
 
 class UnderlayCapabilities(BaseModel):
+    """Underlay product speed grades a Node can offer: GID and IP-VPN. See
+    BackboneCapabilities for the list/None convention and where the allowed
+    speed-grade vocabulary (VALID_UL_SPEEDS) lives."""
     gid:   Optional[list[str]] = None
     ipvpn: Optional[list[str]] = None
 
@@ -85,12 +156,23 @@ class ColocationCapabilities(BaseModel):
 
 
 class NodeCapabilities(BaseModel):
+    """Aggregates the three product-coverage facets a Node may advertise —
+    backbone, underlay and colocation — each independently optional since a
+    given node may offer none, some, or all of them. Nested one level under
+    Node.capabilities; round-tripped through the coverage CSV importer/
+    exporter in app/api/bulk.py (export_coverage / validate_coverage /
+    import_coverage)."""
     backbone:   Optional[BackboneCapabilities]   = None
     underlay:   Optional[UnderlayCapabilities]   = None
     colocation: Optional[ColocationCapabilities] = None
 
 
 class Node(BaseModel):
+    """A physical or logical point in the network topology — a cable landing
+    station, a terrestrial PoP, a branching unit, or a reference off-net
+    location (see NodeType). This is the full POST/stored shape; NodeUpdate
+    below is the partial-update (PATCH/PUT) sibling with every field
+    Optional."""
     id: str
     name: str
     # Review finding #11: constrain fields whose domain is fixed, so bad input is
@@ -142,6 +224,13 @@ def _check_eol_quarter(status: "EolStatus", quarter: Optional[str]) -> None:
 
 
 class CableSystem(BaseModel):
+    """A named cable system (e.g. a submarine cable consortium build or a
+    terrestrial fibre network) that one or more CableSegments belong to via
+    CableSegment.system_id. Carries the RFS/EOL lifecycle dates that act as a
+    floor/ceiling on every segment underneath it (see app/rfs.py's
+    effective_rfs_date / effective_eol_date) plus system-level facts
+    (fiber_pair_count, consortium_owners) that don't belong on individual
+    nodes or segments."""
     id: str
     name: str
     description: str
@@ -174,6 +263,12 @@ class CableSystem(BaseModel):
 
 
 class CableSegment(BaseModel):
+    """A single point-to-point link in the network graph — one edge between
+    start_node_id and end_node_id, belonging to a CableSystem via system_id.
+    This is the full POST/stored shape used by app/graph.py to build the
+    routing graph; CableSegmentUpdate below is the partial-update sibling.
+    Carries its own RFS/EOL lifecycle pair in addition to (and constrained
+    by) its owning CableSystem's — see app/rfs.py for how the two combine."""
     id: str
     name: str
     system_id: str
@@ -213,23 +308,39 @@ class CableSegment(BaseModel):
 
 
 class DisallowedPair(BaseModel):
+    """One blacklisted (system_a, system_b) transition at a node — see
+    InterconnectRule.disallowed_pairs. Used by the route search to reject a
+    path that would hand off between these two specific systems there."""
     system_a: str
     system_b: str
     reason: str = "Pair is not allowed"
 
 
 class AllowedPair(BaseModel):
+    """One whitelisted (system_a, system_b) transition at a node — see
+    InterconnectRule.allowed_pairs. Naming a system here restricts it: once
+    a system appears in any AllowedPair for a node, ONLY the listed pairings
+    for that system are permitted there (other systems not mentioned are
+    unaffected — see InterconnectRule's own comment)."""
     system_a: str
     system_b: str
     reason: str = "Only this pair is allowed at this node"
 
 
 class AllowedHandoffSegment(BaseModel):
+    """One segment permitted to terminate (be a circuit endpoint) at a node
+    whose InterconnectRule.allowed_handoff_segments is non-empty — see that
+    field's comment for the restricted-handoff semantics."""
     segment_id: str
     reason: str = "Segment is allowed to terminate at this node"
 
 
 class InterconnectRule(BaseModel):
+    """Per-node routing constraints layered on top of the raw graph — which
+    system-to-system handoffs are blocked or exclusively allowed at this
+    node, whether the node can be a circuit endpoint at all, and which
+    segments (if restricted) may terminate here. Looked up by node_id during
+    route search; a node with no InterconnectRule has no extra constraints."""
     node_id: str
     # Blacklist: these system pairs are always rejected at this node
     disallowed_pairs: list[DisallowedPair] = []
@@ -243,6 +354,10 @@ class InterconnectRule(BaseModel):
 
 
 class InterconnectRuleUpdate(BaseModel):
+    """Partial-update sibling of InterconnectRule for PATCH/PUT — every list
+    field is replaced wholesale when supplied (there is no per-item merge),
+    and an omitted field leaves the stored rule's value for that field
+    untouched."""
     disallowed_pairs: Optional[list[DisallowedPair]] = None
     allowed_pairs: Optional[list[AllowedPair]] = None
     no_handoff: Optional[bool] = None
@@ -250,6 +365,12 @@ class InterconnectRuleUpdate(BaseModel):
 
 
 class SegmentCapacity(BaseModel):
+    """Capacity accounting for one CableSegment (1:1 via segment_id) — total
+    installed capacity vs. what remains available, both in terabits/sec.
+    Kept as a separate model/table from CableSegment itself (rather than
+    inline fields) because capacity changes on a different cadence than the
+    segment's physical attributes; see SegmentCapacityUpdate for the partial-
+    update sibling."""
     segment_id: str
     # Review finding #11: capacity is in Tbps — never negative, and you cannot
     # have more capacity free than the segment physically has.
@@ -268,6 +389,15 @@ class SegmentCapacity(BaseModel):
 
 
 class RouteRequest(BaseModel):
+    """The full route-search query contract — POSTed to the route-search
+    endpoint and consumed by app/pathfinder.py / app/graph.py. Combines a
+    start/end pair with a battery of optional constraints: hard node/segment/
+    system/country include-avoid lists, hop caps, a diversity requirement for
+    primary/protect pairing, an optimisation objective, and an optional
+    service_date that filters the graph down to what is actually RFS and not
+    yet EOL on that day (see app/rfs.py). Every list defaults to empty and
+    every scalar constraint defaults to None/none, so the bare
+    start_node_id/end_node_id pair is itself a valid, unconstrained request."""
     start_node_id: str
     end_node_id: str
     must_include_nodes: list[str] = []
@@ -307,6 +437,10 @@ class RouteRequest(BaseModel):
 
 
 class RouteSegmentDetail(BaseModel):
+    """A denormalised snapshot of one CableSegment as it appears within a
+    found Route — enough of the segment's own fields (copied at search time)
+    for the response to be self-contained, without the client needing a
+    second lookup per segment."""
     segment_id: str
     system_id: str
     start_node_id: str
@@ -320,6 +454,12 @@ class RouteSegmentDetail(BaseModel):
 
 
 class Route(BaseModel):
+    """One complete path found by the route search: the ordered node
+    sequence, the segments traversed (with detail), and the aggregate
+    metrics computed over them (summed cost/length/latency, multiplied
+    end-to-end reliability). diversity_group distinguishes primary vs.
+    protect routes when a diversity constraint produced a paired set — see
+    RouteResponse.primary_routes / diverse_routes."""
     id: str
     nodes: list[str]
     segments: list[RouteSegmentDetail]
@@ -331,6 +471,10 @@ class Route(BaseModel):
 
 
 class RouteResponse(BaseModel):
+    """The route-search endpoint's response envelope. `routes` is every route
+    found; `primary_routes` / `diverse_routes` split that same set by role
+    when a diversity search paired each primary with a protect route (both
+    are empty for a non-diversity search, where only `routes` is populated)."""
     routes: list[Route]
     primary_routes: list[Route]
     diverse_routes: list[Route]
@@ -338,8 +482,15 @@ class RouteResponse(BaseModel):
 
 
 # ── Partial-update models (PATCH/PUT) ─────────────────────────────────────────
+# Every field below is Optional and defaults to None; the router merges only
+# the fields a caller actually supplied onto the stored record (see e.g.
+# app/api/bulk.py's _merged for the equivalent merge used by bulk import).
+# Field-level constraints mirror the full model's — see the review-finding
+# comments on each — so a PATCH cannot be used to sneak in a value the
+# corresponding POST would have rejected.
 
 class NodeUpdate(BaseModel):
+    """Partial update for Node — see the module comment above this section."""
     name: Optional[str] = None
     # Review finding #11: mirror the Node constraints here — a PUT must not be a
     # back door around the validation the POST enforces.
@@ -358,6 +509,7 @@ class NodeUpdate(BaseModel):
     on_net: Optional[str] = None  # 'on_net' | 'off_net'
 
 class CableSegmentUpdate(BaseModel):
+    """Partial update for CableSegment — see the module comment above this section."""
     name: Optional[str] = None
     system_id: Optional[str] = None
     start_node_id: Optional[str] = None
@@ -378,6 +530,7 @@ class CableSegmentUpdate(BaseModel):
     eol_quarter: Optional[str] = Field(default=None, pattern=_QUARTER_PATTERN)
 
 class CableSystemUpdate(BaseModel):
+    """Partial update for CableSystem — see the module comment above this section."""
     name: Optional[str] = None
     description: Optional[str] = None
     margin: Optional[float] = None
@@ -445,6 +598,10 @@ class SegmentOutage(BaseModel):
 
 
 class SolutionNote(BaseModel):
+    """A free-text annotation attached to either a node or a segment (exactly
+    one of node_id/segment_id is expected to be set by convention — not
+    enforced here), categorised via category_id (see NoteCategory) and
+    carrying a UI severity for styling."""
     id: str
     node_id: Optional[str] = None
     segment_id: Optional[str] = None
@@ -456,6 +613,7 @@ class SolutionNote(BaseModel):
 
 
 class SolutionNoteUpdate(BaseModel):
+    """Partial update for SolutionNote."""
     node_id: Optional[str] = None
     segment_id: Optional[str] = None
     category_id: Optional[str] = None
@@ -465,6 +623,9 @@ class SolutionNoteUpdate(BaseModel):
 
 
 class NoteCategory(BaseModel):
+    """A lookup row defining one category SolutionNote.category_id can
+    reference — its display label, whether it applies to nodes or segments,
+    and a manual sort order for the UI's category list."""
     id: str
     label: str
     applies_to: str  # 'node' | 'segment'
@@ -472,6 +633,7 @@ class NoteCategory(BaseModel):
 
 
 class NoteCategoryUpdate(BaseModel):
+    """Partial update for NoteCategory."""
     label: Optional[str] = None
     applies_to: Optional[str] = None
     order: Optional[int] = None
@@ -493,6 +655,9 @@ class SegmentOutageUpdate(BaseModel):
 # ── Interface Types (reference table) ────────────────────────────────────────
 
 class InterfaceType(BaseModel):
+    """A lookup row for the physical/logical interface types offered at a
+    customer handoff (e.g. "10GE LAN", "100GE"); referenced by
+    EndpointConfig.interface_id."""
     id: str
     name: str
     description: Optional[str] = None
@@ -501,18 +666,23 @@ class InterfaceType(BaseModel):
 # ── Technical Enrichment Lookups ──────────────────────────────────────────────
 
 class TechLookupItem(BaseModel):
+    """A generic labelled, ordered lookup row used by several small
+    technical-enrichment vocabularies (the specific table is determined by
+    which endpoint/collection loads it, not by a field on this model)."""
     id: str
     label: str
     order: int = 0
     description: Optional[str] = None
 
 class TechLookupItemUpdate(BaseModel):
+    """Partial update for TechLookupItem."""
     label: Optional[str] = None
     order: Optional[int] = None
     description: Optional[str] = None
 
 
 class InterfaceTypeUpdate(BaseModel):
+    """Partial update for InterfaceType."""
     name: Optional[str] = None
     description: Optional[str] = None
 
@@ -520,6 +690,10 @@ class InterfaceTypeUpdate(BaseModel):
 # ── Customer Solution Projects ────────────────────────────────────────────────
 
 class SldConfig(BaseModel):
+    """Which optional fields render on a Solution/Level Diagram (SLD) export
+    for a Project — a display toggle set, not domain data. Project.sld_config
+    is the project-wide default; ProjectCircuit.sld_config_override can
+    override it per circuit."""
     show_latency: bool = True
     show_segment_latency: bool = True
     show_distance: bool = True
@@ -529,6 +703,10 @@ class SldConfig(BaseModel):
 
 
 class EndpointConfig(BaseModel):
+    """The customer-side (A-end or Z-end) access arrangement for one
+    ProjectCircuit — site details plus how the circuit is handed off there
+    (cross-connect vs. local loop, who supplies/arranges each, and the
+    interface/bandwidth/protection it terminates on)."""
     customer_site_name: Optional[str] = None
     customer_site_address: Optional[str] = None
     access_type: Optional[str] = None          # "X-Connect" | "Local Loop" | "Direct"
@@ -542,6 +720,13 @@ class EndpointConfig(BaseModel):
 
 
 class ProjectCircuit(BaseModel):
+    """One customer circuit within a Project — a saved route (route_snapshot,
+    a frozen copy of a Route search result, not a live reference) plus its
+    optional protect route, commercial/technical metadata, and its A-end/
+    Z-end access configuration. route_snapshot/protect_route_snapshot are
+    stored as plain dicts (not typed as Route) because they are a point-in-
+    time snapshot that must keep rendering correctly even if the Route shape
+    evolves later."""
     circuit_id: str
     label: Optional[str] = None
     order: int = 0
@@ -561,6 +746,10 @@ class ProjectCircuit(BaseModel):
 
 
 class Project(BaseModel):
+    """A customer solution project — the top-level container for a set of
+    saved circuits (ProjectCircuit) plus the commercial/administrative
+    metadata (account manager, opportunity link, visibility) used when
+    producing a customer-facing solution document."""
     id: str
     name: str
     account_manager: Optional[str] = None
@@ -577,6 +766,9 @@ class Project(BaseModel):
 
 
 class ProjectUpdate(BaseModel):
+    """Partial update for Project. Notably excludes `circuits` — circuits are
+    managed through their own dedicated endpoints/sub-resource, not via a
+    bulk overwrite here."""
     name: Optional[str] = None
     account_manager: Optional[str] = None
     solution_architect: Optional[str] = None
@@ -599,6 +791,12 @@ class NlpParseRequest(BaseModel):
 
 
 class NlpParseResponse(BaseModel):
+    """The LLM-assisted /api/nlp/parse endpoint's output: a best-effort
+    translation of NlpParseRequest.text into RouteRequest-shaped fields, plus
+    metadata about how much to trust it. `confidence` and `ambiguities` let
+    the frontend prompt the user to confirm/clarify rather than silently
+    running a possibly-wrong search; `explanation` is a human-readable
+    summary of how the text was interpreted."""
     start_node_id: Optional[str] = None
     end_node_id: Optional[str] = None
     must_include_nodes: list[str] = []
@@ -626,12 +824,18 @@ class NlpParseResponse(BaseModel):
 # directly — that site returns a JS bot-challenge to any non-browser client.
 
 class CableResearchRequest(BaseModel):
+    """Request body for the admin-gated cable-research endpoint — a cable
+    system name to look up via app/cableimport/research.py's public-source +
+    LLM-knowledge pipeline (see the module comment above)."""
     # Same reasoning as NlpParseRequest's cap: this endpoint spends real LLM
     # budget per call, so the input is bounded even though it's admin-gated.
     cable_name: str = Field(max_length=200, min_length=1)
 
 
 class ResearchedLandingStation(BaseModel):
+    """One landing station found while researching a cable system — a
+    candidate for turning into a Node, with only approximate coordinates
+    (see the lat/lng comment below)."""
     name: str
     city: Optional[str] = None
     country: Optional[str] = None
@@ -642,6 +846,11 @@ class ResearchedLandingStation(BaseModel):
 
 
 class CableResearchResult(BaseModel):
+    """The cable-research endpoint's response — a best-effort, LLM-assisted
+    draft of a CableSystem plus its landing stations, meant to pre-fill an
+    import form for an operator to review, not to be trusted or imported
+    unmodified. See sources_used/notes for how to judge a given result, and
+    the module comment above for where the underlying data comes from."""
     cable_name: str
     description: str = ""
     consortium_owners: list[str] = []

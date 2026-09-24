@@ -73,6 +73,17 @@ function onIdle(fn: () => void): () => void {
   return () => window.clearTimeout(id)
 }
 
+/**
+ * useHazards — prefetch-then-poll hook for the Network Hazards feed. See the file
+ * header for the prefetch/poll/staleness design rationale.
+ *
+ * @param enabled  Whether the hazard layer is currently switched on. Polling only
+ *                  runs while true; the one-time prefetch runs regardless (unless
+ *                  the connection looks metered/data-saver, see prefersLessData).
+ * @returns HazardState — the current feed (or null before first load), a `loading`
+ *          flag gated on `enabled` (see below), any REQUEST error, and a manual
+ *          `refresh()` that forces a non-quiet (loading-indicator-showing) reload.
+ */
 export function useHazards(enabled: boolean): HazardState {
   const [feed, setFeed] = useState<HazardFeed | null>(null)
   const [loading, setLoading] = useState(false)

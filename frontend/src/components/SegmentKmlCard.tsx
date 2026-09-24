@@ -210,6 +210,11 @@ function KmlUpload({ t, segment, info, onUploaded }: Props) {
   )
 }
 
+/**
+ * The card itself: read-only `KmlDetails` when a route is on file, an
+ * explanatory fallback when it isn't, and — admin only — the `KmlUpload`
+ * control appended beneath either state.
+ */
 export function SegmentKmlCard({ t, segment, info, onUploaded }: Props) {
   const { isAdmin } = useAuth()
   return (

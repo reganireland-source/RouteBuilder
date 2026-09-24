@@ -18,13 +18,22 @@ import { KIND_LABEL, SEVERITY_LABEL, severityColor } from './HazardLayer'
 import { Card, Pill, type T } from './fullViewChrome'
 
 interface Props {
+  /** The hazards to list — already filtered to whatever is relevant to this asset. */
   hazards: Hazard[]
+  /** Which kind of asset this card is attached to; passed through to hazardDistanceKm
+   *  so it looks up the right proximity calculation. */
   kind: 'node' | 'segment'
+  /** The node or segment's id, likewise passed through to hazardDistanceKm. */
   assetId: string
   /** Passed through to Card so it sits correctly in a Full View column. */
   grow?: boolean
 }
 
+/**
+ * HazardsNearbyCard — see file header. Renders null (nothing at all, not even an
+ * empty-state card) when `hazards` is empty, so a Full View with no hazards shows no
+ * hazard section rather than a misleading "all clear".
+ */
 export function HazardsNearbyCard({ hazards, kind, assetId, grow = true }: Props) {
   const t = useTheme()
   if (hazards.length === 0) return null
@@ -41,6 +50,9 @@ export function HazardsNearbyCard({ hazards, kind, assetId, grow = true }: Props
   )
 }
 
+/** One hazard entry: severity pill, kind label, distance-to-asset (via
+ *  hazardDistanceKm, when computable), title, clamped detail text and attribution/
+ *  source link. */
 function HazardRow({ t, hazard, kind, assetId }: {
   t: T; hazard: Hazard; kind: 'node' | 'segment'; assetId: string
 }) {

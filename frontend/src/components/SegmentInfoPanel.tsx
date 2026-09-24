@@ -66,6 +66,15 @@ function capacityColor(pct: number, t: ReturnType<typeof useTheme>): string {
   return t.green
 }
 
+/**
+ * Draggable floating card for one clicked segment. Renders identity/ownership/
+ * endpoint fields (mirroring the map's hover tooltip), an active-outage banner
+ * when applicable, a capacity bar, and a button into `SegmentFullView`.
+ *
+ * Position: opens near the click point (`initialX`/`initialY`, offset so the
+ * cursor doesn't sit on top of it), is clamped fully inside the viewport on
+ * first layout, and can then be dragged anywhere by its title bar.
+ */
 export function SegmentInfoPanel({
   segment, nodes, segments, systems, capacity, outages, notes, noteCategories, kmlPaths,
   initialX, initialY, onClose, onDataChange,

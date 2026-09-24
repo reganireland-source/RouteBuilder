@@ -29,12 +29,23 @@
  *
  * State lives entirely here; on a successful replace it calls onReplaced() so
  * the parent can refresh, then closes.
+ *
+ * WHEN IT MOUNTS
+ * This modal is only ever rendered when RefDataModal's "AI Outage Parser" launcher
+ * button is shown, which is itself gated behind the VITE_ENABLE_OUTAGE_PARSER build
+ * flag (see RefDataModal.tsx). This file has no knowledge of that flag itself — it
+ * assumes it has been deliberately opened and just runs the parse/review/replace flow.
+ *
+ * MAIN EXPORT
+ *   OutageParserModal(props) — the modal component described above.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { useTheme } from '../theme'
 import type { CableSegment, OutageEventType, ParsedOutage, SegmentOutage } from '../types'
 
+/** A review-table row. Same shape as the backend's ParsedOutage proposal — the
+ *  row IS the proposal, edited in place as the engineer corrects it. */
 type Row = ParsedOutage
 
 /** Pull image files out of a clipboard payload (screenshot paste). */
@@ -63,6 +74,16 @@ function statusColor(r: Row, ok: string, warn: string, bad: string): string {
   return r.confidence === 'low' ? warn : ok
 }
 
+/**
+ * The AI Outage Parser modal (see file header for the full flow).
+ *
+ * @param segments   All CableSegments, used to populate the per-row segment-match
+ *                    dropdown and to resolve segment names shown next to each row.
+ * @param onClose     Dismiss the modal without saving (Cancel / ✕ / after a
+ *                     successful replace).
+ * @param onReplaced  Called after a successful `acceptAndReplace` so the parent can
+ *                     refetch outage data; the modal closes right after.
+ */
 export function OutageParserModal({ segments, onClose, onReplaced }: {
   segments: CableSegment[]
   onClose: () => void
@@ -130,6 +151,20 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
     setFiles(fs => fs.filter((_, idx) => idx !== i))
   }
 
+  /**
+   * Send the current input (pasted text and/or files) to the backend's vision-LLM
+   * parse endpoint and load its proposals into the review table.
+   *
+   * WHAT HAPPENS: api.parseOutages streams a running token count back via its
+   * progress callback (`tokens => setParseTokens(tokens)`), which the "thinking…"
+   * indicator displays live while the model works — parses can take a while for a
+   * large screenshot table. The response's `proposals` (already segment-matched and
+   * confidence-scored by the backend) become `rows` verbatim: THIS is what flips the
+   * modal from the input stage to the review stage, since rendering is keyed off
+   * `rows !== null`. `existing_count` and `model` are stored only for display (the
+   * destructive-replace confirmation text and the footer's "model: …" chip).
+   * An empty proposal list is treated as a soft error rather than success.
+   */
   async function runParse() {
     if (!text.trim() && files.length === 0) { setError('Paste a table, paste a screenshot, or choose a file first.'); return }
     setParsing(true); setError(null); setParseTokens(0)
@@ -146,6 +181,7 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
     }
   }
 
+  /** Merge `patch` into row `i` of the review table (used by every editable field). */
   function patchRow(i: number, patch: Partial<Row>) {
     setRows(rs => rs ? rs.map((r, idx) => idx === i ? { ...r, ...patch } : r) : rs)
   }
@@ -155,10 +191,13 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
     patchRow(i, { segment_id: segId, matched: !!segId, confidence: segId ? 'high' : 'none' })
   }
 
+  /** Drop row `i` from the review table entirely (not saved to the backend). */
   function removeRow(i: number) {
     setRows(rs => rs ? rs.filter((_, idx) => idx !== i) : rs)
   }
 
+  /** Append a blank, unmatched row for the engineer to fill in by hand — lets the
+   *  reviewer add an outage the AI missed without re-running the parse. */
   function addRow() {
     setRows(rs => ([...(rs ?? []), {
       segment_id: '', fault_id: '', fault_date: '', repair_start: null,
@@ -167,6 +206,12 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
     }]))
   }
 
+  /**
+   * Persist the reviewed rows: build the SegmentOutage payload from the currently
+   * VALID rows (see WHAT-level narrative below) and call the type-scoped, destructive
+   * replace endpoint. Invoked from the confirm dialog once the engineer has accepted
+   * the "this wipes all existing {mode} records" warning.
+   */
   async function acceptAndReplace() {
     if (!rows) return
     setSaving(true); setError(null)

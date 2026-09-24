@@ -37,10 +37,18 @@ const TABLES: TechLookupTable[] = [
   'tech_l1_settings',
 ]
 
+/** Slugify a label into an entry id: lowercase, non-alphanumeric runs collapsed to a
+ *  single dash, and any leading/trailing dash trimmed (e.g. "10 Gbps!" -> "10-gbps"). */
 function genId(label: string): string {
   return label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
+/**
+ * TechEnrichmentPanel — the admin CRUD editor for the seven tech-lookup reference
+ * tables described in the file header. Fully self-contained: it owns which table is
+ * active, that table's entries, and all inline-edit / add / delete state, loading its
+ * own data via the `api` client rather than taking anything as props.
+ */
 export function TechEnrichmentPanel() {
   const t = useTheme()
   const [activeTable, setActiveTable] = useState<TechLookupTable>('tech_service_types')
@@ -69,6 +77,8 @@ export function TechEnrichmentPanel() {
     load(activeTable)
   }, [activeTable])
 
+  /** Fetch all entries for `table` and reset any in-progress edit/add UI, since
+   *  switching tables (or reloading the active one) should not carry stale edit state. */
   async function load(table: TechLookupTable) {
     setLoading(true)
     setError(null)
@@ -84,6 +94,9 @@ export function TechEnrichmentPanel() {
     }
   }
 
+  /** Enter inline-edit mode for `item`, seeding the edit fields from its current
+   *  values and closing the "add row" form if it was open (only one row is editable
+   *  or being added at a time). */
   function startEdit(item: TechLookupItem) {
     setEditingId(item.id)
     setEditLabel(item.label)
@@ -92,6 +105,9 @@ export function TechEnrichmentPanel() {
     setAdding(false)
   }
 
+  /** PUT the edited fields for entry `id`, then resort the local list by `order`
+   *  (the user may have changed it) and drop out of edit mode. The entry's id/slug
+   *  itself is never editable here — only label/description/order. */
   async function saveEdit(id: string) {
     setSaving(true)
     try {
@@ -107,6 +123,9 @@ export function TechEnrichmentPanel() {
     }
   }
 
+  /** DELETE entry `id` (called after the ConfirmDialog is accepted) and drop it from
+   *  the local list. Circuits already enriched with this value keep their stored value
+   *  regardless — only its future availability in the dropdown is removed. */
   async function deleteItem(id: string) {
     setSaving(true)
     try {
@@ -119,6 +138,9 @@ export function TechEnrichmentPanel() {
     }
   }
 
+  /** Open the "add row" form with a suggested display order of max(existing)+10 (or
+   *  10 for the first entry) — spacing new rows apart rather than appending at +1
+   *  keeps room to slot future entries in between without renumbering everything. */
   function startAdd() {
     const nextOrder = items.length > 0 ? Math.max(...items.map(i => i.order)) + 10 : 10
     setNewLabel('')
@@ -128,6 +150,8 @@ export function TechEnrichmentPanel() {
     setEditingId(null)
   }
 
+  /** POST the new entry (id auto-slugified from the label via genId) and append it
+   *  to the local list, resorted by order. No-ops on a blank label since it's required. */
   async function saveNew() {
     if (!newLabel.trim()) return
     setSaving(true)

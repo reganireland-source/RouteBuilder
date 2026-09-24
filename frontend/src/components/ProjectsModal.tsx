@@ -30,23 +30,47 @@ import { useAuth } from '../context/AuthContext'
 import type { CableNode, EndpointConfig, InterfaceType, Project, ProjectCircuit, Route, SldConfig, TechLookupItem } from '../types'
 import { DEFAULT_SLD_CONFIG } from '../types'
 
+/** Props for {@link ProjectsModal}. See the file header's "Key props" section
+ *  for the fuller story of how pendingCircuit / onActivateProject / the
+ *  initial* deep-link props are used together by callers. */
 interface Props {
+  /** Full node list — used only to resolve node ids to names/countries for display (routeLabel, EndBlock headers). */
   nodes: CableNode[]
   onClose: () => void
+  /** Deep-link: open straight into this project's detail view instead of the list. */
   initialProject?: string | null
+  /** Deep-link: paired with initialProject — also open this circuit's editor within the Circuits tab. */
   initialCircuitId?: string | null
+  /** A route arriving from "Add to Project" elsewhere in the app. When set, clicking a
+   *  project in the list view stages it as the add target (see handleProjectClick /
+   *  confirmAddToProject) instead of opening it for browsing/editing. */
   pendingCircuit?: { route: Route; protectRoute?: Route; searchLabel: string }
+  /** Called when a project is opened for browsing (not the pendingCircuit flow) so the
+   *  parent can re-pin that project's circuits on the map while this modal is open. */
   onRestorePins?: (circuits: import('../types').ProjectCircuit[], projectId: string) => void
+  /** Called after confirmAddToProject succeeds, so the caller (e.g. the route search
+   *  screen) can update its own UI to reflect the circuit now belongs to a project. */
   onCircuitAdded?: (projectId: string, circuitId: string, circuitLabel?: string) => void
+  /** When supplied, clicking a project in the list enters Project Mode via this callback
+   *  (and closes the modal) instead of opening the project's own detail view. */
   onActivateProject?: (project: Project) => void
+  /** Pre-fetched project list from the parent's cache; when present the initial
+   *  GET /api/projects call is skipped and this is used instead. */
   initialProjects?: Project[] | null
+  /** Fired whenever the local project list changes (create/update/delete/circuit
+   *  mutation), so the parent can keep its own cache (initialProjects) in sync. */
   onProjectsChange?: (projects: Project[]) => void
 }
 
+/** Top-level modal view: the project list, or a single project's detail screen. */
 type ModalTab = 'list' | 'detail'
+/** Sub-tab within the detail view. */
 type DetailTab = 'info' | 'circuits' | 'sld'
 
 
+/** Blank draft for the "+ New Project" flow: a locally-generated id (not yet
+ *  persisted — becomes real once saveProject() calls api.createProject) and the
+ *  shared SLD defaults, ready for the Info tab to fill in. */
 function newProject(): Project {
   return {
     id: `PRJ-${Date.now().toString(36).toUpperCase()}`,
@@ -57,6 +81,16 @@ function newProject(): Project {
   }
 }
 
+/**
+ * ProjectsModal — see file header for the full picture. Renders as a fixed
+ * overlay; internally switches between the project list (`tab === 'list'`)
+ * and a single project's detail view (`tab === 'detail'`, itself split into
+ * Info / Circuits / SLD sub-tabs). All project and circuit mutations go
+ * through the api.* calls below and are mirrored into local `projects` state
+ * (via `updateProjects`, which also notifies the parent through
+ * `onProjectsChange`) so the list and the open detail view never disagree
+ * with what was just saved.
+ */
 export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId, pendingCircuit, onRestorePins, onCircuitAdded, onActivateProject, initialProjects, onProjectsChange }: Props) {
   const t = useTheme()
   const { isAdmin } = useAuth()
@@ -82,6 +116,15 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
   const [pendingLabel, setPendingLabel] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  // Initial data load: the project list (skipped in favour of the parent's cache
+  // when initialProjects was passed) plus every tech-lookup table the circuit
+  // editor's dropdowns need (access types, arranged-by, service types,
+  // bandwidths, protections, frame sizes, L1 settings) — fetched together so the
+  // Circuits tab never renders half-populated dropdowns. Once loaded, if the
+  // caller deep-linked to a specific project/circuit (initialProject /
+  // initialCircuitId), that project is opened straight into detail view (and,
+  // if the circuit is still found on it, into that circuit's editor) rather than
+  // showing the list first.
   useEffect(() => {
     const projectsPromise = initialProjects != null ? Promise.resolve(initialProjects) : api.getProjects()
     Promise.all([
@@ -117,6 +160,9 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
     }).catch(() => setErr('Failed to load projects'))
   }, [initialProject, initialCircuitId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /** Apply a functional update to the local `projects` list and forward the
+   *  new list to `onProjectsChange`, so the parent's project cache and this
+   *  modal's own state are updated from a single call site every time. */
   function updateProjects(updater: (prev: Project[]) => Project[]) {
     setProjects(prev => {
       const next = updater(prev)
@@ -185,6 +231,10 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
   }
 
   // ── Save project changes ──────────────────────────────────────────────────
+  /** Create or update `editDraft` depending on whether a project is already
+   *  `selected` (edit) or not (new project from openNewProject). On success,
+   *  the returned server copy replaces the local one in `projects` and becomes
+   *  the new `selected`/`editDraft`, so subsequent edits are against live data. */
   async function saveProject() {
     if (!editDraft) return
     setSaving(true); setErr('')
@@ -201,6 +251,8 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
     }
   }
 
+  /** Delete a project and drop it from local state; if it was the one open in
+   *  detail view, also close the detail view back to the list. */
   async function deleteProject(id: string) {
     await api.deleteProject(id)
     updateProjects(ps => ps.filter(p => p.id !== id))
@@ -209,6 +261,11 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
   }
 
   // ── Circuit save ──────────────────────────────────────────────────────────
+  /** Save the circuit editor's draft onto `selected`. Whether this is an add or
+   *  an update is inferred from whether a circuit with this id already exists
+   *  on the project (there is no separate "new circuit" flag) — circuits are
+   *  only ever created via buildCircuitFromPending, so `isNew` is true exactly
+   *  when the circuit being saved was just built from a pending route. */
   async function saveCircuit() {
     if (!circuitDraft || !selected) return
     setSaving(true); setErr('')
@@ -227,6 +284,8 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
     }
   }
 
+  /** Remove a circuit from `selected` and sync the server's response back into
+   *  local state (mirrors saveProject/saveCircuit's pattern). */
   async function removeCircuit(circuitId: string) {
     if (!selected) return
     const updated = await api.removeCircuit(selected.id, circuitId)
@@ -234,6 +293,9 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
     setSelected(updated); setEditDraft(updated)
   }
 
+  /** Persist the SLD (Straight Line Diagram) display-toggle config for
+   *  `selected`. Called immediately on every toggle flip in renderSldConfig —
+   *  there is no separate "Save" button for this tab. */
   async function saveSldConfig(cfg: SldConfig) {
     if (!selected) return
     const updated = await api.updateSldConfig(selected.id, cfg)
@@ -241,16 +303,24 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
     setSelected(updated); setEditDraft(updated)
   }
 
+  /** Open the detail view on a fresh, unsaved project draft (the "+ New
+   *  Project" button). `selected` stays null until saveProject succeeds, which
+   *  is what tells renderInfo's Save button to say "Create Project". */
   function openNewProject() {
     const p = newProject()
     setSelected(null); setEditDraft(p); setTab('detail'); setDetailTab('info')
   }
 
+  /** Open an existing project for browsing/editing. Also asks the parent to
+   *  re-pin the project's circuits on the map (onRestorePins) so switching
+   *  between the map and this modal keeps showing the right routes. */
   function openProject(p: Project) {
     setSelected(p); setEditDraft({ ...p }); setTab('detail'); setDetailTab('info')
     if (onRestorePins && p.circuits.length > 0) onRestorePins(p.circuits, p.id)
   }
 
+  /** "<A-end node name> → <Z-end node name>" for a route snapshot, falling
+   *  back to the raw node id for any node not found in `nodeMap`. */
   function routeLabel(r: Route) {
     if (!r.nodes.length) return '—'
     const a = nodeMap.get(r.nodes[0])
@@ -258,6 +328,12 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
     return `${a?.name ?? r.nodes[0]} → ${z?.name ?? r.nodes[r.nodes.length - 1]}`
   }
 
+  /** Turn the `pendingCircuit` prop (a route handed in from elsewhere in the
+   *  app, e.g. RouteList's "Add to Project") into a new ProjectCircuit ready to
+   *  post via api.addCircuit. The circuit id is derived from the route's
+   *  endpoints plus a timestamp so it is unique without a server round-trip;
+   *  a default teal pin color and `order: 0` are placeholders the user can
+   *  refine later in the circuit editor. */
   function buildCircuitFromPending(p: typeof pendingCircuit, label?: string): ProjectCircuit {
     const r = p!.route as unknown as Route
     const id = `${r.nodes[0]}-${r.nodes[r.nodes.length - 1]}-${Date.now().toString(36)}`
@@ -275,12 +351,19 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
     }
   }
 
+  /** Clicking a project card in the list branches three ways, in priority
+   *  order: (1) a pendingCircuit is waiting to be filed — stage this project as
+   *  the target instead of opening it; (2) the caller wants project selection
+   *  to mean "activate Project Mode" (onActivateProject) — hand off and close;
+   *  (3) plain browsing — open the project's own detail view. */
   function handleProjectClick(p: Project) {
     if (pendingCircuit) { setPendingTargetProject(p); setPendingLabel(''); return }
     if (onActivateProject) { onActivateProject(p); onClose(); return }
     openProject(p)
   }
 
+  /** Build the pending circuit and add it to `pendingTargetProject`, then jump
+   *  straight into that project's Circuits tab so the result is visible. */
   async function confirmAddToProject() {
     if (!pendingCircuit || !pendingTargetProject) return
     const circuit = buildCircuitFromPending(pendingCircuit, pendingLabel)
@@ -299,6 +382,11 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
   }
 
   // ── List view ─────────────────────────────────────────────────────────────
+  /** The project list screen: search-free list of project cards, plus (when a
+   *  pendingCircuit is being filed) the "Adding circuit to project" banner and,
+   *  once a target is picked, the inline circuit-label prompt in place of the
+   *  list. Admins get edit/delete affordances per card; delete requires a
+   *  second confirming click (confirmDelete). */
   function renderList() {
     return (
       <div style={s.scroll} ref={scrollRef}>
@@ -399,6 +487,9 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
   }
 
   // ── Info tab ──────────────────────────────────────────────────────────────
+  /** Detail view's "Project Info" tab: name/id/opportunity/AM/SA/date/visibility
+   *  fields plus a free-text description, editing `editDraft` in place. Save
+   *  is disabled for non-admins (read-only viewing is still allowed). */
   function renderInfo() {
     if (!editDraft) return null
     const set = (k: keyof Project, v: string) => setEditDraft(d => d ? { ...d, [k]: v } : d)
@@ -478,6 +569,12 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
   }
 
   // ── Circuits tab ──────────────────────────────────────────────────────────
+  /** Detail view's "Circuits" tab: either the list of circuits already on the
+   *  project (each a card summarising route + service/bandwidth/protection +
+   *  A/Z access type, with Edit/Remove actions), or — while `circuitDraft` is
+   *  set — the full circuit editor (renderCircuitEditor) in its place. New
+   *  circuits arrive only via the pendingCircuit flow (see buildCircuitFromPending
+   *  / confirmAddToProject); this tab does not itself offer an "add" button. */
   function renderCircuits() {
     if (!selected) return <div style={{ ...s.scroll, color: t.textMuted, textAlign: 'center', paddingTop: 40 }}>Save the project first before adding circuits.</div>
 
@@ -525,6 +622,11 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
   }
 
   // ── Circuit editor ────────────────────────────────────────────────────────
+  /** Full editor for one circuit: label/service type/description/bandwidth/
+   *  protection/frame size/L1 settings, a read-only summary of the worker
+   *  route (and whether a protect route is attached), and two symmetric
+   *  A-End/Z-End enrichment blocks (EndBlock) for customer-site and access
+   *  details. Saves via saveCircuit; disabled for non-admins. */
   function renderCircuitEditor() {
     if (!circuitDraft) return null
     const setC = (k: keyof ProjectCircuit, v: unknown) => setCircuitDraft(d => d ? { ...d, [k]: v } : d)
@@ -535,6 +637,11 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
     const aNode = nodeMap.get(workerNodes[0])
     const zNode = nodeMap.get(workerNodes[workerNodes.length - 1])
 
+    /** One endpoint's enrichment form (A-End or Z-End, selected by `label`/
+     *  `end`/`setter`). Access-type-dependent fields (X-Connect supplier vs.
+     *  Local Loop supplier) are shown conditionally: the X-Connect fields are
+     *  also the default when no access type has been chosen yet, since
+     *  X-Connect is the most common case. */
     function EndBlock({ label, end, setter }: { label: string, end: EndpointConfig, setter: (k: keyof EndpointConfig, v: string) => void }) {
       return (
         <div style={{ flex: 1 }}>
@@ -702,9 +809,15 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
   }
 
   // ── SLD Config tab ────────────────────────────────────────────────────────
+  /** Detail view's "SLD Settings" tab: a row of toggle switches controlling
+   *  what shows on generated Straight Line Diagram PDFs (RTD, latency,
+   *  per-segment latency, distance, ownership, availability). These are
+   *  project-level defaults; individual circuits can override them elsewhere. */
   function renderSldConfig() {
     if (!editDraft) return null
     const cfg = editDraft.sld_config
+    // Toggles save immediately (once the project exists) — there is no
+    // separate Save button on this tab, unlike Info and the circuit editor.
     const toggle = (k: keyof SldConfig) => {
       const updated = { ...cfg, [k]: !cfg[k] }
       setEditDraft(d => d ? { ...d, sld_config: updated } : d)
@@ -756,6 +869,9 @@ export function ProjectsModal({ nodes, onClose, initialProject, initialCircuitId
   }
 
   // ── Detail view ───────────────────────────────────────────────────────────
+  /** Chrome shared by the whole detail view: the "← All Projects" back button
+   *  plus project name/id header, the Info/Circuits/SLD tab bar, and the
+   *  currently-active tab's content. */
   function renderDetail() {
     const detailTabs: { id: DetailTab; label: string }[] = [
       { id: 'info', label: 'Project Info' },

@@ -85,8 +85,11 @@ import {
   upcomingQuarters,
 } from '../utils/serviceDate'
 
+/** Props for {@link ServiceDateSelector}. */
 interface Props {
+  /** The choice currently in force (owned by the parent, not this component). */
   value: ServiceDateChoice
+  /** Called with the newly-picked choice whenever the user selects a row or taps "Current". */
   onChange: (next: ServiceDateChoice) => void
   /** Phone header: render tighter. */
   compact?: boolean
@@ -95,11 +98,14 @@ interface Props {
 /** Kind drives the row's styling, not its behaviour — see buildOptions. */
 type OptionKind = 'current' | 'quarter' | 'all'
 
+/** One row of the popover's option list, as built by {@link buildOptions}. */
 interface PickerOption {
+  /** React key / row identity ('current', a quarter string, or 'all'). */
   key: string
   kind: OptionKind
   label: string
   sublabel: string
+  /** The ServiceDateChoice this row applies via onChange when picked. */
   choice: ServiceDateChoice
 }
 
@@ -287,10 +293,14 @@ function rowGlyph(kind: OptionKind): string {
   return '🗓'
 }
 
+/** Props for {@link OptionRow}. */
 interface RowProps {
   option: PickerOption
+  /** DOM id for this row, referenced by the trigger's aria-activedescendant. */
   id: string
+  /** Keyboard/hover highlight is on this row. */
   active: boolean
+  /** This row is the choice currently in force (isChosen). */
   selected: boolean
   onPick: () => void
   onHover: () => void
@@ -363,16 +373,23 @@ function OptionRow({ option, id, active, selected, onPick, onHover }: RowProps) 
   )
 }
 
+/** Props for {@link PickerPopover}. */
 interface PopoverProps {
   popoverRef: React.Ref<HTMLDivElement>
+  /** id of the listbox element, referenced by the trigger's aria-controls. */
   listId: string
+  /** Screen position/size, from popoverBox(). */
   box: PopoverBox
   width: number
   options: PickerOption[]
+  /** Index of the row the keyboard is currently on. */
   activeIdx: number
+  /** The choice currently in force, used to mark the selected row. */
   value: ServiceDateChoice
+  /** Builds the DOM id for the option at index i. */
   optionId: (i: number) => string
   onPick: (o: PickerOption) => void
+  /** Called on mouse-enter of a row, to move the keyboard highlight there too. */
   onHover: (i: number) => void
 }
 
@@ -415,6 +432,8 @@ function PickerPopover({
 
 // ── Keyboard ────────────────────────────────────────────────────────────────
 
+/** Everything {@link handleTriggerKey} and {@link openListActions} need to act on a
+ *  keypress, bundled so the key-handling functions can live outside the component. */
 interface KeyContext {
   open: boolean
   options: PickerOption[]
@@ -469,13 +488,18 @@ function handleTriggerKey(e: React.KeyboardEvent, ctx: KeyContext) {
 
 // ── The two trigger forms ───────────────────────────────────────────────────
 
+/** Shared props for the two trigger forms, {@link CompactTrigger} and {@link SegmentedTrigger}. */
 interface TriggerProps {
   value: ServiceDateChoice
+  /** True whenever `value` names a non-current network (isFutureView). */
   future: boolean
+  /** The popover is currently open. */
   open: boolean
   listId: string
+  /** aria-activedescendant target — the active row's DOM id, or '' when closed. */
   activeDescendant: string
   triggerRef: React.Ref<HTMLButtonElement>
+  /** Opens/closes the popover (used by the Planned/list-opening button). */
   onToggle: () => void
   onKeyDown: (e: React.KeyboardEvent) => void
 }

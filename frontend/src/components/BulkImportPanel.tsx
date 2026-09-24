@@ -29,9 +29,16 @@ import { api } from '../api/client'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
+/** Which reference table a bulk operation targets. Mirrors the backend's
+ *  bulk router (`/api/bulk/{table}/...`) and the keys of `TABLE_META` below. */
 type BulkTable = 'nodes' | 'segments' | 'systems' | 'capacity' | 'coverage'
+/** Import strategy: 'upsert' adds+overwrites, 'add_only' never touches
+ *  existing rows, 'full_replace' deletes the table first (needs typed
+ *  confirmation — see the `confirmText` state in the component below). */
 type BulkMode  = 'upsert' | 'add_only' | 'full_replace'
 
+/** One row-level problem found during POST /api/bulk/validate/{table} that
+ *  blocks import (as opposed to `warnings`, which do not). */
 interface ValidationError {
   row_num: number
   id: string
@@ -40,14 +47,21 @@ interface ValidationError {
   message: string
 }
 
+/** One row's effect if the current file were imported — the unit the
+ *  change-diff table (and the downloadable audit log) is built from. */
 interface Change {
   status: 'added' | 'modified' | 'deleted'
   id: string
+  /** New field values (added/modified only). */
   data?: Record<string, unknown>
+  /** Field values before this change (modified/deleted only). */
   prev_data?: Record<string, unknown>
+  /** Which fields differ, for a 'modified' row — drives the "field: old → new" chips. */
   changed_fields?: string[]
 }
 
+/** Shape returned by POST /api/bulk/validate/{table}?mode=... — everything
+ *  the UI needs to show the reviewer what an import would do before it runs. */
 interface ValidateResponse {
   table: string
   mode: string
@@ -62,9 +76,13 @@ interface ValidateResponse {
     kept_in_db: number
   }
   changes: Change[]
+  /** False when validation_errors is non-empty (or the mode's own precondition
+   *  — e.g. full_replace's typed confirmation — is unmet); gates the Apply button. */
   can_import: boolean
 }
 
+/** Shape returned by POST /api/bulk/import/{table}?mode=... after a successful
+ *  import — counts actually applied per operation kind (added/modified/deleted). */
 interface ImportResult {
   status: string
   table: string
@@ -74,6 +92,9 @@ interface ImportResult {
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 
+/** Per-table display metadata: pill label/icon, primary key column (used to
+ *  identify rows in the diff view), the CSV columns the backend expects, and
+ *  a human-readable notes string shown in the "CSV Format Reference" panel. */
 const TABLE_META: Record<BulkTable, { label: string; icon: string; pk: string; cols: string[]; notes: string }> = {
   nodes: {
     label: 'Nodes', icon: '📍', pk: 'id',
@@ -102,6 +123,9 @@ const TABLE_META: Record<BulkTable, { label: string; icon: string; pk: string; c
   },
 }
 
+/** Per-mode display metadata for the mode-selector radio list: label,
+ *  sub-description and a risk badge (colour-coded; full_replace is the only
+ *  destructive one and gets the red "⚠ Destructive" badge). */
 const MODE_META: Record<BulkMode, { label: string; sub: string; risk: string; riskColor: string }> = {
   upsert: {
     label: 'Upsert', sub: 'Add new + overwrite changed. Rows in the database but not in the file are kept.',
@@ -117,15 +141,27 @@ const MODE_META: Record<BulkMode, { label: string; sub: string; risk: string; ri
   },
 }
 
+/** Cap on how many rows of the change diff are rendered — the summary strip
+ *  above it always reflects the true total; this only limits the (expensive,
+ *  scrollable) per-row list so a huge full_replace diff doesn't hang the DOM. */
 const DIFF_DISPLAY_LIMIT = 200
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
 interface Props {
+  /** Current row count per table, shown next to each table pill (e.g. "Nodes (142)"). */
   counts: Record<BulkTable, number>
+  /** Called after a successful import so the parent can refetch network data. */
   onDataChange: () => void
 }
 
+/**
+ * BulkImportPanel — see the file-level docblock above for the full workflow.
+ * Renders the table/mode selectors, export button + CSV format reference,
+ * the drag-drop upload zone, and (once a file is validated) the error/warning
+ * lists, summary strip, change diff and Apply/Replace-confirmation controls.
+ * Purely a client of `api.bulk*`; owns no data beyond one in-flight file.
+ */
 export function BulkImportPanel({ counts, onDataChange }: Props) {
   const t = useTheme()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -145,11 +181,19 @@ export function BulkImportPanel({ counts, onDataChange }: Props) {
 
   const meta = TABLE_META[table]
 
+  /** Switch which table is being imported/exported, clearing all in-flight
+   *  file/validation/result state from whatever table was active before —
+   *  otherwise a stale validation diff for one table could be shown, or
+   *  accidentally applied, against another. */
   function resetForTable(t: BulkTable) {
     setTable(t); setFile(null); setValidation(null); setResult(null)
     setErrMsg(null); setConfirmText(''); setLastChanges(null)
   }
 
+  /** Accept a dropped/browsed file if it looks like a CSV (by extension or
+   *  MIME type — browsers are inconsistent about setting the latter, hence
+   *  checking both), otherwise show an inline error and leave the previous
+   *  file (if any) untouched. Clears any stale validation/result. */
   function acceptFile(f: File | null) {
     if (!f) return
     if (!f.name.endsWith('.csv') && f.type !== 'text/csv') {
@@ -159,6 +203,9 @@ export function BulkImportPanel({ counts, onDataChange }: Props) {
     setFile(f); setValidation(null); setResult(null); setErrMsg(null)
   }
 
+  /** POST the chosen file to /api/bulk/validate/{table}?mode=... and stash
+   *  the result (errors, warnings, summary, diff) for review — does not
+   *  import anything. */
   async function handleValidate() {
     if (!file) return
     setValidating(true); setErrMsg(null)
@@ -172,6 +219,14 @@ export function BulkImportPanel({ counts, onDataChange }: Props) {
     }
   }
 
+  /** POST the same file to /api/bulk/import/{table}?mode=... to actually
+   *  apply it. Guarded by both `validation.can_import` and, for
+   *  full_replace, the typed "REPLACE" confirmation — this is a second,
+   *  redundant guard alongside the disabled Apply button so a stale click
+   *  can't slip through. On success, keeps `validation.changes` around as
+   *  `lastChanges` so the change log can still be downloaded from the
+   *  success screen, then clears the file/validation for the next import
+   *  and tells the parent to refetch. */
   async function handleImport() {
     if (!file || !validation?.can_import) return
     if (mode === 'full_replace' && confirmText !== 'REPLACE') return
@@ -189,6 +244,10 @@ export function BulkImportPanel({ counts, onDataChange }: Props) {
     }
   }
 
+  /** Build a CSV of exactly what was just applied (status, id, and an
+   *  "old → new" summary of each changed field) and trigger it as a browser
+   *  download — a durable record of an import, independent of the
+   *  in-memory `validation.changes` it's built from. */
   function downloadAuditLog(changes: Change[]) {
     const rows = changes.map(c => {
       const fieldChanges = c.changed_fields && c.prev_data && c.data
@@ -205,6 +264,9 @@ export function BulkImportPanel({ counts, onDataChange }: Props) {
     URL.revokeObjectURL(a.href)
   }
 
+  /** Navigate to GET /api/bulk/export/{table} via a synthetic anchor click —
+   *  the browser handles the actual download; no blob/JS-side CSV building
+   *  needed since the backend streams the file directly. */
   function handleDownload() {
     const url = api.bulkExportUrl(table)
     const a = document.createElement('a')
@@ -214,6 +276,9 @@ export function BulkImportPanel({ counts, onDataChange }: Props) {
   }
 
   // ── Styles ────────────────────────────────────────────────────────────────
+  // Small style-object factories, reused across the table/mode selectors and
+  // the format-reference/summary cards below, so each usage site stays a
+  // one-line `style={card(...)}` rather than repeating the same properties.
 
   const card = (extra?: object) => ({
     background: t.bgCard, border: `1px solid ${t.border}`,

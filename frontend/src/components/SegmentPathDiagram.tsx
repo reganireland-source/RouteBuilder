@@ -211,6 +211,11 @@ function EndNode({ node, fallbackId, cx, anchor, onSelect, t, g }: {
   )
 }
 
+/**
+ * Draws `segment` as a schematic line between its two end-node icons, with
+ * waypoints placed at their true proportional position along the great-circle
+ * path (see the file header for what is real data vs. deliberate stylisation).
+ */
 export function SegmentPathDiagram({ segment, start, end, onSelectNode, width = 680, compact = false }: Props) {
   const t = useTheme()
   const g = compact ? COMPACT : WIDE

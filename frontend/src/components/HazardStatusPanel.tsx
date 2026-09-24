@@ -186,6 +186,26 @@ function SegmentedControl<T extends string>(
   )
 }
 
+/**
+ * HazardStatusPanel — the collapsible coverage/status card described in the file
+ * header. Renders a one-line summary button ("N near network") that expands into
+ * source-by-source coverage detail, the asset-view and highlight SegmentedControls,
+ * and a manual refresh action.
+ *
+ * @param feed              The current HazardFeed, or null before the first load.
+ * @param loading           A fetch is in flight (drives the header's "Loading…" text
+ *                            and disables the Refresh button).
+ * @param error              Set when the REQUEST itself failed (distinct from
+ *                            `feed.degraded`, a feed that loaded with one source down).
+ * @param onRefresh          Manual "Refresh" button handler.
+ * @param assetView/onAssetViewChange  Current + setter for how much of the network
+ *                            is drawn beneath the hazards (see ASSET_VIEWS).
+ * @param ownerView/onOwnerViewChange  Current + setter for which in-range assets get
+ *                            highlighted (see OWNER_VIEWS); only meaningful under 'inRange'.
+ * @param narrow             Narrow viewport — panel shrinks and starts collapsed.
+ * @param controlsOpen       The top-right Controls menu is open, so the panel should
+ *                            get out of its way (see CONTROLS_CLEARANCE / panelShell).
+ */
 export function HazardStatusPanel({ feed, loading, error, onRefresh, assetView, onAssetViewChange, ownerView, onOwnerViewChange, narrow = false, controlsOpen = false }: Props) {
   const t = useTheme()
   const [open, setOpen] = useState(!narrow)

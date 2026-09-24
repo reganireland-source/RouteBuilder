@@ -56,6 +56,8 @@ function worstSeverity(notes: SolutionNote[]): NoteSeverity {
   return 'info'
 }
 
+/** Small uppercase pill (e.g. "CRITICAL") coloured by severity via severityColor;
+ *  falls back to the 'info' label/colour for an unrecognised severity string. */
 function SeverityBadge({ severity }: { severity: string }) {
   const t = useTheme()
   const color = severityColor(t, severity)
@@ -72,6 +74,12 @@ function SeverityBadge({ severity }: { severity: string }) {
   )
 }
 
+/**
+ * One note's card in the right-hand "Route Order" column: severity badge, category
+ * chip, optional timestamp, title and body text. Body text longer than
+ * TEXT_COLLAPSE_THRESHOLD characters starts truncated with a "▼ Show more" toggle,
+ * so a handful of long notes don't push the whole route list out of easy scanning.
+ */
 function NoteCard({ note, categoryLabel }: { note: SolutionNote; categoryLabel: string }) {
   const t = useTheme()
   const color = severityColor(t, note.severity)
@@ -111,6 +119,15 @@ function NoteCard({ note, categoryLabel }: { note: SolutionNote; categoryLabel: 
 }
 
 // Metro-map side — adapted from PairBreakdown
+/**
+ * The vertical "metro map" of the route (desktop-only left column): one dot per
+ * node and one bar per segment between them, walked in route order. A node/segment
+ * with notes is coloured by {@link worstSeverity} of its notes and badged with the
+ * note count (via the inner `noteIndicator` helper); one with none stays neutral
+ * (theme blue for nodes, theme border colour for segments). Branching units render
+ * as a smaller, unlabelled diamond-ish dot (only their id, in a fainter style) since
+ * they are transit points rather than named locations.
+ */
 function RouteMetroMap({ route, nodesById, notesByNode, notesBySegment }: {
   route: Route
   nodesById: Record<string, { name?: string; type?: string }>
@@ -120,6 +137,8 @@ function RouteMetroMap({ route, nodesById, notesByNode, notesBySegment }: {
   const t = useTheme()
   const sevColors = severityColors(t)
 
+  /** Small count badge shown next to a node/segment label when it has ≥1 note,
+   *  coloured by the worst severity present. Renders nothing for an empty list. */
   function noteIndicator(notes: SolutionNote[]) {
     if (!notes.length) return null
     const color = sevColors[worstSeverity(notes)]
@@ -205,13 +224,24 @@ function RouteMetroMap({ route, nodesById, notesByNode, notesBySegment }: {
   )
 }
 
+/** Props for {@link SolutionNotesOverlay}. */
 interface Props {
+  /** The computed Route whose nodes/segments scope which notes are shown. */
   route: Route
+  /** Minimal per-node lookup for display labels and branching-unit styling. */
   nodesById: Record<string, { name?: string; type?: string }>
   onClose: () => void
+  /** Optional; when supplied, an "+ Add Note" button is shown next to every route
+   *  item, calling back with (kind, id) to let the parent open note-creation UI. */
   onAddNote?: (kind: 'node' | 'segment', id: string) => void
 }
 
+/**
+ * SolutionNotesOverlay — the full-screen route-notes modal described in the file
+ * header. Fetches ALL solution notes/categories on mount (the backend has no
+ * per-route filter, matching the pattern in EntityNotesPanel.tsx), narrows them to
+ * just this route's nodes/segments, and renders the metro-map + route-order layout.
+ */
 export function SolutionNotesOverlay({ route, nodesById, onClose, onAddNote }: Props) {
   const t = useTheme()
   const [notes, setNotes] = useState<SolutionNote[]>([])

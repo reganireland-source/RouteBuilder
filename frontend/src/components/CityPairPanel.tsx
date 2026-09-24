@@ -48,8 +48,29 @@ const SYS_COLORS = [
   '#f38ba8', '#fab387', '#a6e3a1', '#89dceb', '#eba0ac',
 ]
 
+/** Ownership classification of a whole city-pair itinerary, derived from its segments. */
 type NetClass = 'on_net' | 'off_net' | 'mixed'
 
+/**
+ * Classify a CityPairRoute's ownership by walking its node sequence and resolving
+ * each consecutive node pair to a CableSegment, then checking every segment found
+ * against the on-net ownership allow-list (`onNetSet`, built from the `onNetOwnership`
+ * prop, which itself comes from backend config).
+ *
+ * WHAT-LEVEL WALKTHROUGH:
+ *   1. For every adjacent pair of nodes in `route.nodes`, look up the segment that
+ *      connects them. Segments are stored directionally in `segByEndpoints` (keyed
+ *      "start|end"), so BOTH orderings are tried ("a|b" then "b|a") since the route
+ *      may traverse a segment in either direction.
+ *   2. A pair with no matching segment (e.g. missing data) is silently skipped rather
+ *      than failing the whole classification — it simply doesn't contribute evidence
+ *      either way.
+ *   3. If no segments were resolved at all, the route is treated as 'on_net' by
+ *      default (nothing to disqualify it).
+ *   4. Otherwise: every segment's `ownership` value present in `onNetSet` → 'on_net';
+ *      every segment's ownership ABSENT from it → 'off_net'; any mix of the two →
+ *      'mixed'. This mirrors the ON-NET/OFF-NET/MIXED badge shown on each result card.
+ */
 function classifyCityPairRoute(
   route: CityPairRoute,
   segByEndpoints: Map<string, CableSegment>,
@@ -67,6 +88,18 @@ function classifyCityPairRoute(
   return allOn ? 'on_net' : allOff ? 'off_net' : 'mixed'
 }
 
+/**
+ * CityPairPanel — the origin/destination city search UI described in the file header.
+ *
+ * @param nodes           All CableNodes; landing_station nodes are grouped into the
+ *                          city typeahead lists (see the `cities` memo).
+ * @param segments        All CableSegments; used to classify each result's on-net status.
+ * @param systems         All CableSystems; used to resolve system names/colours for display.
+ * @param onNetOwnership  Ownership values (from backend config) considered "on-net" —
+ *                          drives the ON-NET/OFF-NET/MIXED badge on each result.
+ * @param onPlanRoute     Called with (originNodeId, destNodeId) when the user picks
+ *                          "Plan Route →" on a result, to prefill the main route builder.
+ */
 export function CityPairPanel({ nodes, segments, systems, onNetOwnership, onPlanRoute }: Props) {
   const t = useTheme()
 
@@ -133,6 +166,9 @@ export function CityPairPanel({ nodes, segments, systems, onNetOwnership, onPlan
     ) : cities).slice(0, 16)
   }, [cities, destQuery])
 
+  /** Call POST /api/city-pairs/search for the chosen origin/destination and load the
+   *  results; auto-selects the first (best-ranked) result so its "Plan Route" button
+   *  is immediately available. */
   async function handleSearch() {
     if (!origin || !dest || origin === dest) return
     setLoading(true)
@@ -150,6 +186,9 @@ export function CityPairPanel({ nodes, segments, systems, onNetOwnership, onPlan
     }
   }
 
+  /** Hand the itinerary's first and last CLS node ids to the parent's onPlanRoute so
+   *  the main route builder can be prefilled with this origin/destination pair. A
+   *  route with fewer than 2 CLS nodes has nothing meaningful to plan and is a no-op. */
   function handlePlan(route: CityPairRoute) {
     if (route.cls_nodes.length < 2) return
     onPlanRoute(route.cls_nodes[0], route.cls_nodes[route.cls_nodes.length - 1])
@@ -298,6 +337,8 @@ interface CardProps {
   t: ReturnType<typeof useTheme>
 }
 
+/** One search-result card: hop-count/on-net badges, the visual itinerary, latency/
+ *  distance/availability metrics, and (only while selected) the "Plan Route" button. */
 function RouteCard({ route, selected, origin, dest, sysColorMap, systemsById, netClass, onSelect, onPlan, t }: CardProps) {
   const hopLabel = route.hop_count === 1 ? 'Direct' : `${route.hop_count} systems`
   const netColor = netClass === 'on_net' ? t.green : netClass === 'off_net' ? t.red : t.orange
@@ -367,6 +408,9 @@ function RouteCard({ route, selected, origin, dest, sysColorMap, systemsById, ne
 
 // ── Itinerary visual ─────────────────────────────────────────────────────────
 
+/** Renders the "City → [System] → CLS → [System] → City" visual sequence for one
+ *  result card, alternating system badges (coloured via sysColorMap) with any
+ *  intermediate cable-landing-station stops between them. */
 function Itinerary({ route, origin, dest, sysColorMap, systemsById, t }: {
   route: CityPairRoute
   origin: string
@@ -433,6 +477,7 @@ function Itinerary({ route, origin, dest, sysColorMap, systemsById, t }: {
 
 // ── Small metric chip ─────────────────────────────────────────────────────────
 
+/** A small label/value pair used for the RTD/Dist/Avail metrics on a result card. */
 function Metric({ label, value, t }: { label: string; value: string; t: ReturnType<typeof useTheme> }) {
   return (
     <div>

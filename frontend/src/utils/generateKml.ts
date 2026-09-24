@@ -55,6 +55,7 @@ export interface ExportGeometry {
   fileLengthKm?: number | null
 }
 
+/** Caller-supplied labelling for generateKml's output document. */
 export interface KmlExportOptions {
   /** Document name, e.g. "SYD1 → TKO1" or "EAC". */
   title: string
@@ -80,6 +81,9 @@ function coordsToKml(coords: [number, number][]): string {
   return coords.map(([lat, lng]) => `${lng.toFixed(6)},${lat.toFixed(6)},0`).join(' ')
 }
 
+/** The `<Style>` elements referenced by each placemark's `styleUrl`, one per
+ *  ExportSource ('upload'/'submarinecablemap'/'approximate') — the colour
+ *  and line-width coding described in the file header. */
 function styleBlock(): string {
   return `
     <Style id="upload">
@@ -141,6 +145,9 @@ function provenanceOf(segment: CableSegment, geom: ExportGeometry): string {
     + ' and is for orientation only.'
 }
 
+/** Build one `<Placemark>` for a segment: name, a provenance-aware
+ *  description (see `provenanceOf`), the style matching its source, and the
+ *  LineString itself. */
 function placemark(
   segment: CableSegment,
   geom: ExportGeometry,

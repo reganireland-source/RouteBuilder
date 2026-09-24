@@ -2,6 +2,17 @@
 Data integrity checks for the reference data JSON files.
 Returns structured results so they can be served via the API
 and consumed by both the frontend and the pytest suite.
+
+run_all_checks() is the entry point: it loads every reference table via
+data_loader, then runs a battery of independent checks against them — no
+check depends on the outcome of another, so run_all_checks always completes
+and returns one CheckResult per check regardless of how many fail. Checks
+fall into two severities: "error" (a data integrity problem that could break
+route search or an API call — a dangling foreign key, an out-of-range value)
+and "warning" (a data-quality smell that is not actually broken — an isolated
+node, a system with no segments). checks_summary() reduces that list to the
+pass/fail counts and JSON-serialisable shape the API endpoint and the
+frontend's data-quality panel consume.
 """
 
 from __future__ import annotations
@@ -16,6 +27,11 @@ NODE_ID_RE = re.compile(r'^[A-Z0-9][A-Z0-9\-]{1,11}$')
 
 @dataclass
 class CheckResult:
+    """The outcome of one named integrity check.
+
+    `message` is empty when the check passed; when it failed it holds either
+    an explicit `detail` string the caller supplied, or (the common case, via
+    the `check()` helper below) a truncated preview of the offending IDs."""
     name: str
     passed: bool
     severity: str        # "error" | "warning"
@@ -23,6 +39,11 @@ class CheckResult:
 
 
 def run_all_checks() -> list[CheckResult]:
+    """Load every reference table and run the full battery of integrity
+    checks against them, returning one CheckResult per check (both passing
+    and failing) in the order the checks are defined below. Loading happens
+    once up front so every check below runs against a single consistent
+    snapshot of the data, rather than each check re-reading the files."""
     nodes    = load_nodes()
     segments = load_segments()
     systems  = load_systems()
@@ -38,6 +59,11 @@ def run_all_checks() -> list[CheckResult]:
     results: list[CheckResult] = []
 
     def check(name: str, severity: str, bad: list, detail: str = "") -> None:
+        """Record one CheckResult: passes iff `bad` (the list of offending
+        IDs/rows found by the caller) is empty. When it fails and no explicit
+        `detail` is given, the message previews at most the first 5 bad
+        entries followed by an ellipsis, so a check against thousands of rows
+        still produces a short, readable message."""
         if bad:
             msg = detail or f"{bad[:5]}{'…' if len(bad) > 5 else ''}"
             results.append(CheckResult(name=name, passed=False, severity=severity, message=msg))
@@ -46,6 +72,10 @@ def run_all_checks() -> list[CheckResult]:
 
     # ── Duplicates ─────────────────────────────────────────────────────────────
     def dupes(lst: list[str]) -> list[str]:
+        """Return every element of `lst` that has already been seen earlier
+        in the list — i.e. the second-and-later occurrence of each duplicate,
+        not the first. Order of `lst` matters only for which occurrence is
+        flagged; the result is otherwise just "which values repeat"."""
         seen: set[str] = set(); d = []
         for x in lst:
             if x in seen: d.append(x)
@@ -65,10 +95,20 @@ def run_all_checks() -> list[CheckResult]:
 
     # ── Capacity cross-references ──────────────────────────────────────────────
     check("Capacity segment_ids exist",    "error", [c.segment_id for c in capacity if c.segment_id not in segment_ids])
+    # Set difference (not a per-segment loop): every segment_id present in the
+    # segments table but absent from the capacity table's ids is missing a
+    # capacity row entirely — a segment with no SegmentCapacity would make
+    # capacity-aware route search treat it as having none, so this is an
+    # error rather than a warning.
     check("All segments have capacity",    "error", sorted(segment_ids - cap_ids))
 
     # ── Rules cross-references ─────────────────────────────────────────────────
     check("Rule node_ids exist",           "error", [r.node_id for r in rules if r.node_id not in node_ids])
+    # For each disallowed_pairs entry, report whichever of system_a/system_b
+    # is the dangling one (report system_a if it's the culprit, else
+    # system_b — only one side is checked per entry since the `or` short-
+    # circuits, so a row with BOTH sides bad is reported once, against
+    # system_a).
     bad_rule_sys = [
         f"{r.node_id}: {p.system_a if p.system_a not in system_ids else p.system_b}"
         for r in rules for p in r.disallowed_pairs
@@ -131,6 +171,12 @@ def run_all_checks() -> list[CheckResult]:
 
 
 def checks_summary(results: list[CheckResult]) -> dict:
+    """Reduce a list of CheckResult into the JSON-serialisable summary shape
+    served by the data-checks API endpoint: an overall pass/fail flag, error/
+    warning counts (each counted only among FAILED checks — a passing check
+    contributes to neither count regardless of its severity), and the full
+    per-check detail list (as plain dicts, via dataclasses.asdict) for the
+    frontend to render."""
     return {
         "all_passed": all(r.passed for r in results),
         "error_count":   sum(1 for r in results if not r.passed and r.severity == "error"),
