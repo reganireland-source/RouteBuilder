@@ -70,6 +70,8 @@ import { normalizeLng, geoLines, NODE_STYLE, NODE_TYPE_LABEL } from '../mapGeome
 import { EditorMapLayer } from './EditorMapLayer'
 import { KmlChopMapLayer, type KmlChopMapLayerProps } from './KmlChopMapLayer'
 import { LivingWorldLayer } from './LivingWorldLayer'
+import { TravelingLightLayer } from './TravelingLightLayer'
+import type { ActiveLightSegment } from './TravelingLightLayer'
 import { HazardLayer, severityColor } from './HazardLayer'
 import { worstSeverityByAsset } from '../context/HazardContext'
 import { HazardStatusPanel } from './HazardStatusPanel'
@@ -688,6 +690,79 @@ function MapStyleCard({ style, onChange, narrow, accent }: {
   )
 }
 
+/**
+ * Which segments currently count as "active" (get a traveling light), and
+ * what colour — a Map, not a plain object, so later writes win when a
+ * segment qualifies more than once: a highlighted system fills in first, a
+ * highlighted route overrides it, and a direct segment selection — the most
+ * specific fact — overrides both, the same precedence order used everywhere
+ * else this file decides "whose color wins." Split out of
+ * computeActiveLightSegments purely to keep that (already extracted)
+ * function's own complexity down further — see its own comment for why any
+ * of this is pulled out of NetworkMap's body at all.
+ */
+function activeLightColorBySegment({
+  segments, systemViewerActive, systemColorMap, selectedGlowColor, selectedSegmentId, selectedColor,
+}: {
+  segments: CableSegment[]
+  systemViewerActive: boolean
+  systemColorMap: Record<string, string>
+  selectedGlowColor: Record<string, string>
+  selectedSegmentId: string | null
+  selectedColor: string
+}): Map<string, string> {
+  const colorByActiveSegment = new Map<string, string>()
+  if (systemViewerActive) {
+    for (const seg of segments) {
+      const c = systemColorMap[seg.system_id]
+      if (c) colorByActiveSegment.set(seg.id, c)
+    }
+  }
+  for (const [segId, c] of Object.entries(selectedGlowColor)) colorByActiveSegment.set(segId, c)
+  if (selectedSegmentId) colorByActiveSegment.set(selectedSegmentId, selectedColor)
+  return colorByActiveSegment
+}
+
+/**
+ * Which segments currently get a traveling light, and what colour — pulled
+ * out of NetworkMap's own body (an already very large function) purely to
+ * keep its cognitive-complexity budget from growing; see the render loop
+ * just above NetworkMap's return for how the ordinary segmentColor/
+ * segmentWeight ladder builds the exact same "who wins" facts this mirrors.
+ */
+function computeActiveLightSegments({
+  segments, segmentsById, nodesById, systemViewerActive, systemColorMap,
+  selectedGlowColor, selectedSegmentId, selectedColor, kmlMode, kmlPaths,
+}: {
+  segments: CableSegment[]
+  segmentsById: Record<string, CableSegment>
+  nodesById: Record<string, CableNode>
+  systemViewerActive: boolean
+  systemColorMap: Record<string, string>
+  selectedGlowColor: Record<string, string>
+  selectedSegmentId: string | null
+  selectedColor: string
+  kmlMode: boolean
+  kmlPaths: Record<string, KmlPathInfo>
+}): ActiveLightSegment[] {
+  const colorByActiveSegment = activeLightColorBySegment({
+    segments, systemViewerActive, systemColorMap, selectedGlowColor, selectedSegmentId, selectedColor,
+  })
+
+  const out: ActiveLightSegment[] = []
+  for (const [segId, color] of colorByActiveSegment) {
+    const seg = segmentsById[segId]
+    const start = seg && nodesById[seg.start_node_id]
+    const end = seg && nodesById[seg.end_node_id]
+    if (!seg || !start || !end) continue
+    const kml = kmlMode ? kmlPaths[seg.id] : undefined
+    const points = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined, kml?.display_path).flat()
+    if (points.length < 2) continue
+    out.push({ id: segId, points, color })
+  }
+  return out
+}
+
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
 // within this file or anywhere it's imported — see SONARQUBE_PEDANTIC_REPORT.md
 // (typescript:S2424 / S2137).
@@ -819,6 +894,15 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
       selectedGlowColor[s.segment_id] = color
     }
   }
+
+  // Traveling light (see TravelingLightLayer.tsx's own header and
+  // computeActiveLightSegments's own doc comment below — pulled out to a
+  // module-level function purely to keep this already very large function's
+  // own cognitive-complexity budget from growing).
+  const activeLightSegments = computeActiveLightSegments({
+    segments, segmentsById, nodesById, systemViewerActive, systemColorMap,
+    selectedGlowColor, selectedSegmentId, selectedColor: t.blue, kmlMode, kmlPaths,
+  })
 
   // Nodes for routes/pins
   const routeNodeIds = new Set([
@@ -1462,6 +1546,13 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
              cables. Off in Network Editor: that mode is for precise work and
              a passing whale is a distraction there. ── */}
       {livingWorld && !editorMode && <LivingWorldLayer nodes={nodes} />}
+
+      {/* ── Traveling light — "this cable is active" feedback for whatever is
+             currently selected/highlighted (see TravelingLightLayer.tsx's own
+             header). Always mounted; a no-op with zero markers when nothing
+             qualifies. Off in Network Editor for the same reason as Living
+             World above. ── */}
+      {!editorMode && <TravelingLightLayer segments={activeLightSegments} />}
       <KmlPreviewLayer lines={kmlPreview} fitKey={kmlPreviewKey} />
 
       {/* ── Network Hazards — live disasters, in a pane ABOVE the cables so an
