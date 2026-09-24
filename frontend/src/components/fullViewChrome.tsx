@@ -104,8 +104,12 @@ export interface Layout {
   stackLabels: boolean
 }
 
+/** Publishes the current Layout (see `useFullViewLayout`) to every descendant so
+ *  leaf helpers (Row, EditField, SelectField, ...) can adapt without the caller
+ *  threading phone/landscape/stackLabels flags down through props by hand. */
 export const LayoutContext = createContext<Layout>({ phone: false, landscape: false, stackLabels: false })
 
+/** Reads the Layout published by the nearest `LayoutContext.Provider`. */
 export function useLayout(): Layout {
   return useContext(LayoutContext)
 }
@@ -198,6 +202,10 @@ export function backdropStyle(phone: boolean, zIndex: number): React.CSSProperti
   }
 }
 
+/** The dialog's header container: a wrapping flex row on desktop, or a `block`
+ *  container on a phone so `SegmentHeader`/`NodeHeader`-style callers can lay
+ *  out their own two explicit lines (title+× on top, actions below) instead of
+ *  leaving it to flex-wrap, which is how the × ends up off the bottom edge. */
 export function headerShell(t: T, phone: boolean) {
   return {
     display: phone ? 'block' : 'flex',
@@ -232,6 +240,8 @@ export function Card({ t, title, children, pad = 12, grow = false }: {
   )
 }
 
+/** One labelled line: a fixed-width label beside (or, once stacked, above) its
+ *  value. The building block `TextRow` and every edit field are made from. */
 export function Row({ t, label, children }: { t: T; label: string; children: React.ReactNode }) {
   const { stackLabels } = useLayout()
   return (
@@ -254,6 +264,8 @@ export function TextRow({ t, label, value }: { t: T; label: string; value: React
   )
 }
 
+/** Small italic muted line for "there is nothing here" states inside a card
+ *  (as opposed to `NotFound`, which is for a whole missing entity). */
 export function Empty({ t, children }: { t: T; children: React.ReactNode }) {
   return <div style={{ fontSize: 12, color: t.textFaintest, fontStyle: 'italic' }}>{children}</div>
 }
@@ -269,6 +281,9 @@ export function NotFound({ t, what, id }: { t: T; what: string; id: string }) {
 
 // ── Form controls ─────────────────────────────────────────────────────────
 
+/** A labelled text input for a Full View edit form. `value`/`onChange` are
+ *  always plain strings — even for numeric fields — so a half-typed value
+ *  never collapses to NaN; the caller parses on save. */
 export function EditField({ t, label, value, onChange, mono = false, type }: {
   t: T; label: string; value: string; onChange: (v: string) => void
   mono?: boolean
@@ -292,6 +307,8 @@ export function EditField({ t, label, value, onChange, mono = false, type }: {
   )
 }
 
+/** A labelled `<select>` for a Full View edit form. `options` is a list of
+ *  `[value, displayLabel]` pairs, rendered in the order given. */
 export function SelectField({ t, label, value, options, onChange }: {
   t: T; label: string; value: string; options: [string, string][]; onChange: (v: string) => void
 }) {
@@ -349,6 +366,8 @@ export function fieldLabelStyle(t: T, stacked: boolean) {
   } as const
 }
 
+/** Layout for one `EditField`/`SelectField` label+control pair: a row on
+ *  desktop, a column (label above control) once labels are stacked. */
 export function fieldStyle(stacked: boolean) {
   return {
     display: 'flex', flexDirection: stacked ? 'column' : 'row',
@@ -368,6 +387,8 @@ export function inputStyle(t: T, stacked = false) {
   } as const
 }
 
+/** The primary "Save changes" button used by `EditFormFooter`; greyed out and
+ *  inert while `saving` is true rather than removed, so the layout doesn't jump. */
 export function saveBtnStyle(t: T, saving: boolean) {
   return {
     flex: 1, padding: '8px 12px', borderRadius: 6, border: 'none',
@@ -377,6 +398,10 @@ export function saveBtnStyle(t: T, saving: boolean) {
   } as const
 }
 
+/** Small outlined button used for secondary actions (Back, Edit, Cancel,
+ *  navigation links). `color` tints border/background/text together to signal
+ *  emphasis (e.g. `t.blue` for "Edit", `t.red` for a destructive action); left
+ *  undefined it renders as a neutral outline. */
 export function iconBtn(t: T, color?: string) {
   return {
     padding: '6px 11px', borderRadius: 6, cursor: 'pointer',
