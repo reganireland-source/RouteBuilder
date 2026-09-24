@@ -21,6 +21,9 @@ from ..data_loader import load_config, save_config
 
 router = APIRouter(prefix="/config", tags=["config"])
 
+# The closed set of basemap providers update_config() accepts for
+# maps_provider; anything else is rejected as HTTP 400 rather than stored
+# and silently failing to render a map on the frontend.
 VALID_MAPS_PROVIDERS = {'osm', 'google'}
 
 

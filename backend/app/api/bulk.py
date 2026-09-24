@@ -1,4 +1,40 @@
-"""Bulk CSV import / export for reference data tables."""
+"""
+Bulk CSV import / export for reference data tables (nodes, segments,
+systems, capacity, coverage). Mounted under /api/bulk by main.py.
+
+WORKFLOW: every table follows the same two-phase pattern, mirrored in this
+file's two sections below:
+
+  1. POST /bulk/validate/<table> — dry run. Parses the uploaded CSV, checks
+     every row against the same rules the API itself enforces (required
+     fields, allowed enum values, foreign keys, numeric ranges, id format),
+     and returns a full diff against the current data (added/modified/
+     unchanged/deleted rows, with before/after values and which fields
+     changed) WITHOUT writing anything. The frontend's import screen renders
+     this diff for an operator to review before committing.
+  2. POST /bulk/import/<table> — actually applies the same CSV. Re-derives
+     each row into a model (no result from validate/ is reused — the two
+     endpoints are independent parses of the same file) and writes the
+     result via data_loader's save_*. A row that fails to build a model is
+     SKIPPED and reported back, never silently dropped (see Finding #9
+     below) — the import always completes and returns a per-row report
+     rather than failing the whole request over one bad row.
+
+MODES (BulkMode, applied identically by both phases): "upsert" adds new rows
+and updates existing ones, leaving rows absent from the file untouched;
+"add_only" adds new rows and leaves existing ones (even if the file's version
+differs) untouched, skipping them; "full_replace" adds/updates like upsert
+AND deletes every existing row whose id is not present in the file — the only
+mode capable of data loss, which is why validate/ always shows the deletion
+list before import/ is called.
+
+Every export/import path shares one governing rule: never let a bulk
+operation on N columns wipe fields the CSV doesn't mention. See _merged()'s
+docstring for how that is enforced on the import side, and note that
+export_* functions are exhaustive projections of the model — deliberately
+not sharing that "unlisted fields survive" property, since a column simply
+absent from a CSV schema is never expected to round-trip.
+"""
 import csv
 import io
 import json
@@ -143,7 +179,13 @@ def _validate_id(
 # ── Shared helpers ─────────────────────────────────────────────────────────────
 
 def _norm(v: Any) -> str:
-    """Canonical string for diff comparison — normalises floats, None, empty."""
+    """Canonical string for diff comparison — normalises floats, None, empty.
+
+    Used by _changed_fields() so that e.g. None, "" and [] all compare equal
+    (a CSV blank should not register as "changed" against a stored None), and
+    so a float's string form doesn't spuriously differ by trailing-zero
+    formatting (1.0 vs 1.00000000) between the CSV's parsed value and the
+    stored model's value — both go through the same "%.8g" formatting here."""
     if v is None or v == "" or v == []:
         return ""
     if isinstance(v, float):
@@ -154,17 +196,30 @@ def _norm(v: Any) -> str:
 
 
 def _changed_fields(new: dict, old: dict) -> list[str]:
+    """Names of every key whose normalised value differs between `new` (the
+    row as parsed from the CSV) and `old` (the corresponding stored record).
+    Takes the union of both dicts' keys, so a field present in one but not
+    the other is treated as changed too (via _norm's None/blank handling)."""
     keys = set(new) | set(old)
     return [k for k in keys if _norm(new.get(k)) != _norm(old.get(k))]
 
 
 def _err(row_num: int, id_: str, field: str, value: str, message: str) -> dict:
+    """Build one validation-error entry for a /validate/* response. `value` is
+    truncated to 80 chars so a pathological cell can't bloat the response."""
     return {"row_num": row_num, "id": id_, "field": field, "value": str(value)[:80], "message": message}
 
 
 def _result(table: str, mode: str, errors: list, warnings: list, changes: list,
             total: int, added: int, modified: int, unchanged: int,
             deleted: int, kept: int) -> dict:
+    """Assemble a /validate/<table> response: the dry-run diff plus its
+    summary counts. `can_import` is derived (no errors present) rather than
+    passed in, so it can never be set inconsistently with `errors`. `kept`
+    counts rows that exist in the DB but are absent from the file and are
+    NOT being deleted (i.e. every mode except full_replace); `deleted` is its
+    complement, populated only under full_replace — see the module docstring
+    for what each mode does."""
     return {
         "table": table,
         "mode": mode,
@@ -296,6 +351,11 @@ def _enum_val(v: Any) -> str:
 
 
 def _apply_deletions(updated: dict, existing_keys: set, file_ids: set, mode: str, applied: dict) -> None:
+    """Mutates `updated` in place: under full_replace mode only, removes every
+    id that exists in the DB (`existing_keys`) but was not seen in the
+    uploaded file (`file_ids`), and increments applied["deleted"] for each.
+    A no-op for "upsert" and "add_only" — those modes never delete, so rows
+    missing from the file are simply left as they were in `updated`."""
     if mode == "full_replace":
         for did in existing_keys - file_ids:
             updated.pop(did, None)
@@ -306,6 +366,10 @@ def _apply_deletions(updated: dict, existing_keys: set, file_ids: set, mode: str
 
 @router.get("/export/nodes")
 def export_nodes():
+    """GET /api/bulk/export/nodes — every Node as a downloadable nodes.csv,
+    columns per NODE_COLS. Optional fields are exported as "" rather than
+    the string "None", and enum fields are exported as their plain string
+    value (not the Python enum repr) via _enum_val."""
     rows = []
     for n in load_nodes():
         rows.append({
@@ -323,6 +387,12 @@ def export_nodes():
 
 @router.get("/export/segments")
 def export_segments():
+    """GET /api/bulk/export/segments — every CableSegment as segments.csv,
+    columns per SEGMENT_COLS. Note RFS/EOL lifecycle fields and waypoints are
+    NOT in SEGMENT_COLS and so are not exported here — this CSV format
+    predates those fields and only round-trips the columns it always has;
+    see _merged()'s use in import_segments for how those fields survive an
+    import that goes through this narrower CSV anyway."""
     rows = []
     for s in load_segments():
         rows.append({
@@ -340,6 +410,9 @@ def export_segments():
 
 @router.get("/export/systems")
 def export_systems():
+    """GET /api/bulk/export/systems — every CableSystem as systems.csv,
+    columns per SYSTEM_COLS. Like export_segments, this predates the RFS/EOL
+    and fiber_pair_count/consortium_owners fields and does not export them."""
     rows = []
     for s in load_systems():
         rows.append({
@@ -351,6 +424,8 @@ def export_systems():
 
 @router.get("/export/capacity")
 def export_capacity():
+    """GET /api/bulk/export/capacity — every SegmentCapacity as capacity.csv,
+    columns per CAPACITY_COLS."""
     rows = []
     for c in load_capacity():
         rows.append({
@@ -363,6 +438,12 @@ def export_capacity():
 
 @router.get("/export/coverage")
 def export_coverage():
+    """GET /api/bulk/export/coverage — every Node's product-coverage facet
+    (NodeCapabilities) flattened to one row of coverage.csv, columns per
+    COVERAGE_COLS. Nodes with no capabilities set still get a row, with every
+    speed-list column as "" and colocation_category as "". Multi-value speed
+    lists are joined into a single comma-separated cell (the inverse of the
+    split done by validate_coverage's parse_speeds / import_coverage's sp)."""
     rows = []
     for n in load_nodes():
         cap = n.capabilities
@@ -385,6 +466,18 @@ def export_coverage():
 
 @router.post("/validate/nodes")
 def validate_nodes(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    """POST /api/bulk/validate/nodes — dry-run validate+diff a nodes CSV.
+
+    Per row: checks id (via _validate_id, blocking on unsafe chars/length/
+    duplicates), that `type` is a recognised NodeType, that lat/lng parse as
+    numbers, that country is non-blank, and that verification_status (if
+    given) is a recognised value — falling back to the existing record's
+    status (or "draft" for a new row) when the CSV cell is blank or invalid,
+    so an unrecognised value never silently becomes an error AND a bad
+    default at once. Diffs each valid row against the current node with that
+    id via _changed_fields. Writes nothing; see the module docstring for the
+    validate/import two-phase workflow and what `mode` changes.
+    """
     rows = _read_csv(file)
     existing = {n.id: n for n in load_nodes()}
 
@@ -444,6 +537,12 @@ def validate_nodes(file: UploadFile = File(...), mode: BulkMode = Query("upsert"
                 "verification_status": verif,
                 "last_verified_date": row.get("last_verified_date", "").strip() or None,
             }
+        # This is a plain dict build, not model construction, so about the
+        # only thing that can raise here is float() on lat/lng — already
+        # validated above — so this is a defensive belt-and-braces catch: on
+        # the rare exception the row is dropped from the diff (not counted
+        # as added/modified/unchanged, and no error is recorded for it)
+        # rather than raising and failing the whole /validate/ request.
         except Exception:
             continue
 
@@ -482,6 +581,15 @@ def validate_nodes(file: UploadFile = File(...), mode: BulkMode = Query("upsert"
 
 @router.post("/validate/segments")
 def validate_segments(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    """POST /api/bulk/validate/segments — dry-run validate+diff a segments
+    CSV. Per row, beyond the id check: `type` and `ownership` must be
+    recognised enum values; `system_id` must reference an existing system OR
+    be the literal sentinel "TERRESTRIAL" (a terrestrial link not tied to any
+    cable system); start_node_id/end_node_id must reference existing nodes;
+    length_km/reliability/cost_weight must parse as numbers, with
+    reliability additionally range-checked to [0, 1] and length_km to > 0.
+    See validate_nodes for the verification_status fallback pattern (mirrored
+    here) and the module docstring for the two-phase workflow."""
     rows = _read_csv(file)
     existing = {s.id: s for s in load_segments()}
     node_ids = {n.id for n in load_nodes()}
@@ -597,6 +705,11 @@ def validate_segments(file: UploadFile = File(...), mode: BulkMode = Query("upse
 
 @router.post("/validate/systems")
 def validate_systems(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    """POST /api/bulk/validate/systems — dry-run validate+diff a systems CSV.
+    Per row: name is required, and margin (if given) must parse as a number
+    in [1.0, 10.0]. No RFS/EOL or fiber_pair_count/consortium_owners fields
+    are handled here — this bulk CSV format predates them, matching
+    SYSTEM_COLS/export_systems (see that function's docstring)."""
     rows = _read_csv(file)
     existing = {s.id: s for s in load_systems()}
 
@@ -665,6 +778,12 @@ def validate_systems(file: UploadFile = File(...), mode: BulkMode = Query("upser
 
 @router.post("/validate/capacity")
 def validate_capacity(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    """POST /api/bulk/validate/capacity — dry-run validate+diff a capacity
+    CSV, keyed by segment_id rather than a standalone id. Per row: segment_id
+    must reference an existing segment; total_capacity_t/available_capacity_t
+    must each parse as a non-negative number, and available must not exceed
+    total (checked only when total_val > 0, i.e. skipped for an all-zero/
+    unparsed row rather than reported as an available > 0 > total error)."""
     rows = _read_csv(file)
     existing = {c.segment_id: c for c in load_capacity()}
     seg_ids  = {s.id for s in load_segments()}
@@ -740,6 +859,17 @@ def validate_capacity(file: UploadFile = File(...), mode: BulkMode = Query("upse
 
 @router.post("/validate/coverage")
 def validate_coverage(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    """POST /api/bulk/validate/coverage — dry-run validate+diff a coverage
+    CSV. Unlike the other validate_* endpoints, coverage never *adds* rows
+    (a coverage row only ever modifies an existing node's capabilities, so
+    node_id not found in Nodes is a blocking error, not a candidate "added"
+    row) and never reports deletions (there is no standalone coverage
+    record to delete — clearing coverage means uploading a row with blank
+    speed/category cells, which this diff reports as a normal "modified").
+    Each of ipt/epl/evpl_speeds and gid/ipvpn_speeds is a comma-separated
+    list validated against its own allowed-speed set (VALID_BB_SPEEDS for
+    backbone products, VALID_UL_SPEEDS for underlay), and
+    colocation_category must be an integer 1-5 if given."""
     rows = _read_csv(file)
     existing = {n.id: n for n in load_nodes()}
 
@@ -832,6 +962,15 @@ def validate_coverage(file: UploadFile = File(...), mode: BulkMode = Query("upse
 
 @router.post("/import/nodes")
 def import_nodes(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
+    """POST /api/bulk/import/nodes — actually apply a nodes CSV (see the
+    module docstring for the validate/import two-phase workflow and what
+    `mode` does). Builds each row via _merged(Node, ...) so any field a Node
+    carries but this CSV format doesn't (notably `capabilities`, explicitly
+    preserved below, and `on_net`) survives untouched rather than being
+    wiped. A row whose model fails to construct (bad enum value, etc.) is
+    skipped and reported via _fail_row rather than aborting the whole
+    import — see _import_result's docstring for the "partial" status this
+    produces."""
     rows = _read_csv(file)
     existing = {n.id: n for n in load_nodes()}
     updated  = dict(existing)

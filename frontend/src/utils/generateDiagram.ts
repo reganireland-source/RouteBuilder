@@ -149,6 +149,10 @@ function attrRow(
 // ── Node icon types ───────────────────────────────────────────────────────────
 type IconType = 'pop' | 'cls' | 'mmr' | 'customer'
 
+/** Maps a CableNode's network `type` to the SLD icon shape it gets drawn
+ *  with (see `drawNodeIcon`). 'customer' is never returned here — that icon
+ *  is used only for the diagram's fixed first/last endpoints, assigned by
+ *  the caller rather than derived from node data. */
 function iconTypeForNode(node: CableNode | undefined): IconType {
   if (!node) return 'pop'
   if (node.type === 'landing_station') return 'cls'
@@ -157,6 +161,10 @@ function iconTypeForNode(node: CableNode | undefined): IconType {
   return 'pop'
 }
 
+/** Draws one node icon centred at (cx, cy), `sz` mm square: a crosshair
+ *  circle for 'customer', a rectangle with a vertical tick for 'cls' (cable
+ *  landing station), a rectangle with a 3×3 dot grid for 'mmr' (meet-me
+ *  room — the patch-panel look), or a filled/ringed circle for 'pop'. */
 function drawNodeIcon(doc: jsPDF, cx: number, cy: number, type: IconType, sz = 5.5) {
   const r = sz / 2
   if (type === 'customer') {
@@ -190,6 +198,22 @@ function drawNodeIcon(doc: jsPDF, cx: number, cy: number, type: IconType, sz = 5
 }
 
 // ── Draw the node diagram (top section of page) ───────────────────────────────
+/**
+ * Draws the unprotected (single-path) node diagram: dashed customer-site
+ * boxes at both ends, an optional RTD arrow/label above, the main path line
+ * (with a dashed DWDM overlay when `showDwdm`), per-segment system/distance/
+ * latency labels and tick marks, a dashed-orange overlay on terrestrial
+ * segments, and a node icon + id/name/country label at every node.
+ *
+ * Node X-positions are computed PROPORTIONALLY to cumulative segment length
+ * (see the "Node X positions proportional to segment lengths" block below),
+ * so longer segments get visibly more horizontal space — the diagram is
+ * schematic, not to scale, but roughly reflects real distances.
+ *
+ * `sldConfig` (from the Project, when there is one) toggles the RTD arrow,
+ * per-segment distance and per-segment latency independently; all default
+ * to shown when omitted or `undefined`.
+ */
 function drawDiagram(
   doc: jsPDF,
   route: ReturnType<typeof buildRouteView>,
@@ -323,6 +347,15 @@ function drawDiagram(
 }
 
 // ── Draw bottom panels + tables ───────────────────────────────────────────────
+/**
+ * Draws the lower third of a circuit page: A-End/Z-End address panels (top
+ * of the left/right columns, from `circuit.a_end`/`z_end` falling back to
+ * the route's own end nodes), a legend (center column top — worker/protect
+ * lines when `protectView` is given, otherwise main-path/DWDM), a service
+ * detail table (center column, below the legend — includes separate
+ * worker/protect summary rows when protected), and A-End/Z-End attribute
+ * tables (bottom of the left/right columns). All built from `attrRow`.
+ */
 function drawPanels(
   doc: jsPDF,
   circuit: ProjectCircuit | undefined,
@@ -439,6 +472,9 @@ function drawPanels(
 }
 
 // ── Node icon legend bar ──────────────────────────────────────────────────────
+/** Draws the light-gray strip explaining what each node icon means (POP /
+ *  Cable Landing Station / MMR Panel / Customer Router), evenly spaced
+ *  across the page width. Same on every circuit page. */
 function drawLegendBar(doc: jsPDF) {
   setFill(doc, LT_GRAY)
   doc.rect(M, LEG_Y, PW - M * 2, LEG_H, 'F')
@@ -460,6 +496,14 @@ function drawLegendBar(doc: jsPDF) {
 }
 
 // ── Footer metadata bar ───────────────────────────────────────────────────────
+/**
+ * Draws the bottom metadata bar shared by every circuit page: a
+ * four-column strip (customer name/account manager, opportunity id/
+ * description, date/page number, confidentiality notice) plus a text-only
+ * brand mark bottom-right. "Customer Name" is deliberately left blank for
+ * the recipient to fill in by hand; everything else is pulled from
+ * `project` when one is supplied (undefined for ad-hoc pinned-route exports).
+ */
 function drawFooter(
   doc: jsPDF,
   project: Project | undefined,
@@ -530,6 +574,17 @@ function drawFooter(
 }
 
 // ── Draw one route band on a horizontal line (inner nodes only) ───────────────
+/**
+ * Draws ONE path (worker or protect) of a protected-circuit diamond diagram
+ * along a horizontal line at `lineY`, between `innerL` and `innerR` — the
+ * inner-node counterpart of `drawDiagram`'s main line, factored out so
+ * `drawDiagramProtected` can call it twice (once per path) with a different
+ * Y and colour. Node X-positions are proportional to cumulative segment
+ * length, same as `drawDiagram`. Skips the first/last node icons/labels —
+ * those are the shared A-End/Z-End endpoints drawn once by the caller — and
+ * flips labels above vs. below the line via `labelsAbove` so the worker and
+ * protect paths' text doesn't collide in the middle.
+ */
 function drawRouteOnLine(
   doc: jsPDF,
   route: RouteView,
@@ -611,6 +666,15 @@ function drawRouteOnLine(
 }
 
 // ── Draw the protected (diamond/lens) node diagram ────────────────────────────
+/**
+ * Draws the protected-circuit variant of the node diagram: a diamond/lens
+ * shape with the two shared customer endpoints in the middle-height (Y_C),
+ * the worker path's line above (Y_W, blue) and the protect path's line
+ * below (Y_P, green), each connected to the endpoints by diagonal lines and
+ * labelled with a WORKER/PROTECT role badge. Delegates the actual per-path
+ * drawing (nodes, segment labels, terrestrial overlay) to `drawRouteOnLine`,
+ * called once per path.
+ */
 function drawDiagramProtected(
   doc: jsPDF,
   worker: RouteView,
@@ -676,6 +740,13 @@ function drawDiagramProtected(
 }
 
 // ── Helper: extract a compact route view ─────────────────────────────────────
+/** The minimal shape every drawing function needs from a route: node id
+ *  order, the segments between them (just the fields the drawings use, not
+ *  the full CableSegment), totals, and the deduplicated list of cable
+ *  systems the route passes through (for the cover-page "Via" style
+ *  summaries and the legend). Built once per route/circuit by
+ *  `buildRouteView` and threaded through `drawDiagram`/`drawDiagramProtected`/
+ *  `drawRouteOnLine`/`drawPanels`. */
 interface RouteView {
   nodes:       string[]
   segments:    Array<{
@@ -687,6 +758,9 @@ interface RouteView {
   systems:     string[]
 }
 
+/** Flattens a PinnedRoute's `route` into a `RouteView` — pulls out just the
+ *  segment fields the drawing code needs and de-duplicates system ids
+ *  (preserving first-seen order) for the systems list. */
 function buildRouteView(route: PinnedRoute['route']): RouteView {
   const systems = [...new Set(route.segments.map(s => s.system_id))]
   return {
@@ -706,6 +780,16 @@ function buildRouteView(route: PinnedRoute['route']): RouteView {
 }
 
 // ── Draw a full circuit page ──────────────────────────────────────────────────
+/**
+ * Assembles one full landscape-A4 circuit page: the teal circuit-label
+ * title box, the "CUSTOMER SITE / INTERNATIONAL TELCO NETWORK / CUSTOMER
+ * SITE" zone bar, the node diagram (protected diamond via
+ * `drawDiagramProtected` when `protectView` is supplied, otherwise the
+ * plain single-path `drawDiagram`), the bottom panels/tables
+ * (`drawPanels`), the icon legend (`drawLegendBar`) and the footer
+ * (`drawFooter`). Called once per pinned route / circuit by both
+ * `generateStraightLineDiagram` and `generateSldFromProject`.
+ */
 function drawCircuitPage(
   doc: jsPDF,
   pin: PinnedRoute,
@@ -758,6 +842,15 @@ function drawCircuitPage(
 }
 
 // ── Cover page ────────────────────────────────────────────────────────────────
+/**
+ * Draws the PDF's first page: a teal header stripe with title/subtitle/
+ * optional version stamp and today's date, an optional project metadata
+ * block (name, opportunity id/description, account manager, solution
+ * architect, and a wrapped solution-overview paragraph) when `project` is
+ * given, and — always — a "circuits in this document" index table listing
+ * every pin with its colour swatch, route label, via-nodes, length, latency
+ * and end-to-end availability.
+ */
 function drawCover(
   doc: jsPDF,
   pins: PinnedRoute[],

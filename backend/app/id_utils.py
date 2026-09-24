@@ -37,6 +37,11 @@ ID_RULE_DESCRIPTION = (
     "Only letters, digits, hyphens (-), underscores (_) and ampersands (&) are allowed."
 )
 
+#: Per-entity maximum id length, keyed by the same `entity` string callers
+#: pass to normalize_id()/_validate_id(). "capacity" and "coverage" are not
+#: separate ID spaces — they store an id that must already exist as a
+#: segment_id / node_id respectively — so their limits just mirror those.
+#: An entity not listed here falls back to 30 (see normalize_id's default).
 ID_MAX_LEN: dict[str, int] = {
     "node":     15,
     "segment":  30,

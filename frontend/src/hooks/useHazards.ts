@@ -99,6 +99,18 @@ export function useHazards(enabled: boolean): HazardState {
   // A prefetch happens once per session, not once per toggle.
   const prefetched = useRef(false)
 
+  /**
+   * Fetch the hazard feed and update state.
+   * @param quiet  When true, does not toggle `loading` on and does not surface a
+   *                failure via `error` — used for the initial prefetch and background
+   *                polling refreshes, where there is nothing on screen yet to spin, or
+   *                already-shown data that a failed background refresh shouldn't blank
+   *                out or alarm the user about.
+   *
+   * Uses an incrementing `liveRequest` ticket to detect a stale in-flight response: if
+   * the layer was toggled off (or another load() started) while this request was in
+   * flight, its result is discarded rather than applied to state.
+   */
   const load = useCallback((quiet = false) => {
     const ticket = ++liveRequest.current
     // A background refresh must not flip the panel back to "Loading hazards…"

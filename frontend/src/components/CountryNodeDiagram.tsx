@@ -28,11 +28,18 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import type { CableNode, CableSegment, CableSystem, CountryHighlight, SegmentCapacity } from '../types'
 import { useTheme } from '../theme'
 
+/** Props for `CountryNodeDiagram`. `nodes`/`segments`/`systems`/`capacity` are
+ *  the whole network's data — this component itself filters down to what's
+ *  relevant to `countryHighlight.nodeIds` (see the "Segment categorisation"
+ *  memo below), the caller doesn't pre-filter it. */
 interface Props {
   nodes: CableNode[]
   segments: CableSegment[]
   systems: CableSystem[]
   capacity: SegmentCapacity[]
+  /** Which country to draw, and (via `nodeIds`/`systemColors`) the derived
+   *  membership/colour data this diagram draws from — computed upstream in
+   *  App.tsx from the country selection. */
   countryHighlight: CountryHighlight
   onClose: () => void
 }
@@ -566,7 +573,21 @@ export function CountryNodeDiagram({
     return g
   }, [internalSegs])
 
-  // Extra y-offset so stacked bypass paths on row 0 never clip above y=0
+  /**
+   * Extra vertical offset applied to every node's y-position so that a
+   * "bypass" edge (a long same-row hop routed OVER the intervening nodes —
+   * see `orthoPath`'s bypass case) on the top-most row never has to rise
+   * above y=0 and get clipped by the SVG's own top edge.
+   *
+   * Scans every internal edge GROUP for ones that span >= 2 columns on the
+   * SAME row (`colSpan >= 2`, the condition `routedEdges` below uses to force
+   * a bypass route), counts how many such bypasses stack on each row, and
+   * from the row with the MOST stacked bypasses works out how far the topmost
+   * one would rise: `BYPASS_BASE_L` above the row for the first, plus
+   * `BYPASS_STEP_L` per additional stacked bypass, plus 24px so its label
+   * clears the diagram edge too. If that height would push above y=0, this
+   * returns just enough extra offset to bring it back in bounds; otherwise 0.
+   */
   const topExtra = useMemo(() => {
     const BYPASS_BASE_L = BOX_H + 34, BYPASS_STEP_L = 30
     const rowBypasses = new Map<number, number>()
@@ -586,12 +607,18 @@ export function CountryNodeDiagram({
     return Math.max(0, -minY + 10)
   }, [edgeGroups, grid])
 
+  /** Converts each node's abstract `[col, row]` grid cell (from `buildGrid`)
+   *  into actual SVG pixel coordinates, spaced by `GW`/`GH` and offset by the
+   *  outer padding `PAD` plus `topExtra`. */
   const nodePos = useMemo(() => {
     const m = new Map<string, [number, number]>()
     for (const [id, [c, r]] of grid) m.set(id, [PAD + c * GW, PAD + topExtra + r * GH])
     return m
   }, [grid, topExtra])
 
+  /** The average position of all laid-out nodes — used as the reference point
+   *  `outwardSide`/`subsea45` measure "outward" from when deciding which
+   *  direction a cross-country or subsea stub should fan out in. */
   const centroid = useMemo(() => {
     const pts = [...nodePos.values()]
     if (!pts.length) return [0, 0] as [number, number]
@@ -601,6 +628,9 @@ export function CountryNodeDiagram({
     ] as [number, number]
   }, [nodePos])
 
+  /** The SVG canvas's full pixel size — large enough to contain the grid
+   *  (`PAD * 2` plus the furthest column/row) with room for stub lines and
+   *  labels (`+ 80` on the height) plus any `topExtra` bypass headroom. */
   const { svgW, svgH } = useMemo(() => {
     let maxC = 0, maxR = 0
     for (const [c, r] of grid.values()) { maxC = Math.max(maxC, c); maxR = Math.max(maxR, r) }
@@ -610,8 +640,42 @@ export function CountryNodeDiagram({
     }
   }, [grid, topExtra])
 
-  // Global grouped port assignment: groups on the same (node, side) are stacked
-  // with GROUP_GAP between them so lines from different pairs never overlap.
+  /**
+   * Turns each undirected edge GROUP (parallel segments between the same two
+   * nodes, from `edgeGroups`) into a fully positioned `RoutedEdge` per
+   * segment, ready for `orthoPath` to draw. Five passes, each building on the
+   * last:
+   *
+   *  1. **Group shape.** For each group, pick its exit sides via
+   *     `determineSides` — UNLESS the two nodes are >= 2 columns apart on the
+   *     same row (`colSpan >= 2`), in which case both sides are forced to
+   *     `'top'` so the edge takes the long-hop "bypass" route over any nodes
+   *     in between rather than colliding with them. Each segment in the group
+   *     also claims the next colour off `SEG_PALETTE` here, in group-then-
+   *     segment order.
+   *  2. **Port grouping.** Index which groups share the same `(node, side)`
+   *     face — several different node pairs can all exit a node's right side,
+   *     say — so the next pass can stack them.
+   *  3. **Port centring.** Within each shared face, lay the groups out
+   *     side-by-side with `GROUP_GAP` between them and `PORT_SP` between the
+   *     parallel lines inside one group, centred as a whole on the face
+   *     (`cursor` starts at `-totalSpan / 2`). This is what keeps unrelated
+   *     cable pairs from overlapping at a shared node.
+   *  4. **Bypass height staggering.** Among the long-hop (`colSpan >= 2`)
+   *     groups sharing a ROW, sort shortest-span first and assign each an
+   *     increasing bypass height (`BYPASS_BASE` then `+ BYPASS_STEP` per
+   *     level), so nested long hops arc at different heights instead of
+   *     tracing the same line and hiding each other's labels.
+   *  5. **Turn de-collision + global spread.** First, for every node face with
+   *     more than one edge, assign each edge a unique `turnOff` slot
+   *     (`TURN_SEP` apart) so their H→V (or V→H) dogleg turns don't coincide.
+   *     Then a second, GLOBAL pass (`spreadToGap`) catches turns that
+   *     coincidentally land close together even though they come from
+   *     DIFFERENT source nodes — sorting by absolute turn position, pushing
+   *     any that are closer than `TURN_SEP` apart, then shifting the whole
+   *     cluster back so its mean position is unchanged (keeping lines
+   *     visually centred between their endpoints rather than skewed).
+   */
   const routedEdges = useMemo((): RoutedEdge[] => {
     interface GrpInfo {
       segs: CableSegment[]
@@ -776,7 +840,9 @@ export function CountryNodeDiagram({
     return result
   }, [edgeGroups, grid, nodePos])
 
-  // Group stubs by CLS for 45° fan
+  /** Groups subsea `stubs` by their in-country landing station, so `subsea45`
+   *  can fan multiple cables off the same CLS around its 45° base bearing
+   *  (see the file header — spread widens with how many share the corner). */
   const stubsByCls = useMemo(() => {
     const m = new Map<string, CableSegment[]>()
     for (const s of stubs) {
@@ -787,7 +853,9 @@ export function CountryNodeDiagram({
     return m
   }, [stubs, clsIds])
 
-  // Cross-country stubs (H/V from side)
+  /** Groups `crossSegs` by their in-country node, picks which box face each
+   *  group exits from (`outwardSide`, relative to the layout `centroid`), and
+   *  assigns each stub within a group its `pIdx`/`pTotal` for port spreading. */
   const crossRouting = useMemo((): RoutedCross[] => {
     const [centX, centY] = centroid
     const byNode = new Map<string, CableSegment[]>()
@@ -807,16 +875,26 @@ export function CountryNodeDiagram({
   }, [crossSegs, countryHighlight, nodePos, centroid])
 
   // ── Tooltip helpers ──────────────────────────────────────────────────────
+  // Each sets `tip` to a title + a few detail lines, positioned at the current
+  // mouse point; `moveDrag` above keeps that position tracking the cursor
+  // while the tooltip stays open, and `.filter(Boolean)` drops any line whose
+  // underlying value was missing rather than showing a blank row.
+
+  /** Hover tooltip content for a node box. */
   function nodeTip(n: CableNode, e: React.MouseEvent) {
     setTip({ title: n.name, sx: e.clientX, sy: e.clientY,
       lines: [TYPE_LABEL[n.type] ?? n.type, n.owner ? `Owner: ${n.owner}` : '', `ID: ${n.id}`].filter(Boolean) })
   }
+  /** Hover tooltip content for an internal (in-country) terrestrial edge. */
   function segTip(seg: CableSegment, e: React.MouseEvent) {
     const cap = capMap[seg.id]
     setTip({ title: seg.name || seg.id, sx: e.clientX, sy: e.clientY,
       lines: [`ID: ${seg.id}`, `${seg.length_km} km · ${seg.latency.toFixed(1)} ms`,
               cap ? `${cap.available_capacity_t}/${cap.total_capacity_t} T avail` : ''].filter(Boolean) })
   }
+  /** Hover tooltip content for a subsea 45° stub — titled by cable SYSTEM
+   *  (not the segment) since that's what a stub represents at a glance, with
+   *  the far-end node and its country as the destination line. */
   function stubTip(seg: CableSegment, e: React.MouseEvent) {
     const sys = systemsById[seg.system_id]
     const fId = clsIds.has(seg.start_node_id) ? seg.end_node_id : seg.start_node_id
@@ -1170,7 +1248,15 @@ export function CountryNodeDiagram({
 }
 
 // ── Info panel sub-components ─────────────────────────────────────────────────
+// Rendered in the bottom-right floating panel when `selected` is set (see the
+// component's return JSX). Deliberately plain inline-styled divs rather than
+// `fullViewChrome`'s Card/Row primitives: this diagram always renders on a
+// fixed white background outside the app's theme (see the styling-table
+// comment near NODE_COLOR above), so it doesn't share that shared chrome.
 
+/** Ownership labels for the segment info panel — kept as its own local table
+ *  rather than importing SegmentInfoPanel's/SegmentFullView's copy, since this
+ *  module is intentionally self-contained (see the file header). */
 const OWNERSHIP_LABELS: Record<string, string> = {
   owned:                'Owned',
   consortium:           'Consortium',
@@ -1179,6 +1265,7 @@ const OWNERSHIP_LABELS: Record<string, string> = {
   offnet_resell:        'Offnet Resell',
 }
 
+/** One label/value line inside the selection info panel. */
 function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 6, padding: '4px 0',
@@ -1191,6 +1278,10 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
   )
 }
 
+/** Contents of the selection info panel for a selected node: id, type badge,
+ *  name, and every populated descriptive field. `capMap` is accepted but
+ *  currently unused (kept for signature symmetry with `SegInfoPanel`, which
+ *  does use it) — a node itself carries no capacity figure to show. */
 function NodeInfoPanel({ node, capMap: _capMap }: { node: CableNode; capMap: Record<string, SegmentCapacity> }) {
   const col = NODE_COLOR[node.type] ?? '#94a3b8'
   return (
@@ -1221,6 +1312,9 @@ function NodeInfoPanel({ node, capMap: _capMap }: { node: CableNode; capMap: Rec
   )
 }
 
+/** Contents of the selection info panel for a selected segment: id, medium
+ *  badge, system, both endpoints (falling back to the raw id when a node
+ *  isn't in the loaded dataset), and its routing/capacity/lifecycle figures. */
 function SegInfoPanel({ seg, color, nodesById, systemsById, capMap }: {
   seg: CableSegment
   color: string
