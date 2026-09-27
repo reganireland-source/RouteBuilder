@@ -24,7 +24,31 @@ _REQUEST_TIMEOUT = float(os.getenv("NLP_TIMEOUT_SECONDS", "30"))
 
 
 class OpenAIProvider(LLMProvider):
+    """LLMProvider backed by either the public OpenAI API or an Azure
+    OpenAI deployment, selected at construction time by whether
+    AZURE_OPENAI_ENDPOINT is set. Only complete_json is implemented; the
+    multimodal methods use LLMProvider's defaults (see module docstring)."""
+
     def __init__(self):
+        """Pick and construct the underlying OpenAI SDK client.
+
+        Branches on AZURE_OPENAI_ENDPOINT:
+          - Set → build an AzureOpenAI client from AZURE_OPENAI_API_KEY,
+            the endpoint, and AZURE_OPENAI_API_VERSION (default
+            "2024-02-01"); the model to call is the DEPLOYMENT name
+            (AZURE_OPENAI_DEPLOYMENT, default "gpt-4o-mini" — on Azure this
+            is actually the name of a deployment, not necessarily a literal
+            model id, but the default string matches a commonly-used
+            deployment name).
+          - Unset → build a plain OpenAI client from OPENAI_API_KEY, with
+            OPENAI_MODEL (default "gpt-4o-mini") as the model to call.
+
+        Both branches import their respective `openai` client class lazily
+        (inside the branch) rather than at module top level, and both pass
+        the shared _REQUEST_TIMEOUT (see #19 above) as an explicit
+        request-level timeout so a hung upstream cannot pin a worker
+        indefinitely.
+        """
         azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
         if azure_endpoint:
             from openai import AzureOpenAI
@@ -46,6 +70,16 @@ class OpenAIProvider(LLMProvider):
             self._model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
     def complete_json(self, system_prompt: str, user_prompt: str) -> dict:
+        """LLMProvider.complete_json implementation: a single Chat
+        Completions call with response_format={"type": "json_object"}, which
+        tells the OpenAI API to constrain its own output to valid JSON (so,
+        unlike the Anthropic path, no markdown-fence stripping is needed
+        here — the API guarantees a bare JSON string in the response
+        content). Capped at 1024 output tokens. Raises whatever
+        json.loads or the OpenAI SDK raises on failure; the caller
+        (app/nlp/parser.py → app/api/nlp.py) is responsible for turning
+        that into a client-safe error.
+        """
         response = self._client.chat.completions.create(
             model=self._model,
             messages=[
