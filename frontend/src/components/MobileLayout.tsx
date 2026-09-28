@@ -258,6 +258,7 @@ function MobileControlsDrawer({
   showAllOutages, showPlannedEvents, showSegmentLabels, showNodeLabels,
   hideNonActive, subseaOnly, backhaulOnly, livingWorld, hazardsOn,
   kmlMode, kmlCount, segmentCount,
+  serviceChoice, onServiceChoiceChange,
   onToggleShowAllOutages, onToggleShowPlannedEvents, onToggleShowSegmentLabels,
   onToggleShowNodeLabels, onToggleHideNonActive, onToggleSubseaOnly, onToggleBackhaulOnly,
   onToggleLivingWorld, onToggleHazards, onToggleKmlMode,
@@ -274,6 +275,13 @@ function MobileControlsDrawer({
   kmlMode: boolean
   kmlCount: number
   segmentCount: number
+  /** Current vs Planned — moved in here from its own header chip (see the
+   *  comment where that chip used to live in the main render) since it's a
+   *  low-use control that was crowding an already-tight header row. Both
+   *  optional so the row is simply omitted where the caller has no service
+   *  date to show, matching the header chip's own former guard. */
+  serviceChoice?: ServiceDateChoice
+  onServiceChoiceChange?: (choice: ServiceDateChoice) => void
   onToggleShowAllOutages: () => void
   onToggleShowPlannedEvents: () => void
   onToggleShowSegmentLabels: () => void
@@ -339,6 +347,24 @@ function MobileControlsDrawer({
               instead of the outer panel, which stays overflow:hidden so its
               rounded corners still clip the first/last row's background. */}
           <div style={{ maxHeight: 'calc(100vh - 76px)', overflowY: 'auto' }}>
+            {/* Network View — Current vs Planned, moved in from its own
+                header chip. Not a boolean toggle like the rows below, so it
+                gets its own section rather than a slot in that array; the
+                popover it opens is portalled and viewport-positioned (see
+                ServiceDateSelector's own header comment), so it renders
+                correctly regardless of this drawer's own scroll/overflow. */}
+            {serviceChoice && onServiceChoiceChange && (
+              <div style={{ padding: '10px 16px', borderBottom: `1px solid ${t.border}` }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: t.textFaint, marginBottom: 6 }}>
+                  Network View
+                </div>
+                <ServiceDateSelector
+                  value={serviceChoice}
+                  onChange={choice => { onServiceChoiceChange(choice); setOpen(false) }}
+                  compact
+                />
+              </div>
+            )}
             {/* Toggles */}
             {[
               {
@@ -883,13 +909,14 @@ export function MobileLayout({
         </div>
       </div>
 
-      {/* ── Asset Search, collapsed to a magnifier so it costs almost no
-             room in a header that already carries the logo and Controls. ── */}
-      {serviceChoice && onServiceChoiceChange && (
-        <div style={{ position: 'absolute', top: 14, right: 140, zIndex: 100 }}>
-          <ServiceDateSelector value={serviceChoice} onChange={onServiceChoiceChange} compact />
-        </div>
-      )}
+      {/* Current vs Planned used to live here as its own header chip, between
+             the logo and Asset Search — a low-use control competing for room
+             in an already-crowded row (logo, search, Controls all fighting
+             for the same ~48px-tall strip). It now lives inside the Controls
+             drawer instead (see MobileControlsDrawer's "Network View"
+             section); the FutureNetworkBanner below still needs
+             serviceChoice/onServiceChoiceChange directly, so those props stay
+             on MobileLayout, just no longer rendered as a header chip here. */}
 
       {/* Future-network banner, full width under the header row. */}
       {serviceChoice && onServiceChoiceChange && (
@@ -939,6 +966,8 @@ export function MobileLayout({
         kmlCount={Object.keys(kmlPaths).length}
         segmentCount={segments.length}
         onToggleKmlMode={onToggleKmlMode}
+        serviceChoice={serviceChoice}
+        onServiceChoiceChange={onServiceChoiceChange}
         open={drawerOpen}
         setOpen={setDrawerOpen}
         t={t}

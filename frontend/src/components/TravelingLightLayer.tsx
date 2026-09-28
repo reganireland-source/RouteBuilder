@@ -73,6 +73,10 @@ interface Light {
    *  than one synchronised pulse. */
   phaseOffsetMs: number
   color: string
+  /** True under reduced motion: the marker is parked at its segment's
+   *  midpoint and `frame()` skips it entirely — see prefersReducedMotion's
+   *  own doc comment for why "parked, not absent" is the honest response. */
+  static: boolean
 }
 
 interface Props {
@@ -80,7 +84,18 @@ interface Props {
 }
 
 /** True when the visitor has asked the OS for less animation — mirrors
- *  LivingWorldLayer.tsx's own check exactly. */
+ *  LivingWorldLayer.tsx's own check exactly. Originally this made a light's
+ *  segment get NO marker at all under reduced motion (the reasoning: the
+ *  segment's own color/weight styling already marks it "active," so a
+ *  static stand-in dot would read as "different," not "reduced"). In
+ *  practice that meant a reduced-motion visitor — notably including several
+ *  mobile browsers/WebViews that report this media query true by default —
+ *  saw literally no "this cable is active" feedback at all, while
+ *  OutageAlertLayer's parallel static-marks-under-reduced-motion treatment
+ *  worked fine right next to it. The marker now stays, parked at the
+ *  segment's midpoint instead of traveling — see the `Light.static` field
+ *  and its use in `frame()` and the sync effect below — which matches
+ *  OutageAlertLayer's own reduced-motion philosophy exactly. */
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -170,6 +185,7 @@ export function TravelingLightLayer({ segments }: Props) {
     function frame(now: number) {
       rafRef.current = requestAnimationFrame(frame)
       for (const light of lights.values()) {
+        if (light.static) continue
         const cycle = light.durationMs * 2
         const phased = (now + light.phaseOffsetMs) % cycle
         // Triangle wave — 0 -> totalKm -> 0 — not a hard snap-back at the end.
@@ -209,11 +225,7 @@ export function TravelingLightLayer({ segments }: Props) {
       if (!nextIds.has(id)) { light.marker.remove(); current.delete(id) }
     }
 
-    // Reduced motion: a segment's own color/weight styling already marks it
-    // "active" with no animation at all, so the honest reduced-motion
-    // response is no traveling light rather than a static one standing in —
-    // nothing here would be readable as "reduced," just as "different."
-    if (reducedRef.current) return
+    const reduced = reducedRef.current
 
     for (const seg of segments) {
       if (seg.points.length < 2) continue
@@ -236,12 +248,18 @@ export function TravelingLightLayer({ segments }: Props) {
         cumKm.push(total)
       }
       const durationMs = durationForLength(total)
-      const marker = L.marker(seg.points[0], {
+      // Reduced motion: park the marker at the segment's midpoint instead of
+      // its start, and mark it `static` so frame() never touches it — see
+      // prefersReducedMotion's own doc comment for why a parked light beats
+      // no light at all.
+      const startAt = reduced ? pointAt(seg.points, cumKm, total, total / 2) : seg.points[0]
+      const marker = L.marker(startAt, {
         icon: buildIcon(seg.color), pane: PANE_NAME, interactive: false, keyboard: false,
       }).addTo(map)
       current.set(seg.id, {
         marker, points: seg.points, cumKm, totalKm: total,
         durationMs, phaseOffsetMs: hashOffset(seg.id, durationMs), color: seg.color,
+        static: reduced,
       })
     }
   }, [segments, map])
