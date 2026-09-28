@@ -72,6 +72,8 @@ import { KmlChopMapLayer, type KmlChopMapLayerProps } from './KmlChopMapLayer'
 import { LivingWorldLayer } from './LivingWorldLayer'
 import { TravelingLightLayer } from './TravelingLightLayer'
 import type { ActiveLightSegment } from './TravelingLightLayer'
+import { OutageAlertLayer } from './OutageAlertLayer'
+import type { OutageAlertSegment } from './OutageAlertLayer'
 import { HazardLayer, severityColor } from './HazardLayer'
 import { worstSeverityByAsset } from '../context/HazardContext'
 import { HazardStatusPanel } from './HazardStatusPanel'
@@ -775,15 +777,29 @@ function activeLightColorBySegment({
 }
 
 /**
- * Which segments currently get a traveling light, and what colour — pulled
- * out of NetworkMap's own body (an already very large function) purely to
- * keep its cognitive-complexity budget from growing; see the render loop
- * just above NetworkMap's return for how the ordinary segmentColor/
- * segmentWeight ladder builds the exact same "who wins" facts this mirrors.
+ * Which segments currently get a traveling light (or, if they have a real
+ * current outage, an OutageAlertLayer × mark instead), and what colour —
+ * pulled out of NetworkMap's own body (an already very large function)
+ * purely to keep its cognitive-complexity budget from growing; see the
+ * render loop just above NetworkMap's return for how the ordinary
+ * segmentColor/segmentWeight ladder builds the exact same "who wins" facts
+ * this mirrors.
+ *
+ * A segment in the active set (selected on the map, part of a highlighted
+ * system, or part of a highlighted RouteBuilder route) but WITHOUT a real
+ * outage goes to `activeLightSegments` exactly as before. One WITH an
+ * outage goes to `outageAlertSegments` instead of `activeLightSegments` —
+ * a moving light would claim traffic is flowing down a cable that is
+ * actually down, so it never gets one; see OutageAlertLayer.tsx's own
+ * header for why a static flashing × is the honest replacement. This is
+ * purely about which of the two feedback layers an active segment feeds —
+ * it does not touch the separate, always-on red-dashed "downed segment"
+ * line styling elsewhere in this file (see `showAsDown` in the render
+ * loop), which stays exactly as it was.
  */
 function computeActiveLightSegments({
   segments, segmentsById, nodesById, systemViewerActive, systemColorMap,
-  selectedGlowColor, selectedSegmentId, selectedColor, kmlMode, kmlPaths,
+  selectedGlowColor, selectedSegmentId, selectedColor, kmlMode, kmlPaths, outageSegIds,
 }: {
   segments: CableSegment[]
   segmentsById: Record<string, CableSegment>
@@ -795,12 +811,14 @@ function computeActiveLightSegments({
   selectedColor: string
   kmlMode: boolean
   kmlPaths: Record<string, KmlPathInfo>
-}): ActiveLightSegment[] {
+  outageSegIds: Set<string>
+}): { activeLightSegments: ActiveLightSegment[]; outageAlertSegments: OutageAlertSegment[] } {
   const colorByActiveSegment = activeLightColorBySegment({
     segments, systemViewerActive, systemColorMap, selectedGlowColor, selectedSegmentId, selectedColor,
   })
 
-  const out: ActiveLightSegment[] = []
+  const activeLightSegments: ActiveLightSegment[] = []
+  const outageAlertSegments: OutageAlertSegment[] = []
   for (const [segId, color] of colorByActiveSegment) {
     const seg = segmentsById[segId]
     const start = seg && nodesById[seg.start_node_id]
@@ -809,9 +827,13 @@ function computeActiveLightSegments({
     const kml = kmlMode ? kmlPaths[seg.id] : undefined
     const points = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined, kml?.display_path).flat()
     if (points.length < 2) continue
-    out.push({ id: segId, points, color })
+    if (outageSegIds.has(segId)) {
+      outageAlertSegments.push({ id: segId, points })
+    } else {
+      activeLightSegments.push({ id: segId, points, color })
+    }
   }
-  return out
+  return { activeLightSegments, outageAlertSegments }
 }
 
 // Named NetworkMap (not "Map") so it doesn't shadow the built-in JS Map type
@@ -958,13 +980,14 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
     }
   }
 
-  // Traveling light (see TravelingLightLayer.tsx's own header and
-  // computeActiveLightSegments's own doc comment below — pulled out to a
-  // module-level function purely to keep this already very large function's
-  // own cognitive-complexity budget from growing).
-  const activeLightSegments = computeActiveLightSegments({
+  // Traveling light / outage alert (see TravelingLightLayer.tsx's and
+  // OutageAlertLayer.tsx's own headers, and computeActiveLightSegments's
+  // own doc comment below — pulled out to a module-level function purely
+  // to keep this already very large function's own cognitive-complexity
+  // budget from growing).
+  const { activeLightSegments, outageAlertSegments } = computeActiveLightSegments({
     segments, segmentsById, nodesById, systemViewerActive, systemColorMap,
-    selectedGlowColor, selectedSegmentId, selectedColor: t.blue, kmlMode, kmlPaths,
+    selectedGlowColor, selectedSegmentId, selectedColor: t.blue, kmlMode, kmlPaths, outageSegIds,
   })
 
   // Nodes for routes/pins
@@ -1647,8 +1670,14 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
              currently selected/highlighted (see TravelingLightLayer.tsx's own
              header). Always mounted; a no-op with zero markers when nothing
              qualifies. Off in Network Editor for the same reason as Living
-             World above. ── */}
+             World above. An active segment with a real outage gets an
+             OutageAlertLayer × mark below INSTEAD of a light here — see
+             computeActiveLightSegments's own doc comment for the split. ── */}
       {!editorMode && <TravelingLightLayer segments={activeLightSegments} />}
+      {/* ── Outage alert — the "no traffic here" partner to the traveling
+             light above, for a currently active segment that also has a
+             real current outage (see OutageAlertLayer.tsx's own header). ── */}
+      {!editorMode && <OutageAlertLayer segments={outageAlertSegments} />}
       <KmlPreviewLayer lines={kmlPreview} fitKey={kmlPreviewKey} />
 
       {/* ── Network Hazards — live disasters, in a pane ABOVE the cables so an
