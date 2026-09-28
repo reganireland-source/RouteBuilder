@@ -47,6 +47,7 @@ import os
 import re
 import secrets
 import time
+import urllib.parse
 import uuid
 from collections import OrderedDict, deque
 from contextlib import asynccontextmanager
@@ -82,7 +83,7 @@ from .api import (
     systems,
     tech_lookups,
 )
-from .db import init_db
+from .db import DATABASE_URL, DB_SSLMODE, init_db
 
 
 # ── Optional feature flags ────────────────────────────────────────────────────
@@ -248,6 +249,24 @@ async def lifespan(app: FastAPI):
             "ALLOWED_ORIGINS is '*' — CORS allows any origin to call this API from a "
             "browser. Set ALLOWED_ORIGINS to your frontend domain(s) in production."
         )
+    # DATABASE_URL not specifying its own sslmode and DB_SSLMODE left at its
+    # default ("prefer") means traffic to Postgres is encrypted only if the
+    # server happens to offer TLS — never enforced, never verified. That is a
+    # reasonable default for a database on the same host/Docker network as
+    # this process (docker-compose's own db service, or a bare "localhost"),
+    # which is why this only warns for what looks like a genuinely remote
+    # host — see db.py's own DB_SSLMODE comment for the full reasoning.
+    if DATABASE_URL and "sslmode=" not in DATABASE_URL and DB_SSLMODE not in ("require", "verify-ca", "verify-full"):
+        db_host = urllib.parse.urlparse(DATABASE_URL).hostname or ""
+        looks_local = db_host in ("localhost", "127.0.0.1") or "." not in db_host
+        if not looks_local:
+            logger.warning(
+                "DATABASE_URL points at %r with no TLS enforcement (DB_SSLMODE=%s, "
+                "the default 'prefer' — encrypted only if the server offers TLS, "
+                "silently NOT if it doesn't). Set DB_SSLMODE=require (or verify-full, "
+                "with your provider's CA) for a non-local database.",
+                db_host, DB_SSLMODE,
+            )
     init_db()
     # Build the hazard cache before anyone asks for it — see warm_in_background.
     # Non-blocking and failure-tolerant: boot never waits on a third-party feed.

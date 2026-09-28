@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 import urllib.error
 import urllib.parse
@@ -68,7 +69,18 @@ CABLE_GEO_URL = f"{SCM_BASE}/cable/cable-geo.json"
 CACHE_DIR = DATA_DIR / "scm_cache"
 CACHE_TTL_SECONDS = 12 * 60 * 60
 
-USER_AGENT = "RouteBuilder/1.0 (subsea network planning; +https://github.com/reganireland-source/RouteBuilder)"
+# The contact fragment is deploy-specific, not the original author's fixed
+# GitHub handle — this codebase is meant to be forked and run by other
+# organisations (see the enterprise-IT-removability feature-flag work), and
+# shipping one person's repo URL as every fork's default outbound identity
+# would be wrong for all of them. Set OUTBOUND_UA_CONTACT to a URL/email your
+# org is happy to have submarinecablemap.com's operators see and reach if
+# this integration ever needs to be reached about; left unset, the UA is
+# still a valid, honest client identity, just without a contact — accepted
+# here because this call is a best-effort geometry source, never a hard
+# dependency (see fetch_cable_kml's own docstring).
+_UA_CONTACT = os.getenv("OUTBOUND_UA_CONTACT", "").strip()
+USER_AGENT = "RouteBuilder/1.0 (subsea network planning" + (f"; +{_UA_CONTACT}" if _UA_CONTACT else "") + ")"
 ALLOWED_SCHEMES = ("http", "https")
 _REQUEST_TIMEOUT = 30.0
 

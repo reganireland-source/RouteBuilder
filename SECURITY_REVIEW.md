@@ -126,6 +126,8 @@ infrastructure-level control that the hosting environment should provide.
 | `RATE_LIMIT_PER_MINUTE` | backend | Per-IP limit for open POST endpoints (default 120) |
 | `MAX_BODY_BYTES` | backend | Request body cap (default 10 MB) |
 | `DATABASE_URL` | backend | Postgres DSN; falls back to bundled JSON files if unset |
+| `DB_SSLMODE` | backend | TLS enforcement for the Postgres connection (default `prefer` — encrypted only if the server offers it, not enforced). Set `require`/`verify-full` for a non-local database; ignored if `DATABASE_URL` already has its own `?sslmode=`. |
+| `OUTBOUND_UA_CONTACT` | backend | Optional contact URL/email in the User-Agent sent to Wikipedia/submarinecablemap.com/bushfire.io/USGS. Not a secret; see `.env.example`'s own comment for why this isn't defaulted to a fixed value. |
 | `ANTHROPIC_API_KEY` / `NLP_ENABLED` | backend | Optional NLP feature; endpoint absent unless enabled |
 | `VITE_APP_PASSWORD` | frontend build | Client-side access gate (obfuscation only — see R1); `admin_key` auth mode only |
 | `VITE_AUTH_MODE` / `VITE_OKTA_ISSUER` / `VITE_OKTA_CLIENT_ID` / `VITE_OKTA_ADMIN_GROUP` | frontend build | Must mirror the backend's `AUTH_MODE`/`OKTA_*` — see `docs/okta-setup.md` |
@@ -154,3 +156,45 @@ backend verification code is shared with Okta's (see `app/auth/oidc.py`,
 already covered above), so this scan's own scope is the new
 `@azure/msal-browser` frontend dependency and the Entra-specific settings
 loading in `app/auth/entra.py`.
+
+**Full-repo hardcoded-secret / PII / encryption review (2026-09-28):** this
+review predates the KML/Chop-Import pipeline, Cable Import, the mobile
+work and the deploy-time feature-flag pass, so it was re-run against
+everything current: a pattern sweep for hardcoded API keys/tokens/private
+keys/connection-string credentials across the whole tree (none found —
+every credential is env-sourced, matching the original review's own
+finding), the same sweep replayed against the FULL git history via `git
+log --all -p` rather than just the current tree (clean — no secret was
+ever committed and later removed), and a dedicated pass over every
+git-tracked seed/demo data file (`backend/data/*.json` — nodes, segments,
+outages, solution notes, feature requests) for emails, phone numbers or
+personal names (none found; node "owner" values are carrier/company names,
+matching the original review's note that customer PII was already
+stripped from the data model). Two real findings, both fixed:
+
+- **Three outbound User-Agent strings embedded the original repo's GitHub
+  URL** (`app/hazards/sources.py`, `app/kml/submarinecablemap.py`,
+  `app/cableimport/research.py`) — sent on every request this backend
+  makes to Wikipedia, submarinecablemap.com and bushfire.io/USGS. Not a
+  credential, but a personal GitHub handle baked into a value every fork
+  of this app would have shipped unchanged. **Fix:** the contact portion
+  is now sourced from `OUTBOUND_UA_CONTACT` (optional, unset by default)
+  instead of a fixed URL — see that variable's own `.env.example` entry.
+- **Postgres connections had no explicit `sslmode`** — `_connect_kwargs()`
+  never set one, so encryption in transit depended entirely on whether
+  `DATABASE_URL` happened to include `?sslmode=require` itself; the
+  implicit libpq default (`prefer`) encrypts opportunistically but never
+  enforces it. **Fix:** `DB_SSLMODE` (default `prefer`, unchanged
+  behaviour unless set) is now explicit and validated in `app/db.py`, and
+  `main.py`'s startup logging warns when it looks like a genuinely remote
+  `DATABASE_URL` host is running without `require`/`verify-full` — the
+  same "warn loudly, never silently break" pattern the `ADMIN_KEY`/
+  `ALLOWED_ORIGINS` checks already use. Local/Docker-internal hosts
+  (`localhost`, `127.0.0.1`, an unqualified Compose service name like
+  `db`) are deliberately exempted from the warning.
+
+At-rest encryption of the underlying Postgres volume itself is a hosting-
+provider control (Railway/RDS/etc. encrypt storage by default) rather than
+something this application layer can enforce — nothing found here works
+against that; see R3 in Accepted Risks for the adjacent `ADMIN_KEY`
+control this doesn't replace.

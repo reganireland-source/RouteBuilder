@@ -26,6 +26,7 @@ came back, not to make the app look more certain than it is.
 """
 import json
 import logging
+import os
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -38,11 +39,13 @@ log = logging.getLogger("routebuilder.cableimport")
 # Same convention as app/kml/submarinecablemap.py: real contact info in the
 # UA (Wikimedia's API etiquette asks for this — see
 # https://meta.wikimedia.org/wiki/User-Agent_policy — and enforces it with a
-# 429 for generic/anonymous-looking clients).
-_WIKI_UA = (
-    "RouteBuilder/1.0 (subsea network planning; "
-    "+https://github.com/reganireland-source/RouteBuilder)"
-)
+# 429 for generic/anonymous-looking clients) — but sourced from an env var,
+# not one fork's fixed repo URL; see submarinecablemap.py's own USER_AGENT
+# comment for why. Unset, this is still an honest client identity, just
+# without a contact — acceptable since Wikipedia here is a best-effort
+# enrichment source, never a hard dependency (see _get_json's own docstring).
+_UA_CONTACT = os.getenv("OUTBOUND_UA_CONTACT", "").strip()
+_WIKI_UA = "RouteBuilder/1.0 (subsea network planning" + (f"; +{_UA_CONTACT}" if _UA_CONTACT else "") + ")"
 _ALLOWED_SCHEMES = ("http", "https")
 _WIKI_TIMEOUT = 8.0
 

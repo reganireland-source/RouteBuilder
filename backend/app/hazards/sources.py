@@ -118,7 +118,10 @@ class SourceError(RuntimeError):
 #: Concurrent /event/detail requests. Small on purpose — see _hydrate.
 HYDRATION_WORKERS = 4
 
-USER_AGENT = "RouteBuilder/1.0 (subsea network planning; +https://github.com/reganireland-source/RouteBuilder)"
+# See kml/submarinecablemap.py's own USER_AGENT comment for why the contact
+# fragment comes from an env var rather than one fork's fixed repo URL.
+_UA_CONTACT = os.getenv("OUTBOUND_UA_CONTACT", "").strip()
+USER_AGENT = "RouteBuilder/1.0 (subsea network planning" + (f"; +{_UA_CONTACT}" if _UA_CONTACT else "") + ")"
 
 
 #: Both feed URLs are configurable through environment variables, and

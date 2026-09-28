@@ -136,6 +136,35 @@ DB_CONNECT_TIMEOUT = _env_int("DB_CONNECT_TIMEOUT", 10)  # seconds to connect
 # Per-statement cap in milliseconds, enforced server-side.
 DB_STATEMENT_TIMEOUT_MS = _env_int("DB_STATEMENT_TIMEOUT_MS", 30000)
 
+# libpq's own "prefer" (use TLS if the server offers it, silently fall back to
+# plaintext if not) was previously the ONLY behaviour — psycopg2.connect()
+# was never given an explicit sslmode, so it inherited "prefer" implicitly
+# and nothing here could tell an operator whether their traffic to Postgres
+# was actually encrypted. DB_SSLMODE makes that explicit and configurable
+# rather than an invisible default; the value is still "prefer" unless set,
+# so this changes nothing for an existing deployment on its own — pair it
+# with setting DB_SSLMODE=require (or verify-full, with a CA cert most
+# managed Postgres providers, including Railway's, support) in production.
+# See main.py's lifespan startup check for the warning that nudges toward
+# that when it looks like this is talking to a non-local host without it.
+_VALID_SSLMODES = {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"}
+
+
+def _db_sslmode() -> str:
+    """DB_SSLMODE, validated against psycopg2's known values — falls back to
+    "prefer" (today's un-configurable default) on anything unrecognised,
+    the same forgiving-typo handling _env_int gives numeric tunables."""
+    raw = os.environ.get("DB_SSLMODE", "").strip().lower()
+    if not raw:
+        return "prefer"
+    if raw not in _VALID_SSLMODES:
+        _log.warning("Invalid DB_SSLMODE=%r — using default 'prefer'", raw)
+        return "prefer"
+    return raw
+
+
+DB_SSLMODE = _db_sslmode()
+
 # Module-level pool + the lock that guards its lazy creation. The lock matters
 # because FastAPI runs sync endpoints in a thread pool: two threads can race
 # into get_conn() on the very first request and would otherwise build two pools
@@ -151,11 +180,19 @@ def _connect_kwargs() -> dict:
     setup, so it applies to every statement on that connection without needing
     a per-transaction SET.
     """
-    return {
+    kwargs = {
         "cursor_factory": psycopg2.extras.RealDictCursor,
         "connect_timeout": DB_CONNECT_TIMEOUT,
         "options": f"-c statement_timeout={DB_STATEMENT_TIMEOUT_MS}",
     }
+    # Only set sslmode here if DATABASE_URL doesn't already encode its own —
+    # libpq errors ("conflicting or redundant options") if the same parameter
+    # is given both in the DSN and as a kwarg, and a URL that already
+    # specifies sslmode (common with managed Postgres providers) should win
+    # over DB_SSLMODE's own default.
+    if DATABASE_URL and "sslmode=" not in DATABASE_URL:
+        kwargs["sslmode"] = DB_SSLMODE
+    return kwargs
 
 
 def _get_pool():
