@@ -299,7 +299,12 @@ function MobileControlsDrawer({
 }) {
   const { tooltipsEnabled, setTooltipsEnabled } = useTooltipSettings()
   return (
-    <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 200 }}>
+    // `relative`, not `absolute` — this now sits inside a shared flex row
+    // with AssetSearch (see the header render's own comment on that row) so
+    // the two can never overlap regardless of either one's rendered width;
+    // the drawer panel below still anchors correctly since it's `absolute`
+    // relative to THIS wrapper, not the page.
+    <div style={{ position: 'relative', zIndex: 200 }}>
 
       {/* Toggle button */}
       <button
@@ -925,8 +930,14 @@ export function MobileLayout({
         </div>
       )}
 
-      {onAssetSelect && (
-        <div style={{ position: 'absolute', top: 14, right: 92, zIndex: 100 }}>
+      {/* ── Asset Search + Controls: one flex row, not two independently
+             absolutely-positioned elements guessing a pixel gap between them
+             (that guess is what let them overlap — CONTROLS' rendered width
+             isn't a fixed number, so a fixed `right` offset for the search
+             icon next to it was never actually safe). `gap` handles the
+             spacing regardless of either one's real width. ── */}
+      <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 200, display: 'flex', alignItems: 'center', gap: 8 }}>
+        {onAssetSelect && (
           <AssetSearch
             nodes={nodes}
             segments={visibleSegments ?? segments}
@@ -934,17 +945,51 @@ export function MobileLayout({
             onSelect={hit => { doSnap('peek'); onAssetSelect(hit) }}
             compact
           />
-        </div>
-      )}
+        )}
+        <MobileControlsDrawer
+          kmlMode={kmlMode}
+          kmlCount={Object.keys(kmlPaths).length}
+          segmentCount={segments.length}
+          onToggleKmlMode={onToggleKmlMode}
+          serviceChoice={serviceChoice}
+          onServiceChoiceChange={onServiceChoiceChange}
+          open={drawerOpen}
+          setOpen={setDrawerOpen}
+          t={t}
+          themeMode={themeMode}
+          showAllOutages={showAllOutages}
+          showPlannedEvents={showPlannedEvents}
+          showSegmentLabels={showSegmentLabels}
+          showNodeLabels={showNodeLabels}
+          hideNonActive={hideNonActive}
+          subseaOnly={subseaOnly}
+          backhaulOnly={backhaulOnly}
+          onToggleShowAllOutages={onToggleShowAllOutages}
+          onToggleShowPlannedEvents={onToggleShowPlannedEvents}
+          onToggleShowSegmentLabels={onToggleShowSegmentLabels}
+          onToggleShowNodeLabels={onToggleShowNodeLabels}
+          onToggleHideNonActive={onToggleHideNonActive}
+          onToggleSubseaOnly={onToggleSubseaOnly}
+          onToggleBackhaulOnly={onToggleBackhaulOnly}
+          livingWorld={livingWorld}
+          onToggleLivingWorld={onToggleLivingWorld}
+          hazardsOn={hazardsOn}
+          onToggleHazards={onToggleHazards}
+          onOpenProjects={onOpenProjects}
+          onOpenCapacity={() => setCapDashOpen(true)}
+          onOpenRefData={onOpenRefData}
+          cycleTheme={cycleTheme}
+        />
+      </div>
 
       {/* ── Asset Filter — collapsed to an icon (matching AssetSearch's own
              compact convention) and docked below Leaflet's zoom control,
-             its own row: the header (branding, search, service date,
-             Controls) already fills edge to edge, and the legend row spans
-             almost the full width beside it, so there is no shared row with
-             free space for a fifth element — a row of its own avoids fighting
-             either one for width. Zoom control measures 60-124px tall on a
-             phone viewport; 132 clears it with an 8px gap. ── */}
+             its own row: the header (branding, search, Controls) already
+             fills edge to edge, and the legend row spans almost the full
+             width beside it, so there is no shared row with free space for
+             a fourth element — a row of its own avoids fighting either one
+             for width. Zoom control measures 60-124px tall on a phone
+             viewport; 132 clears it with an 8px gap. ── */}
       {onAssetSelect && onAssetFilterChange && (
         <div style={{ position: 'absolute', top: 132, left: 8, zIndex: 1090 }}>
           <AssetFilterBar
@@ -959,42 +1004,6 @@ export function MobileLayout({
           />
         </div>
       )}
-
-      {/* ── Top-right drawer toggle + panel ────────────────────────────── */}
-      <MobileControlsDrawer
-        kmlMode={kmlMode}
-        kmlCount={Object.keys(kmlPaths).length}
-        segmentCount={segments.length}
-        onToggleKmlMode={onToggleKmlMode}
-        serviceChoice={serviceChoice}
-        onServiceChoiceChange={onServiceChoiceChange}
-        open={drawerOpen}
-        setOpen={setDrawerOpen}
-        t={t}
-        themeMode={themeMode}
-        showAllOutages={showAllOutages}
-        showPlannedEvents={showPlannedEvents}
-        showSegmentLabels={showSegmentLabels}
-        showNodeLabels={showNodeLabels}
-        hideNonActive={hideNonActive}
-        subseaOnly={subseaOnly}
-        backhaulOnly={backhaulOnly}
-        onToggleShowAllOutages={onToggleShowAllOutages}
-        onToggleShowPlannedEvents={onToggleShowPlannedEvents}
-        onToggleShowSegmentLabels={onToggleShowSegmentLabels}
-        onToggleShowNodeLabels={onToggleShowNodeLabels}
-        onToggleHideNonActive={onToggleHideNonActive}
-        onToggleSubseaOnly={onToggleSubseaOnly}
-        onToggleBackhaulOnly={onToggleBackhaulOnly}
-        livingWorld={livingWorld}
-        onToggleLivingWorld={onToggleLivingWorld}
-        hazardsOn={hazardsOn}
-        onToggleHazards={onToggleHazards}
-        onOpenProjects={onOpenProjects}
-        onOpenCapacity={() => setCapDashOpen(true)}
-        onOpenRefData={onOpenRefData}
-        cycleTheme={cycleTheme}
-      />
 
       {/* ── RouteManual floating build strip (shown only when building at peek) ── */}
       {manualBuilding && snap === 'peek' && (
