@@ -30,14 +30,20 @@
  * early June are therefore reconstructed from that ladder rather than from
  * commits, and are necessarily approximate: the ladder fixes the ORDER of the
  * work and its latest possible date, not the day any of it landed. From late
- * June onward the months are git-verified — 8 commits in June, 39 in July, 3 in
- * August, 30 in September — and INTENSITY is calibrated against those counts
- * (August really was that quiet; July really was the peak).
+ * June onward the months are git-verified — 7 commits in June, 38 in July, 2 in
+ * August, 133 in September (and counting) — and INTENSITY is calibrated
+ * against those counts (August really was that quiet; September is the peak,
+ * not July, once the second half of the month is counted).
  *
- * September is deliberately ONE band rather than two. Every station on it has a
- * commit dated 14 or 15 September 2026, so splitting the later work into an
- * October band would make the map easier to read by inventing a month the work
- * did not happen in — the same fiction the paragraph below refuses for May.
+ * September is deliberately ONE band rather than two, even though its own
+ * stations now span the 14th through the 28th — SSO, the KML/Chop-Import
+ * pipeline, Cable Import, the motion and accessibility passes, the mobile
+ * square-display work and the enterprise feature-flag pass all landed inside
+ * it. Every one of those commits is dated September; splitting the later work
+ * into an October band would make the map easier to read by inventing a month
+ * the work did not happen in — the same fiction the paragraph above refuses
+ * for May, and it stays refused here even though September is a much longer
+ * band for it.
  *
  * The compression is the honest shape of this project, not a drafting artefact:
  * the foundation, the pathfinder, the diversity engine, three countries' worth
@@ -176,13 +182,18 @@ const MONTHS: Month[] = [
     ],
   },
   {
-    // 30 commits, and still open — the editor, the visual work, the two search
-    // surfaces and the future-network engine all landed in a single burst
-    // across 14-15 September. Every station below has a commit on one of those
-    // two days, which is why there is no October band: the work is September's,
-    // and giving it a month of its own to make the map look tidier would be a
-    // drafting fiction of exactly the kind the header disowns.
-    key: '2026-09', label: 'SEP', sub: '2026', intensity: 4, era: 'The Visual Era → Selling on a Future Date',
+    // 133 commits and still open — the busiest month on record by a wide
+    // margin, and it keeps being extended rather than closed off. The first
+    // burst (14-15 September) shipped the editor, the visual work, the two
+    // search surfaces and the future-network engine; the weeks since added a
+    // third SSO provider, the whole KML/Chop-Import surveyed-geometry
+    // pipeline, Cable Import, a motion+accessibility pass, square-display
+    // mobile support and an enterprise feature-flag pass. Every one of those
+    // commits is dated September, which is why there is no October band: the
+    // work is September's, and giving it a month of its own to make the map
+    // look tidier would be a drafting fiction of exactly the kind the header
+    // disowns.
+    key: '2026-09', label: 'SEP', sub: '2026', intensity: 4, era: 'The Visual Era → Enterprise-Ready',
     milestones: [
       { cat: 'ui',   icon: '🛰', title: 'Readable basemaps', detail: 'CARTO started gating its tiles behind an API key — and served a watermarked image with an HTTP 200, which fooled the health check. Moved to Esri, which also renders East Asian place names in English.' },
       { cat: 'ui',   icon: '✨', title: 'Routes that glow', detail: 'A selected route pulses at 1 Hz; hovering a row in the segment breakdown spotlights that segment on the map in orange-red. Finding the route you are reading about stopped being work.', major: true },
@@ -207,6 +218,15 @@ const MONTHS: Month[] = [
       { cat: 'ui', icon: '🎯', title: 'The surveyed route is what gets highlighted, not the guess underneath it', detail: 'Selecting a segment from Asset Search now spotlights — and zooms to — its real surveyed KML path when one exists and KML Mode is on, rather than always the straight waypoint line drawn beneath it. A cable with a genuine detour could previously show a highlight that visibly drifted off its own line, or a zoom that cropped the real route out of view entirely.' },
       { cat: 'sec', icon: '🔑', title: 'Okta SSO, alongside the shared admin key', detail: 'A second, complete authentication model selectable by one environment variable, built without ever touching a live Okta tenant: individual sign-in via Okta\'s own hosted login page, write access decided by Okta group membership instead of a password anyone could leak, and a step-by-step handoff document so IT\'s own setup is six non-secret values pasted into two places. A pedantic scan of the new code — SonarQube\'s own Docker setup was not available in this environment, so its established local equivalents (ruff, bandit, eslint-plugin-sonarjs, pip-audit) stood in — found and fixed a real one before anyone else had to: the pinned JWT library carried six disclosed CVEs, cleared by a version bump with the full test suite re-verified green against it.', major: true },
       { cat: 'sec', icon: '🪟', title: 'Entra ID as a third sign-in option', detail: 'The org\'s actual preference turned out to be Microsoft Entra ID rather than Okta, so it was added alongside it — not instead of it — as a third selectable AUTH_MODE. The backend JWT verification turned out to be about 90% identical between the two providers once looked at closely, so that half became one shared, provider-agnostic module both now build on, rather than a second near-copy of the Okta code; the frontend SDK is unavoidably its own thing (Microsoft\'s MSAL library, not Okta\'s), so that half is genuinely new. Admin access is decided by an Entra App Role rather than group membership on purpose — Microsoft\'s own documented pattern, and the one that sidesteps a real limit where a user in 200+ Entra groups gets no usable groups claim at all. Same treatment as Okta got: an IT handoff document, and a pedantic scan that this time found nothing to fix — the new dependency added zero vulnerabilities, and Microsoft\'s own default token storage already matched the hardened choice made explicitly for Okta.', major: true },
+      { cat: 'ui',   icon: '🎬', title: 'A motion system, and controls that group by what they do', detail: 'A small set of global keyframes and a themed Tooltip component (slow open delay, a global off switch, consistent styling in every theme) became the vocabulary every modal entrance, nav hover and marker fade now speaks. The Controls menu was regrouped from one long list into logical sections at the same time, since the animation work meant touching every row in it anyway.' },
+      { cat: 'ui',   icon: '♿', title: 'A polish pass built to survive an audit, not just look right', detail: 'A design-review skill installed against a newly written PRODUCT.md/DESIGN.md pair turned up real findings rather than taste complaints: WCAG AA contrast failures on textFaint/textFaintest across every theme, hardcoded theme colours leaking through browser chrome, missing form labels, keyboard-navigation gaps and absent ARIA landmarks. All fixed in place, not deferred.' },
+      { cat: 'ui',   icon: '🎚', title: 'A basemap you can choose, not just live with', detail: 'A Satellite / High Contrast picker bottom-left of the map, built accessibly from the start and then re-checked — the high-contrast mode\'s backhaul accent was swapped from yellow to dark purple once the original colour turned out not to hold up against its own background.' },
+      { cat: 'data', icon: '🌐', title: 'Modeling a cable you do not own', detail: 'A three-phase Cable Import wizard for the competitive landscape — announced or future systems this org has no stake in, which must never contaminate RouteFinder\'s own results but are worth tracking on the map. Phase 1 is manual entry of a system\'s landing stations and trunk topology; Phase 2 hands off straight into the Chop Import tool via an optional submarinecablemap.com link, so the new segments already have real geometry waiting; Phase 3 adds an LLM-assisted research step that aggregates public sources and pre-fills the wizard, with every field remaining exactly as reviewable and overridable as if it had been typed by hand.', major: true },
+      { cat: 'ui',   icon: '💡', title: 'Cables that show whether they are carrying anything', detail: 'A glowing marker travels back and forth along every segment currently selected, highlighted or part of a RouteBuilder result — the literal metaphor for what these cables carry: light, moving. Its counterpart shipped a few days later: a segment that is active but genuinely down no longer gets a light, since that would claim traffic is flowing where none is, and shows two flashing red × marks instead — the stillness, not the light, is the message there.', major: true },
+      { cat: 'ui',   icon: '🔲', title: 'A phone that is also a square', detail: 'The mobile layout assumed a tall rectangle and quietly broke on a square high-density touch display (a Unihertz Titan-class device): the mobile-detection check never fired on a literal square viewport, the bottom sheet\'s height math starved the map to near-invisibility on a short screen, and the Controls drawer truncated with no way to scroll to what was cut off. All three fixed, plus a second, independent touch-detection signal added as a fallback for a `pointer: coarse` media query caught lying in at least one embedded WebView.', major: true },
+      { cat: 'sec',  icon: '🎛', title: 'Every AI or third-party call gets an off switch', detail: 'Four new deploy-time flags — defaulting to today\'s always-on behaviour — let enterprise IT strip out anything that calls an LLM or an external host without touching code: the AI Outage Parser, Cable Import\'s research step, the Network Hazards overlay, and the submarinecablemap.com sync, each un-mounting its backend route and dropping its frontend bundle when switched off. Okta and Entra now load lazily on both ends too, so a deployment running neither never bundles the SDK for the one it doesn\'t use.', major: true },
+      { cat: 'docs', icon: '🎥', title: 'A narrated tour, before you even sign in', detail: 'A "Watch the Overview" button on the login screen plays a narrated walkthrough of the product — real screen capture stitched together with stylised explainer scenes — so a prospective user can see what RouteBuilder actually does before ever being handed a password.' },
+      { cat: 'docs', icon: '📝', title: 'Every file, commented for the next reader — human or AI', detail: 'July\'s comment pass reached most of the codebase; this one reached the rest of it, deliberately: file-level headers, docstrings on every export and WHAT-level narrative comments swept across the whole frontend and backend, on the stated premise that the next person to extend this code might not be a person at all — and either way should not have to re-derive what a function does from its body alone.' },
     ],
   },
 ]
