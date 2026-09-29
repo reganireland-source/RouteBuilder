@@ -1652,21 +1652,14 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
               )}
               {rows.map(o => (
                 <MobileCard key={o.fault_id} id={o.fault_id}
-                  title={isPlanned ? o.fault_id : (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span
-                        title={SERVICE_IMPACT_LABEL[resolveImpact(o.service_impact)]}
-                        style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: impactColor(o.service_impact, t) }}
-                      />
-                      {o.fault_id}
-                    </span>
-                  )}
+                  title={o.fault_id}
                   subtitle={<><code style={{ fontSize: 10 }}>{o.segment_id}</code> · {isPlanned ? 'raised' : 'faulted'} {o.fault_date}</>}
                   fields={isPlanned ? [
                     { label: 'Planned Start', value: o.planned_start ?? '—' },
                     { label: 'Planned End',   value: o.planned_end ?? '—' },
                     { label: 'Description',   value: o.description },
                   ] : [
+                    { label: 'Service Impact', value: <span style={{ color: impactColor(o.service_impact, t), fontWeight: 700 }}>{SERVICE_IMPACT_LABEL[resolveImpact(o.service_impact)]}</span> },
                     { label: 'Repair Start', value: o.repair_start ?? '—' },
                     { label: 'ETA', value: <span style={{ color: o.estimated_repair_date === 'TBC' ? t.orange : t.text }}>{o.estimated_repair_date ?? '—'}</span> },
                     { label: 'Description', value: o.description },
@@ -1682,6 +1675,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             <>
               <div style={{ display: 'flex', padding: '6px 20px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
                 <div style={colH(2)}>Segment</div><div style={colH(2)}>Fault ID</div>
+                {!isPlanned && <div style={colH(2)}>Service Impact</div>}
                 <div style={colH(2)}>{isPlanned ? 'Date Raised' : 'Fault Date'}</div>
                 <div style={colH(2)}>{isPlanned ? 'Planned Start' : 'Repair Start'}</div>
                 <div style={colH(2)}>{isPlanned ? 'Planned End' : 'ETA'}</div>
@@ -1697,15 +1691,13 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                 <div key={o.fault_id} style={rowStyle(editId === o.fault_id)}>
                   <div style={{ display: 'flex', alignItems: 'center', padding: '7px 20px', minHeight: 36 }}>
                     <div style={cell(2)}><code style={{ fontSize: 11 }}>{o.segment_id}</code></div>
-                    <div style={{ ...cell(2), display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {!isPlanned && (
-                        <span
-                          title={SERVICE_IMPACT_LABEL[resolveImpact(o.service_impact)]}
-                          style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: impactColor(o.service_impact, t) }}
-                        />
-                      )}
-                      {o.fault_id}
-                    </div>
+                    <div style={cell(2)}>{o.fault_id}</div>
+                    {!isPlanned && (
+                      <div style={{ ...cell(2), display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: impactColor(o.service_impact, t) }} />
+                        <span style={{ color: impactColor(o.service_impact, t), fontWeight: 700 }}>{SERVICE_IMPACT_LABEL[resolveImpact(o.service_impact)]}</span>
+                      </div>
+                    )}
                     <div style={cell(2)}>{o.fault_date}</div>
                     {isPlanned ? (
                       <>

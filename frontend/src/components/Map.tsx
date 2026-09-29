@@ -798,10 +798,49 @@ function activeLightColorBySegment({
  * it does not touch the separate, always-on red-dashed "downed segment"
  * line styling elsewhere in this file (see `showAsDown` in the render
  * loop), which stays exactly as it was.
+ *
+ * In `showAllOutages` (outage map) mode, EVERY real-outage segment gets a
+ * × mark here too, not just ones already active/selected/highlighted —
+ * that mode's whole point is "show me every current outage," so the same
+ * flashing-× signal the user relies on for a selected outaged segment
+ * should read the same way across the whole outage map, matching the
+ * colour-coded dashed line the render loop already draws for it below.
  */
+/** One segId's verdict from the loop in `computeActiveLightSegments` below —
+ *  pulled out to its own function purely to keep that (already large,
+ *  now `showAllOutages`-aware) function's cognitive-complexity budget from
+ *  growing; see its own doc comment for the light-vs-alert split this
+ *  implements. */
+function classifyLightOrAlertSegment({
+  segId, color, segmentsById, nodesById, kmlMode, kmlPaths, outagesBySegId, t,
+}: {
+  segId: string
+  color: string | undefined
+  segmentsById: Record<string, CableSegment>
+  nodesById: Record<string, CableNode>
+  kmlMode: boolean
+  kmlPaths: Record<string, KmlPathInfo>
+  outagesBySegId: Record<string, SegmentOutage[]>
+  t: Theme
+}): { kind: 'light'; segment: ActiveLightSegment } | { kind: 'alert'; segment: OutageAlertSegment } | null {
+  const seg = segmentsById[segId]
+  const start = seg && nodesById[seg.start_node_id]
+  const end = seg && nodesById[seg.end_node_id]
+  if (!seg || !start || !end) return null
+  const kml = kmlMode ? kmlPaths[seg.id] : undefined
+  const points = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined, kml?.display_path).flat()
+  if (points.length < 2) return null
+  const segOutages = outagesBySegId[segId]
+  if (segOutages) {
+    const impact = worstImpact(segOutages.map(o => o.service_impact))
+    return { kind: 'alert', segment: { id: segId, points, color: impactColor(impact, t) } }
+  }
+  return color ? { kind: 'light', segment: { id: segId, points, color } } : null
+}
+
 function computeActiveLightSegments({
   segments, segmentsById, nodesById, systemViewerActive, systemColorMap,
-  selectedGlowColor, selectedSegmentId, selectedColor, kmlMode, kmlPaths, outagesBySegId, t,
+  selectedGlowColor, selectedSegmentId, selectedColor, kmlMode, kmlPaths, outagesBySegId, t, showAllOutages,
 }: {
   segments: CableSegment[]
   segmentsById: Record<string, CableSegment>
@@ -815,28 +854,25 @@ function computeActiveLightSegments({
   kmlPaths: Record<string, KmlPathInfo>
   outagesBySegId: Record<string, SegmentOutage[]>
   t: Theme
+  showAllOutages: boolean
 }): { activeLightSegments: ActiveLightSegment[]; outageAlertSegments: OutageAlertSegment[] } {
   const colorByActiveSegment = activeLightColorBySegment({
     segments, systemViewerActive, systemColorMap, selectedGlowColor, selectedSegmentId, selectedColor,
   })
 
+  const segIds = new Set(colorByActiveSegment.keys())
+  if (showAllOutages) {
+    for (const segId of Object.keys(outagesBySegId)) segIds.add(segId)
+  }
+
   const activeLightSegments: ActiveLightSegment[] = []
   const outageAlertSegments: OutageAlertSegment[] = []
-  for (const [segId, color] of colorByActiveSegment) {
-    const seg = segmentsById[segId]
-    const start = seg && nodesById[seg.start_node_id]
-    const end = seg && nodesById[seg.end_node_id]
-    if (!seg || !start || !end) continue
-    const kml = kmlMode ? kmlPaths[seg.id] : undefined
-    const points = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined, kml?.display_path).flat()
-    if (points.length < 2) continue
-    const segOutages = outagesBySegId[segId]
-    if (segOutages) {
-      const impact = worstImpact(segOutages.map(o => o.service_impact))
-      outageAlertSegments.push({ id: segId, points, color: impactColor(impact, t) })
-    } else {
-      activeLightSegments.push({ id: segId, points, color })
-    }
+  for (const segId of segIds) {
+    const result = classifyLightOrAlertSegment({
+      segId, color: colorByActiveSegment.get(segId), segmentsById, nodesById, kmlMode, kmlPaths, outagesBySegId, t,
+    })
+    if (result?.kind === 'light') activeLightSegments.push(result.segment)
+    else if (result?.kind === 'alert') outageAlertSegments.push(result.segment)
   }
   return { activeLightSegments, outageAlertSegments }
 }
@@ -992,7 +1028,7 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
   // budget from growing).
   const { activeLightSegments, outageAlertSegments } = computeActiveLightSegments({
     segments, segmentsById, nodesById, systemViewerActive, systemColorMap,
-    selectedGlowColor, selectedSegmentId, selectedColor: t.blue, kmlMode, kmlPaths, outagesBySegId, t,
+    selectedGlowColor, selectedSegmentId, selectedColor: t.blue, kmlMode, kmlPaths, outagesBySegId, t, showAllOutages,
   })
 
   // Nodes for routes/pins
