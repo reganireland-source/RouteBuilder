@@ -330,6 +330,14 @@ export type OutageEventType = 'outage' | 'planned_event'
  *    show. fault_date still means "date this record was logged/raised" for
  *    both kinds.
  */
+/** How materially a real outage (event_type "outage" only — Planned Events
+ *  don't carry this) affects customer traffic. See
+ *  utils/outageImpact.ts for the colour/label/resolution logic built on
+ *  this type; `null` there means "not yet classified" (a legacy row, or an
+ *  AI-parsed row the model wasn't confident enough to resolve on its own —
+ *  see outage_parser.py's system prompt). */
+export type ServiceImpact = 'impacting' | 'partial_impacting' | 'non_impacting'
+
 export interface SegmentOutage {
   segment_id: string
   fault_id: string
@@ -340,6 +348,9 @@ export interface SegmentOutage {
   event_type?: OutageEventType
   planned_start?: string | null
   planned_end?: string | null
+  /** Real outages only; null/absent means not yet classified — see
+   *  {@link ServiceImpact}'s own doc comment. */
+  service_impact?: ServiceImpact | null
 }
 
 /** A pair of cable systems that must NOT interconnect at a node (see InterconnectRule). */
@@ -362,6 +373,10 @@ export interface ParsedOutage {
   event_type?: OutageEventType           // 'outage' (default) or 'planned_event' — mirrors SegmentOutage
   planned_start?: string | null          // Planned Events only: ISO window start date
   planned_end?: string | null            // Planned Events only: ISO window end date
+  // Outage mode only (mirrors SegmentOutage.service_impact); null means the
+  // model wasn't confident enough to resolve it — OutageParserModal blocks
+  // "Accept All & Replace" until every matched outage row has one set.
+  service_impact?: ServiceImpact | null
 }
 
 export interface OutageParseResponse {

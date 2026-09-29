@@ -583,6 +583,19 @@ class SegmentOutage(BaseModel):
         populated when event_type == "outage".
       - planned_start / planned_end: the PLANNED EVENT maintenance window.
         Only populated when event_type == "planned_event".
+      - service_impact: OUTAGE only (never populated on a planned_event) —
+        how materially the fault affects customer traffic: "impacting" |
+        "partial_impacting" | "non_impacting". None means not yet
+        classified — either a row that predates this field, or one the AI
+        Outage Parser wasn't confident enough about to resolve on its own
+        (see api/outage_parser.py's system prompt). The frontend treats a
+        None here as "impacting" for DISPLAY (red, matching every outage's
+        colour before this field existed — see
+        frontend/src/utils/outageImpact.ts's resolveImpact), but treats it
+        as "needs a human decision" wherever the value is being EDITED
+        (OutageParserModal's review table blocks committing a matched
+        outage row until this is set; RefDataModal's manual outage form
+        requires it with no default).
     A given row only populates the pair matching its own event_type — the
     other pair stays null.
     """
@@ -593,6 +606,7 @@ class SegmentOutage(BaseModel):
     estimated_repair_date: Optional[str] = None
     description: str
     event_type: str = "outage"   # "outage" (a current live fault) | "planned_event" (a future scheduled work window)
+    service_impact: Optional[str] = None   # "impacting" | "partial_impacting" | "non_impacting" | None — outages only, see docstring above
     planned_start: Optional[str] = None   # Planned Events only: window start date (YYYY-MM-DD)
     planned_end: Optional[str] = None     # Planned Events only: window end date (YYYY-MM-DD)
 
@@ -650,6 +664,7 @@ class SegmentOutageUpdate(BaseModel):
     event_type: Optional[str] = None
     planned_start: Optional[str] = None
     planned_end: Optional[str] = None
+    service_impact: Optional[str] = None
 
 
 # ── Interface Types (reference table) ────────────────────────────────────────

@@ -49,6 +49,7 @@ import type { AppConfig, CableNode, CableSegment, CableSystem, DisallowedPair, A
 import { useTheme, type Theme } from '../theme'
 import { useAuth } from '../context/AuthContext'
 import { nodeLabelById } from '../utils/nodeLabel'
+import { SERVICE_IMPACT_LABEL, SERVICE_IMPACT_VALUES, impactColor, resolveImpact } from '../utils/outageImpact'
 /**
  * Tracks whether the viewport is narrower than the mobile breakpoint (768px),
  * re-checking on every window resize. Drives the modal's mobile-vs-desktop
@@ -1561,7 +1562,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
       fault_id: o.fault_id, fault_date: o.fault_date,
       repair_start: o.repair_start ?? '', estimated_repair_date: o.estimated_repair_date ?? '',
       planned_start: o.planned_start ?? '', planned_end: o.planned_end ?? '',
-      description: o.description,
+      description: o.description, service_impact: o.service_impact ?? '',
     })
     // Field set is conditional on the ROW's own event_type (not the live edit
     // buffer) — a row never changes kind mid-edit, only its dates/description.
@@ -1581,10 +1582,17 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
               <Field label="Fault Date"   k="fault_date"            src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD" />
               <Field label="Repair Start" k="repair_start"          src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD or TBC" />
               <Field label="ETA Repair"   k="estimated_repair_date" src={editValues} setSrc={setEditValues} placeholder="YYYY-MM-DD or TBC" />
+              <Field label="Service Impact" k="service_impact" src={editValues} setSrc={setEditValues}
+                options={[{ value: '', label: '— required —' }, ...SERVICE_IMPACT_VALUES.map(v => ({ value: v, label: SERVICE_IMPACT_LABEL[v] }))]} />
             </>
           )}
           <Field label="Description" k="description" src={editValues} setSrc={setEditValues} />
-          <SaveCancel onSave={() => saveEdit(() => api.updateOutage(o.fault_id, editValues as Partial<SegmentOutage>))} onCancel={() => setEditId(null)} />
+          <SaveCancel
+            onSave={() => saveEdit(() => api.updateOutage(o.fault_id, editValues as Partial<SegmentOutage>))}
+            onCancel={() => setEditId(null)}
+            disabled={!isPlanned && !editValues.service_impact}
+            disabledReason="Select a Service Impact before saving"
+          />
         </div>
       )
     }
@@ -1607,10 +1615,17 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
             <Field label="Fault Date *"  k="fault_date"            src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD" />
             <Field label="Repair Start"  k="repair_start"          src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD or TBC" />
             <Field label="ETA Repair"    k="estimated_repair_date" src={addValues} setSrc={setAddValues} placeholder="YYYY-MM-DD or TBC" />
+            <Field label="Service Impact *" k="service_impact" src={addValues} setSrc={setAddValues}
+              options={[{ value: '', label: '— required —' }, ...SERVICE_IMPACT_VALUES.map(v => ({ value: v, label: SERVICE_IMPACT_LABEL[v] }))]} />
           </>
         )}
         <Field label="Description *" k="description" src={addValues} setSrc={setAddValues} />
-        <SaveCancel onSave={() => saveAdd(() => api.createOutage(addValues as unknown as SegmentOutage))} onCancel={() => { setAdding(false); setAddValues({}) }} />
+        <SaveCancel
+          onSave={() => saveAdd(() => api.createOutage(addValues as unknown as SegmentOutage))}
+          onCancel={() => { setAdding(false); setAddValues({}) }}
+          disabled={!isAddingPlanned && !addValues.service_impact}
+          disabledReason="Select a Service Impact before saving"
+        />
       </div>
     )
 
@@ -1637,7 +1652,15 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
               )}
               {rows.map(o => (
                 <MobileCard key={o.fault_id} id={o.fault_id}
-                  title={o.fault_id}
+                  title={isPlanned ? o.fault_id : (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span
+                        title={SERVICE_IMPACT_LABEL[resolveImpact(o.service_impact)]}
+                        style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: impactColor(o.service_impact, t) }}
+                      />
+                      {o.fault_id}
+                    </span>
+                  )}
                   subtitle={<><code style={{ fontSize: 10 }}>{o.segment_id}</code> · {isPlanned ? 'raised' : 'faulted'} {o.fault_date}</>}
                   fields={isPlanned ? [
                     { label: 'Planned Start', value: o.planned_start ?? '—' },
@@ -1674,7 +1697,15 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
                 <div key={o.fault_id} style={rowStyle(editId === o.fault_id)}>
                   <div style={{ display: 'flex', alignItems: 'center', padding: '7px 20px', minHeight: 36 }}>
                     <div style={cell(2)}><code style={{ fontSize: 11 }}>{o.segment_id}</code></div>
-                    <div style={cell(2)}>{o.fault_id}</div>
+                    <div style={{ ...cell(2), display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {!isPlanned && (
+                        <span
+                          title={SERVICE_IMPACT_LABEL[resolveImpact(o.service_impact)]}
+                          style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: impactColor(o.service_impact, t) }}
+                        />
+                      )}
+                      {o.fault_id}
+                    </div>
                     <div style={cell(2)}>{o.fault_date}</div>
                     {isPlanned ? (
                       <>
@@ -2884,7 +2915,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     segments: { id: '', name: '', system_id: '', start_node_id: '', end_node_id: '', type: 'wet', length_km: 0, latency: 0, cost_weight: 1, reliability: 0.9999, ownership: 'consortium' },
     systems:  { id: '', name: '', description: '', margin: 8 },
     capacity: { segment_id: '', total_capacity_t: 1.0, available_capacity_t: 1.0 },
-    outages:  { segment_id: '', fault_id: '', fault_date: '', repair_start: '', estimated_repair_date: 'TBC', description: '', event_type: 'outage' },
+    outages:  { segment_id: '', fault_id: '', fault_date: '', repair_start: '', estimated_repair_date: 'TBC', description: '', event_type: 'outage', service_impact: '' },
     rules:    { node_id: '', kind: 'blacklist', system_a: '', system_b: '', reason: '' },
   }
   // Seed values for the Outages tab's dedicated "+ Add Planned Event" button

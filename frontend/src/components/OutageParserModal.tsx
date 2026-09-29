@@ -16,6 +16,18 @@
  * destructive, TYPE-SCOPED PUT /api/outages?event_type=... that wipes only the
  * CURRENT MODE's existing records and inserts the reviewed rows.
  *
+ * SERVICE IMPACT (outage mode only)
+ * Every matched outage row also carries a service_impact — Impacting /
+ * Partial Impacting / Non-Impacting (see utils/outageImpact.ts) — which the
+ * backend tries to resolve itself from the source text (looking for terms
+ * like "SERVICE IMPACTING" / "NON SERVICE IMPACTING") but leaves null
+ * whenever it isn't confident, rather than guessing. A matched row with no
+ * service_impact set is a HARD BLOCK on the whole "Accept All & Replace"
+ * action (see needsImpact/unresolvedImpactCount below) — unlike an
+ * unmatched segment, which is just silently excluded, an unresolved impact
+ * must be explicitly resolved by the reviewer before anything commits.
+ * Planned Events don't carry this field at all.
+ *
  * MODE (Outages vs Planned Events)
  * A segmented toggle at the top of the input stage picks `mode`
  * ('outage' | 'planned_event', default 'outage') — the SAME modal handles
@@ -42,7 +54,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { useTheme } from '../theme'
-import type { CableSegment, OutageEventType, ParsedOutage, SegmentOutage } from '../types'
+import type { CableSegment, OutageEventType, ParsedOutage, SegmentOutage, ServiceImpact } from '../types'
+import { SERVICE_IMPACT_LABEL, SERVICE_IMPACT_VALUES, impactColor } from '../utils/outageImpact'
 
 /** A review-table row. Same shape as the backend's ParsedOutage proposal — the
  *  row IS the proposal, edited in place as the engineer corrects it. */
@@ -66,6 +79,19 @@ function imagesFromClipboard(dt: DataTransfer): File[] {
 /** A row is savable only once it points at a real segment_id. */
 function isRowValid(r: Row): boolean {
   return !!r.segment_id && r.matched
+}
+
+/** True when an outage-mode row still needs an admin to pick a Service
+ *  Impact before it can be saved — separate from isRowValid (segment
+ *  matching) on purpose: an unresolved impact BLOCKS the whole commit
+ *  rather than being silently skipped like an unmatched segment is, per
+ *  the "confirm with the user if not sure" rule this field exists for. A
+ *  row that's already unmatched doesn't need one — it isn't going to save
+ *  either way, so surfacing a second unrelated warning on it would just be
+ *  noise. Never true for planned_event rows (mode !== 'outage'), which
+ *  don't carry this field at all. */
+function needsImpact(r: Row, mode: OutageEventType): boolean {
+  return mode === 'outage' && isRowValid(r) && !r.service_impact
 }
 
 /** Traffic-light colour for a row given its live (possibly edited) state. */
@@ -112,6 +138,11 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
 
   const validCount = rows ? rows.filter(isRowValid).length : 0
   const invalidCount = rows ? rows.length - validCount : 0
+  // Rows that HAVE a matched segment but still need Service Impact picked —
+  // these block the whole "Accept All & Replace" action (see needsImpact's
+  // own doc comment), unlike invalidCount above, which is only advisory.
+  const unresolvedImpactCount = rows ? rows.filter(r => needsImpact(r, mode)).length : 0
+  const canCommit = validCount > 0 && unresolvedImpactCount === 0
 
   // Mode-derived display strings/colour — keeps the destructive confirm text,
   // the "Accept All & Replace" button and the replaceAllOutages(payload, mode)
@@ -202,6 +233,7 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
     setRows(rs => ([...(rs ?? []), {
       segment_id: '', fault_id: '', fault_date: '', repair_start: null,
       estimated_repair_date: null, planned_start: null, planned_end: null, description: '',
+      service_impact: null,
       matched: false, confidence: 'none', candidates: [], raw_cable: '', raw_segment: '',
     }]))
   }
@@ -227,7 +259,7 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
         event_type: mode,
         ...(mode === 'planned_event'
           ? { planned_start: r.planned_start || undefined, planned_end: r.planned_end || undefined }
-          : { repair_start: r.repair_start || undefined, estimated_repair_date: r.estimated_repair_date || undefined }),
+          : { repair_start: r.repair_start || undefined, estimated_repair_date: r.estimated_repair_date || undefined, service_impact: r.service_impact ?? undefined }),
         description: r.description,
       }))
       await api.replaceAllOutages(payload, mode)
@@ -386,6 +418,7 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
                 </span>
                 <span style={{ color: t.green }}>● {validCount} ready</span>
                 {invalidCount > 0 && <span style={{ color: t.red }}>● {invalidCount} need a segment</span>}
+                {unresolvedImpactCount > 0 && <span style={{ color: t.red }}>● {unresolvedImpactCount} need Service Impact</span>}
                 <span style={{ color: t.textFaint }}>model: {modelUsed}</span>
                 <span style={{ flex: 1 }} />
                 <button onClick={() => { setRows(null); setError(null) }} style={{ fontSize: 11, color: t.textMuted, background: 'transparent', border: `1px solid ${t.border}`, borderRadius: 4, padding: '3px 10px', cursor: 'pointer' }}>← New input</button>
@@ -401,6 +434,7 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
                 <div style={{ width: 96 }}>{mode === 'planned_event' ? 'Date Raised' : 'Fault Date'}</div>
                 <div style={{ width: 96 }}>{mode === 'planned_event' ? 'Planned Start' : 'Repair Start'}</div>
                 <div style={{ width: 96 }}>{mode === 'planned_event' ? 'Planned End' : 'ETA Repair'}</div>
+                {mode === 'outage' && <div style={{ width: 130 }}>Service Impact</div>}
                 <div style={{ flex: 1 }}>Description</div>
                 <div style={{ width: 24 }} />
               </div>
@@ -446,6 +480,26 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
                         <div style={{ width: 96 }}><input value={r.estimated_repair_date ?? ''} onChange={e => patchRow(i, { estimated_repair_date: e.target.value || null })} placeholder="TBC" style={inp} /></div>
                       </>
                     )}
+                    {mode === 'outage' && (
+                      <div style={{ width: 130 }}>
+                        <select
+                          value={r.service_impact ?? ''}
+                          onChange={e => patchRow(i, { service_impact: (e.target.value || null) as ServiceImpact | null })}
+                          title={needsImpact(r, mode) ? 'Required — pick one before this can be saved' : undefined}
+                          style={{
+                            ...inp,
+                            borderColor: needsImpact(r, mode) ? t.red : t.border,
+                            color: r.service_impact ? impactColor(r.service_impact, t) : t.textFaint,
+                            fontWeight: r.service_impact ? 700 : 400,
+                          }}
+                        >
+                          <option value="">{needsImpact(r, mode) ? '— required —' : '— unset —'}</option>
+                          {SERVICE_IMPACT_VALUES.map(v => (
+                            <option key={v} value={v}>{SERVICE_IMPACT_LABEL[v]}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     <div style={{ flex: 1 }}>
                       <textarea value={r.description} onChange={e => patchRow(i, { description: e.target.value })}
                         style={{ ...inp, minHeight: 34, resize: 'vertical', lineHeight: 1.4 }} />
@@ -475,12 +529,18 @@ export function OutageParserModal({ segments, onClose, onReplaced }: {
                 {invalidCount} unmatched row{invalidCount === 1 ? '' : 's'} will be skipped.
               </span>
             )}
+            {unresolvedImpactCount > 0 && (
+              <span style={{ fontSize: 11, color: t.red, fontWeight: 700 }}>
+                {unresolvedImpactCount} row{unresolvedImpactCount === 1 ? '' : 's'} need{unresolvedImpactCount === 1 ? 's' : ''} Service Impact before you can continue.
+              </span>
+            )}
             <span style={{ flex: 1 }} />
             <button onClick={onClose} style={{ fontSize: 12, color: t.textMuted, background: 'transparent', border: `1px solid ${t.border}`, borderRadius: 5, padding: '8px 14px', cursor: 'pointer' }}>Cancel</button>
             <button
               onClick={() => setConfirming(true)}
-              disabled={validCount === 0}
-              style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: validCount === 0 ? t.textFaint : modeColor, border: 'none', borderRadius: 5, padding: '8px 16px', cursor: validCount === 0 ? 'default' : 'pointer' }}
+              disabled={!canCommit}
+              title={unresolvedImpactCount > 0 ? 'Every matched row needs Service Impact set before you can continue' : undefined}
+              style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: !canCommit ? t.textFaint : modeColor, border: 'none', borderRadius: 5, padding: '8px 16px', cursor: !canCommit ? 'default' : 'pointer' }}
             >
               Accept All &amp; Replace {modeLabelCap}s ({validCount})
             </button>

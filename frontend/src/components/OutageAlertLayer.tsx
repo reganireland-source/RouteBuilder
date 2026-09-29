@@ -62,10 +62,16 @@ export interface OutageAlertSegment {
   /** Full point sequence for the segment, already flattened the same way
    *  TravelingLightLayer's ActiveLightSegment.points is — see that type. */
   points: [number, number][]
+  /** The × marks' color — the worst service_impact across this segment's
+   *  active outage(s) (see utils/outageImpact.ts's impactColor/worstImpact),
+   *  computed by NetworkMap and handed down the same way
+   *  ActiveLightSegment.color is. */
+  color: string
 }
 
 interface Alert {
   markers: L.Marker[]
+  color: string
 }
 
 interface Props {
@@ -134,13 +140,25 @@ function pointAtFraction(points: [number, number][], frac: number): [number, num
  *  outage-alert mark. `animate` is resolved once at mount from
  *  prefersReducedMotion() — see that function's own doc comment for why
  *  reduced motion keeps the mark but drops the flash rather than hiding it. */
-function buildIcon(animate: boolean): L.DivIcon {
+function buildIcon(animate: boolean, color: string): L.DivIcon {
   return L.divIcon({
     className: 'rb-outage-alert-icon',
-    html: `<div class="rb-oa-x${animate ? ' rb-oa-flash' : ''}"></div>`,
+    html: `<div class="rb-oa-x${animate ? ' rb-oa-flash' : ''}" style="--rb-oa-color:${color}"></div>`,
     iconSize: [16, 16],
     iconAnchor: [8, 8],
   })
+}
+
+/** Same segment still down — only its color can have changed (e.g. its
+ *  worst outage was reclassified). Recolors in place rather than tearing
+ *  the markers down, matching TravelingLightLayer's own in-place recolor
+ *  for the same reason (no flicker/reset). Pulled out of the effect body
+ *  purely to keep that (already very large) effect's own cognitive-
+ *  complexity budget down. */
+function recolorAlert(alert: Alert, color: string, animate: boolean): void {
+  if (alert.color === color) return
+  for (const m of alert.markers) m.setIcon(buildIcon(animate, color))
+  alert.color = color
 }
 
 /**
@@ -173,13 +191,18 @@ export function OutageAlertLayer({ segments }: Props) {
     }
 
     for (const seg of segments) {
-      if (alerts.has(seg.id) || seg.points.length < 2) continue
+      if (seg.points.length < 2) continue
+      const existing = alerts.get(seg.id)
+      if (existing) {
+        recolorAlert(existing, seg.color, animate)
+        continue
+      }
       const markers = CROSS_FRACTIONS.map(frac =>
         L.marker(pointAtFraction(seg.points, frac), {
-          icon: buildIcon(animate), pane: PANE_NAME, interactive: false, keyboard: false,
+          icon: buildIcon(animate, seg.color), pane: PANE_NAME, interactive: false, keyboard: false,
         }).addTo(map),
       )
-      alerts.set(seg.id, { markers })
+      alerts.set(seg.id, { markers, color: seg.color })
     }
 
     return () => {
@@ -206,9 +229,9 @@ function OutageAlertStyles() {
         content: '';
         position: absolute; top: 50%; left: 50%;
         width: 17px; height: 3px; margin-top: -1.5px; margin-left: -8.5px;
-        background: #ef4444;
+        background: var(--rb-oa-color);
         border-radius: 1.5px;
-        box-shadow: 0 0 6px 1px #ef4444, 0 0 2px rgba(255,255,255,0.85);
+        box-shadow: 0 0 6px 1px var(--rb-oa-color), 0 0 2px rgba(255,255,255,0.85);
       }
       .rb-oa-x::before { transform: rotate(45deg); }
       .rb-oa-x::after { transform: rotate(-45deg); }

@@ -75,6 +75,11 @@ export interface Theme {
   green: string
   red: string
   orange: string
+  /** Third rung of the outage-materiality ladder (red=impacting,
+   *  orange=partial, yellow=non-impacting) — see utils/outageImpact.ts.
+   *  Not otherwise used elsewhere; red/orange already carry other meanings
+   *  (margin, capacity, on-net/off-net) that yellow doesn't need to match. */
+  yellow: string
   pink: string
   mapInactiveSegment: string
   mapTileUrl: string
@@ -109,6 +114,7 @@ export const darkTheme: Theme = {
   green:           '#a6e3a1',
   red:             '#f38ba8',
   orange:          '#fab387',
+  yellow:          '#f9e2af',
   pink:            '#f5c2e7',
   mapInactiveSegment: '#2a2a3e',
   mapTileUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
@@ -136,6 +142,7 @@ export const lightTheme: Theme = {
   green:           '#40a02b',
   red:             '#d20f39',
   orange:          '#fe640b',
+  yellow:          '#df8e1d',
   pink:            '#ea76cb',
   mapInactiveSegment: '#9090b8',
   mapTileUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
@@ -163,6 +170,7 @@ export const duskTheme: Theme = {
   green:           '#34c77a',
   red:             '#dc2626',
   orange:          '#ea6c00',
+  yellow:          '#ca8a04',
   pink:            '#be185d',
   mapInactiveSegment: '#8090aa',
   mapTileUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',

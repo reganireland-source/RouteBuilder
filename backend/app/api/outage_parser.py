@@ -149,6 +149,27 @@ cell has two dates, use the first and mention the second in the description.
 - description: the full status / critical-path text, kept faithful (you may tidy \
 whitespace). Preserve fault detail, km positions, repeater ids, and notes.
 - Skip blank spacer rows and header rows.
+- service_impact: how materially this fault affects customer traffic — look for \
+explicit language in the source, most often the literal terms "SERVICE IMPACTING" \
+/ "NON SERVICE IMPACTING" (or "NON-SERVICE IMPACTING"), but also equivalent \
+phrasing such as "customer impacting", "no customer impact", "degraded" / \
+"reduced capacity" / "partial capacity loss" / "protected, no outage to traffic". \
+Map it to exactly one of:
+  - "impacting" — the source states or clearly implies customer traffic IS down \
+on this fault (explicit "service impacting", "customers affected", "traffic \
+down", or the description otherwise makes plain a full outage).
+  - "non_impacting" — the source explicitly states no customer/service impact \
+(explicit "non service impacting", "no customer impact", "spare/dark fibre", \
+"redundant path unaffected").
+  - "partial_impacting" — the source describes a PARTIAL or DEGRADED effect \
+short of a full outage (reduced capacity, one of several protected paths down \
+but traffic still flowing on others, degraded but not lost).
+  - null — the source does not say, one way or the other. DO NOT GUESS: if the \
+text is silent on customer/service impact, return null rather than picking the \
+statistically likely answer. A human will be required to confirm any row you \
+return null for before it can be saved, so a genuine null is the correct, safe \
+answer whenever the source simply doesn't address it — it is not a failure to \
+return null, guessing wrong would be the failure.
 
 OUTPUT — return ONLY this JSON, no prose, no code fences:
 {
@@ -163,7 +184,8 @@ OUTPUT — return ONLY this JSON, no prose, no code fences:
       "fault_date": "YYYY-MM-DD",
       "repair_start": "YYYY-MM-DD" | null,
       "estimated_repair_date": "YYYY-MM-DD" | "TBC" | null,
-      "description": "<full text>"
+      "description": "<full text>",
+      "service_impact": "impacting" | "partial_impacting" | "non_impacting" | null
     }
   ]
 }"""
@@ -390,6 +412,13 @@ def _sse(obj: dict) -> str:
     return f"data: {json.dumps(obj)}\n\n"
 
 
+#: The only values the model is allowed to hand back for service_impact — see
+#: _SYSTEM_PROMPT's own field rules. Anything else (a hallucinated value, a
+#: stray string) is treated exactly like a genuine null: "needs a human to
+#: decide," never silently coerced to a guess.
+_VALID_SERVICE_IMPACTS = {"impacting", "partial_impacting", "non_impacting"}
+
+
 def _normalise_proposals(result, valid_ids: set, event_type: str = "outage") -> list:
     """Validate + normalise the model's raw rows into review proposals.
 
@@ -436,6 +465,14 @@ def _normalise_proposals(result, valid_ids: set, event_type: str = "outage") -> 
         raw_fault_id = (row.get("fault_id") or "").strip()
         placeholder = f"TMP-{uuid.uuid4().hex[:8].upper()}"
         fault_id = raw_fault_id if raw_fault_id and not _is_missing_ref(raw_fault_id) else placeholder
+        # Outage mode only — Planned Events don't carry a materiality
+        # classification (see SegmentOutage.service_impact's own docstring).
+        # A value the model returned that ISN'T one of the three real options
+        # (a hallucination, stray text) is treated the same as a genuine
+        # null: something a human still needs to resolve, never silently
+        # coerced into a guess.
+        raw_impact = (row.get("service_impact") or "").strip().lower()
+        service_impact = raw_impact if raw_impact in _VALID_SERVICE_IMPACTS else None
         proposals.append({
             "segment_id": seg_id,
             "fault_id": fault_id,
@@ -446,6 +483,7 @@ def _normalise_proposals(result, valid_ids: set, event_type: str = "outage") -> 
             "planned_end": (row.get("planned_end") or None) if is_planned else None,
             "description": (row.get("description") or "").strip(),
             "event_type": event_type,
+            "service_impact": None if is_planned else service_impact,
             "matched": matched,
             "confidence": confidence,
             "candidates": candidates,

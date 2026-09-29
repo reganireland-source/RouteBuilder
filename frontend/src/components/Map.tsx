@@ -63,7 +63,9 @@ import 'leaflet.gridlayer.googlemutant'
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet'
 import type { AssetFilterMatch, CableNode, CableSegment, CountryHighlight, HazardAssetView, HazardFeed, HazardOwnerView, HazardSeverity, KmlPathInfo, KmlPreviewLine, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
 import { isNodeOnNet, isSegmentOnNet } from '../utils/onNet'
+import { impactColor, worstImpact } from '../utils/outageImpact'
 import { useTheme } from '../theme'
+import type { Theme } from '../theme'
 import type { ManualState, NextHopCandidate } from './RouteManual'
 import { useSegmentHover } from '../context/SegmentHoverContext'
 import { normalizeLng, geoLines, NODE_STYLE, NODE_TYPE_LABEL } from '../mapGeometry'
@@ -799,7 +801,7 @@ function activeLightColorBySegment({
  */
 function computeActiveLightSegments({
   segments, segmentsById, nodesById, systemViewerActive, systemColorMap,
-  selectedGlowColor, selectedSegmentId, selectedColor, kmlMode, kmlPaths, outageSegIds,
+  selectedGlowColor, selectedSegmentId, selectedColor, kmlMode, kmlPaths, outagesBySegId, t,
 }: {
   segments: CableSegment[]
   segmentsById: Record<string, CableSegment>
@@ -811,7 +813,8 @@ function computeActiveLightSegments({
   selectedColor: string
   kmlMode: boolean
   kmlPaths: Record<string, KmlPathInfo>
-  outageSegIds: Set<string>
+  outagesBySegId: Record<string, SegmentOutage[]>
+  t: Theme
 }): { activeLightSegments: ActiveLightSegment[]; outageAlertSegments: OutageAlertSegment[] } {
   const colorByActiveSegment = activeLightColorBySegment({
     segments, systemViewerActive, systemColorMap, selectedGlowColor, selectedSegmentId, selectedColor,
@@ -827,8 +830,10 @@ function computeActiveLightSegments({
     const kml = kmlMode ? kmlPaths[seg.id] : undefined
     const points = geoLines(start.lat, start.lng, end.lat, end.lng, seg.waypoints ?? undefined, kml?.display_path).flat()
     if (points.length < 2) continue
-    if (outageSegIds.has(segId)) {
-      outageAlertSegments.push({ id: segId, points })
+    const segOutages = outagesBySegId[segId]
+    if (segOutages) {
+      const impact = worstImpact(segOutages.map(o => o.service_impact))
+      outageAlertSegments.push({ id: segId, points, color: impactColor(impact, t) })
     } else {
       activeLightSegments.push({ id: segId, points, color })
     }
@@ -987,7 +992,7 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
   // budget from growing).
   const { activeLightSegments, outageAlertSegments } = computeActiveLightSegments({
     segments, segmentsById, nodesById, systemViewerActive, systemColorMap,
-    selectedGlowColor, selectedSegmentId, selectedColor: t.blue, kmlMode, kmlPaths, outageSegIds,
+    selectedGlowColor, selectedSegmentId, selectedColor: t.blue, kmlMode, kmlPaths, outagesBySegId, t,
   })
 
   // Nodes for routes/pins
@@ -1145,6 +1150,9 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         if (!start || !end) return []
 
         const isDown = outageSegIds.has(seg.id)
+        const segImpactColor = isDown
+          ? impactColor(worstImpact((outagesBySegId[seg.id] ?? []).map(o => o.service_impact)), t)
+          : null
         // Surveyed route when we have one and the mode is on; otherwise the
         // waypoint spline exactly as before.
         const kml = kmlMode ? kmlPaths[seg.id] : undefined
@@ -1185,7 +1193,7 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
               <br />{start.name} → {end.name} · {seg.length_km.toLocaleString()} km
               {segFaults.map(f => (
                 <span key={f.fault_id}>
-                  <br /><strong style={{ color: '#ef4444' }}>{f.fault_id}</strong> · {f.fault_date}
+                  <br /><strong style={{ color: impactColor(f.service_impact, t) }}>{f.fault_id}</strong> · {f.fault_date}
                   {f.repair_start && <> · repair {f.repair_start}</>}
                   <br /><span style={{ fontSize: 11 }}>{f.description}</span>
                 </span>
@@ -1193,7 +1201,7 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
             </Tooltip>
           )
           const pathOptions = {
-            color: '#ef4444', weight: 2.5, opacity: 0.95, dashArray: '6 3 2 3',
+            color: segImpactColor ?? t.red, weight: 2.5, opacity: 0.95, dashArray: '6 3 2 3',
           }
           return lines.map((positions, i) => (
             <Polyline key={`${seg.id}-${i}`} positions={positions} pathOptions={pathOptions}>
@@ -1245,7 +1253,7 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         // Only highlight as downed when segment is on an active route/pin
         const showAsDown = isDown && isActiveSegment
         let pathOptions = {
-          color:     showAsDown ? '#ef4444' : color,
+          color:     showAsDown ? (segImpactColor ?? t.red) : color,
           weight:    showAsDown ? 2.5 : weight,
           opacity:   showAsDown ? 0.95 : opacity,
           dashArray: showAsDown ? '6 3 2 3' : seg.type === 'terrestrial' ? '6 4' : undefined,

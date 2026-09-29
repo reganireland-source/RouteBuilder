@@ -54,6 +54,7 @@ import {
 } from '../utils/serviceDate'
 import { useTheme } from '../theme'
 import { api } from '../api/client'
+import { worstImpact, SERVICE_IMPACT_LABEL, impactColor } from '../utils/outageImpact'
 import { SolutionNotesOverlay } from './SolutionNotesOverlay'
 import { SegmentFullView } from './SegmentFullView'
 import { useSegmentHover } from '../context/SegmentHoverContext'
@@ -429,6 +430,15 @@ function computeRouteMargin(route: Route, systemsById: Record<string, CableSyste
  *  (drives the red "UNDER REPAIR" badge and the outage push-down sort). */
 function routeHasOutage(route: Route, outagesById: Record<string, SegmentOutage>): boolean {
   return route.segments.some(s => !!outagesById[s.segment_id])
+}
+
+/** The single most severe service_impact across all of a route's outaged
+ *  hops — drives OutageBadge's colour/label. A route touching more than one
+ *  outage is shown as no less severe than its worst one (see worstImpact's
+ *  own doc comment on why unset counts as "impacting"). Only meaningful
+ *  when routeHasOutage is already true. */
+function routeOutageImpact(route: Route, outagesById: Record<string, SegmentOutage>) {
+  return worstImpact(route.segments.map(s => outagesById[s.segment_id]?.service_impact))
 }
 
 /** True if any of the route's hops has a future planned-work entry in
@@ -1226,6 +1236,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
   const estCapColor = estCap < 0.5 ? t.red : estCap < 1.0 ? t.orange : t.green
   const hasOutage = routeHasOutage(route, outagesById)
   const repairDateLabel = hasOutage ? latestRepairDate(route, outagesById) : ''
+  const outageImpact = hasOutage ? routeOutageImpact(route, outagesById) : null
   const hasPlanned = routeHasPlannedEvent(route, plannedById)
   const plannedStartLabel = hasPlanned ? earliestPlannedStart(route, plannedById) : ''
   const routeMargin = computeRouteMargin(route, systemsById)
@@ -1337,7 +1348,7 @@ function PinnedRouteCard({ pinned, onUnpin, nodesById, capacityById, outagesById
             <span style={{ fontSize: 11, fontWeight: 400, color: t.textMuted }}>{wetSystems.join(' · ')}</span>
             <NetBadge route={route} onNetSet={onNetSet} />
             <MarginBadge margin={routeMargin} />
-            {hasOutage && <OutageBadge repairDate={repairDateLabel} />}
+            {hasOutage && outageImpact && <OutageBadge repairDate={repairDateLabel} color={impactColor(outageImpact, t)} impactLabel={SERVICE_IMPACT_LABEL[outageImpact]} />}
             {hasPlanned && <PlannedEventBadge startDate={plannedStartLabel} />}
           {lifecycle && <RouteLifecycleBadge lifecycle={lifecycle} />}
           </div>
@@ -1486,6 +1497,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
   const pinDisabled = !isPinned && !canPin
   const hasOutage = routeHasOutage(route, outagesById)
   const repairDateLabel = hasOutage ? latestRepairDate(route, outagesById) : ''
+  const outageImpact = hasOutage ? routeOutageImpact(route, outagesById) : null
   const hasPlanned = routeHasPlannedEvent(route, plannedById)
   const plannedStartLabel = hasPlanned ? earliestPlannedStart(route, plannedById) : ''
   const routeMargin = computeRouteMargin(route, systemsById)
@@ -1513,7 +1525,7 @@ function RouteCard({ route, selected, onSelect, nodesById, capacityById, outages
           <span style={{ fontSize: 11, fontWeight: 400, color: t.textMuted }}>{wetSystems.join(' · ')}</span>
           <NetBadge route={route} onNetSet={onNetSet} />
           <MarginBadge margin={routeMargin} />
-          {hasOutage && <OutageBadge repairDate={repairDateLabel} />}
+          {hasOutage && outageImpact && <OutageBadge repairDate={repairDateLabel} color={impactColor(outageImpact, t)} impactLabel={SERVICE_IMPACT_LABEL[outageImpact]} />}
           {hasPlanned && <PlannedEventBadge startDate={plannedStartLabel} />}
           {lifecycle && <RouteLifecycleBadge lifecycle={lifecycle} />}
         </div>
@@ -2117,20 +2129,24 @@ function earliestPlannedStart(route: Route, plannedById: Record<string, SegmentO
   return formatRepairDate(isoDates[0])
 }
 
-/** Loud red "UNDER REPAIR" pill plus the latest estimated repair date, shown
- *  on a route card when any of its hops has a live outage. */
-function OutageBadge({ repairDate }: { repairDate: string }) {
-  const t = useTheme()
+/** "UNDER REPAIR" pill plus the latest estimated repair date, shown on a
+ *  route card when any of its hops has a live outage — coloured by the
+ *  worst service_impact across those hops (red=impacting, orange=partial,
+ *  yellow=non-impacting; see routeOutageImpact/utils/outageImpact.ts). The
+ *  pill's own text stays "UNDER REPAIR" regardless of impact (that's a
+ *  statement about the CABLE, which is true at every impact level); the
+ *  impact label itself is the second, colour-matched line. */
+function OutageBadge({ repairDate, color, impactLabel }: { repairDate: string; color: string; impactLabel: string }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
       <span style={{
         fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 3,
         letterSpacing: '0.04em',
-        background: t.red + '22', color: t.red, border: `1px solid ${t.red + '55'}`,
+        background: color + '22', color, border: `1px solid ${color + '55'}`,
       }}>
-        ⚠ 🚢 UNDER REPAIR
+        ⚠ 🚢 UNDER REPAIR · {impactLabel.toUpperCase()}
       </span>
-      <span style={{ fontSize: 10, color: t.red, fontWeight: 600 }}>{repairDate}</span>
+      <span style={{ fontSize: 10, color, fontWeight: 600 }}>{repairDate}</span>
     </span>
   )
 }
