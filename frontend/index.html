@@ -92,7 +92,18 @@
         pointer-events: none !important;
       }
       .node-label::before { display: none !important; }
+      /* width: max-content is load-bearing, not decoration: a Leaflet
+         tooltip pane has no intrinsic width of its own (every child is
+         absolutely positioned), so with only max-width set the browser's
+         shrink-to-fit sizing algorithm resolves the "available width" for
+         wrapping against that zero-width container instead of this
+         element's own content — collapsing it to a couple of pixels and,
+         combined with word-break, wrapping the tooltip one character per
+         line. max-content sizes to the content's own preferred width first
+         (ignoring the container), and max-width then clamps that down for
+         a long description exactly as intended. */
       .outage-tooltip {
+        width: max-content !important;
         max-width: 320px !important;
         white-space: normal !important;
         word-break: break-word !important;
