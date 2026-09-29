@@ -44,11 +44,16 @@ import { useMap } from 'react-leaflet'
 
 /** Same stacking idea as TravelingLightLayer's own pane: above the cable
  *  lines and node markers so a flashing × is never hidden under the line it
- *  sits on. One above the traveling light's pane (660 vs 650) purely so
+ *  sits on. One above the traveling light's pane (648 vs 645) purely so
  *  that if a segment were ever (briefly, mid-transition) in both sets, the
- *  outage alert reads as the more urgent of the two. */
+ *  outage alert reads as the more urgent of the two. Both stay below
+ *  Leaflet's own built-in tooltipPane (650) and popupPane (700): this pane
+ *  used to sit at 660, ABOVE tooltipPane, so hovering an outaged/active
+ *  segment drew its × marks straight over the open outage tooltip's text
+ *  instead of under it — a flashing marker must never outrank the info
+ *  card explaining it. */
 const PANE_NAME = 'rb-outage-alert'
-const PANE_Z = 660
+const PANE_Z = 648
 
 /** Where along the segment (as a fraction of its total length, 0..1) each
  *  of the two × marks sits. Not the exact midpoint and not the endpoints —

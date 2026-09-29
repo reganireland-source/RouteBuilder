@@ -35,9 +35,13 @@ import { useMap } from 'react-leaflet'
 /** Our own pane, ABOVE the cable lines and node markers (400+) — the whole
  *  point is a light traveling ON a cable, so it must never be hidden under
  *  the line it represents (contrast LivingWorldLayer's pane at 350, which
- *  is deliberately UNDER the cables). */
+ *  is deliberately UNDER the cables). Kept below Leaflet's own built-in
+ *  tooltipPane (650) and popupPane (700) — a segment's info card/outage
+ *  tooltip must always read on top of a decorative marker, never the other
+ *  way round; see OutageAlertLayer.tsx's own pane for the sibling half of
+ *  this same constraint. */
 const PANE_NAME = 'rb-traveling-light'
-const PANE_Z = 650
+const PANE_Z = 645
 
 /** One-way traversal duration, in ms, as a function of the segment's real
  *  length — a 50km backhaul and a 10,000km trunk should not take the same
