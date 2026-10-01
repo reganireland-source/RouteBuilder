@@ -2669,7 +2669,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
   // ── Page 10: Post-August Rebuild Guide ─────────────────────────────────────
   // Internal IT reference: a condensed index into the standalone "RouteBuilder
   // Post-August Feature Rebuild Guide" PDF (prepared separately and handed to
-  // IT directly — a 66-page document with full design overviews, solution
+  // IT directly — a 68-page document with full design overviews, solution
   // approaches, and all 33 agentic GitHub Copilot prompts, one far too long to
   // reproduce verbatim in this in-app guide). This page exists so the priority
   // tiers, their twelve subsystems, and the prompting methodology are still
@@ -2686,22 +2686,25 @@ export function UserGuide({ nodes, segments, systems }: Props) {
   //       amalgamated section into two separately-prioritised pieces once one
   //       half was confirmed critical and the other confirmed deferrable
   //       (Map Style/Accessibility stayed whole — both halves turned out
-  //       critical — but Network Editor split into Full View + topology
-  //       editing, Motion split into live-feedback animations + ambient/
-  //       controls polish, and KML's submarinecablemap.com sync split out
-  //       from the rest of that pipeline over an added security/ToS review).
+  //       critical — Network Editor split into Full View + topology editing,
+  //       and both halves are now P0: Full View was elevated first, and
+  //       topology/waypoint editing itself was confirmed equally critical in
+  //       a later pass, reversing its original P1 placement — Motion split
+  //       into live-feedback animations + ambient/controls polish, and KML's
+  //       submarinecablemap.com sync split out from the rest of that pipeline
+  //       over an added integration-risk/security review).
   // Keep REBUILD_TIERS in sync with the PDF's own Appendix table if either
   // document's tier/subsystem grouping ever changes again.
   const REBUILD_TIERS = [
     { n: '0', title: 'P0 — Critical', color: '#f38ba8', bg: '#2a0c15',
       desc: 'Data-correctness-blocking, confirmed live-operational priority, and the specific usability-critical surfaces named directly in the interview.',
-      items: ['Core Reference Data Integrity', 'Outage & Planned-Event Management + Service Impact', 'Asset Search & Asset Filter', 'Map Style & Visual Accessibility', 'Node & Segment Full View', 'Live-Network Feedback Animations (traveling light, outage alerts)'] },
+      items: ['Core Reference Data Integrity', 'Outage & Planned-Event Management + Service Impact', 'Asset Search & Asset Filter', 'Map Style & Visual Accessibility', 'Node & Segment Full View', 'Live-Network Feedback Animations (traveling light, outage alerts)', 'Network Editor (topology editing & waypoint management)'] },
     { n: '1', title: 'P1 — Medium', color: '#34d399', bg: '#0c2419',
       desc: 'Real operational value, but none of these block anything else and none were flagged as urgent.',
-      items: ['Network Editor (topology editing)', 'Network Hazards', 'KML Cable Geometry Pipeline (core upload/library/chop/export)'] },
+      items: ['Network Hazards', 'KML Cable Geometry Pipeline (core upload/library/chop/export)'] },
     { n: '2', title: 'P2 — Lower / Deferred', color: '#f9e2af', bg: '#2a2309',
-      desc: 'Explicitly deferred (pending a security/ToS review), or lower-leverage polish/platform-reach/strategic-tooling work with no functional risk if delayed.',
-      items: ['submarinecablemap.com sync (split from the KML pipeline — needs a ToS/security review)', 'Cable Import Wizard', 'Mobile & Square-Display Adaptation', 'Controls Navigation & Ambient Polish'] },
+      desc: 'Explicitly deferred (integration risk pending IT approval, or lower-leverage polish/platform-reach work) with no functional risk if delayed.',
+      items: ['submarinecablemap.com sync (split from the KML pipeline — integration risk)', 'Cable Import Wizard (incl. AI research pre-fill — integration risk)', 'Mobile & Square-Display Adaptation', 'Controls Navigation & Ambient Polish (incl. Living World ambient ocean)'] },
   ]
   const rebuildGuidePage = (
     <div style={{
@@ -2831,10 +2834,13 @@ export function UserGuide({ nodes, segments, systems }: Props) {
       <div style={{ ...card({ borderLeft: `4px solid ${t.orange}`, paddingLeft: 14 }) }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: t.orange, marginBottom: 8 }}>Deliberately Out of Scope</div>
         <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.7, margin: 0 }}>
-          The document does not cover the large volume of SonarQube/security-remediation work also built since
-          1 August (hardened Docker builds, rate limiting, CSP headers, dependency CVE fixes, and similar) — Enterprise
-          IT's own hardening and restructuring effort supersedes that work directly. Re-prompting Copilot to rebuild
-          security hardening IT is independently redoing would be wasted effort.
+          Any security- or hardening-flavoured work is out of scope for this document as a standing principle, not a
+          one-off exclusion — it happens through Enterprise IT's own procedures, confirmed explicitly in the
+          stakeholder interview. Concretely, the document does not cover the large volume of SonarQube/security-
+          remediation work also built since 1 August (hardened Docker builds, rate limiting, CSP headers, dependency
+          CVE fixes, and similar) — Enterprise IT's own hardening and restructuring effort supersedes that work
+          directly, and their hardened baseline may already exceed what's described here. This same principle is why
+          Authentication & Identity is reference-only, built directly by IT rather than Copilot-prompted.
         </p>
       </div>
     </div>
