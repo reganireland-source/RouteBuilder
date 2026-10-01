@@ -2669,26 +2669,39 @@ export function UserGuide({ nodes, segments, systems }: Props) {
   // ── Page 10: Post-August Rebuild Guide ─────────────────────────────────────
   // Internal IT reference: a condensed index into the standalone "RouteBuilder
   // Post-August Feature Rebuild Guide" PDF (prepared separately and handed to
-  // IT directly — a 65-page document with full design overviews, solution
-  // approaches, and all 36 agentic GitHub Copilot prompts, one far too long to
-  // reproduce verbatim in this in-app guide). This page exists so the four
-  // build phases, their eleven subsystems, and the prompting methodology are
-  // still discoverable from inside the app itself, without requiring the
-  // separate PDF to be open. Keep PHASES in sync with that PDF's own Appendix
-  // table if either document's phase/subsystem grouping ever changes.
-  const REBUILD_PHASES = [
-    { n: '1', title: 'Foundation', color: '#60a5fa', bg: '#0c1a33',
-      desc: 'Everything else either requires a logged-in admin or touches the reference data these harden.',
-      items: ['Authentication & Identity (Okta SSO + Entra ID/MSAL)', 'Core Reference Data Integrity (RFS/EOL lifecycle, bulk import/export hardening)'] },
-    { n: '2', title: 'Core Workflows', color: '#34d399', bg: '#0c2419',
-      desc: 'The main data-entry and data-discovery surfaces of the app.',
-      items: ['Network Editor & Asset Detail Views', 'KML Cable Geometry Pipeline', 'Cable Import Wizard', 'Asset Search & Asset Filter'] },
-    { n: '3', title: 'Operational Features', color: '#f9e2af', bg: '#2a2309',
-      desc: 'Features that layer live operational risk signal onto the network model from Phase 2.',
-      items: ['Outage & Planned-Event Management (AI-assisted, Service Impact classification)', 'Network Hazards'] },
-    { n: '4', title: 'UX & Platform Layer', color: '#cba6f7', bg: '#201530',
-      desc: 'Polish and platform-reach work that assumes the underlying features already exist to animate, filter, or adapt.',
-      items: ['Motion, Live-Feedback & Controls Navigation System', 'Map Style & Visual Accessibility', 'Mobile & Square-Display Adaptation'] },
+  // IT directly — a 66-page document with full design overviews, solution
+  // approaches, and all 33 agentic GitHub Copilot prompts, one far too long to
+  // reproduce verbatim in this in-app guide). This page exists so the priority
+  // tiers, their twelve subsystems, and the prompting methodology are still
+  // discoverable from inside the app itself, without requiring the separate
+  // PDF to be open.
+  //
+  // The tier/subsystem grouping below is NOT the original dependency-only
+  // ordering — it was set through a live stakeholder interview (see the PDF's
+  // own "How priority was set" section for the full reasoning trail) that:
+  //   (a) pulled Authentication & Identity out of the Copilot-prompt sequence
+  //       entirely (IT builds it directly against the real tenant — see the
+  //       standalone note below the hero), and
+  //   (b) split several subsystems that were originally written as ONE
+  //       amalgamated section into two separately-prioritised pieces once one
+  //       half was confirmed critical and the other confirmed deferrable
+  //       (Map Style/Accessibility stayed whole — both halves turned out
+  //       critical — but Network Editor split into Full View + topology
+  //       editing, Motion split into live-feedback animations + ambient/
+  //       controls polish, and KML's submarinecablemap.com sync split out
+  //       from the rest of that pipeline over an added security/ToS review).
+  // Keep REBUILD_TIERS in sync with the PDF's own Appendix table if either
+  // document's tier/subsystem grouping ever changes again.
+  const REBUILD_TIERS = [
+    { n: '0', title: 'P0 — Critical', color: '#f38ba8', bg: '#2a0c15',
+      desc: 'Data-correctness-blocking, confirmed live-operational priority, and the specific usability-critical surfaces named directly in the interview.',
+      items: ['Core Reference Data Integrity', 'Outage & Planned-Event Management + Service Impact', 'Asset Search & Asset Filter', 'Map Style & Visual Accessibility', 'Node & Segment Full View', 'Live-Network Feedback Animations (traveling light, outage alerts)'] },
+    { n: '1', title: 'P1 — Medium', color: '#34d399', bg: '#0c2419',
+      desc: 'Real operational value, but none of these block anything else and none were flagged as urgent.',
+      items: ['Network Editor (topology editing)', 'Network Hazards', 'KML Cable Geometry Pipeline (core upload/library/chop/export)'] },
+    { n: '2', title: 'P2 — Lower / Deferred', color: '#f9e2af', bg: '#2a2309',
+      desc: 'Explicitly deferred (pending a security/ToS review), or lower-leverage polish/platform-reach/strategic-tooling work with no functional risk if delayed.',
+      items: ['submarinecablemap.com sync (split from the KML pipeline — needs a ToS/security review)', 'Cable Import Wizard', 'Mobile & Square-Display Adaptation', 'Controls Navigation & Ambient Polish'] },
   ]
   const rebuildGuidePage = (
     <div style={{
@@ -2713,16 +2726,27 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           </div>
           <p style={{ fontSize: 14, color: 'rgba(221,214,254,0.9)', lineHeight: 1.7, maxWidth: 620, margin: '0 0 16px' }}>
             Enterprise IT hardened and restructured RouteBuilder from the 1 August codebase. Every feature built on
-            top of that baseline since then — eleven major subsystems, roughly 140 commits of work — needs to be
-            re-implemented on the new, hardened foundation using GitHub Copilot inside the IDE, rather than carried
-            over file-for-file from the old codebase.
+            top of that baseline since then — twelve Copilot-prompted subsystems, roughly 140 commits of work — needs
+            to be re-implemented on the new, hardened foundation using GitHub Copilot inside the IDE, rather than
+            carried over file-for-file from the old codebase.
           </p>
           <p style={{ fontSize: 12, color: 'rgba(196,181,253,0.8)', maxWidth: 620, lineHeight: 1.6, margin: 0 }}>
-            The full reference — design overviews, solution approaches, and all <strong style={{ color: '#c4b5fd' }}>36 agentic Copilot prompts</strong> —
+            The full reference — design overviews, solution approaches, and all <strong style={{ color: '#c4b5fd' }}>33 agentic Copilot prompts</strong> —
             is prepared as a standalone PDF handed directly to IT. This page is a condensed index into that document, kept
             inside the app so the build plan stays discoverable without it open.
           </p>
         </div>
+      </div>
+
+      {/* Auth excluded */}
+      <div style={{ ...card({ borderLeft: `4px solid ${t.blue}`, paddingLeft: 14 }), marginBottom: 32 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: t.blue, marginBottom: 8 }}>Authentication & Identity Is Built Directly by IT</div>
+        <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.7, margin: 0 }}>
+          Identity and authentication will be rebuilt directly by Enterprise IT's own engineers against the
+          organisation's real Okta/Entra tenant — not prompted through Copilot like the subsystems below. The
+          original design overview and solution approach are kept as reference material in the PDF's Appendix A, not
+          as a Copilot-prompt target. Every tier below assumes authentication already exists.
+        </p>
       </div>
 
       {/* Why spec-first */}
@@ -2739,11 +2763,11 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         </p>
       </div>
 
-      {/* The four phases */}
+      {/* The priority tiers */}
       <div style={{ marginBottom: 32 }}>
-        <div style={sectionLabel}>Four Build Phases, Ordered by Dependency and Risk</div>
+        <div style={sectionLabel}>Build Priority, Set Through a Stakeholder Interview</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
-          {REBUILD_PHASES.map(({ n, title, color, bg, desc, items }) => (
+          {REBUILD_TIERS.map(({ n, title, color, bg, desc, items }) => (
             <div key={n} style={{ background: bg, border: `1px solid ${color}33`, borderRadius: 10, padding: '16px 18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <span style={{
@@ -2796,7 +2820,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             'Review every diff before accepting — agentic Copilot will confidently restructure files it did not need to touch if left unchecked.',
             'Run the acceptance criteria as literal checks, not vibes — several are precise enough to turn directly into a unit test.',
             'When a prompt says "ask me if ambiguous," actually stop and answer before letting Copilot proceed.',
-            'Prompts within a subsystem are sequenced on purpose — a later prompt usually assumes an earlier one’s data model or API surface already exists. Do not start a later phase before the phases above it are functionally complete.',
+            'Prompts within a subsystem are sequenced on purpose — a later prompt usually assumes an earlier one’s data model or API surface already exists. Do not start a lower-priority tier before every tier above it is functionally complete.',
           ].map(rule => (
             <div key={rule} style={{ ...card(), fontSize: 12, color: t.textMuted, lineHeight: 1.6 }}>{rule}</div>
           ))}
