@@ -7,12 +7,14 @@
  * MobileLayout) as a portal overlay when the user clicks the RouteBuilder logo /
  * the "?" help tab; App wraps it in a fixed backdrop with a close button.
  *
- * It paginates (state `page`, 1..9 — see the `Page` type) through: a
+ * It paginates (state `page`, 1..10 — see the `Page` type) through: a
  * step-by-step how-to (the STEPS array — open RouteFinder, pick endpoints, set
  * diversity, add constraints, search, review/sort, pin & export), a product
  * roadmap (ROADMAP), a feature-request form that reads/writes via
- * api.getFeatureRequests / submitFeatureRequest, and a Product History metro
- * map of everything shipped so far (ProductHistory.tsx).
+ * api.getFeatureRequests / submitFeatureRequest, a Product History metro
+ * map of everything shipped so far (ProductHistory.tsx), and a condensed index
+ * (page 10) into the standalone Post-August Feature Rebuild Guide PDF handed
+ * to Enterprise IT.
  *
  * Notable behaviour: it can also "print all" — when `printAll` is set it injects
  * a print stylesheet and renders every page into a hidden print portal so the
@@ -59,7 +61,7 @@ const ROADMAP = [
 
 /** The guide's pages, in tab order. Kept as a named type so adding a page is
  *  one edit here plus one row in `pageTabs` — not a hunt through unions. */
-type Page = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+type Page = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10
 
 /**
  * Props for {@link UserGuide}.
@@ -91,7 +93,7 @@ interface Props {
  * does not fetch network data itself.
  *
  * State machine, in brief:
- *  - `page` (1–9) selects which of the nine guide pages is shown; each page's
+ *  - `page` (1–10) selects which of the ten guide pages is shown; each page's
  *    JSX is built as a local `const` (e.g. `overview`, `arch`, `algo`, …)
  *    further down, and a chain of `if (page === N) return <pageConst>`
  *    statements does the actual switching (see below in this function body).
@@ -506,6 +508,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         [7, '🔒 IT & Enterprise'],
         [8, '🧪 Algo Evaluation'],
         [9, '🕹 Product History'],
+        [10, '🧭 Rebuild Guide'],
       ] as [Page, string][]).map(([p, label]) => (
         <button
           key={p}
@@ -2663,6 +2666,157 @@ export function UserGuide({ nodes, segments, systems }: Props) {
 
   if (page === 9 && !printAll) return historyPage
 
+  // ── Page 10: Post-August Rebuild Guide ─────────────────────────────────────
+  // Internal IT reference: a condensed index into the standalone "RouteBuilder
+  // Post-August Feature Rebuild Guide" PDF (prepared separately and handed to
+  // IT directly — a 65-page document with full design overviews, solution
+  // approaches, and all 36 agentic GitHub Copilot prompts, one far too long to
+  // reproduce verbatim in this in-app guide). This page exists so the four
+  // build phases, their eleven subsystems, and the prompting methodology are
+  // still discoverable from inside the app itself, without requiring the
+  // separate PDF to be open. Keep PHASES in sync with that PDF's own Appendix
+  // table if either document's phase/subsystem grouping ever changes.
+  const REBUILD_PHASES = [
+    { n: '1', title: 'Foundation', color: '#60a5fa', bg: '#0c1a33',
+      desc: 'Everything else either requires a logged-in admin or touches the reference data these harden.',
+      items: ['Authentication & Identity (Okta SSO + Entra ID/MSAL)', 'Core Reference Data Integrity (RFS/EOL lifecycle, bulk import/export hardening)'] },
+    { n: '2', title: 'Core Workflows', color: '#34d399', bg: '#0c2419',
+      desc: 'The main data-entry and data-discovery surfaces of the app.',
+      items: ['Network Editor & Asset Detail Views', 'KML Cable Geometry Pipeline', 'Cable Import Wizard', 'Asset Search & Asset Filter'] },
+    { n: '3', title: 'Operational Features', color: '#f9e2af', bg: '#2a2309',
+      desc: 'Features that layer live operational risk signal onto the network model from Phase 2.',
+      items: ['Outage & Planned-Event Management (AI-assisted, Service Impact classification)', 'Network Hazards'] },
+    { n: '4', title: 'UX & Platform Layer', color: '#cba6f7', bg: '#201530',
+      desc: 'Polish and platform-reach work that assumes the underlying features already exist to animate, filter, or adapt.',
+      items: ['Motion, Live-Feedback & Controls Navigation System', 'Map Style & Visual Accessibility', 'Mobile & Square-Display Adaptation'] },
+  ]
+  const rebuildGuidePage = (
+    <div style={{
+      maxWidth: 860, margin: '0 auto', padding: '0 16px 60px',
+      fontFamily: 'system-ui, sans-serif', color: t.text,
+    }}>
+      {!printAll && pageTabs}
+
+      {/* Hero */}
+      <div style={{
+        background: 'linear-gradient(135deg, #150b2e 0%, #2a1a5c 55%, #1e2d5f 100%)',
+        borderRadius: 12, padding: '44px 40px 40px', marginBottom: 28,
+        position: 'relative', overflow: 'hidden',
+      }}>
+        <div style={{ position: 'absolute', right: -40, top: -40, width: 220, height: 220, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
+        <div style={{ position: 'relative' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(196,181,253,0.85)', marginBottom: 10 }}>
+            Enterprise IT · GitHub Copilot Handoff
+          </div>
+          <div style={{ fontSize: 32, fontWeight: 800, color: '#fff', lineHeight: 1.15, marginBottom: 8 }}>
+            🧭 Post-August Feature Rebuild Guide
+          </div>
+          <p style={{ fontSize: 14, color: 'rgba(221,214,254,0.9)', lineHeight: 1.7, maxWidth: 620, margin: '0 0 16px' }}>
+            Enterprise IT hardened and restructured RouteBuilder from the 1 August codebase. Every feature built on
+            top of that baseline since then — eleven major subsystems, roughly 140 commits of work — needs to be
+            re-implemented on the new, hardened foundation using GitHub Copilot inside the IDE, rather than carried
+            over file-for-file from the old codebase.
+          </p>
+          <p style={{ fontSize: 12, color: 'rgba(196,181,253,0.8)', maxWidth: 620, lineHeight: 1.6, margin: 0 }}>
+            The full reference — design overviews, solution approaches, and all <strong style={{ color: '#c4b5fd' }}>36 agentic Copilot prompts</strong> —
+            is prepared as a standalone PDF handed directly to IT. This page is a condensed index into that document, kept
+            inside the app so the build plan stays discoverable without it open.
+          </p>
+        </div>
+      </div>
+
+      {/* Why spec-first */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel}>Written Spec-First and Clean-Room, On Purpose</div>
+        <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.7, margin: 0 }}>
+          Every section describes <em>what</em> a feature does and <em>why</em>, never <em>which file to copy from</em>.
+          The restructured codebase may organise its backend, its data layer, its component boundaries, or its auth
+          model differently from the original — a prompt that says "add a field to a specific file at a specific line"
+          is worthless the moment the file layout changes, but a prompt that says "extend the outage record with a
+          required three-state classification field, validated at save time, with these exact business rules" survives
+          any amount of restructuring. Each design overview is the source of truth for behaviour; each prompt is a
+          starting instruction to an AI pair programmer, not a literal patch.
+        </p>
+      </div>
+
+      {/* The four phases */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel}>Four Build Phases, Ordered by Dependency and Risk</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+          {REBUILD_PHASES.map(({ n, title, color, bg, desc, items }) => (
+            <div key={n} style={{ background: bg, border: `1px solid ${color}33`, borderRadius: 10, padding: '16px 18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: 20, height: 20, borderRadius: '50%', background: color, color: '#1a1a2e',
+                  fontSize: 11, fontWeight: 800, flexShrink: 0,
+                }}>{n}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color }}>{title}</span>
+              </div>
+              <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6, margin: '0 0 10px' }}>{desc}</p>
+              <ul style={{ margin: 0, paddingLeft: 16 }}>
+                {items.map(it => (
+                  <li key={it} style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6, marginBottom: 2 }}>{it}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* How each subsystem section is structured */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel}>Each Subsystem Section Has Three Parts</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[
+            { n: '1', title: 'Design Overview', desc: 'What the feature is, who uses it, and the user-facing behaviour in plain language.' },
+            { n: '2', title: 'Solution Approach', desc: 'The data model, business rules, edge cases, and the key design decisions worth preserving — and why, since Copilot will make reasonable but different choices unless told what tradeoff was already made and why it matters.' },
+            { n: '3', title: 'Agentic Copilot Prompts', desc: 'A numbered, dependency-ordered sequence. Each prompt is self-contained: paste it into Copilot Chat/Edit (agent mode) as-is, let it propose a multi-file change, review the diff against the listed acceptance criteria, then move to the next prompt.' },
+          ].map(({ n, title, desc }) => (
+            <div key={n} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                width: 26, height: 26, borderRadius: '50%', background: t.blue, color: '#fff',
+                fontSize: 12, fontWeight: 800,
+              }}>{n}</span>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 2 }}>{title}</div>
+                <p style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.6, margin: 0 }}>{desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* House rules */}
+      <div style={{ marginBottom: 32 }}>
+        <div style={sectionLabel}>House Rules for Every Prompt in the Document</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[
+            'Review every diff before accepting — agentic Copilot will confidently restructure files it did not need to touch if left unchecked.',
+            'Run the acceptance criteria as literal checks, not vibes — several are precise enough to turn directly into a unit test.',
+            'When a prompt says "ask me if ambiguous," actually stop and answer before letting Copilot proceed.',
+            'Prompts within a subsystem are sequenced on purpose — a later prompt usually assumes an earlier one’s data model or API surface already exists. Do not start a later phase before the phases above it are functionally complete.',
+          ].map(rule => (
+            <div key={rule} style={{ ...card(), fontSize: 12, color: t.textMuted, lineHeight: 1.6 }}>{rule}</div>
+          ))}
+        </div>
+      </div>
+
+      {/* Scope note */}
+      <div style={{ ...card({ borderLeft: `4px solid ${t.orange}`, paddingLeft: 14 }) }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: t.orange, marginBottom: 8 }}>Deliberately Out of Scope</div>
+        <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.7, margin: 0 }}>
+          The document does not cover the large volume of SonarQube/security-remediation work also built since
+          1 August (hardened Docker builds, rate limiting, CSP headers, dependency CVE fixes, and similar) — Enterprise
+          IT's own hardening and restructuring effort supersedes that work directly. Re-prompting Copilot to rebuild
+          security hardening IT is independently redoing would be wasted effort.
+        </p>
+      </div>
+    </div>
+  )
+  if (page === 10 && !printAll) return rebuildGuidePage
+
   // ── Page 1: Product Overview ───────────────────────────────────────────────
   // The default/landing page (see the unconditional `return overview` at the
   // very end of this component, which serves as the implicit "page === 1"
@@ -3521,7 +3675,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
   // When printAll is true, none of the `if (page === N && !printAll)` guards
   // above fired, so execution falls all the way through to here with every
   // page const (overview, arch, algo, dataModel, projectsGuide, backlogPage,
-  // itPage, algoEvalPage, historyPage) already built. This assembles them
+  // itPage, algoEvalPage, historyPage, rebuildGuidePage) already built. This assembles them
   // into one off-screen document and renders it via a portal so it lives
   // outside this component's own DOM subtree, directly under <body> — which
   // is what lets the @media print rule injected by the printAll useEffect
@@ -3549,8 +3703,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             between pages (`page-break-after` + its standard `break-after`
             equivalent, set for cross-browser support) — except the very
             last one, which naturally ends the document without a trailing
-            blank page. Order here matches the page-tab order (1–8);
-            note the Feature Backlog page (page 6 / `backlogPage`) is
+            blank page. Order here matches the page-tab order (1–10, skipping
+            6); note the Feature Backlog page (page 6 / `backlogPage`) is
             deliberately NOT included — it holds the live, per-user
             feature-request form, which has no sensible printed form. */}
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{overview}</div>
@@ -3560,7 +3714,8 @@ export function UserGuide({ nodes, segments, systems }: Props) {
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{projectsGuide}</div>
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{itPage}</div>
         <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{algoEvalPage}</div>
-        <div>{historyPage}</div>
+        <div style={{ pageBreakAfter: 'always', breakAfter: 'page' }}>{historyPage}</div>
+        <div>{rebuildGuidePage}</div>
       </div>
     )
     return createPortal(printContent, document.body)
