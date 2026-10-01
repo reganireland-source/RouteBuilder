@@ -10,7 +10,20 @@ venv/
 node_modules/
 dist/
 .vite/
+.env.local
+.env.*.local
 
 # Editor
 .DS_Store
 *.swp
+
+# Uploaded KMZ/KML blobs and their index in file-storage mode (no DATABASE_URL).
+# Real cable route geometry — customer data, and large. Postgres holds it in
+# deployment; this is the local-dev fallback and must not be committed.
+backend/data/kml/
+backend/data/kml_index.json
+
+# Cached submarinecablemap.com API responses (public reference data, refetched
+# on a TTL — see app/kml/submarinecablemap.py). Not customer data, but still
+# not something to commit.
+backend/data/scm_cache/

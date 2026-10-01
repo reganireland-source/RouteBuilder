@@ -1,0 +1,601 @@
+/**
+ * useKmlChopState — all the state and logic behind the Chop Import tool
+ * (see components/KmlChopImport.tsx for the panels that render it), split
+ * into its own light file for one reason: it has to be called UNCONDITIONALLY
+ * from App.tsx's own body (React's rules of hooks — the panels that consume
+ * it are mounted in two different places, the left and middle side columns,
+ * so the state that ties them together has to live one level up, in the
+ * common ancestor). That means this file's imports end up in the MAIN
+ * bundle regardless of whether the KML tool is ever opened, unlike
+ * KmlChopImport.tsx's actual UI (NewSegmentForm, the stretch table, ...),
+ * which stays lazy-loaded. Keeping this file to state + api calls, with no
+ * heavy component imports, is what keeps that cost small.
+ *
+ * PLOT FIRST, DECLARE LATER. Flattening needs only a source (an upload or a
+ * sync) — no system, no segments — because a reviewer usually cannot say
+ * what an import covers until they have seen its shape (confirmed with the
+ * user after the first version required picking a system up front). System/
+ * segment declaration is therefore a REFINEMENT available at any time after
+ * flattening, not a gate before it: choosing or changing it calls
+ * POST /api/kml/suggest-cuts (re-deriving the same chains from the already-
+ * stored file bytes, never re-fetching) and MERGES the result in —
+ * ADDING cut boundaries and filling in assignments only where a stretch has
+ * none yet, never overwriting a cut or assignment the reviewer already made
+ * by hand. See applySuggestions() below.
+ *
+ * NO STAGED-CHANGES MODEL. Unlike Network Editor's PendingChange/Save-All,
+ * one chop session is scoped to a single import action (confirmed with the
+ * user): a new segment created mid-session is written immediately via
+ * api.createSegment/createCapacity, and Commit at the end attaches whatever
+ * is currently assigned.
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type {
+  CableNode, CableSegment, CableSystem, KmlChain, KmlChopCommitResponse,
+  KmlFlattenResponse, ScmCable, SegmentCapacity,
+} from '../types'
+import { api } from '../api/client'
+import { haversineKm } from '../utils/editorGeo'
+// Type-only: erased at compile time, so importing KmlChopMapLayer's prop
+// shape here never pulls react-leaflet into this hook's (unconditionally
+// loaded) module.
+import type { KmlChopMapLayerProps } from '../components/KmlChopMapLayer'
+
+/** Sentinel value used in a stretch's `<select>` (and in `Assignments`
+ *  entries transiently, via `creatingKey`) to mean "create a brand-new
+ *  segment for this stretch" rather than picking an existing segment id. */
+export const NEW_SEGMENT = '__new__'
+
+/** Segment ids currently claiming each stretch. Almost always 0 or 1 entry —
+ *  but occasionally 2: a real branch point is usually modelled with a
+ *  branching-unit node, so the trunk stretch and each arm are genuinely
+ *  separate segments with their own distinct geometry. Sometimes, though,
+ *  a branch is NOT reconfigurable and isn't modelled with a BU at all —
+ *  instead two whole segments are each defined end-to-end through the
+ *  shared trunk, so the same on-file stretch legitimately becomes the
+ *  geometry for both. commit() below just emits one cut per (stretch,
+ *  segment) pair, so this needs no backend change: /commit-chop already
+ *  treats every cut independently. */
+export type Assignments = Record<string, string[]>
+/** Interior cut vertex indices for each chain, keyed by chain index. Each
+ *  chain's array does NOT include the implicit first/last boundary (index 0
+ *  and `point_count - 1`) — `stretchesFor` below adds those back in when
+ *  turning cuts into actual {start, end} stretches. */
+export type CutsByChain = Record<number, number[]>
+
+/** One segment's live status during commit() — a segment at a time, not the
+ *  whole batch at once, so the reviewer sees each one land (or fail)
+ *  instead of staring at a disabled button until everything finishes. See
+ *  commit()'s own comment for why one HTTP call per segment, not one for
+ *  the whole batch, is what makes this possible without a backend change. */
+export interface CommitRowStatus {
+  status: 'pending' | 'committing' | 'success' | 'fail'
+  linked?: KmlChopCommitResponse['linked'][number]
+  reason?: string
+}
+/** Keyed by segment_id, in the order commit() started them — a plain
+ *  object rather than a Map because JS preserves string-key insertion
+ *  order, which is all the ordering this needs, and an object is what
+ *  Object.keys()/.entries() the render loop below expects. */
+export type CommitProgress = Record<string, CommitRowStatus>
+
+/** Canonical key identifying one stretch (a chain's interval between two
+ *  consecutive cuts) — a stretch is fully identified by which chain it's in
+ *  and where it starts, since starts never repeat within one chain's cut
+ *  set. Used as the key into both `Assignments` and the stretch-colour map. */
+export function stretchKey(chainIndex: number, start: number): string {
+  return `${chainIndex}:${start}`
+}
+
+/** [0, ...interior cuts, last] boundary indices, as {start, end} pairs. */
+export function stretchesFor(chain: KmlChain, cuts: number[]): { start: number; end: number }[] {
+  const bounds = [0, ...cuts, chain.point_count - 1]
+  const out: { start: number; end: number }[] = []
+  for (let i = 0; i < bounds.length - 1; i++) out.push({ start: bounds[i], end: bounds[i + 1] })
+  return out
+}
+
+/** Real on-file length of one stretch, summing haversine along its own
+ *  points — what NewSegmentForm's suggestedLengthKm gets, so a segment
+ *  created from a chopped stretch starts with the actual measured distance
+ *  rather than a straight line between its two ends. */
+export function stretchLengthKm(chain: KmlChain, start: number, end: number): number {
+  let total = 0
+  for (let i = start; i < end; i++) {
+    total += haversineKm(chain.coords[i] as [number, number], chain.coords[i + 1] as [number, number])
+  }
+  return total
+}
+
+/** Nearest existing (or session-created) node to a raw stretch endpoint —
+ *  the starting point for "create a new segment here", always overridable. */
+export function nearestNode(lat: number, lng: number, nodes: CableNode[]): { node: CableNode; distKm: number } | null {
+  let best: CableNode | null = null
+  let bestD = Infinity
+  for (const n of nodes) {
+    const d = haversineKm([lat, lng], [n.lat, n.lng])
+    if (d < bestD) { bestD = d; best = n }
+  }
+  return best ? { node: best, distKm: bestD } : null
+}
+
+/** First occurrence of each id wins — used to merge the system's own
+ *  segments with any created earlier in this session without offering the
+ *  same id twice in a dropdown. */
+export function dedupeById<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>()
+  const out: T[] = []
+  for (const item of items) {
+    if (seen.has(item.id)) continue
+    seen.add(item.id)
+    out.push(item)
+  }
+  return out
+}
+
+/** Golden-angle hue spacing: the Nth colour is N * 137.508° around the hue
+ *  wheel. A fixed palette (tried first, then a 6-colour one indexed by
+ *  position within a chain) always runs out — once an import has more
+ *  stretches than the palette has entries, two of them share a colour by
+ *  the pigeonhole principle, full stop, regardless of how they're indexed.
+ *  The golden angle is the standard fix: it has no small rational
+ *  approximation, so consecutive multiples never land near each other and
+ *  neither does any other pair for a very long time — it is how you
+ *  generate "as many distinct colours as I turn out to need" without
+ *  knowing the count in advance or ever repeating one. */
+const GOLDEN_ANGLE_DEG = 137.508
+function colorForIndex(i: number): string {
+  const hue = (i * GOLDEN_ANGLE_DEG) % 360
+  return `hsl(${hue.toFixed(1)}, 85%, 65%)`
+}
+
+/** Every CURRENTLY EXISTING stretch, across every chain, gets its own
+ *  never-repeated colour — assigned by walking all chains in order and
+ *  handing out the next golden-angle hue to each stretch in turn, so
+ *  colour is a colour-per-slot rather than a colour-per-identity: it is
+ *  recomputed from scratch whenever the chain or cut set changes (a fresh
+ *  flatten, or a chop added/removed anywhere), which is the only way "no
+ *  two colours are ever reused" can hold for whatever is on screen right
+ *  now — an identity-stable scheme (hash or hold-position) always leaves
+ *  a chance of reuse once enough stretches exist, however the hues are
+ *  chosen. A stretch's own colour can therefore shift when an unrelated
+ *  chain gets chopped; that is the trade this makes, not an oversight.
+ *
+ *  `overrides` (stretchKey → index) lets a reviewer manually reassign one
+ *  stretch's colour — clicking its swatch (see useCycleStretchColor below)
+ *  — when the golden angle still happens to land two of them close enough
+ *  to be hard to tell apart by eye at a given hue/count. An override wins
+ *  over the natural walk order for that one stretch only. */
+function buildStretchColors(chains: KmlChain[], cutsByChain: CutsByChain, overrides: Record<string, number>): Map<string, string> {
+  const colors = new Map<string, string>()
+  let i = 0
+  for (const chain of chains) {
+    for (const { start } of stretchesFor(chain, cutsByChain[chain.index] ?? [])) {
+      const key = stretchKey(chain.index, start)
+      colors.set(key, colorForIndex(overrides[key] ?? i))
+      i++
+    }
+  }
+  return colors
+}
+
+/** The cut boundaries and assignments a fresh flatten (or a from-scratch
+ *  suggest-cuts merge) implies, from each chain's own suggested_cuts alone —
+ *  pulled out of runFlatten as a pure function so its two nested loops don't
+ *  count against that function's own cognitive-complexity budget. */
+function initialCutsAndAssignments(chains: KmlChain[]): { cuts: CutsByChain; assigns: Assignments } {
+  const cuts: CutsByChain = {}
+  const assigns: Assignments = {}
+  for (const chain of chains) {
+    const idxs = new Set<number>()
+    for (const sc of chain.suggested_cuts) {
+      if (sc.start_idx > 0) idxs.add(sc.start_idx)
+      if (sc.end_idx < chain.point_count - 1) idxs.add(sc.end_idx)
+    }
+    cuts[chain.index] = [...idxs].sort((a, b) => a - b)
+    for (const sc of chain.suggested_cuts) {
+      const key = stretchKey(chain.index, sc.start_idx)
+      assigns[key] = assigns[key] ? [...assigns[key], sc.segment_id] : [sc.segment_id]
+    }
+  }
+  return { cuts, assigns }
+}
+
+interface Cut { chain_index: number; start_idx: number; end_idx: number; segment_id: string }
+
+/** Every currently-assigned cut, grouped by segment_id — commit() below
+ *  sends one request per group instead of one for the whole batch, so a
+ *  reviewer sees each segment land (or fail) as it happens rather than
+ *  staring at a disabled button until the entire commit finishes. Pulled
+ *  out as its own function for the same reason initialCutsAndAssignments
+ *  is: keeps its nested loop off commit()'s own cognitive-complexity
+ *  budget. A stretch with more than one assigned id (the Y-branch case)
+ *  contributes one cut to each of its segments' groups. */
+function groupCutsBySegment(chains: KmlChain[], cutsByChain: CutsByChain, assignments: Assignments): Map<string, Cut[]> {
+  const bySegment = new Map<string, Cut[]>()
+  for (const chain of chains) {
+    for (const s of stretchesFor(chain, cutsByChain[chain.index] ?? [])) {
+      const segIds = assignments[stretchKey(chain.index, s.start)] ?? []
+      for (const segId of segIds) {
+        if (!segId || segId === NEW_SEGMENT) continue
+        const cut: Cut = { chain_index: chain.index, start_idx: s.start, end_idx: s.end, segment_id: segId }
+        const list = bySegment.get(segId)
+        if (list) list.push(cut); else bySegment.set(segId, [cut])
+      }
+    }
+  }
+  return bySegment
+}
+
+/** Inputs to useKmlChopState — the network data it reads from (never
+ *  mutates directly) plus two callbacks up to the caller (App.tsx): one to
+ *  ask for a refetch after a write, one to push the current map-drawing
+ *  props down to whichever component actually renders KmlChopMapLayer. */
+interface Options {
+  segments: CableSegment[]
+  systems: CableSystem[]
+  nodes: CableNode[]
+  onDataChange?: () => void
+  /** The whole prop set KmlChopMapLayer needs, or null while there is
+   *  nothing to draw yet. */
+  onMapPropsChange: (props: KmlChopMapLayerProps | null) => void
+}
+
+/**
+ * useKmlChopState — all state and mutation logic for the Chop Import tool.
+ * See the file-level docblock above for why this lives in its own hook
+ * (called once, unconditionally, from App.tsx) and the "plot first, declare
+ * later" design it implements.
+ *
+ * Owns: the source (uploaded files or a Submarine Cable Map selection), the
+ * flattened result (`flat`, from POST /api/kml/flatten), per-chain cut
+ * positions (`cutsByChain`), per-stretch segment assignments
+ * (`assignments`), stretch colours (golden-angle, with manual overrides),
+ * inline new-segment creation, and the sequential commit() flow that writes
+ * assigned stretches to their segments via POST /api/kml/commit-chop.
+ *
+ * Returns a single flat object (typed as `KmlChopState`) bundling all of the
+ * above state plus the action functions the two panel components
+ * (KmlChopSourcePanel, KmlChopTablePanel) call — deliberately not split into
+ * multiple hooks, since both panels need to read and act on the same state
+ * in lockstep.
+ */
+export function useKmlChopState({ segments, systems, nodes, onDataChange, onMapPropsChange }: Options) {
+  const [sourceMode, setSourceMode] = useState<'upload' | 'sync'>('upload')
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const [scmCables, setScmCables] = useState<ScmCable[]>([])
+  const [scmQuery, setScmQuery] = useState('')
+  const [scmSelectedId, setScmSelectedId] = useState<string | null>(null)
+  const scmFetchStarted = useRef(false)
+
+  const [systemId, setSystemId] = useState('')
+  const [declaredIds, setDeclaredIds] = useState<Set<string>>(new Set())
+
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [flat, setFlat] = useState<KmlFlattenResponse | null>(null)
+  const [cutsByChain, setCutsByChain] = useState<CutsByChain>({})
+  const [assignments, setAssignments] = useState<Assignments>({})
+  const [sessionSegments, setSessionSegments] = useState<CableSegment[]>([])
+  const [creatingKey, setCreatingKey] = useState<string | null>(null)
+  const [fitKey, setFitKey] = useState(0)
+  const [commitProgress, setCommitProgress] = useState<CommitProgress>({})
+  const [colorOverrides, setColorOverrides] = useState<Record<string, number>>({})
+  // Manual colour picks draw from a range well past any realistic natural
+  // walk index (see buildStretchColors), so a click can never coincide with
+  // another stretch's colour just because the import happened to have that
+  // many stretches. A ref, not state: it only needs to hand out the next
+  // number, never trigger a render itself — colorOverrides already does that.
+  const nextOverrideIndex = useRef(100000)
+
+  useEffect(() => {
+    if (sourceMode !== 'sync' || scmFetchStarted.current) return
+    scmFetchStarted.current = true
+    api.searchScmCables('')
+      .then(res => setScmCables(res.cables))
+      .catch((e: unknown) => { scmFetchStarted.current = false; setError(e instanceof Error ? e.message : String(e)) })
+  }, [sourceMode])
+
+  const systemSegments = useMemo(
+    () => segments.filter(s => s.system_id === systemId).sort((a, b) => a.id.localeCompare(b.id)),
+    [segments, systemId],
+  )
+  const allSegments = useMemo(() => [...segments, ...sessionSegments], [segments, sessionSegments])
+
+  const canFlatten = sourceMode === 'upload' ? pendingFiles.length > 0 : scmSelectedId !== null
+
+  /** Shared body of runFlatten/runFlattenForScmCable — takes the system/
+   *  declared-ids to pass through as explicit ARGUMENTS rather than reading
+   *  them back off `systemId`/`declaredIds` state, so a caller that just set
+   *  them in the same breath (see runFlattenForScmCable) never races a
+   *  stale read of state that hasn't committed yet. */
+  async function flattenWith(source: { files: File[] } | { cableId: string }, sysId: string, segIds: Set<string>) {
+    setBusy(true); setError(null); setCommitProgress({}); setColorOverrides({})
+    try {
+      // sysId/segIds passed through even when empty (both optional on the
+      // backend) — covers the case where the reviewer happened to pick a
+      // system before flattening; suggest_cuts() runs the same either way.
+      const res = await api.flattenKmlImport(source, sysId || undefined, [...segIds])
+      setFlat(res)
+      const { cuts, assigns } = initialCutsAndAssignments(res.chains)
+      setCutsByChain(cuts)
+      setAssignments(assigns)
+      setFitKey(k => k + 1)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function runFlatten() {
+    const source = sourceMode === 'upload' ? { files: pendingFiles } : { cableId: scmSelectedId! }
+    await flattenWith(source, systemId, declaredIds)
+  }
+
+  /** Cable Import's Phase 2 handoff: jump straight to a specific
+   *  submarinecablemap.com cable, already knowing which system and segments
+   *  it belongs to (the caller just created them) — skipping the usual
+   *  pick-a-source-then-separately-declare-a-system flow entirely. Sets the
+   *  UI-facing state too (source mode, selected cable, declared system) so
+   *  the source panel that mounts right after reflects what just happened,
+   *  but the actual flatten call uses sysId/segIds directly rather than
+   *  those state values, since the setState calls just above have not
+   *  necessarily committed by the time this runs (see flattenWith's comment). */
+  async function runFlattenForScmCable(cableId: string, sysId: string, segIds: string[]) {
+    setSourceMode('sync')
+    setScmSelectedId(cableId)
+    setSystemId(sysId)
+    setDeclaredIds(new Set(segIds))
+    await flattenWith({ cableId }, sysId, new Set(segIds))
+  }
+
+  /** Re-suggest cuts once the reviewer has picked (or changed) the system/
+   *  segments an already-flattened import covers. ADDS cut boundaries and
+   *  fills in assignments only where a stretch has none yet — never
+   *  overwrites a cut or assignment already made by hand, so declaring the
+   *  system late (or changing your mind about it) can only ever help. */
+  async function applySuggestions(sysId: string, ids: Set<string>) {
+    if (!flat || !sysId || ids.size === 0) return
+    try {
+      const res = await api.suggestKmlCuts(flat.file_ids, sysId, [...ids])
+      const pointCounts = new Map(flat.chains.map(c => [c.index, c.point_count]))
+      setCutsByChain(prev => {
+        const next = { ...prev }
+        for (const c of res.chains) {
+          const total = pointCounts.get(c.index)
+          if (total == null) continue
+          const idxs = new Set(next[c.index] ?? [])
+          for (const sc of c.suggested_cuts) {
+            if (sc.start_idx > 0) idxs.add(sc.start_idx)
+            if (sc.end_idx < total - 1) idxs.add(sc.end_idx)
+          }
+          next[c.index] = [...idxs].sort((a, b) => a - b)
+        }
+        return next
+      })
+      setAssignments(prev => {
+        const next = { ...prev }
+        for (const c of res.chains) {
+          for (const sc of c.suggested_cuts) {
+            const key = stretchKey(c.index, sc.start_idx)
+            // Only fill a stretch that has NO assignment yet — never touch
+            // one the reviewer already set by hand, single or multi.
+            if (!next[key] || next[key].length === 0) next[key] = [sc.segment_id]
+          }
+        }
+        return next
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  // Default the declared set to every segment of the chosen system — the
+  // common case is a whole-system sync/upload covering all of it.
+  function chooseSystem(id: string) {
+    setSystemId(id)
+    const next = new Set(segments.filter(s => s.system_id === id).map(s => s.id))
+    setDeclaredIds(next)
+    void applySuggestions(id, next)
+  }
+  /** Add/remove one segment from the declared set (the checkbox list under
+   *  "Segments this import covers") and re-run suggest-cuts against the new
+   *  set — see applySuggestions' own doc comment for why this only ever
+   *  adds, never overwrites, existing cuts/assignments. */
+  function toggleDeclared(id: string) {
+    const next = new Set(declaredIds)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    setDeclaredIds(next)
+    void applySuggestions(systemId, next)
+  }
+
+  /** Add a cut at `vertex` (map click or manual add) — deduped via Set since
+   *  clicking an existing cut vertex again should be a no-op, then re-sorted
+   *  so `stretchesFor`'s bounds walk stays in ascending order. */
+  function addCut(chainIndex: number, vertex: number) {
+    setCutsByChain(prev => ({ ...prev, [chainIndex]: [...new Set([...(prev[chainIndex] ?? []), vertex])].sort((a, b) => a - b) }))
+  }
+  /** Remove a cut ("merge up" in the UI), which merges the stretch starting
+   *  at `idx` into the previous one — also drops whatever assignment that
+   *  now-gone stretch had, since its key (`chainIndex:idx`) no longer
+   *  corresponds to a real stretch boundary. */
+  function removeCut(chainIndex: number, idx: number) {
+    setCutsByChain(prev => ({ ...prev, [chainIndex]: (prev[chainIndex] ?? []).filter(i => i !== idx) }))
+    setAssignments(prev => {
+      const next = { ...prev }
+      delete next[stretchKey(chainIndex, idx)]
+      return next
+    })
+  }
+  /** Drag a cut from `oldIdx` to `newIdx` on the map — replaces the old
+   *  vertex with the new one in the cut set, and carries over whatever
+   *  assignment was keyed to the old stretch-start so a drag never silently
+   *  drops an assignment the reviewer already made. */
+  function moveCut(chainIndex: number, oldIdx: number, newIdx: number) {
+    setCutsByChain(prev => ({
+      ...prev,
+      [chainIndex]: [...new Set((prev[chainIndex] ?? []).filter(i => i !== oldIdx).concat(newIdx))].sort((a, b) => a - b),
+    }))
+    setAssignments(prev => {
+      const val = prev[stretchKey(chainIndex, oldIdx)]
+      const next = { ...prev }
+      delete next[stretchKey(chainIndex, oldIdx)]
+      if (val && val.length > 0) next[stretchKey(chainIndex, newIdx)] = val
+      return next
+    })
+  }
+  /** Claim a stretch for a segment (the "+ add another segment…" dropdown).
+   *  A no-op if that segment is already assigned to this stretch — supports
+   *  both the ordinary one-segment case and the Y-branch case (a second,
+   *  different segment added to the same stretch). */
+  function addAssignment(chainIndex: number, start: number, segmentId: string) {
+    const key = stretchKey(chainIndex, start)
+    setAssignments(prev => {
+      const cur = prev[key] ?? []
+      if (cur.includes(segmentId)) return prev
+      return { ...prev, [key]: [...cur, segmentId] }
+    })
+  }
+  /** Remove one segment's claim on a stretch (an assignment chip's ×). */
+  function removeAssignment(chainIndex: number, start: number, segmentId: string) {
+    const key = stretchKey(chainIndex, start)
+    setAssignments(prev => ({ ...prev, [key]: (prev[key] ?? []).filter(id => id !== segmentId) }))
+  }
+
+  // Segment ids claimed by more than one STRETCH (not more than one slot
+  // within the same stretch — that's the Y-branch case, task #27, and gets
+  // no flag at all). This is the mirror: one segment built from several
+  // stretches, because a real gap or an unmodelled branch left it with no
+  // single continuous chain either. NOT an error — commit() below sends one
+  // cut per (stretch, segment) pair and the backend joins them nose-to-tail
+  // into one geometry — but worth a heads-up before committing, since it is
+  // less common than a straight one-stretch-one-segment assignment.
+  const multiStretch = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const ids of Object.values(assignments)) for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1)
+    return new Set([...counts.entries()].filter(([, n]) => n > 1).map(([id]) => id))
+  }, [assignments])
+
+  const stretchColors = useMemo(
+    () => (flat ? buildStretchColors(flat.chains, cutsByChain, colorOverrides) : new Map<string, string>()),
+    [flat, cutsByChain, colorOverrides],
+  )
+  const colorForStretch = useCallback(
+    (chainIndex: number, start: number) => stretchColors.get(stretchKey(chainIndex, start)) ?? '#888888',
+    [stretchColors],
+  )
+  /** Click a stretch's swatch to move it to the next never-used colour —
+   *  for the case the golden angle still lands two stretches close enough
+   *  to be hard to tell apart at a glance. Each click hands out a fresh
+   *  index, so repeated clicking keeps cycling somewhere new rather than
+   *  bouncing between two alternates. */
+  const cycleStretchColor = useCallback((chainIndex: number, start: number) => {
+    const key = stretchKey(chainIndex, start)
+    const index = nextOverrideIndex.current++
+    setColorOverrides(prev => ({ ...prev, [key]: index }))
+  }, [])
+
+  useEffect(() => {
+    onMapPropsChange(flat ? {
+      chains: flat.chains, cutsByChain, colorForStretch,
+      onAddCut: addCut, onMoveCut: moveCut, onRemoveCut: removeCut, fitKey,
+    } : null)
+    return () => onMapPropsChange(null)
+    // Only re-derive when the data driving the map actually changes — the
+    // callbacks are fresh every render and would otherwise force this effect
+    // (and the parent's re-render it triggers) every time. colorForStretch
+    // is stable across renders where stretchColors itself hasn't changed
+    // (same dependency, so it moves in lockstep), so it's safe to leave out.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flat, cutsByChain, fitKey])
+
+  /** The inline "new segment" flow's submit handler (NewSegmentForm's
+   *  onCreate, wired through NewSegmentInline/StretchRow): writes the
+   *  segment and its capacity immediately via the ordinary create endpoints
+   *  (no staging — see the file-level docblock's "no staged-changes model"
+   *  note), adds it to `sessionSegments` so it appears in later stretches'
+   *  dropdowns too, and assigns it to the stretch that prompted its creation. */
+  async function createSegmentFor(chainIndex: number, start: number, segment: CableSegment, capacity: SegmentCapacity) {
+    setBusy(true); setError(null)
+    try {
+      await api.createSegment(segment)
+      await api.createCapacity(capacity)
+      setSessionSegments(prev => [...prev, segment])
+      addAssignment(chainIndex, start, segment.id)
+      setCreatingKey(null)
+      onDataChange?.()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // One request per segment, awaited in sequence rather than fired all at
+  // once with Promise.all — a reviewer watching a real-time list wants to
+  // see each one actually land in order, not a batch of spinners that
+  // resolve in whatever order the network happens to return them.
+  async function commit() {
+    if (!flat) return
+    const bySegment = groupCutsBySegment(flat.chains, cutsByChain, assignments)
+    if (bySegment.size === 0) return
+
+    setBusy(true); setError(null)
+    const initial: CommitProgress = {}
+    for (const segId of bySegment.keys()) initial[segId] = { status: 'pending' }
+    setCommitProgress(initial)
+
+    for (const [segId, cuts] of bySegment) {
+      setCommitProgress(prev => ({ ...prev, [segId]: { status: 'committing' } }))
+      try {
+        const res = await api.commitKmlChop(flat.file_ids, flat.source, cuts)
+        const linkedRow = res.linked[0]
+        if (linkedRow) {
+          setCommitProgress(prev => ({ ...prev, [segId]: { status: 'success', linked: linkedRow } }))
+          onDataChange?.()
+        } else {
+          setCommitProgress(prev => ({ ...prev, [segId]: { status: 'fail', reason: res.failed[0]?.reason ?? 'Unknown error' } }))
+        }
+      } catch (e) {
+        setCommitProgress(prev => ({ ...prev, [segId]: { status: 'fail', reason: e instanceof Error ? e.message : String(e) } }))
+      }
+    }
+    setBusy(false)
+  }
+
+  /** "← Start over" — discards the flattened result and every cut/
+   *  assignment/colour-override derived from it, returning to the initial
+   *  source-picker screen. Does NOT clear `sessionSegments`: segments
+   *  already created this session stay real (they were written immediately
+   *  by createSegmentFor) and should still show up if the reviewer flattens
+   *  a new source afterwards. */
+  function startOver() {
+    setFlat(null); setCutsByChain({}); setAssignments({}); setCommitProgress({}); setColorOverrides({})
+    setSystemId(''); setDeclaredIds(new Set())
+  }
+
+  // How many stretch→segment claims are ready to commit — excludes empty
+  // slots and the NEW_SEGMENT sentinel (a stretch mid-way through inline
+  // creation isn't committable yet). Drives the "Commit N routes" button's
+  // label and disabled state.
+  const assignedCount = Object.values(assignments)
+    .reduce((n, ids) => n + ids.filter(id => id && id !== NEW_SEGMENT).length, 0)
+
+  return {
+    nodes, systems, segments, allSegments, sessionSegments,
+    sourceMode, setSourceMode, pendingFiles, setPendingFiles,
+    scmCables, scmQuery, setScmQuery, scmSelectedId, setScmSelectedId,
+    systemId, chooseSystem, declaredIds, toggleDeclared, systemSegments,
+    busy, error, canFlatten, runFlatten: () => void runFlatten(),
+    runFlattenForScmCable: (cableId: string, sysId: string, segIds: string[]) =>
+      runFlattenForScmCable(cableId, sysId, segIds),
+    flat, cutsByChain, assignments, creatingKey, setCreatingKey, colorForStretch, cycleStretchColor,
+    addAssignment, removeAssignment, removeCut,
+    createSegmentFor: (chainIndex: number, start: number, seg: CableSegment, cap: SegmentCapacity) =>
+      void createSegmentFor(chainIndex, start, seg, cap),
+    multiStretch, assignedCount, commit: () => void commit(), commitProgress, startOver,
+  }
+}
+
+export type KmlChopState = ReturnType<typeof useKmlChopState>

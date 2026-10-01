@@ -1,0 +1,362 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# parser.py — natural-language route query → structured route-search params.
+#
+# This is the core of the NLP feature (invoked by app/api/nlp.py's
+# POST /api/nlp/parse). It does NOT call an LLM itself; instead it:
+#   1. Builds a big system prompt (SYSTEM_PROMPT) that teaches the model the
+#      current network's vocabulary (real node/segment/system/country ids)
+#      and the exact JSON shape RouteBuilder's search pipeline expects.
+#   2. Hands that prompt plus the user's free-text query to whichever
+#      LLMProvider was selected (see app/nlp/provider.py's get_provider()),
+#      via provider.complete_json(prompt, text).
+#   3. Takes the raw dict the model returns and VALIDATES/SANITISES every
+#      field against the real, current catalogues (node ids, segment ids,
+#      system ids, country codes, enum values) before it is ever trusted —
+#      an LLM can hallucinate an id that looks plausible but does not exist,
+#      or return a free-text value outside the known enum, and this module's
+#      job is to make sure nothing bogus leaks into a NlpParseResponse that
+#      later code (or the frontend) will treat as ground truth.
+#
+# Exports:
+#   - SYSTEM_PROMPT: the format-string template (see parse_route_request for
+#     how it is filled in with the live catalogues).
+#   - parse_route_request(provider, nodes, segments, text): the main entry
+#     point — see its own docstring below.
+#
+# Wiring: app/api/nlp.py's nlp_parse() is the only caller. It loads the
+# current nodes/segments from data_loader and passes them straight through,
+# so the catalogues embedded in the prompt are always the live network state,
+# not a stale snapshot.
+# ─────────────────────────────────────────────────────────────────────────────
+from ..models import DiversityType, NlpParseResponse
+
+# The system prompt sent to the LLM on every /api/nlp/parse call. It is a
+# format-string (note the {node_catalog} etc. placeholders and the doubled
+# {{ }} around the literal JSON example, which format() would otherwise try
+# to interpret as more placeholders) — see parse_route_request() below for
+# where it gets filled in with the live node/segment/system/country lists.
+#
+# This prompt is effectively the "spec" for how RouteBuilder's search
+# pipeline consumes NL queries: it documents the four-stage pipeline
+# (hard constraints → pool selection → display sort) so the model picks the
+# right output field, and enumerates the exact valid values for enum-like
+# fields (diversity types, optimise_for, sort_mode) so this module's
+# validation step (see _VALID_* sets below) has a fighting chance of the
+# model's answer already being in range.
+SYSTEM_PROMPT = """\
+You are TSABuddy, a route-parsing assistant for RouteBuilder — a submarine cable network planning tool.
+Extract structured routing parameters from plain-English requests.
+
+AVAILABLE NODES (id | name | country | type):
+{node_catalog}
+
+AVAILABLE WET SEGMENTS (id | name | system_id):
+{segment_catalog}
+
+AVAILABLE CABLE SYSTEMS (system_id):
+{system_catalog}
+
+AVAILABLE COUNTRIES (ISO code, node count):
+{country_catalog}
+
+DIVERSITY TYPES:
+- none                   : no diversity requirement
+- wet                    : diverse on submarine segments only
+- terrestrial_origin     : diverse on terrestrial segments at origin end
+- terrestrial_destination: diverse on terrestrial segments at destination end
+- terrestrial_both       : diverse on terrestrial at both ends
+- full                   : fully diverse route (no shared segments)
+- full_nodes             : fully diverse (no shared segments or nodes)
+
+HOW THE SEARCH PIPELINE WORKS — this determines which field to use:
+
+  STEP 2 — HARD CONSTRAINTS (routes that break these are permanently removed):
+  • must_include_nodes / must_avoid_nodes   — force or forbid specific transit nodes
+  • must_include_segments / must_avoid_segments — force or forbid specific cable segments
+  • must_include_systems / must_avoid_systems   — force or forbid entire cable systems
+  • max_wet_hops         — cap on submarine cable segments (integer ≥ 1); null = unconstrained
+  • max_terrestrial_hops — cap on land cable segments (integer ≥ 1); null = unconstrained
+  • must_include_countries — ISO codes of countries the route MUST pass through (at least one landing node)
+  • must_avoid_countries   — ISO codes of countries the route must NOT pass through (any transit node)
+
+  STEP 3 — POOL SELECTION via optimise_for (which 30 routes enter the memory pool):
+  When set, ALL 30 pool slots are filled with the best routes for that single dimension.
+  Use for strong user intent: "optimise for", "prioritise", "I need the best X routes".
+  Valid values: "hops" | "distance" | "latency" | "margin" | "capacity" | "ownership" | "outages"
+
+  STEP 4 — DISPLAY SORT via sort_mode (which 5 of the 30 are shown, and in what order):
+  A lightweight display preference — no routes are removed, only the top-5 display order changes.
+  Use for: "sort by", "show me ranked by", "order by", "push outages down".
+  Valid values: "hops" | "distance" | "latency" | "availability" | "margin" | "capacity" | "ownership" | "outages"
+
+CHOOSING optimise_for vs sort_mode:
+- "optimise for latency" / "focus on capacity" / "I need the highest-margin routes" → optimise_for
+- "sort by latency" / "show me ranked by distance" / "order by margin" → sort_mode
+- "avoid outages" / "healthy routes first" / "no outages" → optimise_for: "outages" (filters pool to outage-free routes)
+- "push outages down" / "show outage routes last" → sort_mode: "outages" (keeps outage routes but shows them last)
+- "most reliable" / "highest availability" → sort_mode: "availability" (availability is NOT valid for optimise_for)
+- When ambiguous, use optimise_for for strong commercial intent, sort_mode for a mild display preference
+- You may set BOTH if the user wants a specific pool AND a different display order
+  e.g. "optimise for margin, then sort by latency" → optimise_for: "margin", sort_mode: "latency"
+
+Return ONLY a JSON object — no prose, no markdown fences — with these exact fields:
+{{
+  "start_node_id": "NODE_ID or null",
+  "end_node_id":   "NODE_ID or null",
+  "must_include_nodes":    [],
+  "must_avoid_nodes":      [],
+  "must_include_segments": [],
+  "must_avoid_segments":   [],
+  "must_include_systems":  [],
+  "must_avoid_systems":    [],
+  "must_include_countries": [],
+  "must_avoid_countries":   [],
+  "diversity": "none",
+  "max_wet_hops": null,
+  "max_terrestrial_hops": null,
+  "optimise_for": null,
+  "sort_mode": null,
+  "explanation": "plain-English summary of what you parsed and why",
+  "confidence": "high|medium|low",
+  "ambiguities": ["anything unclear or assumed"]
+}}
+
+RULES:
+- Map city, country, or location names to the best-matching node ID.
+  Prefer type=landing_station over any pop type (primary_pop/secondary_pop/extension_pop) when a city has multiple nodes.
+- Node IDs look like SIN3, HKG1, TKO1. Segment IDs look like EAC-2B2, C2C-S3C. System IDs like EAC, AAG, C2C.
+- "diversity" or "diverse route" alone → "full"; "wet diversity" → "wet".
+- "must include system X" or "must use X" or "via X" (system name) → must_include_systems.
+- "avoid X" or "not via X" (system name) → must_avoid_systems.
+- Only use must_include_segments / must_avoid_segments when a specific segment ID is mentioned.
+- "max N wet hops" / "no more than N submarine segments" / "single wet hop" → max_wet_hops: N
+- "max N terrestrial hops" / "limit land segments to N" → max_terrestrial_hops: N
+- COUNTRY CONSTRAINTS (IMPORTANT — take priority over node-level avoidance):
+  When the user mentions avoiding or requiring a COUNTRY (not a specific node), ALWAYS use
+  must_avoid_countries / must_include_countries with the ISO code. NEVER enumerate individual
+  node IDs from that country in must_avoid_nodes — that is fragile and incomplete.
+  Examples: "avoiding taiwan" → must_avoid_countries: ["TW"]  (NOT must_avoid_nodes: ["TPE1","TPE2",...])
+            "avoid china" → must_avoid_countries: ["CN"]
+            "must land in japan" → must_include_countries: ["JP"]
+            "route via philippines" → must_include_countries: ["PH"]
+- Country codes: AE=UAE, AU=Australia, CN=China, DE=Germany, DJ=Djibouti, EG=Egypt, FJ=Fiji, FR=France, GB=United Kingdom, GR=Greece, GU=Guam, HK=Hong Kong, ID=Indonesia, IN=India, IT=Italy, JP=Japan, KH=Cambodia, KR=South Korea, LK=Sri Lanka, MM=Myanmar, MP=Northern Mariana Islands, MY=Malaysia, NZ=New Zealand, OM=Oman, PH=Philippines, PK=Pakistan, QA=Qatar, SA=Saudi Arabia, SG=Singapore, TH=Thailand, TW=Taiwan, US=United States, VN=Vietnam, VU=Vanuatu, YE=Yemen
+- Only use must_avoid_nodes / must_include_nodes when the user names a SPECIFIC node, facility, or PoP by name or ID.
+- Never return IDs that are not in the provided lists above.
+- Set confidence=high when both endpoints are unambiguous, medium when one is guessed, low otherwise.
+- In your explanation, briefly state what constraints are hard filters vs pool/sort preferences.
+"""
+
+
+def _node_catalog(nodes) -> str:
+    """Render the "AVAILABLE NODES" block of SYSTEM_PROMPT: one line per node
+    as "id | name | country | type". Branching units (undersea cable splits,
+    not real place names a user would type) are excluded — they would only
+    confuse the model's place-name → node-id mapping.
+    """
+    return "\n".join(
+        f"{n.id} | {n.name} | {n.country} | {n.type}"
+        for n in nodes
+        if n.type != "branching_unit"
+    )
+
+
+def _segment_catalog(segments) -> str:
+    """Render the "AVAILABLE WET SEGMENTS" block of SYSTEM_PROMPT: one line
+    per submarine (type == "wet") segment as "id | name | system_id".
+    Terrestrial segments are excluded — the prompt only needs to teach the
+    model wet-segment ids, since must_include_segments/must_avoid_segments
+    are only ever meant to name specific submarine cable hops a user could
+    plausibly reference by name.
+    """
+    return "\n".join(
+        f"{s.id} | {s.name} | {s.system_id}"
+        for s in segments
+        if s.type == "wet"
+    )
+
+
+def _system_catalog(segments) -> str:
+    """Render the "AVAILABLE CABLE SYSTEMS" block of SYSTEM_PROMPT: the
+    distinct system_ids across all segments, one per line, sorted.
+
+    The dict `seen` is used purely as an ordered de-duplication set keyed by
+    system_id; the display name derived on the right-hand side (splitting on
+    an en dash then a hyphen) is computed but not actually used in the output
+    joined below — only the sorted system_id keys are — so this is a case of
+    over-fetching left over from an earlier version of the prompt format:
+    harmless, but the name splitting has no effect on what the model sees.
+    """
+    seen = {}
+    for s in segments:
+        if s.system_id not in seen:
+            seen[s.system_id] = s.name.split("–")[0].strip().split("-")[0].strip()
+    return "\n".join(f"{sys_id}" for sys_id in sorted(seen))
+
+
+def _country_catalog(nodes) -> str:
+    """Render the "AVAILABLE COUNTRIES" block of SYSTEM_PROMPT: each ISO
+    country code that appears on a non-branching-unit node, with how many
+    nodes it has, e.g. "SG (3 nodes)" — sorted by code. This both tells the
+    model which country codes are valid for must_include_countries /
+    must_avoid_countries and gives it a rough sense of network density per
+    country.
+    """
+    from collections import Counter
+    counts = Counter(n.country for n in nodes if n.type != "branching_unit")
+    return "\n".join(f"{code} ({count} nodes)" for code, count in sorted(counts.items()))
+
+
+#: The set of DiversityType enum values a parsed "diversity" field may take.
+#: Sourced from the actual DiversityType model enum (not hand-duplicated)
+#: so this can never drift out of sync with what RouteRequest.diversity
+#: actually accepts.
+_VALID_DIVERSITY = {d.value for d in DiversityType}
+#: Valid values for sort_mode (STEP 4 in SYSTEM_PROMPT — display-only
+#: re-ordering of the already-selected pool, e.g. "availability"/"reliability"
+#: which are NOT valid optimise_for values because there is no pool-selection
+#: notion of them — see SYSTEM_PROMPT's "CHOOSING optimise_for vs sort_mode").
+_VALID_SORT = {
+    "hops", "distance", "length", "latency",
+    "availability", "reliability",
+    "margin", "cost", "capacity", "ownership", "outages",
+}
+#: Valid values for optimise_for (STEP 3 in SYSTEM_PROMPT — which routes fill
+#: the memory pool). A strict subset of _VALID_SORT's dimensions; notably
+#: excludes "availability"/"reliability" (see _VALID_SORT above).
+_VALID_OPTIMISE_FOR = {
+    "hops", "distance", "length", "latency",
+    "margin", "cost", "capacity", "ownership", "outages",
+}
+
+
+def parse_route_request(provider, nodes, segments, text: str) -> NlpParseResponse:
+    """
+    Turn one free-text route query into a validated NlpParseResponse.
+
+    This is the module's single entry point, called by
+    app/api/nlp.py's POST /api/nlp/parse handler.
+
+    Params:
+      - provider: an LLMProvider (see app/nlp/provider.py) already resolved
+        by the caller via get_provider(). Only its complete_json() method is
+        used here.
+      - nodes: the full live list of Node objects (from data_loader.load_nodes()).
+      - segments: the full live list of CableSegment objects
+        (from data_loader.load_segments()).
+      - text: the user's free-text query, e.g. "route from Singapore to Tokyo
+        avoiding Japan, max 2 wet hops".
+
+    Behaviour (the NL → structured-params mapping):
+      1. Builds the "vocabulary" the model is allowed to use: every valid
+         node id, segment id, system id, and country code currently in the
+         network, PLUS SYSTEM_PROMPT formatted with human-readable catalogue
+         listings of the same (so the model can match a place/cable NAME the
+         user typed to the right ID).
+      2. Calls provider.complete_json(prompt, text) — this is the only call
+         out to the LLM; complete_json is contracted to return a Python dict
+         already parsed from the model's JSON response (see
+         LLMProvider.complete_json's docstring).
+      3. SANITISES every field of that raw dict against the real catalogues
+         built in step 1, because an LLM response is never trusted verbatim:
+           - start_node_id / end_node_id: kept only if they are a real,
+             current node id; otherwise reset to None (never raise — an
+             unmatched endpoint is reported to the user as "could not
+             resolve", not a 500).
+           - must_include_nodes / must_avoid_nodes / *_segments / *_systems /
+             *_countries: each list is filtered down to only the ids/codes
+             that actually exist right now (clean_ids), silently dropping any
+             hallucinated id the model may have invented.
+           - diversity: must be one of the real DiversityType values, else
+             falls back to "none" (the least restrictive setting — never
+             fail closed into over-constraining a search the user didn't ask
+             for).
+           - sort_mode / optimise_for: must be one of the pipeline's actual
+             valid dimensions (see _VALID_SORT / _VALID_OPTIMISE_FOR and
+             SYSTEM_PROMPT's discussion of the STEP 3 vs STEP 4 distinction),
+             else reset to None (unset, meaning "use the default").
+           - max_wet_hops / max_terrestrial_hops: kept only if numeric and
+             >= 1 (_clean_hop); a non-numeric, missing, or zero/negative
+             value is treated as "no limit" (None) rather than raising.
+           - explanation / confidence / ambiguities: coerced to their
+             expected str/str/list shapes with permissive defaults, since
+             these are purely explanatory metadata, not routing constraints —
+             a missing or oddly-typed value here should never blow up the
+             whole parse.
+      4. Returns the sanitised fields wrapped in an NlpParseResponse, which
+         is the exact shape the frontend feeds into the normal route-search
+         request builder.
+
+    No exception is raised for a "bad" LLM answer — every field independently
+    degrades to a safe default (None / "none" / [] / unfiltered-out) rather
+    than the whole parse failing; the caller (app/api/nlp.py) only has to
+    handle the case where provider.complete_json() itself raises (e.g.
+    malformed JSON, upstream API error).
+    """
+    # The three real-id sets and the real-country set are the ground truth
+    # every LLM-proposed id/code is checked against below — anything not in
+    # these sets is a hallucination and gets silently dropped, never trusted.
+    node_ids = {n.id for n in nodes}
+    segment_ids = {s.id for s in segments}
+    system_ids = {s.system_id for s in segments}
+    valid_countries = {n.country for n in nodes if n.type != "branching_unit"}
+
+    # Fill in the SYSTEM_PROMPT template with the live network's vocabulary
+    # so the model only ever sees ids/names that actually exist right now.
+    prompt = SYSTEM_PROMPT.format(
+        node_catalog=_node_catalog(nodes),
+        segment_catalog=_segment_catalog(segments),
+        system_catalog=_system_catalog(segments),
+        country_catalog=_country_catalog(nodes),
+    )
+    # The only LLM call in this module: prompt is the system prompt, text is
+    # the user's turn. complete_json is contracted to hand back an already
+    # JSON-parsed dict (or raise) — see LLMProvider.complete_json.
+    raw = provider.complete_json(prompt, text)
+
+    def clean_ids(lst, valid_set):
+        # Keep only ids/codes that are members of valid_set; drop everything
+        # else (a hallucinated id, or None/missing list) without raising.
+        return [i for i in (lst or []) if i in valid_set]
+
+    diversity_raw = raw.get("diversity", "none")
+    diversity = diversity_raw if diversity_raw in _VALID_DIVERSITY else "none"
+
+    sort_raw = raw.get("sort_mode")
+    sort_mode = sort_raw if sort_raw in _VALID_SORT else None
+
+    optimise_raw = raw.get("optimise_for")
+    optimise_for = optimise_raw if optimise_raw in _VALID_OPTIMISE_FOR else None
+
+    def _clean_hop(val) -> "int | None":
+        # A hop cap must be a real, positive number; anything else (missing,
+        # non-numeric, zero, negative) is treated as "no limit" rather than
+        # raising or silently coercing to some arbitrary default.
+        if isinstance(val, (int, float)) and val >= 1:
+            return int(val)
+        return None
+
+    start = raw.get("start_node_id")
+    end = raw.get("end_node_id")
+
+    return NlpParseResponse(
+        # Endpoints: only trusted if they match a real, current node id;
+        # otherwise reported as unresolved (None) rather than passed through.
+        start_node_id=start if start in node_ids else None,
+        end_node_id=end if end in node_ids else None,
+        must_include_nodes=clean_ids(raw.get("must_include_nodes", []), node_ids),
+        must_avoid_nodes=clean_ids(raw.get("must_avoid_nodes", []), node_ids),
+        must_include_segments=clean_ids(raw.get("must_include_segments", []), segment_ids),
+        must_avoid_segments=clean_ids(raw.get("must_avoid_segments", []), segment_ids),
+        must_include_systems=clean_ids(raw.get("must_include_systems", []), system_ids),
+        must_avoid_systems=clean_ids(raw.get("must_avoid_systems", []), system_ids),
+        must_include_countries=clean_ids(raw.get("must_include_countries", []), valid_countries),
+        must_avoid_countries=clean_ids(raw.get("must_avoid_countries", []), valid_countries),
+        diversity=diversity,
+        max_wet_hops=_clean_hop(raw.get("max_wet_hops")),
+        max_terrestrial_hops=_clean_hop(raw.get("max_terrestrial_hops")),
+        optimise_for=optimise_for,
+        sort_mode=sort_mode,
+        explanation=str(raw.get("explanation", "")),
+        confidence=str(raw.get("confidence", "low")),
+        ambiguities=list(raw.get("ambiguities", [])),
+    )
