@@ -50,6 +50,10 @@ import { PHONE_PX, useMaxWidth } from './fullViewChrome'
 
 const Z_DIALOG = 11500
 /** Screen-reader-only text (the flag emoji itself is aria-hidden). */
+// On phones, size against the *visible* viewport where supported (dvh), so iOS
+// Safari's toolbar can't hide the bottom of the dialog.
+const VIEWPORT_H = typeof CSS !== 'undefined' && CSS.supports?.('height', '1dvh') ? 'dvh' : 'vh'
+
 const visuallyHidden = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' } as const
 const MMSI_RE = /^\d{9}$/
 /** A Full View opened from this dialog has to sit ABOVE it, not at
@@ -177,13 +181,16 @@ export function ShipTrackerDialog({ onClose, shipsOnMap, onToggleShipsOnMap, onS
           className="rb-anim-pop"
           style={{
             background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 12,
-            padding: 0, width: '100%', maxWidth: 560, maxHeight: phone ? '92vh' : '82vh',
+            padding: 0, width: '100%', maxWidth: 560, maxHeight: phone ? `92${VIEWPORT_H}` : '82vh',
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
             boxShadow: '0 24px 64px rgba(0,0,0,0.5)', fontFamily: 'system-ui, sans-serif',
           }}
         >
           <DialogHeader t={t} phone={phone} actions={headerActions} onClose={onClose} />
 
+          {/* Everything below the header scrolls as one — the Sources panel
+              can be taller than a phone screen on its own. */}
+          <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>
           <div style={{ padding: '8px 16px', borderBottom: `1px solid ${t.border}`, background: t.bgCard }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
               <div style={{ flex: 1, minWidth: 0 }}><AisFeedLine feed={aisFeed} compact /></div>
@@ -204,7 +211,7 @@ export function ShipTrackerDialog({ onClose, shipsOnMap, onToggleShipsOnMap, onS
             )}
           </div>
 
-          <div style={{ overflowY: 'auto', flex: 1, padding: 14 }}>
+          <div style={{ padding: 14 }}>
             {loading && <div style={{ fontSize: 12, color: t.textFaint, padding: '20px 4px' }}>Loading…</div>}
             {error && <div style={{ fontSize: 12, color: t.red, marginBottom: 10 }}>⚠ {error}</div>}
 
@@ -230,6 +237,7 @@ export function ShipTrackerDialog({ onClose, shipsOnMap, onToggleShipsOnMap, onS
               onAdd={() => void addShip()}
               onRemove={removeByMmsi}
             />
+          </div>
           </div>
         </div>
       </div>

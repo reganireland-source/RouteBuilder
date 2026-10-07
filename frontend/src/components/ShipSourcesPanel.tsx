@@ -406,7 +406,7 @@ function BusyHoursFields({ t, draft, setDraft }: { t: T; draft: Draft; setDraft:
   return (
     <fieldset style={{ border: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 4, gridColumn: '1 / -1' }}>
       <legend style={{ ...label, padding: 0, marginBottom: 4 }}>Busy hours — a bit more polling while ships are likely under way</legend>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(96px, 1fr))', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(128px, 1fr))', gap: 8 }}>
         <select aria-label="Busy hours start" value={p.start_hour} onChange={e => setPeak({ start_hour: Number(e.target.value) })} style={input}>
           {HOURS.map(h => <option key={h} value={h}>From {pad(h)}</option>)}
         </select>
