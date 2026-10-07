@@ -199,7 +199,7 @@ export function ShipTrackerDialog({ onClose, shipsOnMap, onToggleShipsOnMap, onS
             </div>
             {sourcesOpen && (
               <div style={{ marginTop: 10, paddingBottom: 4 }}>
-                <ShipSourcesPanel isAdmin={isAdmin} onSaved={() => { void refresh(); setFeedToken(n => n + 1) }} />
+                <ShipSourcesPanel isAdmin={isAdmin} ships={ships} onSaved={() => { void refresh(); setFeedToken(n => n + 1) }} />
               </div>
             )}
           </div>

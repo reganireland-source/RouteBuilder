@@ -382,9 +382,11 @@ export interface ShipSource {
   free: boolean
   /** The provider's free-tier limits (polled sources only). */
   free_limits: ShipSourceLimits | null
-  /** share = takes turns with the other free sources; primary = first in the
-   *  order; fallback = fills gaps; always = asked about every ship. */
-  role: 'share' | 'primary' | 'fallback' | 'always' | 'unused'
+  /** Share mode: stream = always listening; rotation = steady hourly checks
+   *  through the ships; midpoint = monthly-allowance top-ups halfway between.
+   *  Other modes: primary = first in the order; always = asked about every
+   *  ship. fallback = fills gaps (either mode). */
+  role: 'stream' | 'rotation' | 'midpoint' | 'primary' | 'fallback' | 'always' | 'unused'
   status: 'ok' | 'error' | 'checking' | 'disabled'
   detail: string
   ships_located: number
@@ -420,12 +422,24 @@ export interface ShipTrackingSettings {
   peak: ShipBusyHours
 }
 
-/** GET /api/ships/sources. `estimate` (share mode): how often each ship gets
- *  a turn from the free sources combined. */
+/** Share mode's polling plan for the current ship count. */
+export interface ShipPollingPlan {
+  ships: number
+  /** Steady sources (hourly limit) rotating through every ship. */
+  rotation: { sources: string[]; hours_per_ship: number } | null
+  /** Monthly-allowance sources adding a check at the midpoint of a ship's
+   *  rotation gap; typical hours between top-ups for any one ship. */
+  topups: { label: string; busy_hours_per_ship: number | null; quiet_hours_per_ship: number | null }[]
+  /** Sources without limits, used only for ships nothing else located. */
+  gap_fillers: string[]
+  upcoming: { at: string; source: string; mmsi: string; kind: 'rotation' | 'midpoint' | 'oldest' }[]
+}
+
+/** GET /api/ships/sources. `plan` is null outside share mode. */
 export interface ShipSourcesResponse {
   settings: ShipTrackingSettings
   sources: ShipSource[]
-  estimate: { busy_calls_per_hour: number; quiet_calls_per_hour: number; busy_hours_per_ship: number | null; quiet_hours_per_ship: number | null } | null
+  plan: ShipPollingPlan | null
   busy_now: boolean
 }
 

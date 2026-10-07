@@ -63,3 +63,20 @@ def test_no_limits_means_no_pacing():
     lim = {"per_month": None, "per_hour": None}
     assert schedule.allowance(lim, {"calls": 5}, ts(2026, 10, 7), SGT) is None
     assert schedule.source_rates(lim, SGT, ts(2026, 10, 7)) is None
+
+
+def test_best_midpoint_picks_the_widest_gap_at_its_middle():
+    # Three ships on a 3 h rotation, last checked 0, 1 and 2 h ago.
+    h = 3600
+    timeline = schedule.rotation_timeline(["a", "b", "c"], 0, 1 * h, h, {"a": -2 * h, "b": -1 * h, "c": 0})
+    assert timeline == {"a": (-2 * h, h), "b": (-h, 2 * h), "c": (0, 3 * h)}
+    assert schedule.best_midpoint(timeline, 0) == ("b", 0.5 * h)          # next midpoint, all gaps equal
+    assert schedule.best_midpoint(timeline, 0.6 * h, cycle=3 * h) == ("c", 1.5 * h)
+
+
+def test_best_midpoint_tolerates_jitter_but_waits_rather_than_land_lopsided():
+    h = 3600
+    one = {"a": (0, h)}
+    assert schedule.best_midpoint(one, 0.5 * h + 10, cycle=h) == ("a", 0.5 * h + 10)   # seconds late: still now
+    assert schedule.best_midpoint(one, 0.75 * h, cycle=h) == ("a", 1.5 * h)            # well past: next gap's middle
+    assert schedule.best_midpoint(one, 0.99 * h) is None                               # no room before the next check

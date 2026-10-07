@@ -3,10 +3,12 @@
  * the work, shown inside ShipTrackerDialog (collapsed under the feed line).
  *
  * Modes (backend: shiptracker/hub.py):
- *   share    (default) the free sources take turns: each one calls as often
- *            as its free limits allow, always for the ship that has gone
- *            longest without a fresh position, so their capacity adds up.
- *            Paid sources without limits only fill gaps.
+ *   share    (default) planned around the ship count N: steady sources with
+ *            an hourly limit (Marinesia) rotate through the ships, so each
+ *            is checked every N hours; monthly-allowance sources (VesselAPI)
+ *            add a check at the midpoint of a ship's rotation gap, where it
+ *            removes the most staleness. Paid sources only fill gaps. The
+ *            panel shows the plan and the next scheduled checks.
  *   fallback later sources only asked about ships earlier ones lost.
  *   always   every source asked about every ship; freshest fix wins.
  *
@@ -23,20 +25,19 @@
  */
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { ShipBusyHours, ShipSource, ShipSourceLimits, ShipSourcesResponse, ShipTrackingSettings } from '../types'
+import type { ShipBusyHours, ShipPollingPlan, ShipSource, ShipSourceLimits, ShipSourcesResponse, ShipTrackingSettings, TrackedShip } from '../types'
 import { useTheme } from '../theme'
 
 type T = ReturnType<typeof useTheme>
 type Draft = ShipTrackingSettings
 type SetDraft = (d: Draft) => void
-type Estimate = ShipSourcesResponse['estimate']
 
 const ROLE_LABEL: Record<ShipSource['role'], string> = {
-  share: 'Takes turns', primary: 'First', fallback: 'Fills gaps', always: 'Also used', unused: 'Not used',
+  stream: 'Listening', rotation: 'Rotation', midpoint: 'Midpoints', primary: 'First', fallback: 'Fills gaps', always: 'Also used', unused: 'Not used',
 }
 
 const MODES: { id: Draft['mode']; title: string; blurb: (d: Draft) => string }[] = [
-  { id: 'share', title: 'Take turns', blurb: () => 'Free sources share the ships, each as often as its free limit allows. Paid sources only fill gaps.' },
+  { id: 'share', title: 'Planned rotation', blurb: () => 'Hourly sources rotate through the ships; monthly allowances add a check halfway between. Paid sources only fill gaps.' },
   { id: 'fallback', title: 'Only fill gaps', blurb: d => `Later sources only asked about ships the ones above haven't located in ${d.stale_minutes} min.` },
   { id: 'always', title: 'Always', blurb: () => 'Every source asked about every ship; the freshest position wins.' },
 ]
@@ -65,7 +66,7 @@ function freeFirst(order: string[], sources: ShipSource[]): string[] {
 
 const isLimited = (l?: ShipSourceLimits) => !!l && (l.per_month !== null || l.per_hour !== null)
 
-export function ShipSourcesPanel({ isAdmin, onSaved }: { isAdmin: boolean; onSaved?: () => void }) {
+export function ShipSourcesPanel({ isAdmin, ships = [], onSaved }: { isAdmin: boolean; ships?: TrackedShip[]; onSaved?: () => void }) {
   const t = useTheme()
   const [data, setData] = useState<ShipSourcesResponse | null>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
@@ -101,7 +102,7 @@ export function ShipSourcesPanel({ isAdmin, onSaved }: { isAdmin: boolean; onSav
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {data.settings.mode === 'share' && <EstimateLine t={t} estimate={data.estimate} peak={data.settings.peak} busyNow={data.busy_now} dirty={dirty} />}
+      {data.settings.mode === 'share' && <PlanCard t={t} plan={data.plan} ships={ships} peak={data.settings.peak} busyNow={data.busy_now} dirty={dirty} />}
 
       <SectionLabel t={t} text={draft.mode === 'share' ? 'In use' : 'In use · tried in this order'} />
       <ol style={listStyle(t)}>
@@ -157,22 +158,52 @@ function SectionLabel({ t, text }: { t: T; text: string }) {
   return <div style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: -6 }}>{text}</div>
 }
 
-/** Share mode headline: how often each ship gets a fresh check. */
-function EstimateLine({ t, estimate, peak, busyNow, dirty }: { t: T; estimate: Estimate; peak: ShipBusyHours; busyNow: boolean; dirty: boolean }) {
+const timeFmt = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
+
+/** Share mode: the plan for the current ship count and the next checks. */
+function PlanCard({ t, plan, ships, peak, busyNow, dirty }: { t: T; plan: ShipPollingPlan | null; ships: TrackedShip[]; peak: ShipBusyHours; busyNow: boolean; dirty: boolean }) {
   const window = `${pad(peak.start_hour)}–${pad(peak.end_hour)} ${zoneLabel(peak.utc_offset)}`
+  const nameOf = (mmsi: string) => ships.find(s => s.mmsi === mmsi)?.name || mmsi
+  const n = plan?.ships ?? 0
   return (
     <div style={{ padding: '9px 11px', borderRadius: 6, border: `1px solid ${t.blue}55`, background: t.blue + '14', fontSize: 11, color: t.textMuted, lineHeight: 1.5 }}>
-      {estimate?.busy_hours_per_ship ? (
-        <>
-          <span style={{ color: t.text, fontWeight: 700 }}>Each ship checked about every {estimate.busy_hours_per_ship} h</span>
-          {' '}in busy hours ({window}), every {estimate.quiet_hours_per_ship} h otherwise, using the free sources' limits together.
-        </>
-      ) : (
-        <>No free source with a key is in use yet, so nothing is polled on a free allowance.</>
+      <div style={{ color: t.text, fontWeight: 700, marginBottom: 2 }}>Polling plan · {n} ship{n === 1 ? '' : 's'}</div>
+      <PlanSummary t={t} plan={plan} window={window} />
+      {plan && plan.upcoming.length > 0 && (
+        <ol style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, display: 'grid', gridTemplateColumns: 'auto auto 1fr', columnGap: 10, rowGap: 1 }}>
+          {plan.upcoming.map(e => (
+            <li key={`${e.at}-${e.source}-${e.mmsi}`} style={{ display: 'contents' }}>
+              <span style={{ fontVariantNumeric: 'tabular-nums', color: t.text }}>{timeFmt.format(new Date(e.at))}</span>
+              <span style={{ color: e.kind === 'rotation' ? t.textMuted : t.green }}>{e.source}{e.kind === 'midpoint' ? ' · midpoint' : ''}</span>
+              <span style={{ color: t.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameOf(e.mmsi)}</span>
+            </li>
+          ))}
+        </ol>
       )}
-      <span style={{ display: 'block', marginTop: 2, color: busyNow ? t.green : t.textFaint, fontWeight: 600 }}>
-        {busyNow ? '● Busy hours now' : '○ Quiet hours now'}{dirty ? ' · save to update the estimate' : ''}
+      <span style={{ display: 'block', marginTop: 4, color: busyNow ? t.green : t.textFaint, fontWeight: 600 }}>
+        {busyNow ? '● Busy hours now' : '○ Quiet hours now'} ({window}){dirty ? ' · save to update the plan' : ''}
       </span>
+    </div>
+  )
+}
+
+function PlanSummary({ t, plan, window }: { t: T; plan: ShipPollingPlan | null; window: string }) {
+  if (!plan || (!plan.rotation && plan.topups.length === 0)) {
+    return <div>No free source with a key is in use yet, so nothing is polled on a free allowance.</div>
+  }
+  return (
+    <div>
+      {plan.rotation && (
+        <div>
+          <b style={{ color: t.text }}>{plan.rotation.sources.join(' + ')}</b> rotates through the ships: each one checked every <b style={{ color: t.text }}>{plan.rotation.hours_per_ship} h</b>.
+        </div>
+      )}
+      {plan.topups.map(tp => tp.busy_hours_per_ship && (
+        <div key={tp.label}>
+          <b style={{ color: t.text }}>{tp.label}</b> {plan.rotation ? 'adds a check halfway between' : 'checks the longest-waiting ship'}, about every {tp.busy_hours_per_ship} h per ship in busy hours ({window}), {tp.quiet_hours_per_ship} h otherwise.
+        </div>
+      ))}
+      {plan.gap_fillers.length > 0 && <div>{plan.gap_fillers.join(', ')}: only for ships nothing else has located.</div>}
     </div>
   )
 }
@@ -204,7 +235,7 @@ function SourceRow({ t, s, rank, draft, setDraft }: { t: T; s: ShipSource; rank?
 }
 
 function RolePill({ t, role }: { t: T; role: ShipSource['role'] }) {
-  const lead = role === 'primary' || role === 'share'
+  const lead = role === 'primary' || role === 'rotation' || role === 'midpoint' || role === 'stream'
   return (
     <span style={{
       fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase',

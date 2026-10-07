@@ -9,15 +9,24 @@
 # listed in PRIORITY ORDER (`order`, free first by default) and run in one of
 # three modes:
 #
-#   share    — (default) round robin. Every source with call limits (the free
-#              tiers) takes its turn as soon as its limits allow, and each
-#              turn goes to the ship that has gone longest without a fresh
-#              position, so the free capacity of all sources adds up and no
-#              two sources chase the same ship. A source that recently came
-#              back empty-handed for a ship (e.g. out of its coverage) leaves
-#              that ship to the others for MISS_COOLDOWN. Sources without
-#              limits (paid) only fill gaps: ships with nothing fresher than
-#              `stale_minutes`.
+#   share    — (default) plan the free capacity around the ship count N:
+#              * STEADY sources (an hourly limit, no monthly cap — e.g.
+#                Marinesia's 1/hour) run a fixed rotation through the N
+#                ships, so each ship is checked every N × slot (3 ships on
+#                1/hour → every ~3 h). Ships a stream heard within the last
+#                quarter cycle are skipped for that slot.
+#              * TOP-UP sources (a monthly cap — e.g. VesselAPI's 150) are
+#                paced across the month as usual, but each call waits for
+#                the next ship to reach the MIDPOINT of its rotation gap,
+#                where one extra check removes the most staleness (see
+#                schedule.best_midpoint). With no steady source they simply
+#                check the longest-unchecked ship.
+#              * Sources without limits (paid) only fill gaps: ships with
+#                nothing fresher than `stale_minutes`.
+#              Everything is recomputed from N each time, so adding or
+#              removing ships re-plans automatically. A source that recently
+#              came back empty-handed for a ship (e.g. out of its coverage)
+#              leaves that ship to the others for MISS_COOLDOWN.
 #   fallback — the first source is asked about every ship; each later source
 #              only about ships no earlier source has located within
 #              `stale_minutes`.
@@ -84,6 +93,7 @@ MAX_LIMIT = 1_000_000
 MISS_COOLDOWN = 12 * 3600       # share mode: leave a ship a source couldn't find to the others this long
 MIN_SLEEP, MAX_SLEEP = 30, 90 * 60
 SAME_PASS_S = 60                # share mode: asked within this long = taken in the current pass
+TOPUP_SLACK_S = 90              # share mode: a top-up this close to its planned moment fires now
 
 # Built-in monthly defaults before per-hour limits existed — a stored value
 # equal to one of these was never an admin's choice, so it maps to the new default.
@@ -385,15 +395,111 @@ class PositionHub:
             return (asked.get(mmsi, float("-inf")), _fix_time(fix) if fix else float("-inf"), mmsi)
         return sorted(ships, key=key)
 
+    # ── share-mode plan: steady rotation + midpoint top-ups ─────────────
+    def _share_roles(self, settings: dict, enabled: list[str]) -> tuple[list[str], list[str], list[str]]:
+        """(steady, top-up, unlimited) polled sources among `enabled`."""
+        steady, topup, unlimited = [], [], []
+        for sid in enabled:
+            if sid not in POLL_ADAPTERS:
+                continue
+            lim = settings["limits"][sid]
+            if lim["per_month"] is not None:
+                topup.append(sid)
+            elif lim["per_hour"] is not None:
+                steady.append(sid)
+            else:
+                unlimited.append(sid)
+        return steady, topup, unlimited
+
+    def _pointer(self) -> int:
+        self._usage_for("_", time.time())   # make sure persisted usage is loaded
+        return int(self._usage.get("_rotation", 0))
+
+    def _advance_pointer(self) -> None:
+        self._usage["_rotation"] = self._pointer() + 1
+
+    def _rotation(self, settings: dict, steady: list[str], now: float) -> Optional[tuple[float, float]]:
+        """(slot interval, next slot time) for the steady rotation, or None."""
+        interval = schedule.rotation_interval([settings["limits"][s]["per_hour"] for s in steady])
+        if not interval:
+            return None
+        nexts = [schedule.next_call_at(settings["limits"][s], self._usage_for(s, now), now, settings["peak"]) for s in steady]
+        nexts = [t for t in nexts if t is not None]
+        return interval, (min(nexts) if nexts else now)
+
+    def _steady_picks(self, source_id: str, k: int, settings: dict, interval: float, now: float) -> list[str]:
+        """The next `k` ships in the rotation, skipping ships this source
+        recently couldn't find, ships already taken in this pass, and ships
+        a stream heard within a quarter cycle (their slot goes to the next)."""
+        ships = self.tracked()
+        n = len(ships)
+        # A stream (aisstream) hearing a ship gives positions minutes old; a
+        # midpoint top-up leaves one half a cycle old. Only the former means
+        # this slot is better spent on the next ship.
+        heard_recently = n * interval / 4
+        missed = self._missed[source_id]
+        picks: list[str] = []
+        for _ in range(n):
+            if len(picks) >= k:
+                break
+            mmsi = ships[self._pointer() % n]
+            self._advance_pointer()
+            fix = self.best(mmsi, settings)
+            if (now - missed.get(mmsi, float("-inf")) < MISS_COOLDOWN
+                    or now - self._last_asked.get(mmsi, float("-inf")) < SAME_PASS_S
+                    or (fix is not None and now - _fix_time(fix) < heard_recently)):
+                continue
+            picks.append(mmsi)
+        return picks
+
+    def _topup_target(self, source_id: str, settings: dict, steady: list[str], now: float) -> Optional[tuple[str, float]]:
+        """(ship, when) for this top-up source's next call: the best rotation
+        midpoint once its allowance is due; with no steady source, the
+        longest-unchecked ship as soon as it's due. None if not due this month."""
+        due = schedule.next_call_at(settings["limits"][source_id], self._usage_for(source_id, now), now, settings["peak"])
+        if due is None:
+            return None
+        due = max(due, now)
+        rot = self._rotation(settings, steady, now) if steady else None
+        exclude = {m for m, t in self._missed[source_id].items() if now - t < MISS_COOLDOWN}
+        if rot is None:
+            taken = {m for m in self.tracked() if now - self._last_asked.get(m, float("-inf")) < SAME_PASS_S}
+            queue = [m for m in self._share_queue(source_id, settings, now) if m not in exclude | taken]
+            return (queue[0], due) if queue else None
+        interval, next_slot = rot
+        checked = {m: self._last_refreshed(m, settings) for m in self.tracked()}
+        timeline = schedule.rotation_timeline(self.tracked(), self._pointer(), next_slot, interval, checked)
+        return schedule.best_midpoint(timeline, due, exclude, cycle=len(timeline) * interval)
+
+    async def _poll_share(self, settings: dict, enabled: list[str]) -> None:
+        steady, topup, unlimited = self._share_roles(settings, enabled)
+        now = time.time()
+        rot = self._rotation(settings, steady, now)
+        for sid in steady:
+            allowance = self._allowance(sid, settings, now) or 0
+            picks = self._steady_picks(sid, allowance, settings, rot[0], now) if allowance and rot else []
+            if picks:
+                await self._poll_source(sid, picks, True, now)
+        for sid in topup:
+            now = time.time()
+            target = self._topup_target(sid, settings, steady, now)
+            if target and target[1] <= now + TOPUP_SLACK_S and (self._allowance(sid, settings, now) or 0) > 0:
+                await self._poll_source(sid, [target[0]], True, now)
+        for sid in unlimited:
+            now = time.time()
+            if self._allowance(sid, settings, now) == 0:
+                continue
+            mmsis = self._own_queue(sid, self._stale(self.tracked(), enabled, settings), settings)
+            if mmsis:
+                await self._poll_source(sid, mmsis, False, now)
+            else:
+                self._poll_state[sid]["last_poll"] = now   # nothing needed this round
+
     def _mmsis_to_poll(self, source_id: str, settings: dict, enabled: list[str], now: float) -> list[str]:
-        mode = settings["mode"]
-        if mode == "share":
-            if _limited(settings, source_id):
-                return self._share_queue(source_id, settings, now)
-            return self._own_queue(source_id, self._stale(self.tracked(), enabled, settings), settings)
+        """Fallback / always modes (share mode plans in _poll_share)."""
         ships = self.tracked()
         earlier = enabled[:enabled.index(source_id)]
-        if mode == "fallback" and earlier:
+        if settings["mode"] == "fallback" and earlier:
             ships = self._stale(ships, earlier, settings)
         return self._own_queue(source_id, ships, settings)
 
@@ -434,6 +540,9 @@ class PositionHub:
         the same pass picks different ones."""
         settings = current_settings()
         enabled = self.enabled(settings)
+        if settings["mode"] == "share":
+            await self._poll_share(settings, enabled)
+            return
         for source_id in enabled:
             if source_id not in POLL_ADAPTERS:
                 continue  # streaming source — nothing to poll
@@ -452,7 +561,15 @@ class PositionHub:
     def seconds_until_next_poll(self, settings: Optional[dict] = None) -> float:
         settings = settings or current_settings()
         now = time.time()
-        dues = [d for d in (self._next_due(sid, settings, now) for sid in self.enabled(settings) if sid in POLL_ADAPTERS) if d is not None]
+        enabled = self.enabled(settings)
+        polled = [sid for sid in enabled if sid in POLL_ADAPTERS]
+        if settings["mode"] == "share":
+            steady, topup, _ = self._share_roles(settings, enabled)
+            targets = (self._topup_target(sid, settings, steady, now) for sid in topup)
+            dues = [t[1] for t in targets if t]
+            dues += [d for d in (self._next_due(sid, settings, now) for sid in polled if sid not in topup) if d is not None]
+        else:
+            dues = [d for d in (self._next_due(sid, settings, now) for sid in polled) if d is not None]
         wait = min(dues) - now if dues else MAX_SLEEP
         return min(MAX_SLEEP, max(MIN_SLEEP, wait + 1))
 
@@ -494,7 +611,12 @@ class PositionHub:
         if source_id not in order:
             return "unused"
         if settings["mode"] == "share":
-            return "share" if source_id in STREAM_SOURCES or _limited(settings, source_id) else "fallback"
+            if source_id in STREAM_SOURCES:
+                return "stream"
+            lim = settings["limits"][source_id]
+            if lim["per_month"] is not None:
+                return "midpoint"
+            return "rotation" if lim["per_hour"] is not None else "fallback"
         enabled = self.enabled(settings)
         first = enabled[0] if enabled else order[0]   # a source without its key is skipped
         return "primary" if source_id == first else settings["mode"]
@@ -505,7 +627,12 @@ class PositionHub:
         now = time.time()
         u = self._usage_for(source_id, now)
         lim = settings["limits"][source_id]
-        nxt = self._next_due(source_id, settings, now) if source_id in self.enabled(settings) else None
+        enabled = self.enabled(settings)
+        nxt = self._next_due(source_id, settings, now) if source_id in enabled else None
+        if nxt is not None and settings["mode"] == "share" and lim["per_month"] is not None:
+            steady = self._share_roles(settings, enabled)[0]
+            target = self._topup_target(source_id, settings, steady, now)   # waits for a midpoint
+            nxt = target[1] if target else None
         return {
             "calls_this_month": u["calls"],
             "calls_last_hour": len(schedule.recent_calls(u, now)),
@@ -549,25 +676,43 @@ class PositionHub:
             return {**base, "status": st["status"], "detail": st["detail"]}
         return self._poll_detail(source_id, base)
 
-    def refresh_estimate(self, settings: dict) -> Optional[dict]:
-        """Share mode: combined free call rate and how often each ship gets
-        a turn, in busy and quiet hours. None outside share mode or with no
-        limited source enabled."""
+    def polling_plan(self, settings: dict) -> Optional[dict]:
+        """Share mode: the plan for the current ship count N — the steady
+        rotation's cycle per ship, each top-up source's typical interval per
+        ship, and the next few scheduled checks. None outside share mode."""
         if settings["mode"] != "share":
             return None
         now = time.time()
-        rates = [schedule.source_rates(settings["limits"][sid], settings["peak"], now)
-                 for sid in self.enabled(settings) if sid in POLL_ADAPTERS and _limited(settings, sid)]
-        rates = [r for r in rates if r]
-        if not rates:
-            return None
-        busy, quiet = sum(r[0] for r in rates), sum(r[1] for r in rates)
-        n = len(self.tracked())
+        enabled = self.enabled(settings)
+        steady, topup, unlimited = self._share_roles(settings, enabled)
+        ships = self.tracked()
+        n = len(ships)
+        label = lambda sid: source_meta(sid)["label"]  # noqa: E731
+        rot = self._rotation(settings, steady, now) if steady else None
+        upcoming = []
+        if rot and n:
+            interval, next_slot = rot
+            ptr = self._pointer()
+            for j in range(n):
+                upcoming.append({"at": _iso(next_slot + j * interval), "source": label(steady[j % len(steady)]), "mmsi": ships[(ptr + j) % n], "kind": "rotation"})
+        topups = []
+        for sid in topup:
+            rates = schedule.source_rates(settings["limits"][sid], settings["peak"], now)
+            target = self._topup_target(sid, settings, steady, now)
+            if target:
+                upcoming.append({"at": _iso(target[1]), "source": label(sid), "mmsi": target[0], "kind": "midpoint" if rot else "oldest"})
+            topups.append({
+                "label": label(sid),
+                "busy_hours_per_ship": round(n / rates[0], 1) if rates and rates[0] and n else None,
+                "quiet_hours_per_ship": round(n / rates[1], 1) if rates and rates[1] and n else None,
+            })
+        upcoming.sort(key=lambda e: e["at"])
         return {
-            "busy_calls_per_hour": round(busy, 2),
-            "quiet_calls_per_hour": round(quiet, 2),
-            "busy_hours_per_ship": round(n / busy, 1) if n and busy else None,
-            "quiet_hours_per_ship": round(n / quiet, 1) if n and quiet else None,
+            "ships": n,
+            "rotation": {"sources": [label(s) for s in steady], "hours_per_ship": round(n * rot[0] / 3600, 1)} if rot and n else None,
+            "topups": topups,
+            "gap_fillers": [label(s) for s in unlimited],
+            "upcoming": upcoming[:max(n + len(topup), 1) + 2],
         }
 
     def sources_status(self) -> dict:
@@ -575,7 +720,7 @@ class PositionHub:
         return {
             "settings": settings,
             "sources": [self._source_status(sid, settings) for sid in all_source_ids()],
-            "estimate": self.refresh_estimate(settings),
+            "plan": self.polling_plan(settings),
             "busy_now": schedule.is_peak(time.time(), settings["peak"]),
         }
 

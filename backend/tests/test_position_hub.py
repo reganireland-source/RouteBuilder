@@ -30,12 +30,19 @@ class FakeProvider(PollAdapter):
     def __init__(self, fixes=None, fail=False):
         self.fixes = fixes or {}
         self.fail = fail
+        self.sees_everything = False
         self.calls: list[list[str]] = []
+        self.times: list[float] = []
 
     def fetch(self, mmsis):
         self.calls.append(list(mmsis))
+        self.times.append(hub_mod.time.time())
         if self.fail:
             raise SourceError("HTTP 401: bad key")
+        if self.sees_everything:   # a fresh fix for every ship asked about
+            from datetime import UTC, datetime
+            now_iso = datetime.fromtimestamp(hub_mod.time.time(), UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+            return {m: _fix(1.0, now_iso) for m in mmsis}
         return {m: self.fixes[m] for m in mmsis if m in self.fixes}
 
 
@@ -360,18 +367,102 @@ def test_fallback_chain_free_first_paid_fills_gaps(setup, monkeypatch):
     assert hub.best(ILE_DAIX).source == "paid"
 
 
-def test_refresh_estimate_for_marinesia_plus_vesselapi_free_tiers(setup, monkeypatch):
+# ── share-mode plan: steady rotation + midpoint top-ups, for any N ───────
+
+EXTRA = ["412000001", "412000002", "412000003"]
+
+
+@pytest.fixture
+def rotation(setup, monkeypatch):
+    """A Marinesia-like steady source (1/hour) and a VesselAPI-like top-up
+    source (150/month); seed N ships with `ships(n)`."""
     hub, ais, fake, settings = setup
-    ais.seed_tracked([TENEO, ILE_DAIX, FU_TAI])
-    other = FakeProvider()
-    other.meta = {**FakeProvider.meta, "env_key": "OTHER_AIS_KEY"}
-    monkeypatch.setenv("OTHER_AIS_KEY", "k")
-    monkeypatch.setitem(hub_mod.POLL_ADAPTERS, "other", other)
-    settings.update(order=["fake", "other"], mode="share")
-    settings["limits"].update(fake=_lim(per_hour=1), other=_lim(per_month=150))
+    topup = FakeProvider()
+    topup.meta = {**FakeProvider.meta, "env_key": "TOPUP_AIS_KEY"}
+    monkeypatch.setenv("TOPUP_AIS_KEY", "k")
+    monkeypatch.setitem(hub_mod.POLL_ADAPTERS, "topup", topup)
+    settings.update(order=["aisstream", "fake", "topup"], mode="share")
+    settings["limits"].update(fake=_lim(per_hour=1), topup=_lim(per_month=150))
+    fake.sees_everything = topup.sees_everything = True
+
+    def ships(n):
+        ais._tracked.clear()
+        ais.seed_tracked(([TENEO, ILE_DAIX, FU_TAI] + EXTRA)[:n])
+        return sorted(ais._tracked)
+    return hub, fake, topup, ships
+
+
+def _run(hub, clock, until):
+    while clock[0] < until:
+        asyncio.run(hub.poll_once())
+        clock[0] += hub.seconds_until_next_poll()
+
+
+def _checks(*providers):
+    """Every (time, ship, provider) check, in time order."""
+    return sorted((t, m, p) for p in providers for t, ms in zip(p.times, p.calls) for m in ms)
+
+
+@pytest.mark.parametrize("n", [1, 2, 3, 4])
+def test_rotation_checks_each_ship_every_n_hours(rotation, monkeypatch, n):
+    hub, steady, topup, ships = rotation
+    tracked = ships(n)
+    clock = _clock(monkeypatch, 2026, 10, 7, 0)
+    _run(hub, clock, clock[0] + 2 * 86400)
+    for m in tracked:
+        times = [t for t, ms in zip(steady.times, steady.calls) if m in ms]
+        gaps = [b - a for a, b in zip(times, times[1:])]
+        assert gaps and all(abs(g - n * 3630) < 120 for g in gaps), (m, gaps)    # every N slots of ~1 h
+
+
+@pytest.mark.parametrize("n", [1, 2, 3, 4])
+def test_topups_land_at_the_midpoint_of_a_ships_rotation_gap(rotation, monkeypatch, n):
+    hub, steady, topup, ships = rotation
+    ships(n)
+    clock = _clock(monkeypatch, 2026, 10, 7, 0)
+    _run(hub, clock, clock[0] + 3 * 86400)
+    assert len(topup.calls) >= 10
+    checks = _checks(steady, topup)
+    for i, (t, m, p) in enumerate(checks):
+        if p is not topup:
+            continue
+        before = max(tt for tt, mm, pp in checks[:i] if mm == m and pp is steady) if any(mm == m and pp is steady for _, mm, pp in checks[:i]) else None
+        after = next((tt for tt, mm, pp in checks[i + 1:] if mm == m and pp is steady), None)
+        if before is None or after is None:
+            continue
+        mid = (before + after) / 2
+        assert abs(t - mid) <= 5 * 60, (m, (t - before) / 3600, (after - t) / 3600)   # within 5 min of halfway
+
+
+def test_plan_reflects_ship_count_and_replans_when_ships_are_added(rotation, monkeypatch):
+    hub, steady, topup, ships = rotation
+    ships(3)
     _clock(monkeypatch, 2026, 10, 7, 2)
-    est = hub.sources_status()["estimate"]
-    # VesselAPI-like: 150/31 days, busy ×1.5 → ≈0.23/h busy, ≈0.15/h quiet; plus 1/h.
-    assert est["busy_calls_per_hour"] == pytest.approx(1.23, abs=0.01)
-    assert est["quiet_calls_per_hour"] == pytest.approx(1.15, abs=0.01)
-    assert est["busy_hours_per_ship"] == 2.4 and est["quiet_hours_per_ship"] == 2.6
+    plan = hub.sources_status()["plan"]
+    assert plan["ships"] == 3 and plan["rotation"]["hours_per_ship"] == 3.0
+    assert plan["topups"][0]["busy_hours_per_ship"] == 13.2   # 3 ships ÷ (150 calls over 31 days, busy ×1.5 ≈ 0.227/h)
+    kinds = [e["kind"] for e in plan["upcoming"]]
+    assert kinds.count("rotation") == 3 and kinds.count("midpoint") == 1
+    ships(4)
+    plan = hub.sources_status()["plan"]
+    assert plan["ships"] == 4 and plan["rotation"]["hours_per_ship"] == 4.0
+
+
+def test_topup_alone_checks_the_longest_unchecked_ship(rotation, monkeypatch):
+    hub, steady, topup, ships = rotation
+    ships(3)
+    hub_mod.current_settings().update(order=["topup"])
+    clock = _clock(monkeypatch, 2026, 10, 1)
+    _run(hub, clock, clock[0] + 4 * 86400)
+    asked = [c[0] for c in topup.calls]
+    assert len(asked) >= 12 and all(len(c) == 1 for c in topup.calls)
+    assert all(asked.count(m) >= len(asked) // 3 - 1 for m in set(asked))   # even turns
+
+
+@pytest.mark.parametrize("n", [2, 3, 4])
+def test_waiting_for_midpoints_still_uses_the_monthly_allowance(rotation, monkeypatch, n):
+    hub, steady, topup, ships = rotation
+    ships(n)
+    clock = _clock(monkeypatch, 2026, 10, 1)
+    _run(hub, clock, hub_mod.datetime(2026, 11, 1, tzinfo=hub_mod.UTC).timestamp())
+    assert 140 <= len(topup.calls) <= 150

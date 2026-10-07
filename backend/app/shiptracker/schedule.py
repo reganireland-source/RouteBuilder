@@ -132,3 +132,64 @@ def source_rates(limits: dict, peak: dict, now: float) -> Optional[tuple[float, 
     if per_hour is not None:
         busy, quiet = min(busy, per_hour), min(quiet, per_hour)
     return busy, quiet
+
+
+# ── share-mode planning: steady rotation + midpoint top-ups ──────────────────
+#
+# A ship's "staleness" is the time since anyone last checked it. If a ship
+# was last checked at L and its next rotation check is at T, an extra check
+# at t saves (t − L) × (T − t) of staleness — largest at the midpoint
+# t = (L + T) / 2. So extra calls from a monthly allowance are best spent at
+# the midpoint of the ship with the widest gap, which for N ships on an
+# hourly rotation means halfway through each ship's N-hour cycle.
+
+LATE_OK = 5 * 60
+
+
+def rotation_interval(per_hour_limits: list[int]) -> Optional[float]:
+    """Seconds between rotation slots for steady sources with these hourly
+    limits combined (each paced to HOUR_WINDOW / per_hour); None if none."""
+    rate = sum(n / HOUR_WINDOW for n in per_hour_limits if n)
+    return 1 / rate if rate else None
+
+
+def rotation_timeline(ships: list[str], pointer: int, next_slot: float, interval: float,
+                      last_checked: dict[str, float]) -> dict[str, tuple[float, float]]:
+    """Per ship (last checked, next rotation check). ships[pointer % N] is
+    next in the rotation at `next_slot`, the others follow every `interval`.
+    A ship never checked counts as last checked one full cycle ago."""
+    n = len(ships)
+    out = {}
+    for i, mmsi in enumerate(ships):
+        t_next = next_slot + ((i - pointer) % n) * interval
+        last = last_checked.get(mmsi, float("-inf"))
+        out[mmsi] = (last if last > float("-inf") else t_next - n * interval, t_next)
+    return out
+
+
+def best_midpoint(timeline: dict[str, tuple[float, float]], due_at: float, exclude: set = frozenset(),
+                  min_lead: float = 60, cycle: Optional[float] = None) -> Optional[tuple[str, float]]:
+    """(ship, when) for one extra check no earlier than `due_at` that saves
+    the most staleness: each ship's midpoint, or `due_at` if that's already
+    past. With `cycle`, the midpoint of each ship's following gap is a
+    candidate too, so a call that came due just after a midpoint waits for
+    the next one rather than landing lopsided. Ties go to the earlier time.
+    None if no ship would benefit."""
+    candidates = []
+    for mmsi, (last, t_next) in timeline.items():
+        if mmsi in exclude:
+            continue
+        gaps = [(last, t_next)] + ([(t_next, t_next + cycle)] if cycle else [])
+        for lo, hi in gaps:
+            mid = (lo + hi) / 2
+            t = max(due_at, mid)
+            if t >= hi - min_lead or t - lo < min_lead:
+                continue   # too close to a check either side to be worth a call
+            # Score as if on time when only LATE_OK past the midpoint, so a few
+            # seconds' timing jitter never defers a call by a whole cycle.
+            ts = max(mid, t - LATE_OK)
+            candidates.append((-(ts - lo) * (hi - ts), t, mmsi))
+    if not candidates:
+        return None
+    _, t, mmsi = min(candidates)
+    return mmsi, t
