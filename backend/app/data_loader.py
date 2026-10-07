@@ -165,11 +165,11 @@ def _write(path: Path, data) -> None:
 _ALLOWED_IDENTIFIERS = frozenset({
     "nodes", "systems", "segments", "capacity", "outages", "rules",
     "interfaces", "projects", "feature_requests", "solution_notes",
-    "note_categories", "config",
+    "note_categories", "config", "ships",
     "tech_service_types", "tech_bandwidths", "tech_protections",
     "tech_frame_sizes", "tech_access_types", "tech_arranged_by",
     "tech_l1_settings",
-    "id", "segment_id", "node_id", "fault_id", "category_id",
+    "id", "segment_id", "node_id", "fault_id", "category_id", "mmsi",
     "title", "text", "severity", "label", "applies_to", "order_num",
     "created_at",
 })

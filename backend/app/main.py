@@ -286,14 +286,19 @@ async def lifespan(app: FastAPI):
     # configured at all. This is the one case `lifespan` needs shutdown
     # cleanup for: every other feature here is request-scoped or a one-shot
     # background thread (warm_hazard_cache) that exits on its own.
+    # Failure-tolerant like the hazard warm-up: an optional overlay must never
+    # stop the app from booting and serving /api/health.
     ais_task = None
     from .data_loader import load_ships
     from .shiptracker.ais_client import client as ais_client, aisstream_api_key
-    ais_client.seed_tracked([s.mmsi for s in load_ships()])
-    if aisstream_api_key():
-        ais_task = asyncio.create_task(ais_client.run_forever())
-    else:
-        logger.info("MARITIME_AISSTREAM_API_KEY not set — ShipTracker will show tracked ships with no live position.")
+    try:
+        ais_client.seed_tracked([s.mmsi for s in load_ships()])
+        if aisstream_api_key():
+            ais_task = asyncio.create_task(ais_client.run_forever())
+        else:
+            logger.info("MARITIME_AISSTREAM_API_KEY not set — ShipTracker will show tracked ships with no live position.")
+    except Exception:  # noqa: BLE001
+        logger.exception("ShipTracker startup failed; continuing without live ship positions")
     yield
     if ais_task is not None:
         await ais_client.stop()

@@ -93,3 +93,15 @@ def test_save_ships_writes_valid_json_matching_the_seed_shape():
         "mmsi": "525300321", "name": "Teneo", "imo": "9019602",
         "added_at": "2026-10-07T00:00:00Z", "sprite": "teneo",
     }]
+
+
+def test_every_seeded_table_and_primary_key_passes_the_sql_allowlist():
+    """Regression: ShipTracker shipped with "ships"/"mmsi" missing from
+    _ALLOWED_IDENTIFIERS. The file-mode tests above never touch SQL, so the
+    gap only surfaced in production (Postgres) as a boot-time ValueError
+    that failed Railway's health check. This check needs no database: every
+    table db.py seeds, and its primary key, must be accepted by _safe_ident."""
+    from app.db import _TABLES
+    for table, _filename, pk in _TABLES:
+        assert data_loader._safe_ident(table) == table
+        assert data_loader._safe_ident(pk) == pk
