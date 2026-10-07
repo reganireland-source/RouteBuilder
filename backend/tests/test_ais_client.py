@@ -136,7 +136,8 @@ def test_status_is_checking_while_still_connecting(monkeypatch):
     monkeypatch.setenv("MARITIME_AISSTREAM_API_KEY", "k")
     client = AisStreamClient()
     client._started = True
-    assert client.status() == {"status": "checking", "detail": "Connecting…"}
+    st = client.status()
+    assert (st["status"], st["detail"]) == ("checking", "Connecting…")
 
 
 # ── GET /api/health/sources — hazard feeds read from cache, never rebuilt ──
@@ -271,3 +272,30 @@ def test_aisstream_timestamps_are_normalised_to_iso():
     from app.shiptracker.ais_client import _iso_from_aisstream
     assert _iso_from_aisstream("2026-10-07 13:00:00.318353 +0000 UTC") == "2026-10-07T13:00:00Z"
     assert _iso_from_aisstream(None).endswith("Z")
+
+
+def test_status_carries_the_facts_that_separate_broken_from_silent(monkeypatch):
+    """Connected-but-nothing-heard must read differently from not-connected:
+    the UI shows how long we've listened and when anything was last heard."""
+    monkeypatch.setenv("MARITIME_AISSTREAM_API_KEY", "k")
+    client = AisStreamClient()
+    client.seed_tracked(["525300321", "228018600", "352986181"])
+    client._connected = True
+    client._connected_since = "2026-10-07T08:00:00Z"
+    client._listening_since_monotonic = __import__("time").monotonic() - 2 * 3600 - 14 * 60
+    st = client.status()
+    assert st["status"] == "ok"
+    assert (st["ships_heard"], st["ships_tracked"], st["last_ping_utc"]) == (0, 3, None)
+    assert st["connected_since"] == "2026-10-07T08:00:00Z"
+    assert "listening 2h 14m" in st["detail"]
+
+    client._handle_message(_position_report(525300321))
+    st = client.status()
+    assert st["ships_heard"] == 1
+    assert st["last_ping_utc"] == "2026-10-07T12:00:00Z"
+    assert "last ping" in st["detail"]
+
+
+def test_duration_formatting():
+    from app.shiptracker.ais_client import _duration
+    assert [_duration(x) for x in (45, 720, 8040, 3 * 86400 + 4 * 3600)] == ["45s", "12m", "2h 14m", "3d 4h"]

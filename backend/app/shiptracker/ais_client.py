@@ -96,6 +96,11 @@ class AisStreamClient:
         self._last_error: Optional[str] = None
         self._last_report_monotonic: Optional[float] = None
         self._last_persisted: dict[str, float] = {}
+        # When this process first got a working connection, and when any
+        # tracked ship was last heard — both ISO UTC, for the status line.
+        self._connected_since: Optional[str] = None
+        self._listening_since_monotonic: Optional[float] = None
+        self._last_ping_utc: Optional[str] = None
 
     # ── reads (sync — safe to call from a request handler) ────────────────
     def get(self, mmsi: str) -> Optional[TrackedShipLive]:
@@ -105,20 +110,29 @@ class AisStreamClient:
         return dict(self._cache)
 
     def status(self) -> dict:
-        """Connection health for the status bar: ok / error / checking /
-        disabled, plus a one-line detail. Reads in-memory state only."""
+        """Connection health for the status bar and Ship Tracker: ok / error /
+        checking / disabled, a one-line detail, and the raw facts behind it
+        (connected_since, ships_heard/ships_tracked, last_ping_utc) so the UI
+        can tell "backend broken" apart from "ships just not heard yet".
+        Reads in-memory state only."""
+        facts = {
+            "connected_since": self._connected_since,
+            "ships_tracked": len(self._tracked),
+            "ships_heard": sum(1 for m in self._tracked if m in self._cache),
+            "last_ping_utc": self._last_ping_utc,
+        }
         if not aisstream_api_key():
-            return {"status": "disabled", "detail": "Not configured (MARITIME_AISSTREAM_API_KEY)"}
+            return {"status": "disabled", "detail": "Not configured (MARITIME_AISSTREAM_API_KEY)", **facts}
         if self._connected:
-            reporting = sum(1 for m in self._tracked if m in self._cache)
-            detail = f"Connected · {reporting}/{len(self._tracked)} ships heard since restart"
+            detail = f"Connected · {facts['ships_heard']}/{facts['ships_tracked']} ships heard since restart"
+            if self._listening_since_monotonic is not None:
+                detail += f" · listening {_duration(time.monotonic() - self._listening_since_monotonic)}"
             if self._last_report_monotonic is not None:
-                mins = int((time.monotonic() - self._last_report_monotonic) // 60)
-                detail += " · last report " + ("just now" if mins == 0 else f"{mins}m ago")
-            return {"status": "ok", "detail": detail}
+                detail += f" · last ping {_duration(time.monotonic() - self._last_report_monotonic)} ago"
+            return {"status": "ok", "detail": detail, **facts}
         if self._last_error:
-            return {"status": "error", "detail": self._last_error}
-        return {"status": "checking", "detail": "Connecting…" if self._started else "Not started"}
+            return {"status": "error", "detail": self._last_error, **facts}
+        return {"status": "checking", "detail": "Connecting…" if self._started else "Not started", **facts}
 
     # ── tracked-set mutation ───────────────────────────────────────────────
     async def subscribe(self, mmsi: str) -> None:
@@ -171,6 +185,9 @@ class AisStreamClient:
                         # static-data frames carry a position in MetaData too.
                     }))
                     self._connected = True
+                    if self._connected_since is None:
+                        self._connected_since = _utc_now_iso()
+                        self._listening_since_monotonic = time.monotonic()
                     log.info("aisstream.io connected, tracking %d ship(s).", len(self._tracked))
                     backoff = _INITIAL_BACKOFF_SECONDS  # reset after a successful connect
                     async for raw in ws:
@@ -234,6 +251,7 @@ class AisStreamClient:
             live = (prev.model_copy(update={"lat": lat, "lon": lon, "last_seen_utc": seen})
                     if prev else TrackedShipLive(lat=lat, lon=lon, last_seen_utc=seen))
         self._cache[mmsi] = live
+        self._last_ping_utc = seen
         self._last_report_monotonic = time.monotonic()
         self._last_error = None
         return mmsi
@@ -291,6 +309,21 @@ def _iso_from_aisstream(raw) -> str:
     to now if it's missing or unrecognised."""
     m = _AISSTREAM_TIME.match(raw) if isinstance(raw, str) else None
     return f"{m.group(1)}T{m.group(2)}Z" if m else _utc_now_iso()
+
+
+def _duration(seconds: float) -> str:
+    """Compact human duration: 45s, 12m, 2h 14m, 3d 4h."""
+    s = int(seconds)
+    if s < 60:
+        return f"{s}s"
+    m = s // 60
+    if m < 60:
+        return f"{m}m"
+    h, m = divmod(m, 60)
+    if h < 48:
+        return f"{h}h {m}m"
+    d, h = divmod(h, 24)
+    return f"{d}d {h}h"
 
 
 def _utc_now_iso() -> str:

@@ -43,6 +43,7 @@ import type { TrackedShip } from '../types'
 import { ShipFullView } from './ShipFullView'
 import { ConfirmDialog } from './ConfirmDialog'
 import { shipFixAge } from '../utils/shipFixAge'
+import { AisFeedLine, useAisFeed } from './AisFeedLine'
 
 const Z_DIALOG = 11500
 const MMSI_RE = /^\d{9}$/
@@ -62,6 +63,7 @@ export function ShipTrackerDialog({ onClose, shipsOnMap, onToggleShipsOnMap, onS
 }) {
   const t = useTheme()
   const { isAdmin } = useAuth()
+  const aisFeed = useAisFeed()
   const [ships, setShips] = useState<TrackedShip[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -202,6 +204,10 @@ export function ShipTrackerDialog({ onClose, shipsOnMap, onToggleShipsOnMap, onS
               onClick={onClose} aria-label="Close"
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textMuted, fontSize: 22, lineHeight: 1, padding: '0 2px' }}
             >×</button>
+          </div>
+
+          <div style={{ padding: '8px 16px', borderBottom: `1px solid ${t.border}`, background: t.bgCard }}>
+            <AisFeedLine feed={aisFeed} compact />
           </div>
 
           <div style={{ overflowY: 'auto', flex: 1, padding: 14 }}>

@@ -44,6 +44,19 @@
 
 import type { AppConfig, CableNode, CableResearchResult, KmlChain, KmlChopCommitResponse, KmlFlattenResponse, KmlFullPath, KmlLibrary, KmlPathsResponse, KmlSource, KmlUnusedFiles, KmlUploadResult, KmlVersion, ScmCablesResponse, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, HazardFeed, NlpParseResponse, NoteCategory, OutageEventType, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable, TrackedShip } from '../types'
 
+/** One external feed's status from GET /api/health/sources. The AIS entry also
+ *  carries the facts behind its detail line (see AisFeedLine.tsx). */
+export interface SourceHealth {
+  id: string
+  label: string
+  status: 'ok' | 'error' | 'checking' | 'disabled'
+  detail: string
+  connected_since?: string | null
+  ships_heard?: number
+  ships_tracked?: number
+  last_ping_utc?: string | null
+}
+
 // Backend origin baked in at build time. Empty string = same-origin (dev proxy).
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -347,7 +360,7 @@ export const api = {
   getChecks:    () => get<{ all_passed: boolean; error_count: number; warning_count: number; checks: { name: string; passed: boolean; severity: string; message: string }[] }>('/api/health/checks'),
   /** External live-data feeds (ShipTracker AIS, Bushfire.io, USGS) — read
    *  from state the backend already holds, so cheap to poll. */
-  getSourceHealth: () => get<{ sources: { id: string; label: string; status: 'ok' | 'error' | 'checking' | 'disabled'; detail: string }[] }>('/api/health/sources'),
+  getSourceHealth: () => get<{ sources: SourceHealth[] }>('/api/health/sources'),
   getNlpHealth: () => get<{ status: 'ok' | 'disabled' | 'error'; provider: string | null; detail: string }>('/api/health/nlp'),
   adminReseed:  () => post<{ status: string; reason?: string; reseeded?: Record<string, number> }>('/api/health/admin/reseed', {}),
 

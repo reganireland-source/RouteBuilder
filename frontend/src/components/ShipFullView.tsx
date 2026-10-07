@@ -35,6 +35,7 @@ import {
 } from './fullViewChrome'
 import { useTheme } from '../theme'
 import { shipFixAge } from '../utils/shipFixAge'
+import { AisFeedLine, useAisFeed } from './AisFeedLine'
 
 const NAV_STATUS_LABEL: Record<number, string> = {
   0: 'Under way using engine', 1: 'At anchor', 2: 'Not under command',
@@ -54,6 +55,9 @@ export function ShipFullView({ ship, onClose, zIndex = Z_FULL_VIEW_BASE }: {
   const live = ship.live
   const hasFix = !!live && live.lat != null && live.lon != null
   const age = shipFixAge(live)
+  const aisFeed = useAisFeed()
+  let positionTitle = 'Position'
+  if (hasFix) positionTitle = age?.stale ? 'Last Known Position' : 'Live Position'
 
   return (
     <LayoutContext.Provider value={layout}>
@@ -91,14 +95,17 @@ export function ShipFullView({ ship, onClose, zIndex = Z_FULL_VIEW_BASE }: {
                 <TextRow t={t} label="Tracking since" value={new Date(ship.added_at).toLocaleString()} />
               </Card>
 
-              <Card t={t} title={age?.stale ? 'Last Known Position' : 'Live Position'} grow>
-                {!hasFix ? (
-                  <Empty t={t}>
-                    Not heard yet. aisstream.io's free feed only hears ships near its shore receivers, so a ship at sea, or somewhere it has no coverage, can stay silent until it comes in range.
-                  </Empty>
-                ) : (
-                  <FixRows t={t} live={live!} />
-                )}
+              <Card t={t} title={positionTitle} grow>
+                <PingRows t={t} live={hasFix ? live : null} />
+                {hasFix && <FixRows t={t} live={live!} />}
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${t.border}`, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <AisFeedLine feed={aisFeed} compact />
+                  {!hasFix && (
+                    <Empty t={t}>
+                      aisstream.io's free feed only hears ships near its shore receivers, so a ship at sea or out of coverage stays silent until it comes in range. Its first ping will appear here, and is kept across restarts.
+                    </Empty>
+                  )}
+                </div>
               </Card>
             </div>
           </div>
@@ -114,19 +121,31 @@ function orEmpty(t: ReturnType<typeof useTheme>, v: string | null, placeholder =
 }
 
 function FixRows({ t, live }: { t: ReturnType<typeof useTheme>; live: TrackedShipLive }) {
-  const age = shipFixAge(live)
   const status = live.nav_status == null ? null : (NAV_STATUS_LABEL[live.nav_status] ?? `Code ${live.nav_status}`)
-  const seen = live.last_seen_utc
-    ? <span style={{ color: age?.stale ? t.orange : undefined }}>{new Date(live.last_seen_utc).toLocaleString()}{age && ` (${age.label})`}</span>
-    : null
   return (
     <>
-      <TextRow t={t} label="Coordinates" value={`${live.lat!.toFixed(4)}, ${live.lon!.toFixed(4)}`} />
       <TextRow t={t} label="Speed" value={orEmpty(t, live.sog == null ? null : `${live.sog.toFixed(1)} kn`)} />
       <TextRow t={t} label="Course" value={orEmpty(t, live.cog == null ? null : `${live.cog.toFixed(0)}°`)} />
       <TextRow t={t} label="Heading" value={orEmpty(t, live.true_heading == null ? null : `${live.true_heading}°`, 'Not available')} />
       <TextRow t={t} label="Status" value={orEmpty(t, status)} />
-      <TextRow t={t} label="Last seen" value={seen ?? <Empty t={t}>Unknown</Empty>} />
+    </>
+  )
+}
+
+/** The two rows that always show, fix or not: when this ship was last heard
+ *  and where. "Never" is a real answer, not a missing one. */
+function PingRows({ t, live }: { t: ReturnType<typeof useTheme>; live: TrackedShipLive | null }) {
+  const age = shipFixAge(live)
+  const ping = live?.last_seen_utc
+    ? <span style={{ color: age?.stale ? t.orange : t.green, fontWeight: 600 }}>{new Date(live.last_seen_utc).toLocaleString()}{age && ` (${age.label})`}</span>
+    : <Empty t={t}>Never heard yet</Empty>
+  const point = live && live.lat != null && live.lon != null
+    ? <span style={{ fontFamily: 'ui-monospace, monospace' }}>{live.lat.toFixed(4)}, {live.lon.toFixed(4)}</span>
+    : <Empty t={t}>None yet</Empty>
+  return (
+    <>
+      <TextRow t={t} label="Last ping" value={ping} />
+      <TextRow t={t} label="Last known point" value={point} />
     </>
   )
 }
