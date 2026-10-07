@@ -86,10 +86,9 @@ def valid_lat_lon(lat, lon) -> bool:
 class PollAdapter:
     #: label, env_key, coverage, pricing — shown in the source picker.
     #: free: usable at no cost (within its allowance).
-    #: free_calls_per_month: default monthly call budget (the free tier);
-    #:   None = unlimited. Admins can change it in the Sources panel.
-    #: min_spacing_s / max_burst: the free tier's rate limit, applied while
-    #:   a budget is set.
+    #: free_limits: the free tier's call limits, {"per_month", "per_hour"}
+    #:   (None = no limit of that kind); the default until an admin changes
+    #:   them in the Sources panel (e.g. after upgrading). See schedule.py.
     meta: dict = {}
 
     def api_key(self) -> str:
@@ -159,7 +158,7 @@ class VesselApiAdapter(PollAdapter):
         "coverage": "Terrestrial AIS, plus optional pay-per-fix satellite for ships out of shore range",
         "pricing": "Free 150 calls/mo · from $14.99/mo",
         "free": True,
-        "free_calls_per_month": 150,
+        "free_limits": {"per_month": 150, "per_hour": None},
     }
     BASE = "https://api.vesselapi.com/v1/vessel/{mmsi}/position"
 
@@ -196,7 +195,7 @@ class MyShipTrackingAdapter(PollAdapter):
         "coverage": "Terrestrial AIS only · no heading field",
         "pricing": "10-day free trial · from €90/mo",
         "free": False,
-        "free_calls_per_month": None,
+        "free_limits": {"per_month": None, "per_hour": None},
     }
     BASE = "https://api.myshiptracking.com/api/v2/vessel"
 
@@ -233,9 +232,7 @@ class MarinesiaAdapter(PollAdapter):
         "coverage": "Receiver network not published — coverage unverified",
         "pricing": "Free 1 call/hour · paid plans for more",
         "free": True,
-        "free_calls_per_month": 700,   # 1/hour ≈ 720, kept under
-        "min_spacing_s": 3600,
-        "max_burst": 1,
+        "free_limits": {"per_month": None, "per_hour": 1},
     }
     BASE = "https://api.marinesia.com/api/v1/vessel/{mmsi}/location/latest"
 

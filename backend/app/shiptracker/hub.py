@@ -1,37 +1,42 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # shiptracker/hub.py — one place that knows every position source, merges
-# their fixes, and decides which sources run.
+# their fixes, and decides which source asks about which ship, when.
 #
 # WHY MORE THAN ONE SOURCE
 # aisstream.io (free) only hears ships near volunteer shore receivers; in
 # measured tests it heard almost nothing in East Asian waters. Other
-# providers cover more, some free (within a call allowance), some paid. So
-# sources are listed in PRIORITY ORDER (`order`, free ones first by default)
-# and run in one of two modes:
+# providers cover more, some free within call limits, some paid. Sources are
+# listed in PRIORITY ORDER (`order`, free first by default) and run in one of
+# three modes:
 #
+#   share    — (default) round robin. Every source with call limits (the free
+#              tiers) takes its turn as soon as its limits allow, and each
+#              turn goes to the ship that has gone longest without a fresh
+#              position, so the free capacity of all sources adds up and no
+#              two sources chase the same ship. A source that recently came
+#              back empty-handed for a ship (e.g. out of its coverage) leaves
+#              that ship to the others for MISS_COOLDOWN. Sources without
+#              limits (paid) only fill gaps: ships with nothing fresher than
+#              `stale_minutes`.
 #   fallback — the first source is asked about every ship; each later source
-#              is only asked about ships no earlier source has located within
-#              `stale_minutes`. Free sources do what they can, paid ones only
-#              fill the gaps.
-#   always   — every source in the order is asked about every ship; the
-#              freshest fix wins.
+#              only about ships no earlier source has located within
+#              `stale_minutes`.
+#   always   — every source is asked about every ship; the freshest fix wins.
 #
-# CALL ALLOWANCES: a polled source can have a monthly call budget
-# (`budgets`, defaulting to the provider's free tier, None = unlimited). The
-# hub paces calls evenly over what's left of the calendar month (remaining
-# calls ÷ remaining time, never closer together than the provider's rate
-# limit), so a free tier is never exceeded. Within an allowance, ships the
-# source was asked about least recently go first, so every ship gets a turn.
+# LIMITS & BUSY HOURS: see schedule.py. Each polled source has per-hour and
+# per-month call limits (its free tier by default), never exceeded; monthly
+# allowances are spread with more calls in busy hours (`peak`, default
+# 04:00–20:00 SGT ×1.5). Sources without limits are checked every
+# `poll_minutes` in busy hours and `poll_minutes × weight` otherwise. The loop
+# sleeps until the next source is due, so free capacity is never left unused.
 # Usage is persisted (config["ship_tracking_usage"]) so restarts don't reset it.
 #
 # MERGING: per ship, the freshest fix across the enabled sources wins; on a
 # tie (or when timestamps are missing) the earlier source in the order wins.
 # Every fix carries `source` so the UI can say where a position came from.
 #
-# Source KINDS: "stream" (aisstream.io — pushes fixes as they arrive, see
-# ais_client.py) and "poll" (REST providers, see sources.py — checked every
-# `poll_minutes`). API keys live only in environment variables, never in the
-# database or the UI; a source without its key is listed but skipped.
+# API keys live only in environment variables, never in the database or the
+# UI; a source without its key is listed but skipped.
 #
 # Settings live under config["ship_tracking"] (see api/config.py for
 # validation), editable by admins from the Ship Tracker dialog.
@@ -44,6 +49,7 @@ from datetime import UTC, datetime
 from typing import Optional
 
 from ..models import TrackedShipLive
+from . import schedule
 from .ais_client import client as ais_client, aisstream_api_key, persist_last_known, PERSIST_EVERY_SECONDS, _duration
 from .sources import POLL_ADAPTERS, SourceError
 
@@ -59,19 +65,29 @@ STREAM_SOURCES = {
     },
 }
 
+DEFAULT_PEAK = {"start_hour": 4, "end_hour": 20, "utc_offset": 8, "weight": 1.5}   # 04:00–20:00 SGT
+
 DEFAULT_SETTINGS = {
     # Free sources first; paid ones are added by an admin when wanted.
     "order": ["aisstream", "marinesia", "vesselapi"],
-    "mode": "fallback",
+    "mode": "share",
+    # Sources without call limits: check interval in busy hours (minutes).
     "poll_minutes": 90,
     "stale_minutes": 180,
-    # Calls per calendar month per polled source; None = unlimited. Missing
-    # entries take the provider's free-tier allowance (meta "free_calls_per_month").
-    "budgets": {},
+    # Per polled source {"per_month", "per_hour"}; missing → its free tier.
+    "limits": {},
+    "peak": DEFAULT_PEAK,
 }
 
-MODES = ("fallback", "always")
-MAX_BUDGET = 1_000_000
+MODES = ("share", "fallback", "always")
+MAX_LIMIT = 1_000_000
+MISS_COOLDOWN = 12 * 3600       # share mode: leave a ship a source couldn't find to the others this long
+MIN_SLEEP, MAX_SLEEP = 30, 90 * 60
+SAME_PASS_S = 60                # share mode: asked within this long = taken in the current pass
+
+# Built-in monthly defaults before per-hour limits existed — a stored value
+# equal to one of these was never an admin's choice, so it maps to the new default.
+_LEGACY_DEFAULT_BUDGETS = {"marinesia": 700, "vesselapi": 150}
 
 
 def all_source_ids() -> list[str]:
@@ -82,6 +98,11 @@ def source_meta(source_id: str) -> dict:
     return STREAM_SOURCES.get(source_id) or POLL_ADAPTERS[source_id].meta
 
 
+def free_limits(source_id: str) -> dict:
+    fl = POLL_ADAPTERS[source_id].meta.get("free_limits") or {}
+    return {"per_month": fl.get("per_month"), "per_hour": fl.get("per_hour")}
+
+
 def source_configured(source_id: str) -> bool:
     if source_id == "aisstream":
         return bool(aisstream_api_key())
@@ -89,13 +110,28 @@ def source_configured(source_id: str) -> bool:
     return bool(adapter and adapter.configured())
 
 
+# ── settings ─────────────────────────────────────────────────────────────────
+
 def _from_legacy(raw: dict) -> dict:
-    """Settings saved before priority ordering used preferred/secondary."""
-    if "order" in raw or "preferred" not in raw:
-        return raw
-    order = [raw["preferred"]] + ([raw["secondary"]] if raw.get("secondary") not in (None, "", "none") else [])
-    out = {k: v for k, v in raw.items() if k not in ("preferred", "secondary", "secondary_mode")}
-    return {**out, "order": order, "mode": raw.get("secondary_mode", "fallback")}
+    """Older stored shapes: preferred/secondary, and monthly `budgets`."""
+    out = dict(raw)
+    if "order" not in out and "preferred" in out:
+        sec = out.get("secondary")
+        out["order"] = [out["preferred"]] + ([sec] if sec not in (None, "", "none") else [])
+        out["mode"] = out.get("secondary_mode", "fallback")
+    if "limits" not in out and isinstance(out.get("budgets"), dict):
+        # Saved before round robin existed, when "fallback" was the default:
+        # adopt the new default so free sources take turns.
+        if out.get("mode") == "fallback":
+            out["mode"] = "share"
+        out["limits"] = {
+            sid: {"per_month": v}
+            for sid, v in out["budgets"].items()
+            if sid in POLL_ADAPTERS and v != _LEGACY_DEFAULT_BUDGETS.get(sid)
+        }
+    for k in ("preferred", "secondary", "secondary_mode", "budgets"):
+        out.pop(k, None)
+    return out
 
 
 def _int_in_range(key: str, value, lo: int, hi: int) -> int:
@@ -108,23 +144,39 @@ def _int_in_range(key: str, value, lo: int, hi: int) -> int:
     return n
 
 
-def _validate_budgets(raw) -> dict:
-    """Every polled source gets an explicit budget (int calls/month or None)."""
-    if raw is None:
-        raw = {}
+def _validate_limits(raw) -> dict:
+    """Every polled source gets explicit {"per_month", "per_hour"} (int or None)."""
+    raw = raw or {}
     if not isinstance(raw, dict):
-        raise ValueError("budgets must be an object of source → calls per month.")
+        raise ValueError("limits must be an object of source → {per_month, per_hour}.")
     unknown = set(raw) - set(POLL_ADAPTERS)
     if unknown:
-        raise ValueError(f"Unknown polled source in budgets: {', '.join(sorted(unknown))}.")
+        raise ValueError(f"Unknown polled source in limits: {', '.join(sorted(unknown))}.")
     out = {}
-    for sid, adapter in POLL_ADAPTERS.items():
-        if sid not in raw:
-            out[sid] = adapter.meta.get("free_calls_per_month")
-        elif raw[sid] in (None, "", 0):
-            out[sid] = None
-        else:
-            out[sid] = _int_in_range(f"Monthly calls for {adapter.meta['label']}", raw[sid], 1, MAX_BUDGET)
+    for sid in POLL_ADAPTERS:
+        lim = {**free_limits(sid), **(raw.get(sid) or {})}
+        label = POLL_ADAPTERS[sid].meta["label"]
+        out[sid] = {
+            kind: None if lim.get(kind) in (None, "", 0) else _int_in_range(f"{label} calls {kind.replace('_', ' ')}", lim[kind], 1, MAX_LIMIT)
+            for kind in ("per_month", "per_hour")
+        }
+    return out
+
+
+def _validate_peak(raw) -> dict:
+    p = {**DEFAULT_PEAK, **(raw if isinstance(raw, dict) else {})}
+    out = {
+        "start_hour": _int_in_range("Busy hours start", p["start_hour"], 0, 23),
+        "end_hour": _int_in_range("Busy hours end", p["end_hour"], 0, 24),
+        "utc_offset": _int_in_range("Busy hours UTC offset", p["utc_offset"], -12, 14),
+    }
+    try:
+        w = round(float(p["weight"]), 2)
+    except (TypeError, ValueError):
+        raise ValueError("Busy-hours boost must be a number.") from None
+    if not 1.0 <= w <= 4.0:
+        raise ValueError("Busy-hours boost must be between 1 and 4.")
+    out["weight"] = w
     return out
 
 
@@ -142,13 +194,14 @@ def validate_settings(raw: dict) -> dict:
     if len(set(order)) != len(order):
         raise ValueError("Each source can appear only once in the order.")
     if s["mode"] not in MODES:
-        raise ValueError("mode must be 'fallback' or 'always'.")
+        raise ValueError("mode must be 'share', 'fallback' or 'always'.")
     return {
         "order": list(order),
         "mode": s["mode"],
         "poll_minutes": _int_in_range("poll_minutes", s["poll_minutes"], 1, 90),
         "stale_minutes": _int_in_range("stale_minutes", s["stale_minutes"], 5, 1440),
-        "budgets": _validate_budgets(s["budgets"]),
+        "limits": _validate_limits(s["limits"]),
+        "peak": _validate_peak(s["peak"]),
     }
 
 
@@ -174,16 +227,6 @@ def save_usage(usage: dict) -> None:
     save_config(config)
 
 
-def _month_key(now: float) -> str:
-    return datetime.fromtimestamp(now, UTC).strftime("%Y-%m")
-
-
-def _seconds_left_in_month(now: float) -> float:
-    d = datetime.fromtimestamp(now, UTC)
-    nxt = datetime(d.year + (d.month == 12), d.month % 12 + 1, 1, tzinfo=UTC)
-    return max(nxt.timestamp() - now, 1.0)
-
-
 def _iso(ts: float) -> str:
     return datetime.fromtimestamp(ts, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -195,16 +238,23 @@ def _fix_time(live: TrackedShipLive) -> float:
         return float("-inf")
 
 
+def _limited(settings: dict, source_id: str) -> bool:
+    lim = settings["limits"].get(source_id) or {}
+    return lim.get("per_month") is not None or lim.get("per_hour") is not None
+
+
 class PositionHub:
-    """Per-source caches for polled providers, the merge policy, call
-    allowances, throttled last-known persistence, and the poll loop. One
+    """Per-source caches for polled providers, the merge policy, the call
+    scheduler, throttled last-known persistence, and the poll loop. One
     instance per process."""
 
     def __init__(self) -> None:
         # Per polled source, created on first use (adapters can register late).
         self._poll_cache: defaultdict[str, dict[str, TrackedShipLive]] = defaultdict(dict)
-        self._poll_state: defaultdict[str, dict] = defaultdict(lambda: {"last_ok": None, "last_error": None})
-        self._asked: defaultdict[str, dict[str, float]] = defaultdict(dict)   # source → mmsi → last asked
+        self._poll_state: defaultdict[str, dict] = defaultdict(lambda: {"last_ok": None, "last_error": None, "last_poll": None})
+        self._asked: defaultdict[str, dict[str, float]] = defaultdict(dict)    # source → mmsi → last asked
+        self._missed: defaultdict[str, dict[str, float]] = defaultdict(dict)   # source → mmsi → last came back empty
+        self._last_asked: dict[str, float] = {}                                # mmsi → last asked by any source
         self._usage: Optional[dict] = None   # loaded lazily from config
         self._last_persisted: dict[str, float] = {}
         self._stopped = False
@@ -249,9 +299,10 @@ class PositionHub:
         except Exception:  # noqa: BLE001
             log.exception("Could not persist last-known position for MMSI %s", mmsi)
 
-    # ── call allowances ──────────────────────────────────────────────────
+    # ── call limits ──────────────────────────────────────────────────────
     def _usage_for(self, source_id: str, now: float) -> dict:
-        """This calendar month's usage for a source (resets on a new month)."""
+        """This calendar month's usage for a source (resets on a new month;
+        the rolling hour of recent calls carries over)."""
         if self._usage is None:
             try:
                 self._usage = load_usage()
@@ -259,107 +310,151 @@ class PositionHub:
                 log.exception("Could not load ship tracking usage — starting from zero")
                 self._usage = {}
         u = self._usage.get(source_id)
-        if not isinstance(u, dict) or u.get("month") != _month_key(now):
-            u = {"month": _month_key(now), "calls": 0, "last_call": None}
-            self._usage[source_id] = u
+        if not isinstance(u, dict):
+            u = {}
+        if u.get("month") != schedule.month_key(now):
+            u = {"month": schedule.month_key(now), "calls": 0, "last_call": None, "recent": schedule.recent_calls(u, now)}
+        u.setdefault("recent", [])
+        self._usage[source_id] = u
         return u
-
-    def _spacing(self, source_id: str, budget: int, u: dict, now: float) -> Optional[float]:
-        """Seconds between calls that spreads the remaining budget over the
-        rest of the month, respecting the provider's rate limit. None when
-        the budget is spent."""
-        remaining = budget - u["calls"]
-        if remaining <= 0:
-            return None
-        return max(_seconds_left_in_month(now) / remaining, POLL_ADAPTERS[source_id].meta.get("min_spacing_s", 0))
-
-    def _allowance(self, source_id: str, settings: dict, now: float) -> Optional[int]:
-        """How many calls `source_id` may make right now; None = unlimited."""
-        budget = settings["budgets"].get(source_id)
-        if budget is None:
-            return None
-        u = self._usage_for(source_id, now)
-        spacing = self._spacing(source_id, budget, u, now)
-        if spacing is None:
-            return 0
-        burst = POLL_ADAPTERS[source_id].meta.get("max_burst") or budget
-        due = budget if u["last_call"] is None else int((now - u["last_call"]) // spacing)
-        return max(0, min(budget - u["calls"], due, burst))
-
-    def _next_call_at(self, source_id: str, settings: dict, now: float) -> Optional[float]:
-        budget = settings["budgets"].get(source_id)
-        if budget is None:
-            return None
-        u = self._usage_for(source_id, now)
-        spacing = self._spacing(source_id, budget, u, now)
-        if spacing is None:
-            return None
-        return now if u["last_call"] is None else max(now, u["last_call"] + spacing)
 
     def _record_calls(self, source_id: str, n: int, now: float) -> None:
         u = self._usage_for(source_id, now)
         u["calls"] += n
         u["last_call"] = now
+        u["recent"] = schedule.recent_calls(u, now) + [now] * n
         try:
             save_usage(self._usage)
         except Exception:  # noqa: BLE001
             log.exception("Could not persist ship tracking usage")
 
-    # ── polling ──────────────────────────────────────────────────────────
-    def _mmsis_to_poll(self, source_id: str, settings: dict, enabled: list[str]) -> list[str]:
-        """Ships to ask `source_id` about, most deserving first: ships it was
-        asked about least recently, then those located least recently."""
-        tracked = self.tracked()
-        earlier = enabled[:enabled.index(source_id)]
-        if settings["mode"] == "fallback" and earlier:
-            cutoff = time.time() - settings["stale_minutes"] * 60
-            need = []
-            for mmsi in tracked:
-                prior = self._freshest(earlier, mmsi)
-                if prior is None or _fix_time(prior) < cutoff:
-                    need.append(mmsi)
-            tracked = need
-        asked = self._asked.get(source_id, {})
+    def _unlimited_interval(self, settings: dict, now: float) -> float:
+        """Poll interval for sources without limits: tighter in busy hours."""
+        base = settings["poll_minutes"] * 60
+        return base if schedule.is_peak(now, settings["peak"]) else base * settings["peak"]["weight"]
 
-        def priority(mmsi: str) -> tuple:
+    def _next_due(self, source_id: str, settings: dict, now: float) -> Optional[float]:
+        if _limited(settings, source_id):
+            return schedule.next_call_at(settings["limits"][source_id], self._usage_for(source_id, now), now, settings["peak"])
+        last = self._poll_state[source_id]["last_poll"]
+        return now if last is None else last + self._unlimited_interval(settings, now)
+
+    def _allowance(self, source_id: str, settings: dict, now: float) -> Optional[int]:
+        """Calls `source_id` may make right now; None = no limits, but then
+        only once its poll interval is up (returns 0 before that)."""
+        if _limited(settings, source_id):
+            return schedule.allowance(settings["limits"][source_id], self._usage_for(source_id, now), now, settings["peak"])
+        due = self._next_due(source_id, settings, now)
+        return None if due is not None and due <= now else 0
+
+    # ── choosing ships ───────────────────────────────────────────────────
+    def _stale(self, mmsis: list[str], sources: list[str], settings: dict) -> list[str]:
+        """Ships none of `sources` has located within stale_minutes."""
+        cutoff = time.time() - settings["stale_minutes"] * 60
+        out = []
+        for mmsi in mmsis:
+            fix = self._freshest(sources, mmsi)
+            if fix is None or _fix_time(fix) < cutoff:
+                out.append(mmsi)
+        return out
+
+    def _last_refreshed(self, mmsi: str, settings: dict) -> float:
+        """When this ship was last asked about or heard from, whichever is later."""
+        fix = self.best(mmsi, settings)
+        return max(self._last_asked.get(mmsi, float("-inf")), _fix_time(fix) if fix else float("-inf"))
+
+    def _share_queue(self, source_id: str, settings: dict, now: float) -> list[str]:
+        """Round robin: longest-unrefreshed ship first; ships this source
+        recently couldn't find go last, so they're left to other sources."""
+        missed = self._missed[source_id]
+
+        def key(mmsi: str) -> tuple:
+            recently_missed = now - missed.get(mmsi, float("-inf")) < MISS_COOLDOWN
+            return (recently_missed, self._last_refreshed(mmsi, settings), mmsi)
+        # A ship another source just asked about in this same pass is theirs.
+        fresh_turn = [m for m in self.tracked() if now - self._last_asked.get(m, float("-inf")) >= SAME_PASS_S]
+        return sorted(fresh_turn, key=key)
+
+    def _own_queue(self, source_id: str, ships: list[str], settings: dict) -> list[str]:
+        """Ships this source was asked about least recently first, then those
+        located least recently."""
+        asked = self._asked[source_id]
+
+        def key(mmsi: str) -> tuple:
             fix = self.best(mmsi, settings)
             return (asked.get(mmsi, float("-inf")), _fix_time(fix) if fix else float("-inf"), mmsi)
-        return sorted(tracked, key=priority)
+        return sorted(ships, key=key)
+
+    def _mmsis_to_poll(self, source_id: str, settings: dict, enabled: list[str], now: float) -> list[str]:
+        mode = settings["mode"]
+        if mode == "share":
+            if _limited(settings, source_id):
+                return self._share_queue(source_id, settings, now)
+            return self._own_queue(source_id, self._stale(self.tracked(), enabled, settings), settings)
+        ships = self.tracked()
+        earlier = enabled[:enabled.index(source_id)]
+        if mode == "fallback" and earlier:
+            ships = self._stale(ships, earlier, settings)
+        return self._own_queue(source_id, ships, settings)
+
+    # ── polling ──────────────────────────────────────────────────────────
+    async def _poll_source(self, source_id: str, mmsis: list[str], limited: bool, now: float) -> None:
+        adapter = POLL_ADAPTERS[source_id]
+        state = self._poll_state[source_id]
+        state["last_poll"] = now
+        for mmsi in mmsis:
+            self._asked[source_id][mmsi] = now
+            self._last_asked[mmsi] = now
+        if limited:
+            self._record_calls(source_id, len(mmsis), now)   # failed calls may still count against a plan
+        try:
+            fixes = await asyncio.to_thread(adapter.fetch, mmsis)
+        except SourceError as exc:
+            state["last_error"] = str(exc)[:200]
+            log.warning("%s poll failed: %s", source_id, exc)
+            return
+        except Exception as exc:  # noqa: BLE001 — one bad provider must not stop the loop
+            state["last_error"] = f"Unexpected error: {type(exc).__name__}"
+            log.exception("%s poll raised", source_id)
+            return
+        state["last_ok"] = time.monotonic()
+        state["last_error"] = None
+        for mmsi in mmsis:
+            if mmsi in fixes:
+                self._missed[source_id].pop(mmsi, None)
+            else:
+                self._missed[source_id][mmsi] = now
+        for mmsi, live in fixes.items():
+            self._poll_cache[source_id][mmsi] = live.model_copy(update={"source": source_id})
+            await self.on_fix(mmsi)
 
     async def poll_once(self) -> None:
+        """Give every source that's due its turn. Sources go in priority
+        order; each marks the ships it asked about, so the next source in
+        the same pass picks different ones."""
         settings = current_settings()
         enabled = self.enabled(settings)
         for source_id in enabled:
-            adapter = POLL_ADAPTERS.get(source_id)
-            if adapter is None:
+            if source_id not in POLL_ADAPTERS:
                 continue  # streaming source — nothing to poll
-            mmsis = self._mmsis_to_poll(source_id, settings, enabled)
             now = time.time()
             allowance = self._allowance(source_id, settings, now)
+            if allowance == 0:
+                continue
+            mmsis = self._mmsis_to_poll(source_id, settings, enabled, now)
             if allowance is not None:
                 mmsis = mmsis[:allowance]
-            if not mmsis:
-                continue
-            state = self._poll_state[source_id]
-            for mmsi in mmsis:
-                self._asked[source_id][mmsi] = now
-            if allowance is not None:
-                self._record_calls(source_id, len(mmsis), now)   # failed calls may still count against a plan
-            try:
-                fixes = await asyncio.to_thread(adapter.fetch, mmsis)
-            except SourceError as exc:
-                state["last_error"] = str(exc)[:200]
-                log.warning("%s poll failed: %s", source_id, exc)
-                continue
-            except Exception as exc:  # noqa: BLE001 — one bad provider must not stop the loop
-                state["last_error"] = f"Unexpected error: {type(exc).__name__}"
-                log.exception("%s poll raised", source_id)
-                continue
-            state["last_ok"] = time.monotonic()
-            state["last_error"] = None
-            for mmsi, live in fixes.items():
-                self._poll_cache[source_id][mmsi] = live.model_copy(update={"source": source_id})
-                await self.on_fix(mmsi)
+            if mmsis:
+                await self._poll_source(source_id, mmsis, _limited(settings, source_id), now)
+            elif not _limited(settings, source_id):
+                self._poll_state[source_id]["last_poll"] = now   # nothing needed this round
+
+    def seconds_until_next_poll(self, settings: Optional[dict] = None) -> float:
+        settings = settings or current_settings()
+        now = time.time()
+        dues = [d for d in (self._next_due(sid, settings, now) for sid in self.enabled(settings) if sid in POLL_ADAPTERS) if d is not None]
+        wait = min(dues) - now if dues else MAX_SLEEP
+        return min(MAX_SLEEP, max(MIN_SLEEP, wait + 1))
 
     async def run_forever(self) -> None:
         while not self._stopped:
@@ -369,24 +464,28 @@ class PositionHub:
                 log.exception("ship position poll cycle failed")
             self._kick.clear()
             try:
-                await asyncio.wait_for(self._kick.wait(), timeout=current_settings()["poll_minutes"] * 60)
+                wait = self.seconds_until_next_poll()
+            except Exception:  # noqa: BLE001
+                log.exception("could not schedule next ship poll")
+                wait = MAX_SLEEP
+            try:
+                await asyncio.wait_for(self._kick.wait(), timeout=wait)
             except asyncio.TimeoutError:
                 pass
 
     def kick(self) -> None:
-        """Poll now instead of waiting out the interval — e.g. right after an
-        admin changes sources, so the new choice shows results immediately.
-        Call allowances still apply."""
+        """Poll now instead of waiting — e.g. right after an admin changes
+        sources, so the new choice shows results immediately. Call limits
+        still apply."""
         self._kick.set()
 
     def stop(self) -> None:
         self._stopped = True
 
     def forget(self, mmsi: str) -> None:
-        for cache in self._poll_cache.values():
-            cache.pop(mmsi, None)
-        for asked in self._asked.values():
-            asked.pop(mmsi, None)
+        for per_source in (*self._poll_cache.values(), *self._asked.values(), *self._missed.values()):
+            per_source.pop(mmsi, None)
+        self._last_asked.pop(mmsi, None)
         self._last_persisted.pop(mmsi, None)
 
     # ── status ───────────────────────────────────────────────────────────
@@ -394,6 +493,8 @@ class PositionHub:
         order = settings["order"]
         if source_id not in order:
             return "unused"
+        if settings["mode"] == "share":
+            return "share" if source_id in STREAM_SOURCES or _limited(settings, source_id) else "fallback"
         enabled = self.enabled(settings)
         first = enabled[0] if enabled else order[0]   # a source without its key is skipped
         return "primary" if source_id == first else settings["mode"]
@@ -403,25 +504,28 @@ class PositionHub:
             return None
         now = time.time()
         u = self._usage_for(source_id, now)
-        nxt = self._next_call_at(source_id, settings, now)
+        lim = settings["limits"][source_id]
+        nxt = self._next_due(source_id, settings, now) if source_id in self.enabled(settings) else None
         return {
             "calls_this_month": u["calls"],
-            "budget": settings["budgets"].get(source_id),
+            "calls_last_hour": len(schedule.recent_calls(u, now)),
+            "per_month": lim["per_month"],
+            "per_hour": lim["per_hour"],
             "next_call_utc": _iso(nxt) if nxt else None,
         }
 
-    def _poll_detail(self, source_id: str, base: dict, settings: dict) -> dict:
+    def _poll_detail(self, source_id: str, base: dict) -> dict:
         state = self._poll_state[source_id]
         usage = base["usage"]
         tail = ""
-        if usage and usage["budget"] is not None and usage["calls_this_month"] >= usage["budget"]:
+        if usage and usage["per_month"] is not None and usage["calls_this_month"] >= usage["per_month"]:
             tail = " · monthly allowance used — resumes next month"
         if base["role"] == "unused":
             return {**base, "status": "disabled", "detail": "Configured, not in use" + tail}
         if state["last_error"]:
             return {**base, "status": "error", "detail": state["last_error"] + tail}
         if state["last_ok"] is None:
-            return {**base, "status": "checking", "detail": "Waiting for first poll" + tail}
+            return {**base, "status": "checking", "detail": "Waiting for first turn" + tail}
         ago = _duration(time.monotonic() - state["last_ok"])
         return {**base, "status": "ok", "detail": f"Polled {ago} ago · {base['ships_located']}/{base['ships_tracked']} ships located" + tail}
 
@@ -431,7 +535,8 @@ class PositionHub:
         base = {
             "id": source_id, "label": meta["label"], "kind": "stream" if source_id in STREAM_SOURCES else "poll",
             "env_key": meta["env_key"], "coverage": meta["coverage"], "pricing": meta["pricing"],
-            "free": bool(meta.get("free")), "default_budget": meta.get("free_calls_per_month"),
+            "free": bool(meta.get("free")),
+            "free_limits": free_limits(source_id) if source_id in POLL_ADAPTERS else None,
             "configured": source_configured(source_id), "role": self._role(source_id, settings),
             "ships_located": sum(1 for m in tracked if self._source_fix(source_id, m)),
             "ships_tracked": len(tracked),
@@ -442,11 +547,37 @@ class PositionHub:
         if source_id == "aisstream":
             st = ais_client.status()
             return {**base, "status": st["status"], "detail": st["detail"]}
-        return self._poll_detail(source_id, base, settings)
+        return self._poll_detail(source_id, base)
+
+    def refresh_estimate(self, settings: dict) -> Optional[dict]:
+        """Share mode: combined free call rate and how often each ship gets
+        a turn, in busy and quiet hours. None outside share mode or with no
+        limited source enabled."""
+        if settings["mode"] != "share":
+            return None
+        now = time.time()
+        rates = [schedule.source_rates(settings["limits"][sid], settings["peak"], now)
+                 for sid in self.enabled(settings) if sid in POLL_ADAPTERS and _limited(settings, sid)]
+        rates = [r for r in rates if r]
+        if not rates:
+            return None
+        busy, quiet = sum(r[0] for r in rates), sum(r[1] for r in rates)
+        n = len(self.tracked())
+        return {
+            "busy_calls_per_hour": round(busy, 2),
+            "quiet_calls_per_hour": round(quiet, 2),
+            "busy_hours_per_ship": round(n / busy, 1) if n and busy else None,
+            "quiet_hours_per_ship": round(n / quiet, 1) if n and quiet else None,
+        }
 
     def sources_status(self) -> dict:
         settings = current_settings()
-        return {"settings": settings, "sources": [self._source_status(sid, settings) for sid in all_source_ids()]}
+        return {
+            "settings": settings,
+            "sources": [self._source_status(sid, settings) for sid in all_source_ids()],
+            "estimate": self.refresh_estimate(settings),
+            "busy_now": schedule.is_peak(time.time(), settings["peak"]),
+        }
 
     def summary(self) -> dict:
         """One-line roll-up for the bottom status bar and AisFeedLine."""

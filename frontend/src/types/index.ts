@@ -378,31 +378,55 @@ export interface ShipSource {
   coverage: string
   pricing: string
   configured: boolean
-  /** Usable at no cost, within its allowance. */
+  /** Usable at no cost, within its free limits. */
   free: boolean
-  /** The provider's free-tier monthly call allowance; null = none/unlimited. */
-  default_budget: number | null
-  /** primary = first in the order; fallback/always = later in the order. */
-  role: 'primary' | 'fallback' | 'always' | 'unused'
+  /** The provider's free-tier limits (polled sources only). */
+  free_limits: ShipSourceLimits | null
+  /** share = takes turns with the other free sources; primary = first in the
+   *  order; fallback = fills gaps; always = asked about every ship. */
+  role: 'share' | 'primary' | 'fallback' | 'always' | 'unused'
   status: 'ok' | 'error' | 'checking' | 'disabled'
   detail: string
   ships_located: number
   ships_tracked: number
-  /** Polled sources only: this calendar month's call count and pacing. */
-  usage: { calls_this_month: number; budget: number | null; next_call_utc: string | null } | null
+  /** Polled sources only: this month's / this hour's calls, limits and the
+   *  next time the scheduler will let it call. */
+  usage: {
+    calls_this_month: number; calls_last_hour: number
+    per_month: number | null; per_hour: number | null
+    next_call_utc: string | null
+  } | null
 }
+
+/** Call limits for one polled source; null = no limit of that kind. */
+export interface ShipSourceLimits { per_month: number | null; per_hour: number | null }
+
+/** Busy hours: local hours start–end at a whole-hour UTC offset, during which
+ *  monthly allowances are spent `weight` times faster. */
+export interface ShipBusyHours { start_hour: number; end_hour: number; utc_offset: number; weight: number }
 
 export interface ShipTrackingSettings {
   /** Sources in priority order (free first by default). */
   order: string[]
-  /** fallback: each later source is only asked about ships no earlier source
-   *  has located within stale_minutes; always: all run, freshest wins. */
-  mode: 'fallback' | 'always'
+  /** share: free sources take turns, each ship refreshed as often as their
+   *  combined free limits allow, paid ones fill gaps; fallback: each later
+   *  source only asked about ships no earlier one has located within
+   *  stale_minutes; always: all run, freshest wins. */
+  mode: 'share' | 'fallback' | 'always'
+  /** Sources without limits: check interval in busy hours (×weight otherwise). */
   poll_minutes: number
   stale_minutes: number
-  /** Monthly call allowance per polled source; null = unlimited. Calls are
-   *  paced across the month so the allowance is never exceeded. */
-  budgets: Record<string, number | null>
+  limits: Record<string, ShipSourceLimits>
+  peak: ShipBusyHours
+}
+
+/** GET /api/ships/sources. `estimate` (share mode): how often each ship gets
+ *  a turn from the free sources combined. */
+export interface ShipSourcesResponse {
+  settings: ShipTrackingSettings
+  sources: ShipSource[]
+  estimate: { busy_calls_per_hour: number; quiet_calls_per_hour: number; busy_hours_per_ship: number | null; quiet_hours_per_ship: number | null } | null
+  busy_now: boolean
 }
 
 /** A cable repair ship RouteBuilder is tracking for mobilisation planning,

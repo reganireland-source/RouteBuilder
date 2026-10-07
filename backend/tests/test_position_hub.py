@@ -1,6 +1,6 @@
 """
-PositionHub — prioritised AIS sources, fallback/always modes and monthly
-call allowances (shiptracker/hub.py).
+PositionHub — prioritised AIS sources, share (round robin) / fallback /
+always modes, call limits and busy hours (shiptracker/hub.py, schedule.py).
 
 Uses fake polled providers registered into POLL_ADAPTERS, plus a fresh
 AisStreamClient as the streaming source, so no network is touched.
@@ -130,92 +130,218 @@ def test_a_failing_provider_reports_an_error_without_breaking_the_loop(setup):
     assert "401" in st["fake"]["detail"]
 
 
+def _lim(per_month=None, per_hour=None):
+    return {"per_month": per_month, "per_hour": per_hour}
+
+
+def _clock(monkeypatch, *args):
+    clock = [hub_mod.datetime(*args, tzinfo=hub_mod.UTC).timestamp()]
+    monkeypatch.setattr(hub_mod.time, "time", lambda: clock[0])
+    return clock
+
+
 def test_validate_settings():
     v = hub_mod.validate_settings
     d = v({})
-    assert d["order"][0] == "aisstream" and d["mode"] == "fallback" and d["poll_minutes"] == 90
-    assert d["budgets"]["vesselapi"] == 150 and d["budgets"]["marinesia"] == 700
-    assert d["budgets"]["myshiptracking"] is None
-    assert v({"poll_minutes": 90})["poll_minutes"] == 90
-    assert v({"budgets": {"vesselapi": None}})["budgets"]["vesselapi"] is None   # paid plan: unlimited
+    assert d["order"][0] == "aisstream" and d["mode"] == "share" and d["poll_minutes"] == 90
+    assert d["limits"]["vesselapi"] == _lim(per_month=150)
+    assert d["limits"]["marinesia"] == _lim(per_hour=1)
+    assert d["limits"]["myshiptracking"] == _lim()
+    assert d["peak"] == {"start_hour": 4, "end_hour": 20, "utc_offset": 8, "weight": 1.5}
+    assert v({"limits": {"vesselapi": {"per_month": None}}})["limits"]["vesselapi"] == _lim()   # paid plan: no limit
+    assert v({"limits": {"marinesia": {"per_hour": 5}}})["limits"]["marinesia"] == _lim(per_hour=5)
     for bad in ({"order": ["nope"]}, {"order": []}, {"order": ["aisstream", "aisstream"]},
                 {"mode": "sometimes"}, {"poll_minutes": 0}, {"poll_minutes": 91},
-                {"budgets": {"nope": 5}}, {"budgets": {"vesselapi": -1}}):
+                {"limits": {"nope": {}}}, {"limits": {"vesselapi": {"per_month": -1}}},
+                {"peak": {"weight": 5}}, {"peak": {"start_hour": 24}}, {"peak": {"utc_offset": 15}}):
         with pytest.raises(ValueError):
             v(bad)
 
 
-def test_legacy_preferred_secondary_settings_still_load():
+def test_legacy_settings_still_load():
     s = hub_mod.validate_settings({"preferred": "aisstream", "secondary": "vesselapi", "secondary_mode": "always", "poll_minutes": 5})
     assert (s["order"], s["mode"], s["poll_minutes"]) == (["aisstream", "vesselapi"], "always", 5)
     assert "preferred" not in s
+    s = hub_mod.validate_settings({"order": ["marinesia"], "mode": "fallback", "budgets": {"marinesia": 700, "vesselapi": 100}})
+    assert s["limits"]["marinesia"] == _lim(per_hour=1)            # old built-in default → new free tier
+    assert s["limits"]["vesselapi"] == _lim(per_month=100)         # an admin's own choice is kept
+    assert s["mode"] == "share"                                    # old default "fallback" → new default
 
 
-# ── call allowances ──────────────────────────────────────────────────────
+# ── share mode: round robin across sources ───────────────────────────────
 
-def test_free_allowance_is_paced_across_the_month(setup, monkeypatch):
+FU_TAI = "352986181"
+
+
+@pytest.fixture
+def two_free(setup, monkeypatch):
+    """Two free, 1-call-per-hour sources sharing three ships."""
+    hub, ais, fake, settings = setup
+    ais.seed_tracked([TENEO, ILE_DAIX, FU_TAI])
+    other = FakeProvider()
+    other.meta = {**FakeProvider.meta, "env_key": "OTHER_AIS_KEY"}
+    monkeypatch.setenv("OTHER_AIS_KEY", "k")
+    monkeypatch.setitem(hub_mod.POLL_ADAPTERS, "other", other)
+    settings.update(order=["aisstream", "fake", "other"], mode="share")
+    settings["limits"].update(fake=_lim(per_hour=1), other=_lim(per_hour=1))
+    return hub, fake, other
+
+
+def test_share_mode_splits_ships_between_sources(two_free, monkeypatch):
+    hub, fake, other = two_free
+    clock = _clock(monkeypatch, 2026, 10, 7, 2)
+    for _ in range(3):
+        asyncio.run(hub.poll_once())
+        clock[0] += 3631
+    asked = [c[0] for c in fake.calls + other.calls]
+    assert all(len(c) == 1 for c in fake.calls + other.calls)
+    assert len(fake.calls) == 3 and len(other.calls) == 3                 # both at their full free rate
+    assert set(asked[:3]) == {TENEO, ILE_DAIX, FU_TAI}                   # first 3 turns cover every ship
+    for f, o in zip(fake.calls, other.calls):
+        assert f != o                                                     # never the same ship in one pass
+
+
+def test_share_mode_leaves_a_ship_a_source_cannot_see_to_the_others(two_free, monkeypatch):
+    hub, fake, other = two_free
+    clock = _clock(monkeypatch, 2026, 10, 7, 2)
+    fake.fixes = {TENEO: _fix(1.0, "2026-10-07T02:00:00Z"), ILE_DAIX: _fix(2.0, "2026-10-07T02:00:00Z")}
+    other.fixes = {m: _fix(3.0, "2026-10-07T02:00:00Z") for m in (TENEO, ILE_DAIX, FU_TAI)}
+    for _ in range(6):
+        asyncio.run(hub.poll_once())
+        clock[0] += 3631
+    fake_asked = [c[0] for c in fake.calls]
+    assert fake_asked.count(FU_TAI) == 1                                  # tried once, came back empty, then left alone
+    assert [c[0] for c in other.calls].count(FU_TAI) >= 2                 # the source that can see it keeps it fresh
+
+
+def test_share_mode_skips_ships_the_stream_already_hears(two_free, monkeypatch):
+    hub, fake, other = two_free
+    from datetime import UTC, datetime
+    clock = _clock(monkeypatch, 2026, 10, 7, 2)
+    ais = hub_mod.ais_client
+    ais._handle_message(_ais_frame(TENEO, 1.0, datetime.fromtimestamp(clock[0], UTC).strftime("%Y-%m-%d %H:%M:%S")))
+    asyncio.run(hub.poll_once())
+    assert TENEO not in {c[0] for c in fake.calls + other.calls}
+
+
+def test_paid_unlimited_source_only_fills_gaps_in_share_mode(two_free, monkeypatch):
+    hub, fake, other = two_free
+    from datetime import UTC, datetime
+    clock = _clock(monkeypatch, 2026, 10, 7, 2)
+    hub_mod.current_settings()["limits"]["other"] = _lim()               # "other" is now a paid source, no limit
+    ais = hub_mod.ais_client
+    ais._handle_message(_ais_frame(TENEO, 1.0, datetime.fromtimestamp(clock[0], UTC).strftime("%Y-%m-%d %H:%M:%S")))
+    asyncio.run(hub.poll_once())
+    assert len(fake.calls) == 1 and TENEO not in fake.calls[0]            # free source takes one turn
+    assert sorted(other.calls[0]) == sorted([ILE_DAIX, FU_TAI])           # paid: only ships with nothing fresh
+    assert hub.seconds_until_next_poll() <= 90 * 60
+
+
+# ── limits & busy hours ──────────────────────────────────────────────────
+
+def test_monthly_allowance_is_used_but_never_exceeded(setup, monkeypatch):
     hub, ais, fake, settings = setup
     settings.update(order=["fake"], mode="always")
-    settings["budgets"]["fake"] = 150
-    clock = [hub_mod.datetime(2026, 10, 1, tzinfo=hub_mod.UTC).timestamp()]
-    monkeypatch.setattr(hub_mod.time, "time", lambda: clock[0])
-    asyncio.run(hub.poll_once())
-    assert fake.calls == [[ILE_DAIX, TENEO]]           # first poll: both ships
-    asyncio.run(hub.poll_once())
-    assert len(fake.calls) == 1                        # immediately after: nothing due yet
-    # 31 days ÷ 148 remaining calls ≈ 5h between calls; 90-min polls all month.
-    for _ in range(31 * 24 * 60 // 90 - 1):
-        clock[0] += 90 * 60
+    settings["limits"]["fake"] = _lim(per_month=150)
+    clock = _clock(monkeypatch, 2026, 10, 1)
+    end = hub_mod.datetime(2026, 11, 1, tzinfo=hub_mod.UTC).timestamp()
+    while clock[0] < end:                     # the real loop: sleep until the next call is due
         asyncio.run(hub.poll_once())
-    total = sum(len(c) for c in fake.calls)
-    assert 140 <= total <= 150                         # uses the allowance, never exceeds it
+        clock[0] += hub.seconds_until_next_poll()
+    total = sum(len(c) for c in fake.calls if c)
+    assert 145 <= total <= 150
     st = {s["id"]: s for s in hub.sources_status()["sources"]}["fake"]
-    assert st["usage"]["calls_this_month"] == total and st["usage"]["budget"] == 150
+    assert st["usage"]["per_month"] == 150
 
 
-def test_allowance_rotates_through_ships(setup, monkeypatch):
+def test_monthly_allowance_leans_towards_busy_hours(setup, monkeypatch):
     hub, ais, fake, settings = setup
     settings.update(order=["fake"], mode="always")
-    settings["budgets"]["fake"] = 700
-    monkeypatch.setitem(fake.meta, "max_burst", 1)
-    monkeypatch.setitem(fake.meta, "min_spacing_s", 3600)
-    clock = [hub_mod.datetime(2026, 10, 1, tzinfo=hub_mod.UTC).timestamp()]
-    monkeypatch.setattr(hub_mod.time, "time", lambda: clock[0])
-    for _ in range(4):
+    settings["limits"]["fake"] = _lim(per_month=150)
+    clock = _clock(monkeypatch, 2026, 10, 1)
+    times = []
+    end = hub_mod.datetime(2026, 11, 1, tzinfo=hub_mod.UTC).timestamp()
+    while clock[0] < end:
+        before = len(fake.calls)
         asyncio.run(hub.poll_once())
-        clock[0] += 1800
-        asyncio.run(hub.poll_once())                    # half an hour later: rate limit holds
-        clock[0] += 2200
-    # 700 calls over October's 744 hours ≈ one call every ~64 min, one ship at a time.
-    assert fake.calls == [[ILE_DAIX], [TENEO], [ILE_DAIX], [TENEO]]
+        times += [clock[0]] * sum(len(c) for c in fake.calls[before:])
+        clock[0] += hub.seconds_until_next_poll()
+    busy = sum(1 for t in times if hub_mod.schedule.is_peak(t, settings["peak"]))
+    # 16 busy hours a day at ×1.5 vs 8 quiet → 24/32 = 75% of calls in busy hours.
+    assert 0.70 <= busy / len(times) <= 0.80
+
+
+def test_hourly_limit_is_a_rolling_window_and_the_loop_wakes_when_due(setup, monkeypatch):
+    hub, ais, fake, settings = setup
+    settings.update(order=["fake"], mode="always")
+    settings["limits"]["fake"] = _lim(per_hour=1)
+    clock = _clock(monkeypatch, 2026, 10, 7, 2)
+    asyncio.run(hub.poll_once())
+    assert fake.calls == [[ILE_DAIX]]
+    wait = hub.seconds_until_next_poll()
+    assert 3600 < wait < 3700                                             # wakes right when the hour is up
+    clock[0] += 1800
+    asyncio.run(hub.poll_once())
+    assert len(fake.calls) == 1                                           # still inside the hour
+    clock[0] += wait - 1800
+    asyncio.run(hub.poll_once())
+    assert fake.calls == [[ILE_DAIX], [TENEO]]
 
 
 def test_spent_allowance_stops_calls_until_next_month(setup, monkeypatch):
     hub, ais, fake, settings = setup
     settings.update(order=["fake"], mode="always")
-    settings["budgets"]["fake"] = 2
-    clock = [hub_mod.datetime(2026, 10, 30, tzinfo=hub_mod.UTC).timestamp()]
-    monkeypatch.setattr(hub_mod.time, "time", lambda: clock[0])
-    asyncio.run(hub.poll_once())
-    clock[0] += 86400 / 2
-    asyncio.run(hub.poll_once())
-    assert len(fake.calls) == 1                         # budget of 2 spent on the first poll
+    settings["limits"]["fake"] = _lim(per_month=2)
+    clock = _clock(monkeypatch, 2026, 10, 30)
+    for _ in range(4):                                  # 30 Oct 00:00 → 31 Oct 12:00, every 12 h
+        asyncio.run(hub.poll_once())
+        if _ < 3:
+            clock[0] += 86400 / 2
+    assert sum(len(c) for c in fake.calls) == 2        # allowance of 2, never more
     assert "allowance used" in {s["id"]: s for s in hub.sources_status()["sources"]}["fake"]["detail"]
     clock[0] = hub_mod.datetime(2026, 11, 1, 1, tzinfo=hub_mod.UTC).timestamp()
     asyncio.run(hub.poll_once())
-    assert len(fake.calls) == 2                         # new month, fresh allowance
+    assert sum(len(c) for c in fake.calls) == 3        # new month, fresh allowance
+
+
+def test_first_call_of_the_month_is_not_a_burst(setup, monkeypatch):
+    hub, ais, fake, settings = setup
+    settings.update(order=["fake"], mode="always")
+    settings["limits"]["fake"] = _lim(per_month=150)
+    _clock(monkeypatch, 2026, 10, 1)
+    asyncio.run(hub.poll_once())
+    assert fake.calls == [[ILE_DAIX]]
+
+
+def test_share_mode_never_asks_two_sources_about_one_ship_in_a_pass(two_free, monkeypatch):
+    hub, fake, other = two_free
+    hub_mod.current_settings()["limits"]["other"] = _lim(per_hour=5)    # e.g. a premium tier
+    _clock(monkeypatch, 2026, 10, 7, 2)
+    asyncio.run(hub.poll_once())
+    assert len(fake.calls[0]) == 1
+    assert fake.calls[0][0] not in other.calls[0] and len(other.calls[0]) == 2
 
 
 def test_usage_survives_a_restart(setup, monkeypatch):
     hub, ais, fake, settings = setup
     settings.update(order=["fake"], mode="always")
-    settings["budgets"]["fake"] = 150
-    clock = [hub_mod.datetime(2026, 10, 1, tzinfo=hub_mod.UTC).timestamp()]
-    monkeypatch.setattr(hub_mod.time, "time", lambda: clock[0])
+    settings["limits"]["fake"] = _lim(per_hour=1)
+    _clock(monkeypatch, 2026, 10, 1)
     asyncio.run(hub.poll_once())
     fresh = hub_mod.PositionHub()                       # same persisted usage
     asyncio.run(fresh.poll_once())
     assert len(fake.calls) == 1
+
+
+def test_unlimited_sources_are_checked_more_often_in_busy_hours(setup, monkeypatch):
+    hub, ais, fake, settings = setup
+    settings.update(order=["fake"], mode="always", poll_minutes=60)
+    clock = _clock(monkeypatch, 2026, 10, 7, 2)        # 10:00 SGT — busy
+    asyncio.run(hub.poll_once())
+    assert 3600 <= hub.seconds_until_next_poll() <= 3601 + 1
+    clock[0] = hub_mod.datetime(2026, 10, 7, 14, tzinfo=hub_mod.UTC).timestamp()   # 22:00 SGT — quiet
+    asyncio.run(hub.poll_once())
+    assert 5400 <= hub.seconds_until_next_poll() <= 5402   # 60 min × 1.5
 
 
 def test_fallback_chain_free_first_paid_fills_gaps(setup, monkeypatch):
@@ -225,10 +351,27 @@ def test_fallback_chain_free_first_paid_fills_gaps(setup, monkeypatch):
     monkeypatch.setenv("PAID_AIS_KEY", "k")
     monkeypatch.setitem(hub_mod.POLL_ADAPTERS, "paid", paid)
     settings.update(order=["aisstream", "fake", "paid"], mode="fallback", stale_minutes=30)
-    settings["budgets"].update(fake=None, paid=None)
+    settings["limits"].update(fake=_lim(), paid=_lim())
     now_iso = __import__("datetime").datetime.now(__import__("datetime").UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     fake.fixes = {TENEO: _fix(2.0, now_iso)}           # free source finds Teneo only
     asyncio.run(hub.poll_once())
     assert fake.calls == [[ILE_DAIX, TENEO]]
     assert paid.calls == [[ILE_DAIX]]                  # paid only asked about the gap
     assert hub.best(ILE_DAIX).source == "paid"
+
+
+def test_refresh_estimate_for_marinesia_plus_vesselapi_free_tiers(setup, monkeypatch):
+    hub, ais, fake, settings = setup
+    ais.seed_tracked([TENEO, ILE_DAIX, FU_TAI])
+    other = FakeProvider()
+    other.meta = {**FakeProvider.meta, "env_key": "OTHER_AIS_KEY"}
+    monkeypatch.setenv("OTHER_AIS_KEY", "k")
+    monkeypatch.setitem(hub_mod.POLL_ADAPTERS, "other", other)
+    settings.update(order=["fake", "other"], mode="share")
+    settings["limits"].update(fake=_lim(per_hour=1), other=_lim(per_month=150))
+    _clock(monkeypatch, 2026, 10, 7, 2)
+    est = hub.sources_status()["estimate"]
+    # VesselAPI-like: 150/31 days, busy ×1.5 → ≈0.23/h busy, ≈0.15/h quiet; plus 1/h.
+    assert est["busy_calls_per_hour"] == pytest.approx(1.23, abs=0.01)
+    assert est["quiet_calls_per_hour"] == pytest.approx(1.15, abs=0.01)
+    assert est["busy_hours_per_ship"] == 2.4 and est["quiet_hours_per_ship"] == 2.6
