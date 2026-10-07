@@ -22,6 +22,8 @@ const KmlChopTablePanel = lazy(() => import('./components/KmlChopImport').then(m
 const KmlLibrary = lazy(() => import('./components/KmlLibrary').then(m => ({ default: m.KmlLibrary })))
 // Same reasoning: only an admin modeling a cable we don't own ever opens this.
 const CableImportWizard = lazy(() => import('./components/CableImportWizard').then(m => ({ default: m.CableImportWizard })))
+const ShipTrackerDialog = lazy(() => import('./components/ShipTrackerDialog').then(m => ({ default: m.ShipTrackerDialog })))
+const ShipFullView = lazy(() => import('./components/ShipFullView').then(m => ({ default: m.ShipFullView })))
 import { NodeFinder } from './components/NodeFinder'
 import { CityPairPanel } from './components/CityPairPanel'
 import { HealthBar } from './components/HealthBar'
@@ -44,7 +46,7 @@ import { ThemeContext, darkTheme, duskTheme, lightTheme, useTheme, type Theme, t
 import { useHazards } from './hooks/useHazards'
 import { useKmlChopState } from './hooks/useKmlChopState'
 import { HazardProvider } from './context/HazardContext'
-import type { AppConfig, AppMode, AssetFilterMatch, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem, Hazard, HazardAssetView, HazardOwnerView, KmlPathInfo, KmlPreviewLine} from './types'
+import type { AppConfig, AppMode, AssetFilterMatch, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule, NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SelectedSystem, Hazard, HazardAssetView, HazardOwnerView, KmlPathInfo, KmlPreviewLine, TrackedShip } from './types'
 import type { KmlChopMapLayerProps } from './components/KmlChopMapLayer'
 import { ProjectsModal } from './components/ProjectsModal'
 import { RouteManualLeft, RouteManualMiddle, computeCandidates, assembleRoute } from './components/RouteManual'
@@ -262,6 +264,21 @@ function loadHazardsOn(): boolean {
 /** Living World is ON unless this browser has explicitly turned it off. Reads
  *  defensively: storage throws in a private window, and the failure mode there
  *  should be "you get whales", not "the app does not start". */
+/** localStorage key for the ShipTracker "Ships on Map" overlay. */
+const SHIPS_ON_MAP_KEY = 'rb.shipsOnMap'
+
+/** Ships on Map is OFF unless this browser has turned it on. */
+function loadShipsOnMap(): boolean {
+  try { return localStorage.getItem(SHIPS_ON_MAP_KEY) === '1' }
+  catch { return false }
+}
+
+/** How often the map's ship positions are re-read from our own backend's AIS
+ *  cache while the overlay is on — cheap (no outbound call per poll, see
+ *  shiptracker/ais_client.py), so a minute keeps arrows current without
+ *  hammering anything. */
+const SHIPS_POLL_MS = 60_000
+
 function loadLivingWorld(): boolean {
   try { return localStorage.getItem(LIVING_WORLD_KEY) !== '0' }
   catch { return true }
@@ -665,6 +682,14 @@ export default function App() {
     })
   }
 
+  function toggleShipsOnMap() {
+    setShipsOnMap(on => {
+      const next = !on
+      try { localStorage.setItem(SHIPS_ON_MAP_KEY, next ? '1' : '0') } catch { /* private mode */ }
+      return next
+    })
+  }
+
   function toggleLivingWorld() {
     setLivingWorld(on => {
       const next = !on
@@ -719,6 +744,7 @@ export default function App() {
   const [kmlImportOpen, setKmlImportOpen] = useState(false)
   const [kmlLibraryOpen, setKmlLibraryOpen] = useState(false)
   const [cableImportOpen, setCableImportOpen] = useState(false)
+  const [shipTrackerOpen, setShipTrackerOpen] = useState(false)
   // Geometry being examined during an import — drawn over the network so the
   // cuts can be checked against it, and never stored. `key` is bumped per
   // request so re-previewing the same path still re-fits the map.
@@ -871,6 +897,20 @@ export default function App() {
   // "Network Hazards" — live disasters from bushfire.io + USGS. Off by default;
   // useHazards does nothing at all until this flips on.
   const [hazardsOn, setHazardsOn]                   = useState(loadHazardsOn)
+  // ShipTracker overlay — repair ships at their live AIS position with a
+  // heading arrow (ShipLayer.tsx). `ships` is only fetched/polled while on,
+  // and is also kept current by ShipTrackerDialog's add/remove.
+  const [shipsOnMap, setShipsOnMap]                 = useState(loadShipsOnMap)
+  const [ships, setShips]                           = useState<TrackedShip[]>([])
+  const [mapShipMmsi, setMapShipMmsi]               = useState<string | null>(null)
+  useEffect(() => {
+    if (!shipsOnMap) return
+    let cancelled = false
+    const load = () => { api.getShips().then(s => { if (!cancelled) setShips(s) }).catch(() => { /* keep last known positions */ }) }
+    load()
+    const id = window.setInterval(load, SHIPS_POLL_MS)
+    return () => { cancelled = true; window.clearInterval(id) }
+  }, [shipsOnMap])
   const [hazardAssetView, setHazardAssetView]       = useState<HazardAssetView>(loadHazardAssetView)
   const [hazardOwnerView, setHazardOwnerView]       = useState<HazardOwnerView>(loadHazardOwnerView)
   const [kmlMode, setKmlMode]                       = useState<boolean>(loadKmlMode)
@@ -1786,6 +1826,7 @@ export default function App() {
                       ...(HAZARDS_ENABLED ? [
                         { label: 'Network Hazards',  icon: '⚠️', active: hazardsOn,    color: theme.orange, onClick: toggleHazards, hint: 'Live disaster feed (bushfire, earthquake) matched against the network' },
                       ] : []),
+                      { label: 'Ships on Map',     icon: '🛳', active: shipsOnMap,   color: theme.blue, onClick: toggleShipsOnMap, hint: 'Show tracked repair ships at their live AIS position, with a heading arrow' },
                       // Coverage in the label: "KML Mode ON" alone would not
                       // say whether that means 3 cables or 300, and the whole
                       // point of the mode is knowing which lines are real.
@@ -1812,6 +1853,10 @@ export default function App() {
                       // nodes/segments). Models a cable this org does not own —
                       // see CableImportWizard.tsx's own header comment.
                       ...(isAdmin ? [{ label: 'Cable Import', icon: '🌊', onClick: () => { setCableImportOpen(true); setCtrlMenuOpen(false) } }] : []),
+                      // Visible to everyone, like KML Library: knowing where
+                      // the repair ships are is useful read-only. Add/remove
+                      // inside it are admin-only (ShipTrackerDialog + backend).
+                      { label: 'Ship Tracker', icon: '⚓', onClick: () => { setShipTrackerOpen(true); setCtrlMenuOpen(false) } },
                     ].map((item, i) => <ControlsRow key={item.label} theme={theme} index={i + 10} item={item} />)}
 
                     {/* Appearance */}
@@ -2297,6 +2342,9 @@ export default function App() {
               spotlightNodeId={spotlightNodeId}
               livingWorld={livingWorld}
               hazardsOn={hazardsOn}
+              ships={ships}
+              shipsOn={shipsOnMap}
+              onShipClick={setMapShipMmsi}
               hazardAssetView={hazardAssetView}
               onHazardAssetViewChange={changeHazardAssetView}
               hazardOwnerView={hazardOwnerView}
@@ -2463,6 +2511,26 @@ export default function App() {
           />
         </Suspense>
       )}
+
+      {shipTrackerOpen && (
+        <Suspense fallback={null}>
+          <ShipTrackerDialog
+            onClose={() => setShipTrackerOpen(false)}
+            shipsOnMap={shipsOnMap}
+            onToggleShipsOnMap={toggleShipsOnMap}
+            onShipsChanged={setShips}
+          />
+        </Suspense>
+      )}
+
+      {mapShipMmsi && (() => {
+        const ship = ships.find(s => s.mmsi === mapShipMmsi)
+        return ship ? (
+          <Suspense fallback={null}>
+            <ShipFullView ship={ship} onClose={() => setMapShipMmsi(null)} />
+          </Suspense>
+        ) : null
+      })()}
 
       {projectsOpen && (
         <ProjectsModal

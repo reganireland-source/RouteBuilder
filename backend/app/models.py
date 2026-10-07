@@ -880,3 +880,58 @@ class CableResearchResult(BaseModel):
     # Caveats a reviewer should read before trusting any of the above, e.g.
     # "no source article found" or "fibre pair count not publicly disclosed".
     notes: str = ""
+
+
+class TrackedShip(BaseModel):
+    """A cable repair ship RouteBuilder is tracking for mobilisation planning
+    — e.g. "which ship is closest to the fault" when a repair needs to be
+    arranged. Keyed by MMSI (Maritime Mobile Service Identity), the
+    identifier the AIS live-position feed (app/shiptracker/ais_client.py)
+    actually indexes by, not MarineTraffic's own internal `shipid`.
+
+    This model is what's PERSISTED (data_loader.py's ships table/file).
+    Live position fields are never stored here — they live only in
+    AisStreamClient's in-memory cache and are merged onto this record by
+    GET /api/ships at read time, because they change every few seconds and
+    persisting them would mean a database write per AIS broadcast."""
+    mmsi: str
+    name: str
+    imo: Optional[str] = None
+    added_at: str  # ISO 8601 timestamp, set server-side on creation
+    # Slug into the static pixel-art sprite set (frontend/public/ships/),
+    # e.g. "teneo" -> teneo.png. "generic" is the fallback for any ship
+    # added without a custom sprite.
+    sprite: str = "generic"
+
+
+class TrackedShipUpdate(BaseModel):
+    """Partial update for TrackedShip — currently only the name and sprite
+    are editable after creation; mmsi/imo/added_at are fixed at add-time."""
+    name: Optional[str] = None
+    sprite: Optional[str] = None
+
+
+class TrackedShipLive(BaseModel):
+    """One ship's most recent AIS position report, held only in
+    AisStreamClient's in-memory cache (see shiptracker/ais_client.py) —
+    never written to the database. All fields are None until the first
+    PositionReport for this MMSI actually arrives over the aisstream.io
+    WebSocket; a ship can be tracked (have a TrackedShip row) with no live
+    data yet if it hasn't transmitted since the backend started, or if
+    MARITIME_AISSTREAM_API_KEY isn't configured at all."""
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)
+    lon: Optional[float] = Field(default=None, ge=-180, le=180)
+    sog: Optional[float] = None            # speed over ground, knots
+    cog: Optional[float] = None            # course over ground, degrees
+    true_heading: Optional[int] = None     # degrees, 511 = "not available" per AIS spec (normalised to None)
+    nav_status: Optional[int] = None       # raw AIS navigational-status code (0 = under way using engine, 5 = moored, ...)
+    last_seen_utc: Optional[str] = None    # ISO 8601 timestamp of the last PositionReport received
+
+
+class TrackedShipView(TrackedShip):
+    """TrackedShip + its live position, merged at read time — what
+    GET /api/ships actually returns. `live` is None when nothing has been
+    received for this MMSI yet (never transmitted since boot, or live
+    tracking isn't configured), which the frontend renders as "no live
+    signal yet" rather than stale/zeroed coordinates."""
+    live: Optional[TrackedShipLive] = None

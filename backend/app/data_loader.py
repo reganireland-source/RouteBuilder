@@ -57,7 +57,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
-from .models import Node, CableSystem, CableSegment, InterconnectRule, SegmentCapacity, SegmentOutage, InterfaceType, TechLookupItem, Project, SolutionNote, NoteCategory
+from .models import Node, CableSystem, CableSegment, InterconnectRule, SegmentCapacity, SegmentOutage, InterfaceType, TechLookupItem, Project, SolutionNote, NoteCategory, TrackedShip
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
@@ -605,6 +605,55 @@ def delete_outage_row(fault_id: str) -> bool:
     if _use_db():
         return _db_delete_one("outages", "fault_id", fault_id)
     return _file_delete_one(DATA_DIR / "outages.json", "fault_id", fault_id)
+
+
+# ── Ships (ShipTracker) ─────────────────────────────────────────────────────
+# Tracked cable repair ships. Live position fields (TrackedShipLive) are never
+# persisted here — only the identity row (mmsi/name/imo/sprite). The seed set
+# of 3 starter ships ships as backend/data/ships.json, loaded automatically on
+# first boot via db.py's _seed_if_empty (same mechanism as nodes/segments),
+# so no special seeding code is needed here or at startup.
+
+def load_ships() -> list[TrackedShip]:
+    """Return all tracked ships. Cached. In file mode a missing ships.json
+    means "no ships" (returns []), matching load_outages()'s convention."""
+    cached = _get("ships")
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+    if _use_db():
+        result = _db_load_all("ships", "mmsi", TrackedShip)
+    else:
+        path = DATA_DIR / "ships.json"
+        if not path.exists():
+            return []
+        with open(path) as f:
+            result = [TrackedShip(**item) for item in json.load(f)]
+    _set("ships", result)
+    return result
+
+def save_ships(ships: list[TrackedShip]) -> None:
+    """Replace the full tracked-ships collection."""
+    _bust("ships")
+    if _use_db():
+        _db_replace_all("ships", "mmsi", "mmsi", ships)
+        return
+    _write(DATA_DIR / "ships.json", [s.model_dump() for s in ships])
+
+def upsert_ship(ship: TrackedShip) -> TrackedShip:
+    """Finding #1: create-or-update ONE tracked ship, row-level (keyed by mmsi)."""
+    _bust("ships")
+    if _use_db():
+        _db_upsert_one("ships", "mmsi", ship.mmsi, ship.model_dump())
+    else:
+        _file_upsert_one(DATA_DIR / "ships.json", "mmsi", ship)
+    return ship
+
+def delete_ship_row(mmsi: str) -> bool:
+    """Finding #1: delete ONE tracked ship by mmsi. True if it existed."""
+    _bust("ships")
+    if _use_db():
+        return _db_delete_one("ships", "mmsi", mmsi)
+    return _file_delete_one(DATA_DIR / "ships.json", "mmsi", mmsi)
 
 
 # ── Rules ─────────────────────────────────────────────────────────────────────

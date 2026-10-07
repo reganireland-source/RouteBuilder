@@ -1,0 +1,23 @@
+[
+  {
+    "mmsi": "525300321",
+    "name": "Teneo",
+    "imo": "9019602",
+    "added_at": "2026-10-07T00:00:00Z",
+    "sprite": "teneo"
+  },
+  {
+    "mmsi": "228018600",
+    "name": "Ile d'Aix",
+    "imo": "9009310",
+    "added_at": "2026-10-07T00:00:00Z",
+    "sprite": "ile-daix"
+  },
+  {
+    "mmsi": "352986181",
+    "name": "Fu Tai",
+    "imo": "9382217",
+    "added_at": "2026-10-07T00:00:00Z",
+    "sprite": "fu-tai"
+  }
+]

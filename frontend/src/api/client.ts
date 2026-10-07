@@ -42,7 +42,7 @@
  * requests). Request/response shapes are the interfaces in ../types.
  */
 
-import type { AppConfig, CableNode, CableResearchResult, KmlChain, KmlChopCommitResponse, KmlFlattenResponse, KmlFullPath, KmlLibrary, KmlPathsResponse, KmlSource, KmlUnusedFiles, KmlUploadResult, KmlVersion, ScmCablesResponse, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, HazardFeed, NlpParseResponse, NoteCategory, OutageEventType, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable } from '../types'
+import type { AppConfig, CableNode, CableResearchResult, KmlChain, KmlChopCommitResponse, KmlFlattenResponse, KmlFullPath, KmlLibrary, KmlPathsResponse, KmlSource, KmlUnusedFiles, KmlUploadResult, KmlVersion, ScmCablesResponse, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, HazardFeed, NlpParseResponse, NoteCategory, OutageEventType, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable, TrackedShip } from '../types'
 
 // Backend origin baked in at build time. Empty string = same-origin (dev proxy).
 const BASE_URL = import.meta.env.VITE_API_URL ?? ''
@@ -306,6 +306,15 @@ export const api = {
   createCapacity: (data: SegmentCapacity)                           => post<SegmentCapacity>('/api/capacity', data),
   updateCapacity: (segId: string, data: Partial<SegmentCapacity>)   => put<SegmentCapacity>(`/api/capacity/${enc(segId)}`, data),
   deleteCapacity: (segId: string)                                   => del(`/api/capacity/${enc(segId)}`),
+
+  // ShipTracker — getShips is public (live-position read), add/remove are
+  // admin-gated by the backend's auth_guard middleware same as every other
+  // write below. createShip's `name`/`imo`/`sprite` are all optional: the
+  // backend resolves a name from AIS when the ship is currently transmitting
+  // and falls back to the bare MMSI otherwise, so this is never nameless.
+  getShips:    ()                                                                      => get<TrackedShip[]>('/api/ships'),
+  createShip:  (data: { mmsi: string; name?: string; imo?: string; sprite?: string })  => post<TrackedShip>('/api/ships', data),
+  deleteShip:  (mmsi: string)                                                          => del(`/api/ships/${enc(mmsi)}`),
 
   // Outages
   getOutages:     ()                                                   => get<SegmentOutage[]>('/api/outages'),

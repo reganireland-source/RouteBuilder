@@ -61,7 +61,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import * as L from 'leaflet'
 import 'leaflet.gridlayer.googlemutant'
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMap } from 'react-leaflet'
-import type { AssetFilterMatch, CableNode, CableSegment, CountryHighlight, HazardAssetView, HazardFeed, HazardOwnerView, HazardSeverity, KmlPathInfo, KmlPreviewLine, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem } from '../types'
+import type { AssetFilterMatch, CableNode, CableSegment, CountryHighlight, HazardAssetView, HazardFeed, HazardOwnerView, HazardSeverity, KmlPathInfo, KmlPreviewLine, PinnedRoute, Route, SegmentCapacity, SegmentOutage, SelectedSystem, TrackedShip } from '../types'
 import { isNodeOnNet, isSegmentOnNet } from '../utils/onNet'
 import { impactColor, worstImpact } from '../utils/outageImpact'
 import { useTheme } from '../theme'
@@ -77,6 +77,7 @@ import type { ActiveLightSegment } from './TravelingLightLayer'
 import { OutageAlertLayer } from './OutageAlertLayer'
 import type { OutageAlertSegment } from './OutageAlertLayer'
 import { HazardLayer, severityColor } from './HazardLayer'
+import { ShipLayer } from './ShipLayer'
 import { worstSeverityByAsset } from '../context/HazardContext'
 import { HazardStatusPanel } from './HazardStatusPanel'
 import { KmlPreviewLayer } from './KmlPreviewLayer'
@@ -246,6 +247,11 @@ interface Props {
    *  HazardLayer.tsx. Absent/undefined means the layer is not mounted at all. */
   hazardFeed?: HazardFeed | null
   hazardsOn?: boolean
+  /** ShipTracker ships drawn at their live AIS position with a heading arrow
+   *  — see ShipLayer.tsx. Not mounted unless `shipsOn`. */
+  ships?: TrackedShip[]
+  shipsOn?: boolean
+  onShipClick?: (mmsi: string) => void
   /** How much of our own network to draw while the hazard layer is on. */
   hazardAssetView?: HazardAssetView
   onHazardAssetViewChange?: (next: HazardAssetView) => void
@@ -892,7 +898,7 @@ function computeActiveLightSegments({
  * MobileLayout.tsx) and handed down, and every click/drag is reported back
  * up through callback props rather than mutating anything here.
  */
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, selectedNodeId = null, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, controlsOpen = false, kmlPaths = EMPTY_KML_PATHS, kmlMode = false, kmlPreview = EMPTY_PREVIEW, kmlPreviewKey = 0, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, assetFilter, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, mapStyle = 'standard', onMapStyleChange, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace, kmlChop = null }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, selectedNodeId = null, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, ships, shipsOn = false, onShipClick, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, controlsOpen = false, kmlPaths = EMPTY_KML_PATHS, kmlMode = false, kmlPreview = EMPTY_PREVIEW, kmlPreviewKey = 0, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, assetFilter, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, mapStyle = 'standard', onMapStyleChange, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace, kmlChop = null }: Props) {
   const t = useTheme()
   const narrowViewport = useNarrowViewport()
   const { hoveredSegmentId } = useSegmentHover()
@@ -1728,6 +1734,11 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
              event can be seen to overlap a route. Off in Network Editor, where
              the map is for precise topology work. ── */}
       {hazardsOn && !editorMode && hazardFeed && <HazardLayer hazards={hazardFeed.hazards} />}
+
+      {/* ── ShipTracker — repair ships at their live AIS position, above the
+             node markers (see ShipLayer.tsx). Off in Network Editor like the
+             other overlays. ── */}
+      {shipsOn && !editorMode && ships && <ShipLayer ships={ships} onShipClick={onShipClick} />}
 
       {/* ── Network Editor overlay — see EditorMapLayer.tsx ── */}
       {editorMode && (

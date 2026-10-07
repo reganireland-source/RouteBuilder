@@ -353,6 +353,33 @@ export interface SegmentOutage {
   service_impact?: ServiceImpact | null
 }
 
+/** One tracked cable repair ship's most recent AIS position — null fields
+ *  mean nothing has been received for this ship yet (not transmitting since
+ *  the backend started, or live tracking isn't configured at all). */
+export interface TrackedShipLive {
+  lat: number | null
+  lon: number | null
+  sog: number | null          // speed over ground, knots
+  cog: number | null          // course over ground, degrees
+  true_heading: number | null // degrees; null when AIS itself reported "not available"
+  nav_status: number | null   // raw AIS navigational-status code
+  last_seen_utc: string | null
+}
+
+/** A cable repair ship RouteBuilder is tracking for mobilisation planning,
+ *  with its live position merged in by GET /api/ships. Keyed by MMSI, not
+ *  MarineTraffic's own shipid — see ShipTrackerDialog.tsx's header comment. */
+export interface TrackedShip {
+  mmsi: string
+  name: string
+  imo?: string | null
+  added_at: string
+  /** Slug into /ships/<sprite>.png (public/ships/), e.g. "teneo". "generic"
+   *  is the fallback for any ship added without a custom sprite. */
+  sprite: string
+  live: TrackedShipLive | null
+}
+
 /** A pair of cable systems that must NOT interconnect at a node (see InterconnectRule). */
 // ── Outage Parser ─────────────────────────────────────────────────────────────
 // A single proposed outage returned by POST /api/outages/parse. The first six

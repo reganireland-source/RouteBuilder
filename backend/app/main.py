@@ -42,6 +42,7 @@ Nothing in this file talks to `pathfinder.py`/`graph.py`/`data_loader.py`
 directly — it only mounts the routers (`routes.router`, `nodes.router`, ...)
 that do.
 """
+import asyncio
 import logging
 import os
 import re
@@ -79,6 +80,7 @@ from .api import (
     routes,
     rules,
     segments,
+    shiptracker,
     solution_notes,
     systems,
     tech_lookups,
@@ -275,7 +277,28 @@ async def lifespan(app: FastAPI):
     if _hazards_enabled():
         from .hazards.service import warm_in_background as warm_hazard_cache
         warm_hazard_cache()
+
+    # ShipTracker: a persistent outbound WebSocket to aisstream.io, kept open
+    # for the life of the process (see shiptracker/ais_client.py's module
+    # docstring for why this is a push connection, not a polled call). The
+    # ships CRUD router is always mounted (see its own comment below) — only
+    # this live-position task is conditional, on whether an API key is
+    # configured at all. This is the one case `lifespan` needs shutdown
+    # cleanup for: every other feature here is request-scoped or a one-shot
+    # background thread (warm_hazard_cache) that exits on its own.
+    ais_task = None
+    from .data_loader import load_ships
+    from .shiptracker.ais_client import client as ais_client, aisstream_api_key
+    ais_client.seed_tracked([s.mmsi for s in load_ships()])
+    if aisstream_api_key():
+        ais_task = asyncio.create_task(ais_client.run_forever())
+    else:
+        logger.info("MARITIME_AISSTREAM_API_KEY not set — ShipTracker will show tracked ships with no live position.")
     yield
+    if ais_task is not None:
+        await ais_client.stop()
+        ais_task.cancel()
+        await asyncio.gather(ais_task, return_exceptions=True)
 
 
 app = FastAPI(title="RouteBuilder API", version="0.1.0", lifespan=lifespan)
@@ -870,6 +893,11 @@ app.include_router(health.router, prefix="/api")
 app.include_router(config.router, prefix="/api")
 app.include_router(city_pairs.router, prefix="/api")
 app.include_router(outages.router, prefix="/api")
+# ShipTracker — always mounted (unlike hazards/cable-import-research below):
+# tracking which ships are mobilised is useful even with no live AIS feed
+# configured. Only the live-position task started in lifespan() is
+# conditional on MARITIME_AISSTREAM_API_KEY; see shiptracker.py's own comment.
+app.include_router(shiptracker.router, prefix="/api")
 app.include_router(bulk.router, prefix="/api")
 app.include_router(interfaces.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")

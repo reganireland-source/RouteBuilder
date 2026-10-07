@@ -360,6 +360,7 @@ _TABLES = [
     ("capacity", "capacity.json", "segment_id"),
     ("outages",  "outages.json",  "fault_id"),
     ("rules",    "rules.json",    "node_id"),
+    ("ships",    "ships.json",    "mmsi"),
 ]
 
 # Full schema, executed on every startup (all statements are IF NOT EXISTS so
@@ -384,6 +385,7 @@ CREATE TABLE IF NOT EXISTS tech_access_types  (id          TEXT PRIMARY KEY, dat
 CREATE TABLE IF NOT EXISTS tech_arranged_by   (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
 CREATE TABLE IF NOT EXISTS tech_l1_settings   (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
 CREATE TABLE IF NOT EXISTS feature_requests   (id          TEXT PRIMARY KEY, data JSONB NOT NULL);
+CREATE TABLE IF NOT EXISTS ships              (mmsi        TEXT PRIMARY KEY, data JSONB NOT NULL);
 CREATE TABLE IF NOT EXISTS _migrations        (id TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now());
 CREATE TABLE IF NOT EXISTS solution_notes (
     id          TEXT PRIMARY KEY,
