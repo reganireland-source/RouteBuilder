@@ -10,9 +10,13 @@
  * glance from one drifting on station.
  *
  * HEADING SOURCE: TrueHeading (the gyro — where the bow points) when AIS
- * reports it, else course over ground. COG is noise for a stationary ship, so
- * below MOORED_KN a ship gets no arrow at all rather than one spinning
- * randomly between refreshes.
+ * reports it, else course over ground.
+ *   - Under way (≥ MOORED_KN, fix not stale): a solid arrow, length by speed.
+ *   - Stopped or stale, but TrueHeading known: a short hollow "bow" pointer —
+ *     the gyro is still right about which way the ship faces when moored or
+ *     on station, it just isn't going anywhere.
+ *   - Stopped or stale with only COG: no arrow. COG is noise for a ship that
+ *     isn't moving and would spin randomly between refreshes.
  *
  * THE SPRITE IS NEVER ROTATED. Rotating pixel art by arbitrary angles smears
  * it; instead it is mirrored to face left when heading westward, and the
@@ -42,19 +46,44 @@ const ARROW_MAX_PX = 60
 const SPRITE_W = 40
 const SPRITE_H = 25
 const ARROW_COLOR = '#ffd84d'
+// Bow pointer for a stopped ship: just clear of the sprite (half its width + a little).
+const BOW_PX = 30
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!))
 }
 
-export function shipBearing(ship: TrackedShip): number | null {
+export interface ShipHeading {
+  bearing: number
+  /** Under way: draw a speed-scaled arrow. Otherwise a short bow pointer. */
+  moving: boolean
+}
+
+export function shipBearing(ship: TrackedShip): ShipHeading | null {
   const live = ship.live
   if (!live) return null
-  // A course from hours ago says nothing about where the ship is heading now.
-  if (shipFixAge(live)?.stale) return null
-  if (live.sog != null && live.sog < MOORED_KN) return null
-  if (live.true_heading != null) return live.true_heading
-  return live.cog
+  // A course from hours ago says nothing about where the ship is going now.
+  const stale = !!shipFixAge(live)?.stale
+  const stopped = live.sog != null && live.sog < MOORED_KN
+  if (stale || stopped) {
+    return live.true_heading != null ? { bearing: live.true_heading, moving: false } : null
+  }
+  const bearing = live.true_heading ?? live.cog
+  return bearing != null ? { bearing, moving: true } : null
+}
+
+/** Short hollow pointer off the bow: which way a stopped ship faces. */
+function bowSvg(bearing: number): string {
+  const size = 2 * (BOW_PX + 10)
+  const c = size / 2
+  const tipY = c - BOW_PX
+  return `
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="position:absolute;left:${-c}px;top:${-c}px;pointer-events:none;overflow:visible">
+      <g transform="rotate(${bearing} ${c} ${c})">
+        <path d="M ${c} ${tipY} L ${c - 6} ${tipY + 10} L ${c + 6} ${tipY + 10} Z" fill="none" stroke="#000" stroke-opacity="0.6" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M ${c} ${tipY} L ${c - 6} ${tipY + 10} L ${c + 6} ${tipY + 10} Z" fill="none" stroke="${ARROW_COLOR}" stroke-width="2" stroke-linejoin="round"/>
+      </g>
+    </svg>`
 }
 
 function arrowSvg(bearing: number, sog: number | null): { svg: string; size: number } {
@@ -76,13 +105,15 @@ function arrowSvg(bearing: number, sog: number | null): { svg: string; size: num
 }
 
 function buildIcon(ship: TrackedShip): L.DivIcon {
-  const bearing = shipBearing(ship)
+  const heading = shipBearing(ship)
+  const bearing = heading?.bearing ?? null
   const age = shipFixAge(ship.live)
   const stale = !!age?.stale
   const flag = flagFromMmsi(ship.mmsi)
   const label = (flag ? `${flag.emoji} ` : '') + escapeHtml(ship.name) + (stale && age ? ` · ${escapeHtml(age.label)}` : '')
   const faceLeft = bearing != null && bearing > 180 && bearing < 360
-  const arrow = bearing != null ? arrowSvg(bearing, ship.live?.sog ?? null).svg : ''
+  let arrow = ''
+  if (heading) arrow = heading.moving ? arrowSvg(heading.bearing, ship.live?.sog ?? null).svg : bowSvg(heading.bearing)
   const sprite = `/ships/${encodeURIComponent(ship.sprite || 'generic')}.png`
   const html = `
     <div class="rb-ship-marker" style="position:relative;width:0;height:0;opacity:${stale ? 0.55 : 1}">
