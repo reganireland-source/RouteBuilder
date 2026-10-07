@@ -121,7 +121,7 @@ const COUNTRY_NAMES: Record<string, string> = {
  * and least specific kind reads as the quietest chip. Red is deliberately not
  * used: everywhere else in this app red means "error" or "avoid".
  */
-const KIND_ACCENT: Record<AssetKind, (t: Theme) => string> = {
+export const KIND_ACCENT: Record<AssetKind, (t: Theme) => string> = {
   node:    t => t.blue,
   city:    t => t.green,
   system:  t => t.orange,
@@ -131,7 +131,7 @@ const KIND_ACCENT: Record<AssetKind, (t: Theme) => string> = {
 
 /** The small right-hand type chip. Tinted fill + ring, matching the chip
  *  treatment used in SearchForm's pickers and NodeFinder's cards. */
-function KindChip({ kind }: { kind: AssetKind }) {
+export function KindChip({ kind }: { kind: AssetKind }) {
   const t = useTheme()
   const accent = KIND_ACCENT[kind](t)
   return (

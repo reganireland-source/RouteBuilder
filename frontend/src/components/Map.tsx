@@ -91,6 +91,8 @@ const EMPTY_STRING_SET: Set<string> = new Set()
 // Same reasoning for the on-net ownership list: it feeds a useMemo dep array,
 // so a fresh [] default would invalidate the hazard lens on every render.
 const EMPTY_OWNERSHIP: string[] = []
+/** Shared empty id list, so an absent picked-assets prop is one stable reference. */
+const EMPTY_IDS: string[] = []
 
 // Stable empty default for the KML path map, for the same reason as the two
 // above: it feeds memo dependency lists and render loops.
@@ -239,6 +241,10 @@ interface Props {
    *  open. Used on mobile, where opening the full node panel would cover the
    *  map and hide the fly-to the user just asked for. */
   spotlightNodeId?: string | null
+  /** Assets highlighted via Asset Search's multi-pick list (PickedAssetsList):
+   *  each segment glows and each node pulses, all at once, until removed. */
+  pickedSegmentIds?: string[]
+  pickedNodeIds?: string[]
   /** "Living World" — the 16-bit ocean easter eggs. On by default; see
    *  LivingWorldLayer.tsx. Purely decorative and in its own non-interactive
    *  pane, so it changes nothing about how the map behaves. */
@@ -898,7 +904,7 @@ function computeActiveLightSegments({
  * MobileLayout.tsx) and handed down, and every click/drag is reported back
  * up through callback props rather than mutating anything here.
  */
-export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, selectedNodeId = null, flyToNode, fitBounds, spotlightNodeId, livingWorld = true, hazardFeed, hazardsOn = false, ships, shipsOn = false, onShipClick, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, controlsOpen = false, kmlPaths = EMPTY_KML_PATHS, kmlMode = false, kmlPreview = EMPTY_PREVIEW, kmlPreviewKey = 0, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, assetFilter, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, mapStyle = 'standard', onMapStyleChange, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace, kmlChop = null }: Props) {
+export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRoutes, selectedSystems, onNodeClick, onSegmentClick, selectedSegmentId = null, selectedNodeId = null, flyToNode, fitBounds, spotlightNodeId, pickedSegmentIds = EMPTY_IDS, pickedNodeIds = EMPTY_IDS, livingWorld = true, hazardFeed, hazardsOn = false, ships, shipsOn = false, onShipClick, hazardAssetView = 'inRange', onHazardAssetViewChange, hazardOwnerView = 'onNet', onHazardOwnerViewChange, onNetOwnership = EMPTY_OWNERSHIP, controlsOpen = false, kmlPaths = EMPTY_KML_PATHS, kmlMode = false, kmlPreview = EMPTY_PREVIEW, kmlPreviewKey = 0, hazardsLoading = false, hazardsError = null, onRefreshHazards, bannerOffset = false, searchPin, nearestNodeIds, hideNonActive = false, showSegmentLabels = false, showNodeLabels = false, showAllOutages = false, showPlannedEvents = false, outages = [], countryHighlight, assetFilter, subseaOnly = false, backhaulOnly = false, panelWidth, manualState, manualCandidates = [], onManualNodeClick, manualMobileMode = false, mapsProvider, mapStyle = 'standard', onMapStyleChange, editorMode = false, editorSubMode = 'move', editorSelection = null, editorSegmentDraft, pendingNodeIds, pendingSegmentIds, onEditorNodeDragEnd, onEditorNodeSelect, onEditorSegmentSelect, onEditorWaypointInsert, onEditorWaypointDragEnd, onEditorWaypointDelete, onEditorPickEndpoint, onEditorPickEmptySpace, kmlChop = null }: Props) {
   const t = useTheme()
   const narrowViewport = useNarrowViewport()
   const { hoveredSegmentId } = useSegmentHover()
@@ -1573,7 +1579,7 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         Usually the same node; a Set means either source lights it up without
         drawing two overlapping rings if they ever briefly disagree.
       */}
-      {[...new Set([selectedNodeId, spotlightNodeId].filter((id): id is string => !!id))].map(id => {
+      {[...new Set([selectedNodeId, spotlightNodeId, ...pickedNodeIds].filter((id): id is string => !!id))].map(id => {
         const node = nodesById[id]
         if (!node) return null
         const ns = NODE_STYLE[node.type] ?? NODE_STYLE.extension_pop
@@ -1693,8 +1699,8 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
         than the one it sits under would visibly drift off it wherever the two
         diverge, defeating the entire point of a spotlight.
       */}
-      {hoveredSegmentId && (() => {
-        const seg = segmentsById[hoveredSegmentId]
+      {[...new Set([hoveredSegmentId, ...pickedSegmentIds].filter((id): id is string => !!id))].map(segId => {
+        const seg = segmentsById[segId]
         if (!seg) return null
         const start = nodesById[seg.start_node_id]
         const end = nodesById[seg.end_node_id]
@@ -1709,7 +1715,7 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
             interactive={false}
           />
         ))
-      })()}
+      })}
 
       {/* ── Living World — decorative sprites in their own pane under the
              cables. Off in Network Editor: that mode is for precise work and

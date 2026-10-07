@@ -14,6 +14,7 @@ import { editorReducer, initialEditorState, applyPendingChanges, pendingAffected
 import type { EditorState } from './state/editorState'
 import { saveAll } from './state/networkEditorSave'
 import { NodeInfoPanel } from './components/NodeInfoPanel'
+import { PickedAssetsList, type PickedAsset } from './components/PickedAssetsList'
 import { SegmentInfoPanel } from './components/SegmentInfoPanel'
 // Lazy: the chop tool and its matcher types are only ever opened by an
 // admin importing files, so it has no business in the initial bundle.
@@ -278,6 +279,10 @@ function loadShipsOnMap(): boolean {
  *  shiptracker/ais_client.py), so a minute keeps arrows current without
  *  hammering anything. */
 const SHIPS_POLL_MS = 60_000
+
+/** Cap on the desktop Asset Search highlight list — past this the oldest pick
+ *  drops off, so the map never turns into a wall of glowing lines. */
+const MAX_PICKED_ASSETS = 20
 
 function loadLivingWorld(): boolean {
   try { return localStorage.getItem(LIVING_WORLD_KEY) !== '0' }
@@ -736,6 +741,10 @@ export default function App() {
 
   const [cachedProjects, setCachedProjects]     = useState<import('./types').Project[] | null>(null) // projects list cache for the ProjectsModal
   const [selectedSystems, setSelectedSystems]   = useState<SelectedSystem[]>([]) // cable systems highlighted in systemviewer mode
+  // Nodes and segments picked via the desktop Asset Search — each stays
+  // highlighted on the map until removed from the list under the search box
+  // (PickedAssetsList). Cable systems live in selectedSystems instead.
+  const [pickedAssets, setPickedAssets]         = useState<PickedAsset[]>([])
   const [loading, setLoading]   = useState(false)   // a search is in flight
   const [error, setError]       = useState<string | null>(null)
   const [lastSearchDiversity, setLastSearchDiversity] = useState<import('./types').DiversityType>('none') // remembers the diversity of the last search (affects how RouteList pairs cards)
@@ -816,6 +825,18 @@ export default function App() {
    * nothing useful to show in place, so it opens Country Viewer, which owns the
    * logic for building a country highlight.
    */
+  // Picked-asset list rows: desktop picks (nodes/segments) followed by every
+  // highlighted cable system, however it got highlighted.
+  const pickedListItems = useMemo<PickedAsset[]>(() => {
+    const sysName = new Map(systems.map(sy => [sy.id, sy.name || sy.id]))
+    return [
+      ...pickedAssets,
+      ...selectedSystems.map(s => ({ kind: 'system' as const, id: s.systemId, label: sysName.get(s.systemId) ?? s.systemId, sublabel: s.systemId })),
+    ]
+  }, [pickedAssets, selectedSystems, systems])
+  const pickedSegmentIds = useMemo(() => pickedAssets.filter(p => p.kind === 'segment').map(p => p.id), [pickedAssets])
+  const pickedNodeIds    = useMemo(() => pickedAssets.filter(p => p.kind === 'node').map(p => p.id), [pickedAssets])
+
   function handleAssetSelect(hit: AssetHit, opts: { openNodePanel?: boolean } = {}) {
     const openNodePanel = opts.openNodePanel ?? true
     // Any new destination clears a previous spotlight, so stale tooltips don't
@@ -841,7 +862,8 @@ export default function App() {
         const b = boundsOf(segmentSpotlightPoints(seg, nodes, kmlMode, kmlPaths))
         if (b) fitTo(b)
         // Reuse the Segment Breakdown's spotlight so the found cable is
-        // unmistakable on a map full of other cables.
+        // unmistakable on a map full of other cables. (Desktop overrides this
+        // with the persistent picked-list glow — see handleDesktopAssetPick.)
         setHoveredSegmentId(seg.id)
         break
       }
@@ -862,6 +884,43 @@ export default function App() {
 
   /** Look a node up by id, fly the map to it and open its info panel — the
    *  Network Explorer "type a 4-alpha code" path. */
+  /** Desktop Asset Search / Asset Filter pick: nodes and segments accumulate
+   *  in the highlight list instead of each pick replacing the last, so several
+   *  unrelated cables can be shown at once. Mobile calls handleAssetSelect
+   *  directly and keeps the single transient spotlight. */
+  function handleDesktopAssetPick(hit: AssetHit) {
+    if (hit.kind === 'node' || hit.kind === 'segment') addPickedAsset(hit)
+    handleAssetSelect(hit)
+    // The persistent picked glow replaces the transient hover spotlight
+    // (batched with the set inside handleAssetSelect, so it never flashes).
+    if (hit.kind === 'segment') setHoveredSegmentId(null)
+  }
+
+  /** Append to the highlight list (no duplicates; oldest drops past the cap). */
+  function addPickedAsset(hit: AssetHit) {
+    setPickedAssets(prev => prev.some(p => p.kind === hit.kind && p.id === hit.id)
+      ? prev
+      : [...prev, { kind: hit.kind, id: hit.id, label: hit.label, sublabel: hit.sublabel }].slice(-MAX_PICKED_ASSETS))
+  }
+
+  /** Re-zoom to an already-picked asset without re-adding it or opening a panel. */
+  function focusPickedAsset(item: PickedAsset) {
+    handleAssetSelect({ ...item, score: 0 }, { openNodePanel: false })
+    if (item.kind === 'segment') setHoveredSegmentId(null)
+  }
+
+  function removePickedAsset(item: PickedAsset) {
+    if (item.kind === 'system') { handleToggleSystem(item.id); return }
+    setPickedAssets(prev => prev.filter(p => !(p.kind === item.kind && p.id === item.id)))
+    if (item.kind === 'node' && spotlightNodeId === item.id) setSpotlightNodeId(null)
+  }
+
+  function clearPickedAssets() {
+    setPickedAssets([])
+    setSelectedSystems([])
+    setSpotlightNodeId(null)
+  }
+
   function handleGoToNode(nodeId: string) {
     const node = nodes.find(n => n.id === nodeId)
     if (!node) return
@@ -1929,11 +1988,17 @@ export default function App() {
                   nodes={nodes}
                   segments={visibleSegments}
                   systems={systems}
-                  onSelect={handleAssetSelect}
+                  onSelect={hit => handleDesktopAssetPick(hit)}
                 />
               </div>
               <ServiceDateSelector value={serviceChoice} onChange={setServiceChoice} />
             </div>
+            <PickedAssetsList
+              items={pickedListItems}
+              onFocus={focusPickedAsset}
+              onRemove={removePickedAsset}
+              onClear={clearPickedAssets}
+            />
           </div>
 
           {/* ── Two top-level tabs ── */}
@@ -2306,7 +2371,7 @@ export default function App() {
               systems={systems}
               capacity={capacity}
               onNetOwnership={config.on_net_ownership}
-              onAssetSelect={handleAssetSelect}
+              onAssetSelect={hit => handleDesktopAssetPick(hit)}
               onFilterChange={setAssetFilterMatch}
             />
           </div>
@@ -2342,6 +2407,8 @@ export default function App() {
               spotlightNodeId={spotlightNodeId}
               livingWorld={livingWorld}
               hazardsOn={hazardsOn}
+              pickedSegmentIds={pickedSegmentIds}
+              pickedNodeIds={pickedNodeIds}
               ships={ships}
               shipsOn={shipsOnMap}
               onShipClick={setMapShipMmsi}
