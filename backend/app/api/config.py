@@ -83,4 +83,7 @@ def update_config(body: dict) -> dict:
     if ship_tracking is not None:
         config["ship_tracking"] = ship_tracking
     save_config(config)
+    if ship_tracking is not None:
+        from ..shiptracker.hub import hub
+        hub.kick()
     return config

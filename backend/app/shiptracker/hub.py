@@ -122,6 +122,7 @@ class PositionHub:
         self._poll_state: dict[str, dict] = {sid: {"last_ok": None, "last_error": None, "calls": 0} for sid in POLL_ADAPTERS}
         self._last_persisted: dict[str, float] = {}
         self._stopped = False
+        self._kick = asyncio.Event()
         ais_client.on_fix = self.on_fix   # aisstream fixes flow through the same persistence path
 
     # ── which sources are in play ────────────────────────────────────────
@@ -210,7 +211,16 @@ class PositionHub:
                 await self.poll_once()
             except Exception:  # noqa: BLE001
                 log.exception("ship position poll cycle failed")
-            await asyncio.sleep(current_settings()["poll_minutes"] * 60)
+            self._kick.clear()
+            try:
+                await asyncio.wait_for(self._kick.wait(), timeout=current_settings()["poll_minutes"] * 60)
+            except asyncio.TimeoutError:
+                pass
+
+    def kick(self) -> None:
+        """Poll now instead of waiting out the interval — e.g. right after an
+        admin changes sources, so the new choice shows results immediately."""
+        self._kick.set()
 
     def stop(self) -> None:
         self._stopped = True

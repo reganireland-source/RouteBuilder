@@ -44,7 +44,7 @@ def get_json(url: str, headers: Optional[dict] = None, redact: str = "") -> obje
     except urllib.error.HTTPError as exc:
         body = ""
         try:
-            body = exc.read().decode("utf-8", "replace")[:200]
+            body = _error_message(exc.read().decode("utf-8", "replace"))
         except Exception:  # noqa: BLE001
             pass
         msg = f"HTTP {exc.code}" + (f": {body}" if body else "")
@@ -53,6 +53,21 @@ def get_json(url: str, headers: Optional[dict] = None, redact: str = "") -> obje
         raise SourceError(f"Unreachable: {getattr(exc, 'reason', exc)}") from None
     except json.JSONDecodeError:
         raise SourceError("Provider returned non-JSON") from None
+
+
+def _error_message(body: str) -> str:
+    """The human-readable part of a provider's error body: a JSON
+    "message" (top level or under "error"), else the raw text, trimmed."""
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return body.strip()[:200]
+    if isinstance(data, dict):
+        err = data.get("error")
+        for candidate in (data.get("message"), err.get("message") if isinstance(err, dict) else err):
+            if isinstance(candidate, str) and candidate.strip():
+                return candidate.strip()[:200]
+    return body.strip()[:200]
 
 
 def num(v) -> Optional[float]:
@@ -101,3 +116,102 @@ class PollAdapter:
 
 #: Registered polled providers, by id. Populated below.
 POLL_ADAPTERS: dict[str, PollAdapter] = {}
+
+
+def iso_utc(value) -> Optional[str]:
+    """Normalise a provider timestamp (ISO string, "YYYY-MM-DD HH:MM:SS",
+    or epoch seconds) to ISO 8601 UTC with a Z, or None if unparseable."""
+    from datetime import UTC, datetime
+    if value is None or value == "":
+        return None
+    try:
+        if isinstance(value, (int, float)) or (isinstance(value, str) and value.isdigit()):
+            dt = datetime.fromtimestamp(float(value), UTC)
+        else:
+            s = str(value).strip().replace(" UTC", "").replace("Z", "+00:00")
+            if " " in s and "T" not in s:
+                s = s.replace(" ", "T", 1)
+            dt = datetime.fromisoformat(s)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=UTC)
+        return dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    except (ValueError, OverflowError, OSError):
+        return None
+
+
+def heading_or_none(v) -> Optional[int]:
+    h = num(v)
+    return int(h) if h is not None and 0 <= h < 360 else None   # 511 = "not available" in AIS
+
+
+class VesselApiAdapter(PollAdapter):
+    """VesselAPI — https://vesselapi.com/docs/vessels. One GET per ship,
+    Bearer auth. Terrestrial by default; satellite fixes are an opt-in paid
+    extra (VESSELAPI_USE_SATELLITE=true), charged per new satellite fix."""
+    meta = {
+        "label": "VesselAPI",
+        "env_key": "VESSELAPI_API_KEY",
+        "coverage": "Terrestrial AIS, plus optional pay-per-fix satellite for ships out of shore range",
+        "pricing": "Free 150 calls/mo · from $14.99/mo",
+    }
+    BASE = "https://api.vesselapi.com/v1/vessel/{mmsi}/position"
+
+    def _fetch_one(self, mmsi: str) -> Optional[TrackedShipLive]:
+        params = {"filter.idType": "mmsi"}
+        if os.getenv("VESSELAPI_USE_SATELLITE", "").strip().lower() == "true":
+            params["filter.sat"] = "true"
+        url = self.BASE.format(mmsi=urllib.parse.quote(mmsi)) + "?" + urllib.parse.urlencode(params)
+        try:
+            data = get_json(url, headers={"Authorization": f"Bearer {self.api_key()}"}, redact=self.api_key())
+        except SourceError as exc:
+            if str(exc).startswith("HTTP 404"):
+                return None   # provider has no position for this ship
+            raise
+        p = (data or {}).get("vesselPosition") if isinstance(data, dict) else None
+        if not p or not valid_lat_lon(p.get("latitude"), p.get("longitude")):
+            return None
+        return TrackedShipLive(
+            lat=num(p["latitude"]), lon=num(p["longitude"]),
+            sog=num(p.get("sog")), cog=num(p.get("cog")),
+            true_heading=heading_or_none(p.get("heading")),
+            nav_status=int(p["nav_status"]) if isinstance(p.get("nav_status"), (int, float)) else None,
+            last_seen_utc=iso_utc(p.get("timestamp")),
+        )
+
+
+class MyShipTrackingAdapter(PollAdapter):
+    """MyShipTracking — https://api.myshiptracking.com/docs. One GET per ship
+    (simple response, 1 credit; not-found is free). Terrestrial AIS only and
+    the simple response has no heading."""
+    meta = {
+        "label": "MyShipTracking",
+        "env_key": "MYSHIPTRACKING_API_KEY",
+        "coverage": "Terrestrial AIS only · no heading field",
+        "pricing": "10-day free trial · from €90/mo",
+    }
+    BASE = "https://api.myshiptracking.com/api/v2/vessel"
+
+    def _fetch_one(self, mmsi: str) -> Optional[TrackedShipLive]:
+        url = self.BASE + "?" + urllib.parse.urlencode({"mmsi": mmsi})
+        try:
+            data = get_json(url, headers={"Authorization": f"Bearer {self.api_key()}"}, redact=self.api_key())
+        except SourceError as exc:
+            if str(exc).startswith("HTTP 404"):
+                return None
+            raise
+        if not isinstance(data, dict) or data.get("status") != "success":
+            return None   # e.g. vessel not found (not charged)
+        d = data.get("data") or {}
+        if not valid_lat_lon(d.get("lat"), d.get("lng")):
+            return None
+        return TrackedShipLive(
+            lat=num(d["lat"]), lon=num(d["lng"]),
+            sog=num(d.get("speed")), cog=num(d.get("course")),
+            true_heading=None,
+            nav_status=int(d["nav_status"]) if isinstance(d.get("nav_status"), (int, float)) else None,
+            last_seen_utc=iso_utc(d.get("received")),
+        )
+
+
+POLL_ADAPTERS["vesselapi"] = VesselApiAdapter()
+POLL_ADAPTERS["myshiptracking"] = MyShipTrackingAdapter()

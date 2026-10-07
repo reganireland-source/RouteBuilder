@@ -17,7 +17,8 @@ function aisEntry(r: { sources: SourceHealth[] }): SourceHealth | null {
   return r.sources.find(s => s.id === 'ais') ?? null
 }
 
-export function useAisFeed(): SourceHealth | null {
+/** `refreshToken`: bump it to re-read immediately (e.g. after sources change). */
+export function useAisFeed(refreshToken = 0): SourceHealth | null {
   const [feed, setFeed] = useState<SourceHealth | null>(null)
   useEffect(() => {
     let cancelled = false
@@ -27,7 +28,7 @@ export function useAisFeed(): SourceHealth | null {
     load()
     const id = window.setInterval(load, 30_000)
     return () => { cancelled = true; window.clearInterval(id) }
-  }, [])
+  }, [refreshToken])
   return feed
 }
 

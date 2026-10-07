@@ -68,7 +68,8 @@ export function ShipTrackerDialog({ onClose, shipsOnMap, onToggleShipsOnMap, onS
 }) {
   const t = useTheme()
   const { isAdmin } = useAuth()
-  const aisFeed = useAisFeed()
+  const [feedToken, setFeedToken] = useState(0)
+  const aisFeed = useAisFeed(feedToken)
   const [sourcesOpen, setSourcesOpen] = useState(false)
   const phone = useMaxWidth(PHONE_PX)
   const [ships, setShips] = useState<TrackedShip[]>([])
@@ -198,7 +199,7 @@ export function ShipTrackerDialog({ onClose, shipsOnMap, onToggleShipsOnMap, onS
             </div>
             {sourcesOpen && (
               <div style={{ marginTop: 10, paddingBottom: 4 }}>
-                <ShipSourcesPanel isAdmin={isAdmin} onSaved={() => void refresh()} />
+                <ShipSourcesPanel isAdmin={isAdmin} onSaved={() => { void refresh(); setFeedToken(n => n + 1) }} />
               </div>
             )}
           </div>
