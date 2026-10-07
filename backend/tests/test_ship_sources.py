@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import pytest
 
 from app.shiptracker import sources
-from app.shiptracker.sources import MyShipTrackingAdapter, SourceError, VesselApiAdapter, iso_utc
+from app.shiptracker.sources import MarinesiaAdapter, MyShipTrackingAdapter, SourceError, VesselApiAdapter, iso_utc
 
 
 def _stub(monkeypatch, response=None, error=None):
@@ -98,9 +98,41 @@ def test_myshiptracking_not_found_and_null_island_are_skipped(monkeypatch):
     assert MyShipTrackingAdapter().fetch(["241087000"]) == {}
 
 
+# ── Marinesia ──────────────────────────────────────────────────────────────
+
+MARINESIA_FIX = {"mmsi": 228018600, "lat": 24.25, "lng": 120.51, "sog": 0.1, "cog": 87.0,
+                 "hdt": 511, "status": 5, "ts": "2026-10-07T09:58:00Z"}
+
+
+@pytest.mark.parametrize("response", [
+    {"error": False, "message": "ok", "data": MARINESIA_FIX},   # enveloped
+    {"error": False, "data": [MARINESIA_FIX]},                  # list envelope
+    MARINESIA_FIX,                                              # bare
+])
+def test_marinesia_parses_its_documented_fields(monkeypatch, response):
+    monkeypatch.setenv("MARINESIA_API_KEY", "sekrit")
+    calls = _stub(monkeypatch, response)
+    live = MarinesiaAdapter().fetch(["228018600"])["228018600"]
+    assert (live.lat, live.lon, live.sog, live.cog, live.nav_status) == (24.25, 120.51, 0.1, 87.0, 5)
+    assert live.true_heading is None                            # 511 = heading not available
+    assert live.last_seen_utc == "2026-10-07T09:58:00Z"
+    assert calls[0][0] == "https://api.marinesia.com/api/v1/vessel/228018600/location/latest?key=sekrit"
+
+
+def test_marinesia_error_envelope_and_bad_key(monkeypatch):
+    monkeypatch.setenv("MARINESIA_API_KEY", "k")
+    _stub(monkeypatch, {"error": True, "message": "Vessel not found"})
+    assert MarinesiaAdapter().fetch(["228018600"]) == {}
+    _stub(monkeypatch, error="HTTP 403: Invalid API Key")      # what the live API returns for a bad key
+    with pytest.raises(SourceError, match="Invalid API Key"):
+        MarinesiaAdapter().fetch(["228018600"])
+
+
 def test_adapters_are_unconfigured_without_their_key(monkeypatch):
     monkeypatch.delenv("VESSELAPI_API_KEY", raising=False)
     monkeypatch.delenv("MYSHIPTRACKING_API_KEY", raising=False)
+    monkeypatch.delenv("MARINESIA_API_KEY", raising=False)
+    assert not MarinesiaAdapter().configured()
     assert not VesselApiAdapter().configured()
     assert not MyShipTrackingAdapter().configured()
 

@@ -4,26 +4,34 @@
 #
 # WHY MORE THAN ONE SOURCE
 # aisstream.io (free) only hears ships near volunteer shore receivers; in
-# measured tests it heard almost nothing in East Asian waters. Commercial
-# providers with large receiver networks and/or satellite AIS cover far more,
-# for a fee. So sources are selectable, and two can run together:
+# measured tests it heard almost nothing in East Asian waters. Other
+# providers cover more, some free (within a call allowance), some paid. So
+# sources are listed in PRIORITY ORDER (`order`, free ones first by default)
+# and run in one of two modes:
 #
-#   preferred  — always used.
-#   secondary  — optional. "always": runs alongside the preferred source.
-#                "fallback": a polled secondary is only asked about ships the
-#                preferred source hasn't located within `stale_minutes`
-#                (keeps per-call costs down); a streaming secondary
-#                (aisstream) costs nothing, so it simply runs.
+#   fallback — the first source is asked about every ship; each later source
+#              is only asked about ships no earlier source has located within
+#              `stale_minutes`. Free sources do what they can, paid ones only
+#              fill the gaps.
+#   always   — every source in the order is asked about every ship; the
+#              freshest fix wins.
+#
+# CALL ALLOWANCES: a polled source can have a monthly call budget
+# (`budgets`, defaulting to the provider's free tier, None = unlimited). The
+# hub paces calls evenly over what's left of the calendar month (remaining
+# calls ÷ remaining time, never closer together than the provider's rate
+# limit), so a free tier is never exceeded. Within an allowance, ships the
+# source was asked about least recently go first, so every ship gets a turn.
+# Usage is persisted (config["ship_tracking_usage"]) so restarts don't reset it.
 #
 # MERGING: per ship, the freshest fix across the enabled sources wins; on a
-# tie (or when timestamps are missing) the preferred source wins. Every fix
-# carries `source` so the UI can say where a position came from.
+# tie (or when timestamps are missing) the earlier source in the order wins.
+# Every fix carries `source` so the UI can say where a position came from.
 #
 # Source KINDS: "stream" (aisstream.io — pushes fixes as they arrive, see
-# ais_client.py) and "poll" (REST providers, see sources.py — asked every
-# `poll_minutes` for the tracked MMSIs). API keys live only in environment
-# variables, never in the database or the UI; a source without its key is
-# listed but not selectable.
+# ais_client.py) and "poll" (REST providers, see sources.py — checked every
+# `poll_minutes`). API keys live only in environment variables, never in the
+# database or the UI; a source without its key is listed but skipped.
 #
 # Settings live under config["ship_tracking"] (see api/config.py for
 # validation), editable by admins from the Ship Tracker dialog.
@@ -31,7 +39,8 @@
 import asyncio
 import logging
 import time
-from datetime import datetime
+from collections import defaultdict
+from datetime import UTC, datetime
 from typing import Optional
 
 from ..models import TrackedShipLive
@@ -44,24 +53,33 @@ STREAM_SOURCES = {
     "aisstream": {
         "label": "aisstream.io",
         "env_key": "MARITIME_AISSTREAM_API_KEY",
-        "coverage": "Free · volunteer shore receivers only — patchy, very thin in East Asia",
+        "coverage": "Volunteer shore receivers only — patchy, very thin in East Asia",
         "pricing": "Free",
+        "free": True,
     },
 }
 
 DEFAULT_SETTINGS = {
-    "preferred": "aisstream",
-    "secondary": None,
-    "secondary_mode": "fallback",
-    "poll_minutes": 5,
-    "stale_minutes": 30,
+    # Free sources first; paid ones are added by an admin when wanted.
+    "order": ["aisstream", "marinesia", "vesselapi"],
+    "mode": "fallback",
+    "poll_minutes": 90,
+    "stale_minutes": 180,
+    # Calls per calendar month per polled source; None = unlimited. Missing
+    # entries take the provider's free-tier allowance (meta "free_calls_per_month").
+    "budgets": {},
 }
 
-SECONDARY_MODES = ("fallback", "always")
+MODES = ("fallback", "always")
+MAX_BUDGET = 1_000_000
 
 
 def all_source_ids() -> list[str]:
     return list(STREAM_SOURCES) + list(POLL_ADAPTERS)
+
+
+def source_meta(source_id: str) -> dict:
+    return STREAM_SOURCES.get(source_id) or POLL_ADAPTERS[source_id].meta
 
 
 def source_configured(source_id: str) -> bool:
@@ -71,30 +89,67 @@ def source_configured(source_id: str) -> bool:
     return bool(adapter and adapter.configured())
 
 
+def _from_legacy(raw: dict) -> dict:
+    """Settings saved before priority ordering used preferred/secondary."""
+    if "order" in raw or "preferred" not in raw:
+        return raw
+    order = [raw["preferred"]] + ([raw["secondary"]] if raw.get("secondary") not in (None, "", "none") else [])
+    out = {k: v for k, v in raw.items() if k not in ("preferred", "secondary", "secondary_mode")}
+    return {**out, "order": order, "mode": raw.get("secondary_mode", "fallback")}
+
+
+def _int_in_range(key: str, value, lo: int, hi: int) -> int:
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{key} must be a whole number.") from None
+    if not lo <= n <= hi:
+        raise ValueError(f"{key} must be between {lo} and {hi}.")
+    return n
+
+
+def _validate_budgets(raw) -> dict:
+    """Every polled source gets an explicit budget (int calls/month or None)."""
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise ValueError("budgets must be an object of source → calls per month.")
+    unknown = set(raw) - set(POLL_ADAPTERS)
+    if unknown:
+        raise ValueError(f"Unknown polled source in budgets: {', '.join(sorted(unknown))}.")
+    out = {}
+    for sid, adapter in POLL_ADAPTERS.items():
+        if sid not in raw:
+            out[sid] = adapter.meta.get("free_calls_per_month")
+        elif raw[sid] in (None, "", 0):
+            out[sid] = None
+        else:
+            out[sid] = _int_in_range(f"Monthly calls for {adapter.meta['label']}", raw[sid], 1, MAX_BUDGET)
+    return out
+
+
 def validate_settings(raw: dict) -> dict:
     """Merge `raw` over the defaults and validate. Raises ValueError with a
     user-facing message on anything invalid. Used by PUT /api/config."""
-    s = {**DEFAULT_SETTINGS, **(raw or {})}
+    s = {**DEFAULT_SETTINGS, **_from_legacy(raw or {})}
     known = all_source_ids()
-    if s["preferred"] not in known:
-        raise ValueError(f"Unknown preferred source '{s['preferred']}'.")
-    if s["secondary"] in ("", "none"):
-        s["secondary"] = None
-    if s["secondary"] is not None:
-        if s["secondary"] not in known:
-            raise ValueError(f"Unknown secondary source '{s['secondary']}'.")
-        if s["secondary"] == s["preferred"]:
-            raise ValueError("The secondary source must differ from the preferred one.")
-    if s["secondary_mode"] not in SECONDARY_MODES:
-        raise ValueError("secondary_mode must be 'fallback' or 'always'.")
-    for key, lo, hi in (("poll_minutes", 1, 60), ("stale_minutes", 5, 1440)):
-        try:
-            s[key] = int(s[key])
-        except (TypeError, ValueError):
-            raise ValueError(f"{key} must be a whole number.") from None
-        if not lo <= s[key] <= hi:
-            raise ValueError(f"{key} must be between {lo} and {hi}.")
-    return {k: s[k] for k in DEFAULT_SETTINGS}
+    order = s["order"]
+    if not isinstance(order, list) or not order:
+        raise ValueError("Choose at least one position source.")
+    for sid in order:
+        if sid not in known:
+            raise ValueError(f"Unknown position source '{sid}'.")
+    if len(set(order)) != len(order):
+        raise ValueError("Each source can appear only once in the order.")
+    if s["mode"] not in MODES:
+        raise ValueError("mode must be 'fallback' or 'always'.")
+    return {
+        "order": list(order),
+        "mode": s["mode"],
+        "poll_minutes": _int_in_range("poll_minutes", s["poll_minutes"], 1, 90),
+        "stale_minutes": _int_in_range("stale_minutes", s["stale_minutes"], 5, 1440),
+        "budgets": _validate_budgets(s["budgets"]),
+    }
 
 
 def current_settings() -> dict:
@@ -103,7 +158,34 @@ def current_settings() -> dict:
         return validate_settings(load_config().get("ship_tracking") or {})
     except ValueError:
         log.warning("Stored ship_tracking settings invalid — using defaults")
-        return dict(DEFAULT_SETTINGS)
+        return validate_settings({})
+
+
+def load_usage() -> dict:
+    from ..data_loader import load_config
+    usage = load_config().get("ship_tracking_usage")
+    return dict(usage) if isinstance(usage, dict) else {}
+
+
+def save_usage(usage: dict) -> None:
+    from ..data_loader import load_config, save_config
+    config = dict(load_config())
+    config["ship_tracking_usage"] = usage
+    save_config(config)
+
+
+def _month_key(now: float) -> str:
+    return datetime.fromtimestamp(now, UTC).strftime("%Y-%m")
+
+
+def _seconds_left_in_month(now: float) -> float:
+    d = datetime.fromtimestamp(now, UTC)
+    nxt = datetime(d.year + (d.month == 12), d.month % 12 + 1, 1, tzinfo=UTC)
+    return max(nxt.timestamp() - now, 1.0)
+
+
+def _iso(ts: float) -> str:
+    return datetime.fromtimestamp(ts, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _fix_time(live: TrackedShipLive) -> float:
@@ -114,12 +196,16 @@ def _fix_time(live: TrackedShipLive) -> float:
 
 
 class PositionHub:
-    """Per-source caches for polled providers, the merge policy, throttled
-    last-known persistence, and the poll loop. One instance per process."""
+    """Per-source caches for polled providers, the merge policy, call
+    allowances, throttled last-known persistence, and the poll loop. One
+    instance per process."""
 
     def __init__(self) -> None:
-        self._poll_cache: dict[str, dict[str, TrackedShipLive]] = {sid: {} for sid in POLL_ADAPTERS}
-        self._poll_state: dict[str, dict] = {sid: {"last_ok": None, "last_error": None, "calls": 0} for sid in POLL_ADAPTERS}
+        # Per polled source, created on first use (adapters can register late).
+        self._poll_cache: defaultdict[str, dict[str, TrackedShipLive]] = defaultdict(dict)
+        self._poll_state: defaultdict[str, dict] = defaultdict(lambda: {"last_ok": None, "last_error": None})
+        self._asked: defaultdict[str, dict[str, float]] = defaultdict(dict)   # source → mmsi → last asked
+        self._usage: Optional[dict] = None   # loaded lazily from config
         self._last_persisted: dict[str, float] = {}
         self._stopped = False
         self._kick = asyncio.Event()
@@ -127,22 +213,22 @@ class PositionHub:
 
     # ── which sources are in play ────────────────────────────────────────
     def enabled(self, settings: Optional[dict] = None) -> list[str]:
-        """Selected AND configured sources, preferred first."""
+        """Sources in the priority order that have their API key set."""
         s = settings or current_settings()
-        return [sid for sid in (s["preferred"], s["secondary"]) if sid and source_configured(sid)]
+        return [sid for sid in s["order"] if sid in all_source_ids() and source_configured(sid)]
 
     def _source_fix(self, source_id: str, mmsi: str) -> Optional[TrackedShipLive]:
         if source_id == "aisstream":
             return ais_client.get(mmsi)
         return self._poll_cache.get(source_id, {}).get(mmsi)
 
+    def _freshest(self, source_ids: list[str], mmsi: str) -> Optional[TrackedShipLive]:
+        fixes = [f for f in (self._source_fix(sid, mmsi) for sid in source_ids) if f]
+        return max(fixes, key=_fix_time) if fixes else None   # max() keeps the first of equal keys
+
     def best(self, mmsi: str, settings: Optional[dict] = None) -> Optional[TrackedShipLive]:
-        """Freshest fix across enabled sources; ties go to the preferred one
-        (it comes first, and max() keeps the first of equal keys)."""
-        fixes = [f for f in (self._source_fix(sid, mmsi) for sid in self.enabled(settings)) if f]
-        if not fixes:
-            return None
-        return max(fixes, key=_fix_time)
+        """Freshest fix across enabled sources; ties go to the earlier one."""
+        return self._freshest(self.enabled(settings), mmsi)
 
     def tracked(self) -> list[str]:
         return sorted(ais_client._tracked)
@@ -163,31 +249,102 @@ class PositionHub:
         except Exception:  # noqa: BLE001
             log.exception("Could not persist last-known position for MMSI %s", mmsi)
 
+    # ── call allowances ──────────────────────────────────────────────────
+    def _usage_for(self, source_id: str, now: float) -> dict:
+        """This calendar month's usage for a source (resets on a new month)."""
+        if self._usage is None:
+            try:
+                self._usage = load_usage()
+            except Exception:  # noqa: BLE001
+                log.exception("Could not load ship tracking usage — starting from zero")
+                self._usage = {}
+        u = self._usage.get(source_id)
+        if not isinstance(u, dict) or u.get("month") != _month_key(now):
+            u = {"month": _month_key(now), "calls": 0, "last_call": None}
+            self._usage[source_id] = u
+        return u
+
+    def _spacing(self, source_id: str, budget: int, u: dict, now: float) -> Optional[float]:
+        """Seconds between calls that spreads the remaining budget over the
+        rest of the month, respecting the provider's rate limit. None when
+        the budget is spent."""
+        remaining = budget - u["calls"]
+        if remaining <= 0:
+            return None
+        return max(_seconds_left_in_month(now) / remaining, POLL_ADAPTERS[source_id].meta.get("min_spacing_s", 0))
+
+    def _allowance(self, source_id: str, settings: dict, now: float) -> Optional[int]:
+        """How many calls `source_id` may make right now; None = unlimited."""
+        budget = settings["budgets"].get(source_id)
+        if budget is None:
+            return None
+        u = self._usage_for(source_id, now)
+        spacing = self._spacing(source_id, budget, u, now)
+        if spacing is None:
+            return 0
+        burst = POLL_ADAPTERS[source_id].meta.get("max_burst") or budget
+        due = budget if u["last_call"] is None else int((now - u["last_call"]) // spacing)
+        return max(0, min(budget - u["calls"], due, burst))
+
+    def _next_call_at(self, source_id: str, settings: dict, now: float) -> Optional[float]:
+        budget = settings["budgets"].get(source_id)
+        if budget is None:
+            return None
+        u = self._usage_for(source_id, now)
+        spacing = self._spacing(source_id, budget, u, now)
+        if spacing is None:
+            return None
+        return now if u["last_call"] is None else max(now, u["last_call"] + spacing)
+
+    def _record_calls(self, source_id: str, n: int, now: float) -> None:
+        u = self._usage_for(source_id, now)
+        u["calls"] += n
+        u["last_call"] = now
+        try:
+            save_usage(self._usage)
+        except Exception:  # noqa: BLE001
+            log.exception("Could not persist ship tracking usage")
+
     # ── polling ──────────────────────────────────────────────────────────
-    def _mmsis_to_poll(self, source_id: str, settings: dict) -> list[str]:
+    def _mmsis_to_poll(self, source_id: str, settings: dict, enabled: list[str]) -> list[str]:
+        """Ships to ask `source_id` about, most deserving first: ships it was
+        asked about least recently, then those located least recently."""
         tracked = self.tracked()
-        is_fallback_secondary = source_id == settings["secondary"] and settings["secondary_mode"] == "fallback"
-        if not is_fallback_secondary:
-            return tracked
-        # Fallback: only ships the preferred source hasn't located recently.
-        cutoff = time.time() - settings["stale_minutes"] * 60
-        need = []
-        for mmsi in tracked:
-            pref = self._source_fix(settings["preferred"], mmsi)
-            if pref is None or _fix_time(pref) < cutoff:
-                need.append(mmsi)
-        return need
+        earlier = enabled[:enabled.index(source_id)]
+        if settings["mode"] == "fallback" and earlier:
+            cutoff = time.time() - settings["stale_minutes"] * 60
+            need = []
+            for mmsi in tracked:
+                prior = self._freshest(earlier, mmsi)
+                if prior is None or _fix_time(prior) < cutoff:
+                    need.append(mmsi)
+            tracked = need
+        asked = self._asked.get(source_id, {})
+
+        def priority(mmsi: str) -> tuple:
+            fix = self.best(mmsi, settings)
+            return (asked.get(mmsi, float("-inf")), _fix_time(fix) if fix else float("-inf"), mmsi)
+        return sorted(tracked, key=priority)
 
     async def poll_once(self) -> None:
         settings = current_settings()
-        for source_id in self.enabled(settings):
+        enabled = self.enabled(settings)
+        for source_id in enabled:
             adapter = POLL_ADAPTERS.get(source_id)
             if adapter is None:
                 continue  # streaming source — nothing to poll
-            mmsis = self._mmsis_to_poll(source_id, settings)
+            mmsis = self._mmsis_to_poll(source_id, settings, enabled)
+            now = time.time()
+            allowance = self._allowance(source_id, settings, now)
+            if allowance is not None:
+                mmsis = mmsis[:allowance]
             if not mmsis:
                 continue
             state = self._poll_state[source_id]
+            for mmsi in mmsis:
+                self._asked[source_id][mmsi] = now
+            if allowance is not None:
+                self._record_calls(source_id, len(mmsis), now)   # failed calls may still count against a plan
             try:
                 fixes = await asyncio.to_thread(adapter.fetch, mmsis)
             except SourceError as exc:
@@ -198,7 +355,6 @@ class PositionHub:
                 state["last_error"] = f"Unexpected error: {type(exc).__name__}"
                 log.exception("%s poll raised", source_id)
                 continue
-            state["calls"] += 1
             state["last_ok"] = time.monotonic()
             state["last_error"] = None
             for mmsi, live in fixes.items():
@@ -219,7 +375,8 @@ class PositionHub:
 
     def kick(self) -> None:
         """Poll now instead of waiting out the interval — e.g. right after an
-        admin changes sources, so the new choice shows results immediately."""
+        admin changes sources, so the new choice shows results immediately.
+        Call allowances still apply."""
         self._kick.set()
 
     def stop(self) -> None:
@@ -228,35 +385,64 @@ class PositionHub:
     def forget(self, mmsi: str) -> None:
         for cache in self._poll_cache.values():
             cache.pop(mmsi, None)
+        for asked in self._asked.values():
+            asked.pop(mmsi, None)
         self._last_persisted.pop(mmsi, None)
 
     # ── status ───────────────────────────────────────────────────────────
+    def _role(self, source_id: str, settings: dict) -> str:
+        order = settings["order"]
+        if source_id not in order:
+            return "unused"
+        enabled = self.enabled(settings)
+        first = enabled[0] if enabled else order[0]   # a source without its key is skipped
+        return "primary" if source_id == first else settings["mode"]
+
+    def _usage_status(self, source_id: str, settings: dict) -> Optional[dict]:
+        if source_id not in POLL_ADAPTERS:
+            return None
+        now = time.time()
+        u = self._usage_for(source_id, now)
+        nxt = self._next_call_at(source_id, settings, now)
+        return {
+            "calls_this_month": u["calls"],
+            "budget": settings["budgets"].get(source_id),
+            "next_call_utc": _iso(nxt) if nxt else None,
+        }
+
+    def _poll_detail(self, source_id: str, base: dict, settings: dict) -> dict:
+        state = self._poll_state[source_id]
+        usage = base["usage"]
+        tail = ""
+        if usage and usage["budget"] is not None and usage["calls_this_month"] >= usage["budget"]:
+            tail = " · monthly allowance used — resumes next month"
+        if base["role"] == "unused":
+            return {**base, "status": "disabled", "detail": "Configured, not in use" + tail}
+        if state["last_error"]:
+            return {**base, "status": "error", "detail": state["last_error"] + tail}
+        if state["last_ok"] is None:
+            return {**base, "status": "checking", "detail": "Waiting for first poll" + tail}
+        ago = _duration(time.monotonic() - state["last_ok"])
+        return {**base, "status": "ok", "detail": f"Polled {ago} ago · {base['ships_located']}/{base['ships_tracked']} ships located" + tail}
+
     def _source_status(self, source_id: str, settings: dict) -> dict:
         tracked = self.tracked()
-        role = "preferred" if source_id == settings["preferred"] else (
-            settings["secondary_mode"] if source_id == settings["secondary"] else "unused")
-        meta = STREAM_SOURCES.get(source_id) or POLL_ADAPTERS[source_id].meta
+        meta = source_meta(source_id)
         base = {
             "id": source_id, "label": meta["label"], "kind": "stream" if source_id in STREAM_SOURCES else "poll",
             "env_key": meta["env_key"], "coverage": meta["coverage"], "pricing": meta["pricing"],
-            "configured": source_configured(source_id), "role": role,
+            "free": bool(meta.get("free")), "default_budget": meta.get("free_calls_per_month"),
+            "configured": source_configured(source_id), "role": self._role(source_id, settings),
             "ships_located": sum(1 for m in tracked if self._source_fix(source_id, m)),
             "ships_tracked": len(tracked),
+            "usage": self._usage_status(source_id, settings),
         }
         if not base["configured"]:
             return {**base, "status": "disabled", "detail": f"Not configured ({meta['env_key']})"}
         if source_id == "aisstream":
             st = ais_client.status()
             return {**base, "status": st["status"], "detail": st["detail"]}
-        state = self._poll_state[source_id]
-        if role == "unused":
-            return {**base, "status": "disabled", "detail": "Configured, not selected"}
-        if state["last_error"]:
-            return {**base, "status": "error", "detail": state["last_error"]}
-        if state["last_ok"] is None:
-            return {**base, "status": "checking", "detail": "Waiting for first poll"}
-        ago = _duration(time.monotonic() - state["last_ok"])
-        return {**base, "status": "ok", "detail": f"Polled {ago} ago · {base['ships_located']}/{len(tracked)} ships located"}
+        return self._poll_detail(source_id, base, settings)
 
     def sources_status(self) -> dict:
         settings = current_settings()
@@ -268,12 +454,10 @@ class PositionHub:
         statuses = {s["id"]: s for s in self.sources_status()["sources"]}
         tracked = self.tracked()
         located = sum(1 for m in tracked if self.best(m, settings))
-        pref = statuses[settings["preferred"]]
-        parts = [f"{pref['label']}: {pref['detail']}"]
-        if settings["secondary"]:
-            sec = statuses[settings["secondary"]]
-            parts.append(f"{sec['label']} ({settings['secondary_mode']}): {sec['detail']}")
-        in_use = [statuses[sid] for sid in (settings["preferred"], settings["secondary"]) if sid]
+        in_use = [statuses[sid] for sid in settings["order"] if sid in statuses]
+        parts = [f"{s['label']}: {s['detail']}" for s in in_use if s["configured"]]
+        if not parts:
+            parts = ["no configured source in use"]
         if any(s["status"] == "ok" for s in in_use):
             status = "ok"
         elif all(s["status"] == "disabled" for s in in_use):

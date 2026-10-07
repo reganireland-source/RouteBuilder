@@ -9,9 +9,10 @@
 #     "on-net" (Telstra-owned) for the route UI's on-net/off-net styling.
 #   - maps_provider: str — which basemap to render, either "osm"
 #     (OpenStreetMap) or "google".
-#   - ship_tracking: dict — ShipTracker's AIS sources (preferred/secondary,
-#     secondary_mode, poll_minutes, stale_minutes); validated by
-#     shiptracker/hub.py's validate_settings.
+#   - ship_tracking: dict — ShipTracker's AIS sources (priority order, mode,
+#     poll_minutes, stale_minutes, monthly call budgets); validated by
+#     shiptracker/hub.py's validate_settings. (ship_tracking_usage, the
+#     hub's own call counters, is written by the hub, not by this route.)
 # Only these keys are read/written here; anything else in the stored config
 # is left untouched.
 #

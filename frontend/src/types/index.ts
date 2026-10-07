@@ -378,21 +378,31 @@ export interface ShipSource {
   coverage: string
   pricing: string
   configured: boolean
-  role: 'preferred' | 'fallback' | 'always' | 'unused'
+  /** Usable at no cost, within its allowance. */
+  free: boolean
+  /** The provider's free-tier monthly call allowance; null = none/unlimited. */
+  default_budget: number | null
+  /** primary = first in the order; fallback/always = later in the order. */
+  role: 'primary' | 'fallback' | 'always' | 'unused'
   status: 'ok' | 'error' | 'checking' | 'disabled'
   detail: string
   ships_located: number
   ships_tracked: number
+  /** Polled sources only: this calendar month's call count and pacing. */
+  usage: { calls_this_month: number; budget: number | null; next_call_utc: string | null } | null
 }
 
 export interface ShipTrackingSettings {
-  preferred: string
-  secondary: string | null
-  /** fallback: the secondary is only asked about ships the preferred source
-   *  hasn't located within stale_minutes; always: both run, freshest wins. */
-  secondary_mode: 'fallback' | 'always'
+  /** Sources in priority order (free first by default). */
+  order: string[]
+  /** fallback: each later source is only asked about ships no earlier source
+   *  has located within stale_minutes; always: all run, freshest wins. */
+  mode: 'fallback' | 'always'
   poll_minutes: number
   stale_minutes: number
+  /** Monthly call allowance per polled source; null = unlimited. Calls are
+   *  paced across the month so the allowance is never exceeded. */
+  budgets: Record<string, number | null>
 }
 
 /** A cable repair ship RouteBuilder is tracking for mobilisation planning,

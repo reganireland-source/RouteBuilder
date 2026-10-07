@@ -84,7 +84,12 @@ def valid_lat_lon(lat, lon) -> bool:
 
 
 class PollAdapter:
-    #: id, label, env_key, coverage, pricing — shown in the source picker.
+    #: label, env_key, coverage, pricing — shown in the source picker.
+    #: free: usable at no cost (within its allowance).
+    #: free_calls_per_month: default monthly call budget (the free tier);
+    #:   None = unlimited. Admins can change it in the Sources panel.
+    #: min_spacing_s / max_burst: the free tier's rate limit, applied while
+    #:   a budget is set.
     meta: dict = {}
 
     def api_key(self) -> str:
@@ -153,6 +158,8 @@ class VesselApiAdapter(PollAdapter):
         "env_key": "VESSELAPI_API_KEY",
         "coverage": "Terrestrial AIS, plus optional pay-per-fix satellite for ships out of shore range",
         "pricing": "Free 150 calls/mo · from $14.99/mo",
+        "free": True,
+        "free_calls_per_month": 150,
     }
     BASE = "https://api.vesselapi.com/v1/vessel/{mmsi}/position"
 
@@ -188,6 +195,8 @@ class MyShipTrackingAdapter(PollAdapter):
         "env_key": "MYSHIPTRACKING_API_KEY",
         "coverage": "Terrestrial AIS only · no heading field",
         "pricing": "10-day free trial · from €90/mo",
+        "free": False,
+        "free_calls_per_month": None,
     }
     BASE = "https://api.myshiptracking.com/api/v2/vessel"
 
@@ -213,5 +222,47 @@ class MyShipTrackingAdapter(PollAdapter):
         )
 
 
+class MarinesiaAdapter(PollAdapter):
+    """Marinesia — https://docs.marinesia.com. One GET per ship, key in the
+    query string. The free plan allows 1 request per hour, so with a few
+    ships each one is refreshed every few hours. Marinesia doesn't say where
+    its AIS data comes from, so its coverage is unverified."""
+    meta = {
+        "label": "Marinesia",
+        "env_key": "MARINESIA_API_KEY",
+        "coverage": "Receiver network not published — coverage unverified",
+        "pricing": "Free 1 call/hour · paid plans for more",
+        "free": True,
+        "free_calls_per_month": 700,   # 1/hour ≈ 720, kept under
+        "min_spacing_s": 3600,
+        "max_burst": 1,
+    }
+    BASE = "https://api.marinesia.com/api/v1/vessel/{mmsi}/location/latest"
+
+    def _fetch_one(self, mmsi: str) -> Optional[TrackedShipLive]:
+        url = self.BASE.format(mmsi=urllib.parse.quote(mmsi)) + "?" + urllib.parse.urlencode({"key": self.api_key()})
+        try:
+            data = get_json(url, redact=self.api_key())
+        except SourceError as exc:
+            if str(exc).startswith("HTTP 404"):
+                return None
+            raise
+        if not isinstance(data, dict) or data.get("error") is True:
+            return None
+        d = data.get("data", data)   # documented fields, with or without a {"data": …} envelope
+        if isinstance(d, list):
+            d = d[0] if d else {}
+        if not isinstance(d, dict) or not valid_lat_lon(d.get("lat"), d.get("lng")):
+            return None
+        return TrackedShipLive(
+            lat=num(d["lat"]), lon=num(d["lng"]),
+            sog=num(d.get("sog")), cog=num(d.get("cog")),
+            true_heading=heading_or_none(d.get("hdt")),
+            nav_status=int(d["status"]) if isinstance(d.get("status"), (int, float)) else None,
+            last_seen_utc=iso_utc(d.get("ts")),
+        )
+
+
+POLL_ADAPTERS["marinesia"] = MarinesiaAdapter()
 POLL_ADAPTERS["vesselapi"] = VesselApiAdapter()
 POLL_ADAPTERS["myshiptracking"] = MyShipTrackingAdapter()

@@ -329,7 +329,7 @@ export const api = {
   createShip:  (data: { mmsi: string; name?: string; imo?: string; sprite?: string })  => post<TrackedShip>('/api/ships', data),
   deleteShip:  (mmsi: string)                                                          => del(`/api/ships/${enc(mmsi)}`),
   getShipSources:      () => get<{ settings: ShipTrackingSettings; sources: ShipSource[] }>('/api/ships/sources'),
-  /** Admin-only: choose ShipTracker's preferred/secondary AIS sources. */
+  /** Admin-only: ShipTracker's source priority order, mode and call allowances. */
   updateShipTracking:  (settings: ShipTrackingSettings) => put<AppConfig>('/api/config', { ship_tracking: settings }),
 
   // Outages

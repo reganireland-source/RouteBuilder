@@ -41,6 +41,7 @@ import { AisFeedLine, useAisFeed } from './AisFeedLine'
 /** Display names for TrackedShipLive.source (ids from backend shiptracker/hub.py). */
 const SOURCE_LABEL: Record<string, string> = {
   aisstream: 'aisstream.io',
+  marinesia: 'Marinesia',
   vesselapi: 'VesselAPI',
   myshiptracking: 'MyShipTracking',
 }
