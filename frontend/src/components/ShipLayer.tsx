@@ -31,6 +31,7 @@ import * as L from 'leaflet'
 import { useMap } from 'react-leaflet'
 import type { TrackedShip } from '../types'
 import { shipFixAge } from '../utils/shipFixAge'
+import { flagFromMmsi } from '../utils/mmsiFlag'
 
 const PANE_NAME = 'rb-ships'
 const PANE_Z = 620
@@ -78,7 +79,8 @@ function buildIcon(ship: TrackedShip): L.DivIcon {
   const bearing = shipBearing(ship)
   const age = shipFixAge(ship.live)
   const stale = !!age?.stale
-  const label = escapeHtml(ship.name) + (stale && age ? ` · ${escapeHtml(age.label)}` : '')
+  const flag = flagFromMmsi(ship.mmsi)
+  const label = (flag ? `${flag.emoji} ` : '') + escapeHtml(ship.name) + (stale && age ? ` · ${escapeHtml(age.label)}` : '')
   const faceLeft = bearing != null && bearing > 180 && bearing < 360
   const arrow = bearing != null ? arrowSvg(bearing, ship.live?.sog ?? null).svg : ''
   const sprite = `/ships/${encodeURIComponent(ship.sprite || 'generic')}.png`

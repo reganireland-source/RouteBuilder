@@ -43,10 +43,13 @@ import type { TrackedShip } from '../types'
 import { ShipFullView } from './ShipFullView'
 import { ConfirmDialog } from './ConfirmDialog'
 import { shipFixAge } from '../utils/shipFixAge'
+import { flagFromMmsi } from '../utils/mmsiFlag'
 import { AisFeedLine, useAisFeed } from './AisFeedLine'
 import { PHONE_PX, useMaxWidth } from './fullViewChrome'
 
 const Z_DIALOG = 11500
+/** Screen-reader-only text (the flag emoji itself is aria-hidden). */
+const visuallyHidden = { position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap' } as const
 const MMSI_RE = /^\d{9}$/
 /** A Full View opened from this dialog has to sit ABOVE it, not at
  *  fullViewChrome's Z_FULL_VIEW_BASE (10000), or it opens behind the list
@@ -235,6 +238,7 @@ function ShipRow({ ship, t, isAdmin, onOpen, onRemove }: {
   onOpen: () => void; onRemove: () => void
 }) {
   const { text: position, tone } = describeFix(ship)
+  const flag = flagFromMmsi(ship.mmsi)
   const positionColor = { none: t.textFaintest, fresh: t.green, stale: t.orange }[tone]
   return (
     <div
@@ -255,6 +259,7 @@ function ShipRow({ ship, t, isAdmin, onOpen, onRemove }: {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: t.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {ship.name}
+          {flag && <span title={`Flag: ${flag.name}`} style={{ marginLeft: 6, fontWeight: 400 }}><span aria-hidden>{flag.emoji}</span><span style={visuallyHidden}>{flag.name}</span></span>}
         </div>
         <div style={{ fontSize: 11, color: t.textFaint }}>
           MMSI {ship.mmsi} · <span style={{ color: positionColor }}>{position}</span>

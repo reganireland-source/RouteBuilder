@@ -35,6 +35,7 @@ import {
 } from './fullViewChrome'
 import { useTheme } from '../theme'
 import { shipFixAge } from '../utils/shipFixAge'
+import { flagFromMmsi } from '../utils/mmsiFlag'
 import { AisFeedLine, useAisFeed } from './AisFeedLine'
 
 const NAV_STATUS_LABEL: Record<number, string> = {
@@ -56,6 +57,7 @@ export function ShipFullView({ ship, onClose, zIndex = Z_FULL_VIEW_BASE }: {
   const hasFix = !!live && live.lat != null && live.lon != null
   const age = shipFixAge(live)
   const aisFeed = useAisFeed()
+  const flag = flagFromMmsi(ship.mmsi)
   let positionTitle = 'Position'
   if (hasFix) positionTitle = age?.stale ? 'Last Known Position' : 'Live Position'
 
@@ -85,7 +87,9 @@ export function ShipFullView({ ship, onClose, zIndex = Z_FULL_VIEW_BASE }: {
             />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>{ship.name}</div>
-              <div style={{ fontSize: 11, color: t.textFaint }}>Cable repair ship — tracked via AIS</div>
+              <div style={{ fontSize: 11, color: t.textFaint }}>
+                {flag && <><span aria-hidden>{flag.emoji}</span> {flag.name} · </>}Cable repair ship — tracked via AIS
+              </div>
             </div>
             <button onClick={onClose} title="Close" aria-label="Close" style={closeBtnStyle(t, phone)}>×</button>
             </div>
@@ -95,6 +99,9 @@ export function ShipFullView({ ship, onClose, zIndex = Z_FULL_VIEW_BASE }: {
             <div style={rowStyle(phone)}>
               <Card t={t} title="Identity" grow>
                 <TextRow t={t} label="Name" value={ship.name} />
+                <TextRow t={t} label="Flag" value={flag
+                  ? <span><span aria-hidden>{flag.emoji}</span> {flag.name}</span>
+                  : <Empty t={t}>Unknown</Empty>} />
                 <TextRow t={t} label="MMSI" value={<span style={{ fontFamily: 'ui-monospace, monospace' }}>{ship.mmsi}</span>} />
                 <TextRow t={t} label="IMO" value={ship.imo ? <span style={{ fontFamily: 'ui-monospace, monospace' }}>{ship.imo}</span> : <Empty t={t}>Not recorded</Empty>} />
                 <TextRow t={t} label="Tracking since" value={new Date(ship.added_at).toLocaleString()} />
