@@ -42,7 +42,7 @@
  * requests). Request/response shapes are the interfaces in ../types.
  */
 
-import type { AppConfig, CableNode, CableResearchResult, KmlChain, KmlChopCommitResponse, KmlFlattenResponse, KmlFullPath, KmlLibrary, KmlPathsResponse, KmlSource, KmlUnusedFiles, KmlUploadResult, KmlVersion, ScmCablesResponse, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, HazardFeed, NlpParseResponse, NoteCategory, OutageEventType, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable, TrackedShip } from '../types'
+import type { AppConfig, CableNode, CableResearchResult, KmlChain, KmlChopCommitResponse, KmlFlattenResponse, KmlFullPath, KmlLibrary, KmlPathsResponse, KmlSource, KmlUnusedFiles, KmlUploadResult, KmlVersion, ScmCablesResponse, CableSegment, CableSystem, CityInfo, CityPairResponse, FeatureRequest, InterfaceType, InterconnectRule, HazardFeed, NlpParseResponse, NoteCategory, OutageEventType, OutageParseResponse, Project, ProjectCircuit, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage, SldConfig, SolutionNote, TechLookupItem, TechLookupTable, TrackedShip, ShipSource, ShipTrackingSettings } from '../types'
 
 /** One external feed's status from GET /api/health/sources. The AIS entry also
  *  carries the facts behind its detail line (see AisFeedLine.tsx). */
@@ -328,6 +328,9 @@ export const api = {
   getShips:    ()                                                                      => get<TrackedShip[]>('/api/ships'),
   createShip:  (data: { mmsi: string; name?: string; imo?: string; sprite?: string })  => post<TrackedShip>('/api/ships', data),
   deleteShip:  (mmsi: string)                                                          => del(`/api/ships/${enc(mmsi)}`),
+  getShipSources:      () => get<{ settings: ShipTrackingSettings; sources: ShipSource[] }>('/api/ships/sources'),
+  /** Admin-only: choose ShipTracker's preferred/secondary AIS sources. */
+  updateShipTracking:  (settings: ShipTrackingSettings) => put<AppConfig>('/api/config', { ship_tracking: settings }),
 
   // Outages
   getOutages:     ()                                                   => get<SegmentOutage[]>('/api/outages'),

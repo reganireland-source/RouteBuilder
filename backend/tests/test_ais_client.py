@@ -220,18 +220,23 @@ def test_unavailable_or_null_island_positions_are_ignored():
 
 
 def test_persistence_is_throttled_per_ship(monkeypatch):
+    """The hub persists a ship's merged best fix at most once per window."""
     import asyncio
-    from app.shiptracker import ais_client as mod
+    from app.shiptracker import hub as hub_mod
     writes = []
-    monkeypatch.setattr(mod, "persist_last_known", lambda mmsi, live: writes.append((mmsi, live.lat)))
-    client = AisStreamClient()
-    client.seed_tracked(["525300321"])
+    monkeypatch.setattr(hub_mod, "persist_last_known", lambda mmsi, live: writes.append((mmsi, live.lat)))
+    monkeypatch.setenv("MARITIME_AISSTREAM_API_KEY", "k")
+    fresh = AisStreamClient()
+    monkeypatch.setattr(hub_mod, "ais_client", fresh)
+    monkeypatch.setattr(hub_mod, "current_settings", lambda: dict(hub_mod.DEFAULT_SETTINGS))
+    h = hub_mod.PositionHub()
+    fresh.seed_tracked(["525300321"])
 
     async def two_fixes():
-        client._handle_message(_position_report(525300321, lat=1.0))
-        await client._maybe_persist("525300321")
-        client._handle_message(_position_report(525300321, lat=1.1))
-        await client._maybe_persist("525300321")   # inside the window: skipped
+        fresh._handle_message(_position_report(525300321, lat=1.0))
+        await h.on_fix("525300321")
+        fresh._handle_message(_position_report(525300321, lat=1.1))
+        await h.on_fix("525300321")   # inside the window: skipped
 
     asyncio.run(two_fixes())
     assert writes == [("525300321", 1.0)]
@@ -256,16 +261,21 @@ def test_persist_last_known_writes_to_the_stored_ship_and_skips_removed_ones(tmp
 
 def test_api_falls_back_to_last_known_when_nothing_heard_since_restart(monkeypatch):
     from app.api import shiptracker as api
+    from app.shiptracker import hub as hub_mod
     from app.models import TrackedShip, TrackedShipLive
+    monkeypatch.setenv("MARITIME_AISSTREAM_API_KEY", "k")
     fresh = AisStreamClient()
-    monkeypatch.setattr(api, "ais_client", fresh)
+    monkeypatch.setattr(hub_mod, "ais_client", fresh)
+    monkeypatch.setattr(hub_mod, "current_settings", lambda: dict(hub_mod.DEFAULT_SETTINGS))
     stored = TrackedShip(mmsi="525300321", name="Teneo", added_at="t",
                          last_known=TrackedShipLive(lat=1.2, lon=103.9, last_seen_utc="old"))
     assert api._to_view(stored).live.last_seen_utc == "old"
 
     fresh.seed_tracked(["525300321"])
     fresh._handle_message(_position_report(525300321, lat=1.3))
-    assert api._to_view(stored).live.lat == 1.3   # live fix wins over stored
+    view = api._to_view(stored)
+    assert view.live.lat == 1.3            # live fix wins over stored
+    assert view.live.source == "aisstream"
 
 
 def test_aisstream_timestamps_are_normalised_to_iso():

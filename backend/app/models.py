@@ -901,6 +901,7 @@ class TrackedShipLive(BaseModel):
     true_heading: Optional[int] = None     # degrees, 511 = "not available" per AIS spec (normalised to None)
     nav_status: Optional[int] = None       # raw AIS navigational-status code (0 = under way using engine, 5 = moored, ...)
     last_seen_utc: Optional[str] = None    # ISO 8601 timestamp of the last PositionReport received
+    source: Optional[str] = None           # which provider supplied this fix, e.g. "aisstream" (see shiptracker/hub.py)
 
 
 class TrackedShip(BaseModel):

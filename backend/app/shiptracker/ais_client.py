@@ -95,7 +95,9 @@ class AisStreamClient:
         self._connected = False
         self._last_error: Optional[str] = None
         self._last_report_monotonic: Optional[float] = None
-        self._last_persisted: dict[str, float] = {}
+        # Set by shiptracker/hub.py: every fix is handed to the hub, which
+        # merges sources and owns last-known persistence.
+        self.on_fix = None
         # When this process first got a working connection, and when any
         # tracked ship was last heard — both ISO UTC, for the status line.
         self._connected_since: Optional[str] = None
@@ -194,8 +196,8 @@ class AisStreamClient:
                         if self._reconnect_requested.is_set():
                             break
                         updated = self._handle_message(raw)
-                        if updated:
-                            await self._maybe_persist(updated)
+                        if updated and self.on_fix:
+                            await self.on_fix(updated)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001 — any failure here must not crash the app; just retry
@@ -250,28 +252,11 @@ class AisStreamClient:
             prev = self._cache.get(mmsi)
             live = (prev.model_copy(update={"lat": lat, "lon": lon, "last_seen_utc": seen})
                     if prev else TrackedShipLive(lat=lat, lon=lon, last_seen_utc=seen))
-        self._cache[mmsi] = live
+        self._cache[mmsi] = live.model_copy(update={"source": "aisstream"})
         self._last_ping_utc = seen
         self._last_report_monotonic = time.monotonic()
         self._last_error = None
         return mmsi
-
-    async def _maybe_persist(self, mmsi: str) -> None:
-        """Save this ship's current fix as its last_known, throttled to once
-        per PERSIST_EVERY_SECONDS per ship. The DB call is synchronous
-        (psycopg2), so it runs in a worker thread rather than blocking the
-        event loop. Never raises: losing one save is fine, the next fix retries."""
-        now = time.monotonic()
-        if now - self._last_persisted.get(mmsi, -PERSIST_EVERY_SECONDS) < PERSIST_EVERY_SECONDS:
-            return
-        live = self._cache.get(mmsi)
-        if live is None:
-            return
-        self._last_persisted[mmsi] = now
-        try:
-            await asyncio.to_thread(persist_last_known, mmsi, live)
-        except Exception:  # noqa: BLE001
-            log.exception("Could not persist last-known position for MMSI %s", mmsi)
 
     async def stop(self) -> None:
         """Signal run_forever() to stop reconnecting and close the socket.

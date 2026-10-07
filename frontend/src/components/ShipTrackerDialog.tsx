@@ -45,6 +45,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { shipFixAge } from '../utils/shipFixAge'
 import { flagFromMmsi } from '../utils/mmsiFlag'
 import { AisFeedLine, useAisFeed } from './AisFeedLine'
+import { ShipSourcesPanel } from './ShipSourcesPanel'
 import { PHONE_PX, useMaxWidth } from './fullViewChrome'
 
 const Z_DIALOG = 11500
@@ -68,6 +69,7 @@ export function ShipTrackerDialog({ onClose, shipsOnMap, onToggleShipsOnMap, onS
   const t = useTheme()
   const { isAdmin } = useAuth()
   const aisFeed = useAisFeed()
+  const [sourcesOpen, setSourcesOpen] = useState(false)
   const phone = useMaxWidth(PHONE_PX)
   const [ships, setShips] = useState<TrackedShip[]>([])
   const [loading, setLoading] = useState(true)
@@ -182,7 +184,23 @@ export function ShipTrackerDialog({ onClose, shipsOnMap, onToggleShipsOnMap, onS
           <DialogHeader t={t} phone={phone} actions={headerActions} onClose={onClose} />
 
           <div style={{ padding: '8px 16px', borderBottom: `1px solid ${t.border}`, background: t.bgCard }}>
-            <AisFeedLine feed={aisFeed} compact />
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}><AisFeedLine feed={aisFeed} compact /></div>
+              <button
+                onClick={() => setSourcesOpen(o => !o)}
+                aria-expanded={sourcesOpen}
+                style={{
+                  flexShrink: 0, padding: '3px 9px', borderRadius: 5, cursor: 'pointer', fontFamily: 'inherit',
+                  border: `1px solid ${sourcesOpen ? t.blue : t.border}`, background: sourcesOpen ? t.blue + '22' : 'transparent',
+                  color: sourcesOpen ? t.blue : t.textMuted, fontSize: 11, fontWeight: 700,
+                }}
+              >Sources {sourcesOpen ? '▴' : '▾'}</button>
+            </div>
+            {sourcesOpen && (
+              <div style={{ marginTop: 10, paddingBottom: 4 }}>
+                <ShipSourcesPanel isAdmin={isAdmin} onSaved={() => void refresh()} />
+              </div>
+            )}
           </div>
 
           <div style={{ overflowY: 'auto', flex: 1, padding: 14 }}>

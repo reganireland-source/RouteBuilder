@@ -9,7 +9,10 @@
 #     "on-net" (Telstra-owned) for the route UI's on-net/off-net styling.
 #   - maps_provider: str — which basemap to render, either "osm"
 #     (OpenStreetMap) or "google".
-# Only these two keys are read/written here; anything else in the stored config
+#   - ship_tracking: dict — ShipTracker's AIS sources (preferred/secondary,
+#     secondary_mode, poll_minutes, stale_minutes); validated by
+#     shiptracker/hub.py's validate_settings.
+# Only these keys are read/written here; anything else in the stored config
 # is left untouched.
 #
 # Endpoints:
@@ -62,6 +65,14 @@ def update_config(body: dict) -> dict:
         raise HTTPException(status_code=400, detail="on_net_ownership must be a list")
     if "maps_provider" in body and body["maps_provider"] not in VALID_MAPS_PROVIDERS:
         raise HTTPException(status_code=400, detail=f"maps_provider must be one of {VALID_MAPS_PROVIDERS}")
+    ship_tracking = None
+    if "ship_tracking" in body:
+        # Which AIS position sources ShipTracker uses — see shiptracker/hub.py.
+        from ..shiptracker.hub import validate_settings
+        try:
+            ship_tracking = validate_settings(body["ship_tracking"] if isinstance(body["ship_tracking"], dict) else {})
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from None
 
     config = load_config()
     # Merge in only the recognised keys that were actually supplied.
@@ -69,5 +80,7 @@ def update_config(body: dict) -> dict:
         config["on_net_ownership"] = body["on_net_ownership"]
     if "maps_provider" in body:
         config["maps_provider"] = body["maps_provider"]
+    if ship_tracking is not None:
+        config["ship_tracking"] = ship_tracking
     save_config(config)
     return config

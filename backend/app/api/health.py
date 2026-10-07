@@ -318,9 +318,9 @@ def external_source_health():
 
     Auth: public read endpoint; no token required.
     """
-    from ..shiptracker.ais_client import client as ais_client
+    from ..shiptracker.hub import hub
     return {"sources": [
-        {"id": "ais", "label": "Ship AIS", **ais_client.status()},
+        {"id": "ais", "label": "Ship AIS", **hub.summary()},
         _hazard_source_health("bushfire", "Bushfire.io"),
         _hazard_source_health("usgs", "USGS"),
     ]}

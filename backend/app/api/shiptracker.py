@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field
 from ..data_loader import load_ships, upsert_ship, delete_ship_row
 from ..models import TrackedShip, TrackedShipView
 from ..shiptracker.ais_client import client as ais_client
+from ..shiptracker.hub import hub
 from ..shiptracker.lookup import lookup_ship_name
 
 log = logging.getLogger("routebuilder.shiptracker")
@@ -38,7 +39,7 @@ router = APIRouter()
 def _to_view(ship: TrackedShip) -> TrackedShipView:
     # Live fix received since this process started, else the persisted
     # last-known one (restarts wipe the in-memory cache).
-    return TrackedShipView(**ship.model_dump(), live=ais_client.get(ship.mmsi) or ship.last_known)
+    return TrackedShipView(**ship.model_dump(), live=hub.best(ship.mmsi) or ship.last_known)
 
 
 @router.get("/ships", response_model=list[TrackedShipView])
@@ -113,3 +114,18 @@ async def delete_ship(mmsi: str):
     if not delete_ship_row(mmsi):
         raise HTTPException(status_code=404, detail=f"Ship with mmsi '{mmsi}' not found")
     await ais_client.unsubscribe(mmsi)
+    hub.forget(mmsi)
+
+
+@router.get("/ships/sources")
+def get_ship_sources():
+    """GET /api/ships/sources — every AIS position source, whether its API
+    key is configured, its role under the current settings (preferred /
+    secondary / unused), live status, and the settings themselves.
+
+    Changing the selection is a PUT /api/config with a `ship_tracking` body
+    (admin-gated). Keys are never returned — only whether each is set.
+
+    Auth: public read endpoint; no token required.
+    """
+    return hub.sources_status()

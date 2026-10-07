@@ -38,6 +38,11 @@ import { shipFixAge } from '../utils/shipFixAge'
 import { flagFromMmsi } from '../utils/mmsiFlag'
 import { AisFeedLine, useAisFeed } from './AisFeedLine'
 
+/** Display names for TrackedShipLive.source (ids from backend shiptracker/hub.py). */
+const SOURCE_LABEL: Record<string, string> = {
+  aisstream: 'aisstream.io',
+}
+
 const NAV_STATUS_LABEL: Record<number, string> = {
   0: 'Under way using engine', 1: 'At anchor', 2: 'Not under command',
   3: 'Restricted manoeuvrability', 4: 'Constrained by draught', 5: 'Moored',
@@ -158,6 +163,7 @@ function PingRows({ t, live }: { t: ReturnType<typeof useTheme>; live: TrackedSh
     <>
       <TextRow t={t} label="Last ping" value={ping} />
       <TextRow t={t} label="Last known point" value={point} />
+      {live?.source && <TextRow t={t} label="Source" value={SOURCE_LABEL[live.source] ?? live.source} />}
     </>
   )
 }

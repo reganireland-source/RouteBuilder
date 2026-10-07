@@ -288,22 +288,26 @@ async def lifespan(app: FastAPI):
     # background thread (warm_hazard_cache) that exits on its own.
     # Failure-tolerant like the hazard warm-up: an optional overlay must never
     # stop the app from booting and serving /api/health.
-    ais_task = None
+    # The position hub (shiptracker/hub.py) polls any selected REST providers;
+    # it sleeps cheaply when none are selected, so it always runs.
+    ship_tasks: list = []
     from .data_loader import load_ships
     from .shiptracker.ais_client import client as ais_client, aisstream_api_key
+    from .shiptracker.hub import hub as position_hub
     try:
         ais_client.seed_tracked([s.mmsi for s in load_ships()])
         if aisstream_api_key():
-            ais_task = asyncio.create_task(ais_client.run_forever())
-        else:
-            logger.info("MARITIME_AISSTREAM_API_KEY not set — ShipTracker will show tracked ships with no live position.")
+            ship_tasks.append(asyncio.create_task(ais_client.run_forever()))
+        ship_tasks.append(asyncio.create_task(position_hub.run_forever()))
     except Exception:  # noqa: BLE001
         logger.exception("ShipTracker startup failed; continuing without live ship positions")
     yield
-    if ais_task is not None:
+    if ship_tasks:
+        position_hub.stop()
         await ais_client.stop()
-        ais_task.cancel()
-        await asyncio.gather(ais_task, return_exceptions=True)
+        for task in ship_tasks:
+            task.cancel()
+        await asyncio.gather(*ship_tasks, return_exceptions=True)
 
 
 app = FastAPI(title="RouteBuilder API", version="0.1.0", lifespan=lifespan)

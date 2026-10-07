@@ -364,6 +364,35 @@ export interface TrackedShipLive {
   true_heading: number | null // degrees; null when AIS itself reported "not available"
   nav_status: number | null   // raw AIS navigational-status code
   last_seen_utc: string | null
+  /** Which provider supplied this fix, e.g. "aisstream" — see ShipSource. */
+  source?: string | null
+}
+
+/** One AIS position provider, as GET /api/ships/sources reports it. */
+export interface ShipSource {
+  id: string
+  label: string
+  kind: 'stream' | 'poll'
+  /** Env var holding the provider's API key — keys are never sent to the browser. */
+  env_key: string
+  coverage: string
+  pricing: string
+  configured: boolean
+  role: 'preferred' | 'fallback' | 'always' | 'unused'
+  status: 'ok' | 'error' | 'checking' | 'disabled'
+  detail: string
+  ships_located: number
+  ships_tracked: number
+}
+
+export interface ShipTrackingSettings {
+  preferred: string
+  secondary: string | null
+  /** fallback: the secondary is only asked about ships the preferred source
+   *  hasn't located within stale_minutes; always: both run, freshest wins. */
+  secondary_mode: 'fallback' | 'always'
+  poll_minutes: number
+  stale_minutes: number
 }
 
 /** A cable repair ship RouteBuilder is tracking for mobilisation planning,
