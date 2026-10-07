@@ -882,6 +882,27 @@ class CableResearchResult(BaseModel):
     notes: str = ""
 
 
+class TrackedShipLive(BaseModel):
+    """One ship's most recent AIS position report, held only in
+    AisStreamClient's in-memory cache (see shiptracker/ais_client.py) —
+    never written to the database. All fields are None until the first
+    PositionReport for this MMSI actually arrives over the aisstream.io
+    WebSocket; a ship can be tracked (have a TrackedShip row) with no live
+    data yet if it hasn't transmitted since the backend started, or if
+    MARITIME_AISSTREAM_API_KEY isn't configured at all.
+
+    Also reused as TrackedShip.last_known — the most recent fix ever received,
+    persisted (throttled) so it survives restarts. aisstream.io's free feed is
+    shore-receiver only and patchy, so a ship can go unheard for hours."""
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)
+    lon: Optional[float] = Field(default=None, ge=-180, le=180)
+    sog: Optional[float] = None            # speed over ground, knots
+    cog: Optional[float] = None            # course over ground, degrees
+    true_heading: Optional[int] = None     # degrees, 511 = "not available" per AIS spec (normalised to None)
+    nav_status: Optional[int] = None       # raw AIS navigational-status code (0 = under way using engine, 5 = moored, ...)
+    last_seen_utc: Optional[str] = None    # ISO 8601 timestamp of the last PositionReport received
+
+
 class TrackedShip(BaseModel):
     """A cable repair ship RouteBuilder is tracking for mobilisation planning
     — e.g. "which ship is closest to the fault" when a repair needs to be
@@ -902,6 +923,10 @@ class TrackedShip(BaseModel):
     # e.g. "teneo" -> teneo.png. "generic" is the fallback for any ship
     # added without a custom sprite.
     sprite: str = "generic"
+    # Most recent AIS fix ever received for this ship, persisted (at most every
+    # few minutes per ship — see AisStreamClient._maybe_persist) so it survives
+    # restarts. None until the ship has been heard once.
+    last_known: Optional["TrackedShipLive"] = None
 
 
 class TrackedShipUpdate(BaseModel):
@@ -911,27 +936,9 @@ class TrackedShipUpdate(BaseModel):
     sprite: Optional[str] = None
 
 
-class TrackedShipLive(BaseModel):
-    """One ship's most recent AIS position report, held only in
-    AisStreamClient's in-memory cache (see shiptracker/ais_client.py) —
-    never written to the database. All fields are None until the first
-    PositionReport for this MMSI actually arrives over the aisstream.io
-    WebSocket; a ship can be tracked (have a TrackedShip row) with no live
-    data yet if it hasn't transmitted since the backend started, or if
-    MARITIME_AISSTREAM_API_KEY isn't configured at all."""
-    lat: Optional[float] = Field(default=None, ge=-90, le=90)
-    lon: Optional[float] = Field(default=None, ge=-180, le=180)
-    sog: Optional[float] = None            # speed over ground, knots
-    cog: Optional[float] = None            # course over ground, degrees
-    true_heading: Optional[int] = None     # degrees, 511 = "not available" per AIS spec (normalised to None)
-    nav_status: Optional[int] = None       # raw AIS navigational-status code (0 = under way using engine, 5 = moored, ...)
-    last_seen_utc: Optional[str] = None    # ISO 8601 timestamp of the last PositionReport received
-
-
 class TrackedShipView(TrackedShip):
-    """TrackedShip + its live position, merged at read time — what
-    GET /api/ships actually returns. `live` is None when nothing has been
-    received for this MMSI yet (never transmitted since boot, or live
-    tracking isn't configured), which the frontend renders as "no live
-    signal yet" rather than stale/zeroed coordinates."""
+    """TrackedShip + its position, merged at read time — what GET /api/ships
+    returns. `live` is the fix received since this process started, falling
+    back to the persisted `last_known`; None only if the ship has never been
+    heard. The frontend judges staleness from live.last_seen_utc."""
     live: Optional[TrackedShipLive] = None

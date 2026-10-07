@@ -30,6 +30,7 @@ import { useEffect } from 'react'
 import * as L from 'leaflet'
 import { useMap } from 'react-leaflet'
 import type { TrackedShip } from '../types'
+import { shipFixAge } from '../utils/shipFixAge'
 
 const PANE_NAME = 'rb-ships'
 const PANE_Z = 620
@@ -48,6 +49,8 @@ function escapeHtml(s: string): string {
 export function shipBearing(ship: TrackedShip): number | null {
   const live = ship.live
   if (!live) return null
+  // A course from hours ago says nothing about where the ship is heading now.
+  if (shipFixAge(live)?.stale) return null
   if (live.sog != null && live.sog < MOORED_KN) return null
   if (live.true_heading != null) return live.true_heading
   return live.cog
@@ -73,11 +76,14 @@ function arrowSvg(bearing: number, sog: number | null): { svg: string; size: num
 
 function buildIcon(ship: TrackedShip): L.DivIcon {
   const bearing = shipBearing(ship)
+  const age = shipFixAge(ship.live)
+  const stale = !!age?.stale
+  const label = escapeHtml(ship.name) + (stale && age ? ` · ${escapeHtml(age.label)}` : '')
   const faceLeft = bearing != null && bearing > 180 && bearing < 360
   const arrow = bearing != null ? arrowSvg(bearing, ship.live?.sog ?? null).svg : ''
   const sprite = `/ships/${encodeURIComponent(ship.sprite || 'generic')}.png`
   const html = `
-    <div class="rb-ship-marker" style="position:relative;width:0;height:0">
+    <div class="rb-ship-marker" style="position:relative;width:0;height:0;opacity:${stale ? 0.55 : 1}">
       ${arrow}
       <img src="${sprite}" onerror="this.onerror=null;this.src='/ships/generic.png'" alt=""
         width="${SPRITE_W}" height="${SPRITE_H}"
@@ -85,7 +91,7 @@ function buildIcon(ship: TrackedShip): L.DivIcon {
                transform:${faceLeft ? 'scaleX(-1)' : 'none'};filter:drop-shadow(0 1px 2px rgba(0,0,0,0.7))" />
       <div style="position:absolute;left:0;top:${SPRITE_H / 2 + 2}px;transform:translateX(-50%);
                   white-space:nowrap;font:700 11px system-ui,sans-serif;color:#fff;
-                  text-shadow:0 0 3px #000,0 0 3px #000,0 1px 2px #000">${escapeHtml(ship.name)}</div>
+                  text-shadow:0 0 3px #000,0 0 3px #000,0 1px 2px #000">${label}</div>
     </div>`
   return L.divIcon({ html, className: '', iconSize: [0, 0], iconAnchor: [0, 0] })
 }

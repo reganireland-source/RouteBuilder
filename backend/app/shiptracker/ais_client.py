@@ -45,6 +45,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 from typing import Optional
 
@@ -60,6 +61,12 @@ AISSTREAM_URL = "wss://stream.aisstream.io/v0/stream"
 #: FiltersShipMMSI, so this box is intentionally unrestrictive.
 GLOBAL_BBOX = [[[-90.0, -180.0], [90.0, 180.0]]]
 _MAX_BACKOFF_SECONDS = 60.0
+#: Persist a ship's latest fix as its last_known at most this often, so a
+#: ship broadcasting every few seconds costs one DB write per window, not
+#: one per broadcast.
+PERSIST_EVERY_SECONDS = 300.0
+#: AIS position-report message types — each carries speed/course/heading.
+_POSITION_TYPES = ("PositionReport", "StandardClassBPositionReport", "ExtendedClassBPositionReport")
 _INITIAL_BACKOFF_SECONDS = 1.0
 
 
@@ -88,6 +95,7 @@ class AisStreamClient:
         self._connected = False
         self._last_error: Optional[str] = None
         self._last_report_monotonic: Optional[float] = None
+        self._last_persisted: dict[str, float] = {}
 
     # ── reads (sync — safe to call from a request handler) ────────────────
     def get(self, mmsi: str) -> Optional[TrackedShipLive]:
@@ -103,7 +111,7 @@ class AisStreamClient:
             return {"status": "disabled", "detail": "Not configured (MARITIME_AISSTREAM_API_KEY)"}
         if self._connected:
             reporting = sum(1 for m in self._tracked if m in self._cache)
-            detail = f"Connected · {reporting}/{len(self._tracked)} ships reporting"
+            detail = f"Connected · {reporting}/{len(self._tracked)} ships heard since restart"
             if self._last_report_monotonic is not None:
                 mins = int((time.monotonic() - self._last_report_monotonic) // 60)
                 detail += " · last report " + ("just now" if mins == 0 else f"{mins}m ago")
@@ -157,7 +165,10 @@ class AisStreamClient:
                         "APIKey": api_key,
                         "BoundingBoxes": GLOBAL_BBOX,
                         "FiltersShipMMSI": sorted(self._tracked),
-                        "FilterMessageTypes": ["PositionReport"],
+                        # No FilterMessageTypes: the MMSI filter already keeps
+                        # volume tiny, and on aisstream.io's patchy free
+                        # coverage every message type is a chance at a fix —
+                        # static-data frames carry a position in MetaData too.
                     }))
                     self._connected = True
                     log.info("aisstream.io connected, tracking %d ship(s).", len(self._tracked))
@@ -165,7 +176,9 @@ class AisStreamClient:
                     async for raw in ws:
                         if self._reconnect_requested.is_set():
                             break
-                        self._handle_message(raw)
+                        updated = self._handle_message(raw)
+                        if updated:
+                            await self._maybe_persist(updated)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001 — any failure here must not crash the app; just retry
@@ -179,37 +192,68 @@ class AisStreamClient:
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, _MAX_BACKOFF_SECONDS)
 
-    def _handle_message(self, raw: str) -> None:
+    def _handle_message(self, raw: str) -> Optional[str]:
+        """Apply one aisstream.io frame to the cache. Returns the MMSI whose
+        position was updated, or None if the frame changed nothing."""
         try:
             msg = json.loads(raw)
         except json.JSONDecodeError:
-            return
+            return None
         # aisstream.io reports a rejected subscription (e.g. an invalid API
         # key) as {"error": "..."} and then closes the socket.
         if isinstance(msg, dict) and msg.get("error"):
             self._last_error = f"aisstream.io: {msg['error']}"[:200]
             log.warning("aisstream.io rejected subscription: %s", msg["error"])
-            return
-        if msg.get("MessageType") != "PositionReport":
-            return
+            return None
+        msg_type = msg.get("MessageType")
         meta = msg.get("MetaData") or {}
         mmsi = str(meta.get("MMSI", "")).strip()
-        if not mmsi or mmsi not in self._tracked:
-            return
-        report = (msg.get("Message") or {}).get("PositionReport") or {}
-        true_heading = report.get("TrueHeading")
-        self._cache[mmsi] = TrackedShipLive(
-            lat=meta.get("Latitude"),
-            lon=meta.get("Longitude"),
-            sog=report.get("Sog"),
-            cog=report.get("Cog"),
-            # 511 is AIS's own "not available" sentinel for TrueHeading.
-            true_heading=true_heading if isinstance(true_heading, int) and true_heading != 511 else None,
-            nav_status=report.get("NavigationalStatus"),
-            last_seen_utc=meta.get("time_utc") or _utc_now_iso(),
-        )
+        if not msg_type or not mmsi or mmsi not in self._tracked:
+            return None
+        lat, lon = meta.get("Latitude"), meta.get("Longitude")
+        if not _valid_position(lat, lon):
+            return None
+        seen = _iso_from_aisstream(meta.get("time_utc"))
+        if msg_type in _POSITION_TYPES:
+            report = (msg.get("Message") or {}).get(msg_type) or {}
+            true_heading = report.get("TrueHeading")
+            live = TrackedShipLive(
+                lat=lat, lon=lon,
+                sog=report.get("Sog"),
+                cog=report.get("Cog"),
+                # 511 is AIS's own "not available" sentinel for TrueHeading.
+                true_heading=true_heading if isinstance(true_heading, int) and true_heading != 511 else None,
+                # Class B reports have no navigational status.
+                nav_status=report.get("NavigationalStatus"),
+                last_seen_utc=seen,
+            )
+        else:
+            # Any other frame (static data, safety messages, ...) still tells us
+            # where the ship was heard; keep the last known motion fields.
+            prev = self._cache.get(mmsi)
+            live = (prev.model_copy(update={"lat": lat, "lon": lon, "last_seen_utc": seen})
+                    if prev else TrackedShipLive(lat=lat, lon=lon, last_seen_utc=seen))
+        self._cache[mmsi] = live
         self._last_report_monotonic = time.monotonic()
         self._last_error = None
+        return mmsi
+
+    async def _maybe_persist(self, mmsi: str) -> None:
+        """Save this ship's current fix as its last_known, throttled to once
+        per PERSIST_EVERY_SECONDS per ship. The DB call is synchronous
+        (psycopg2), so it runs in a worker thread rather than blocking the
+        event loop. Never raises: losing one save is fine, the next fix retries."""
+        now = time.monotonic()
+        if now - self._last_persisted.get(mmsi, -PERSIST_EVERY_SECONDS) < PERSIST_EVERY_SECONDS:
+            return
+        live = self._cache.get(mmsi)
+        if live is None:
+            return
+        self._last_persisted[mmsi] = now
+        try:
+            await asyncio.to_thread(persist_last_known, mmsi, live)
+        except Exception:  # noqa: BLE001
+            log.exception("Could not persist last-known position for MMSI %s", mmsi)
 
     async def stop(self) -> None:
         """Signal run_forever() to stop reconnecting and close the socket.
@@ -217,6 +261,36 @@ class AisStreamClient:
         self._stopped = True
         if self._ws is not None:
             await self._ws.close()
+
+
+def _valid_position(lat, lon) -> bool:
+    """AIS uses 91/181 for "not available", and (0, 0) is the classic
+    unset-GPS artefact — neither is a real fix."""
+    if not isinstance(lat, (int, float)) or not isinstance(lon, (int, float)):
+        return False
+    if lat == 0 and lon == 0:
+        return False
+    return -90 <= lat <= 90 and -180 <= lon <= 180
+
+
+def persist_last_known(mmsi: str, live: TrackedShipLive) -> None:
+    """Write `live` as the stored ship's last_known. Skips silently if the
+    ship has been removed in the meantime, so a late write can't resurrect it."""
+    from ..data_loader import load_ships, upsert_ship
+    ship = next((s for s in load_ships() if s.mmsi == mmsi), None)
+    if ship is not None:
+        upsert_ship(ship.model_copy(update={"last_known": live}))
+
+
+_AISSTREAM_TIME = re.compile(r"^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})")
+
+
+def _iso_from_aisstream(raw) -> str:
+    """aisstream.io's time_utc looks like "2026-10-07 13:00:00.318 +0000 UTC",
+    which browsers' Date() can't parse. Normalise to ISO 8601 UTC; fall back
+    to now if it's missing or unrecognised."""
+    m = _AISSTREAM_TIME.match(raw) if isinstance(raw, str) else None
+    return f"{m.group(1)}T{m.group(2)}Z" if m else _utc_now_iso()
 
 
 def _utc_now_iso() -> str:

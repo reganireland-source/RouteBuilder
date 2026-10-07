@@ -377,6 +377,10 @@ export interface TrackedShip {
   /** Slug into /ships/<sprite>.png (public/ships/), e.g. "teneo". "generic"
    *  is the fallback for any ship added without a custom sprite. */
   sprite: string
+  /** Most recent fix ever received, persisted so it survives restarts. */
+  last_known?: TrackedShipLive | null
+  /** Fix received since the backend started, else last_known. Judge its age
+   *  from last_seen_utc (see utils/shipFixAge.ts) — it may be hours old. */
   live: TrackedShipLive | null
 }
 

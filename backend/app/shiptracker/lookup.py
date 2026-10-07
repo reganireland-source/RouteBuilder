@@ -16,11 +16,9 @@
 # arrives (or a short timeout elapses) keeps that one-off lookup out of the
 # persistent client's long-lived state entirely.
 #
-# NOTE ON IMO: aisstream.io's PositionReport metadata does not carry a ship's
-# IMO number (that lives in AIS "ShipStaticData" messages, which this does not
-# subscribe to, to keep the lookup to one round trip). `imo` is therefore
-# always None here — callers that know a ship's IMO (e.g. the 3 seed ships,
-# resolved separately via maritime registries) pass it explicitly instead.
+# NOTE ON IMO: only the name is resolved here, from whichever frame arrives
+# first. Callers that know a ship's IMO (e.g. the 3 seed ships, resolved via
+# maritime registries) pass it explicitly instead.
 # ─────────────────────────────────────────────────────────────────────────────
 import asyncio
 import json
@@ -51,7 +49,8 @@ async def lookup_ship_name(mmsi: str) -> Optional[str]:
                 "APIKey": api_key,
                 "BoundingBoxes": GLOBAL_BBOX,
                 "FiltersShipMMSI": [mmsi],
-                "FilterMessageTypes": ["PositionReport"],
+                # All types: ShipStaticData is the frame that actually carries
+                # the name, and on patchy coverage any frame is a chance.
             }))
             async with asyncio.timeout(_LOOKUP_TIMEOUT_SECONDS):
                 async for raw in ws:

@@ -36,7 +36,9 @@ router = APIRouter()
 
 
 def _to_view(ship: TrackedShip) -> TrackedShipView:
-    return TrackedShipView(**ship.model_dump(), live=ais_client.get(ship.mmsi))
+    # Live fix received since this process started, else the persisted
+    # last-known one (restarts wipe the in-memory cache).
+    return TrackedShipView(**ship.model_dump(), live=ais_client.get(ship.mmsi) or ship.last_known)
 
 
 @router.get("/ships", response_model=list[TrackedShipView])

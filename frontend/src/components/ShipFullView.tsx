@@ -27,13 +27,14 @@
  * SegmentFullView rather than this view re-fetching it.
  * ============================================================================
  */
-import type { TrackedShip } from '../types'
+import type { TrackedShip, TrackedShipLive } from '../types'
 import {
   backdropClose, backdropStyle, dialogStyle, headerShell, scrollerStyle, rowStyle,
   Card, TextRow, Empty, closeBtnStyle, useEscapeKey, useFullViewLayout, LayoutContext,
   Z_FULL_VIEW_BASE,
 } from './fullViewChrome'
 import { useTheme } from '../theme'
+import { shipFixAge } from '../utils/shipFixAge'
 
 const NAV_STATUS_LABEL: Record<number, string> = {
   0: 'Under way using engine', 1: 'At anchor', 2: 'Not under command',
@@ -52,6 +53,7 @@ export function ShipFullView({ ship, onClose, zIndex = Z_FULL_VIEW_BASE }: {
 
   const live = ship.live
   const hasFix = !!live && live.lat != null && live.lon != null
+  const age = shipFixAge(live)
 
   return (
     <LayoutContext.Provider value={layout}>
@@ -89,20 +91,13 @@ export function ShipFullView({ ship, onClose, zIndex = Z_FULL_VIEW_BASE }: {
                 <TextRow t={t} label="Tracking since" value={new Date(ship.added_at).toLocaleString()} />
               </Card>
 
-              <Card t={t} title="Live Position" grow>
+              <Card t={t} title={age?.stale ? 'Last Known Position' : 'Live Position'} grow>
                 {!hasFix ? (
                   <Empty t={t}>
-                    No live signal yet — the ship hasn't transmitted an AIS position since tracking started, or live tracking isn't configured on this backend.
+                    Not heard yet. aisstream.io's free feed only hears ships near its shore receivers, so a ship at sea, or somewhere it has no coverage, can stay silent until it comes in range.
                   </Empty>
                 ) : (
-                  <>
-                    <TextRow t={t} label="Coordinates" value={`${live!.lat!.toFixed(4)}, ${live!.lon!.toFixed(4)}`} />
-                    <TextRow t={t} label="Speed" value={live!.sog != null ? `${live!.sog.toFixed(1)} kn` : <Empty t={t}>Unknown</Empty>} />
-                    <TextRow t={t} label="Course" value={live!.cog != null ? `${live!.cog.toFixed(0)}°` : <Empty t={t}>Unknown</Empty>} />
-                    <TextRow t={t} label="Heading" value={live!.true_heading != null ? `${live!.true_heading}°` : <Empty t={t}>Not available</Empty>} />
-                    <TextRow t={t} label="Status" value={live!.nav_status != null ? (NAV_STATUS_LABEL[live!.nav_status] ?? `Code ${live!.nav_status}`) : <Empty t={t}>Unknown</Empty>} />
-                    <TextRow t={t} label="Last seen" value={live!.last_seen_utc ? new Date(live!.last_seen_utc).toLocaleString() : <Empty t={t}>Unknown</Empty>} />
-                  </>
+                  <FixRows t={t} live={live!} />
                 )}
               </Card>
             </div>
@@ -110,5 +105,28 @@ export function ShipFullView({ ship, onClose, zIndex = Z_FULL_VIEW_BASE }: {
         </div>
       </div>
     </LayoutContext.Provider>
+  )
+}
+
+/** "value, or a muted placeholder" — every live field is optional in AIS. */
+function orEmpty(t: ReturnType<typeof useTheme>, v: string | null, placeholder = 'Unknown') {
+  return v ?? <Empty t={t}>{placeholder}</Empty>
+}
+
+function FixRows({ t, live }: { t: ReturnType<typeof useTheme>; live: TrackedShipLive }) {
+  const age = shipFixAge(live)
+  const status = live.nav_status == null ? null : (NAV_STATUS_LABEL[live.nav_status] ?? `Code ${live.nav_status}`)
+  const seen = live.last_seen_utc
+    ? <span style={{ color: age?.stale ? t.orange : undefined }}>{new Date(live.last_seen_utc).toLocaleString()}{age && ` (${age.label})`}</span>
+    : null
+  return (
+    <>
+      <TextRow t={t} label="Coordinates" value={`${live.lat!.toFixed(4)}, ${live.lon!.toFixed(4)}`} />
+      <TextRow t={t} label="Speed" value={orEmpty(t, live.sog == null ? null : `${live.sog.toFixed(1)} kn`)} />
+      <TextRow t={t} label="Course" value={orEmpty(t, live.cog == null ? null : `${live.cog.toFixed(0)}°`)} />
+      <TextRow t={t} label="Heading" value={orEmpty(t, live.true_heading == null ? null : `${live.true_heading}°`, 'Not available')} />
+      <TextRow t={t} label="Status" value={orEmpty(t, status)} />
+      <TextRow t={t} label="Last seen" value={seen ?? <Empty t={t}>Unknown</Empty>} />
+    </>
   )
 }

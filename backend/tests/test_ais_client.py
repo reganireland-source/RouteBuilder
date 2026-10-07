@@ -48,7 +48,7 @@ def test_handle_message_caches_a_tracked_ships_position():
     assert live.cog == 200.0
     assert live.true_heading == 199
     assert live.nav_status == 0
-    assert live.last_seen_utc == "2026-10-07 12:00:00 UTC"
+    assert live.last_seen_utc == "2026-10-07T12:00:00Z"   # normalised from aisstream's format
 
 
 def test_handle_message_ignores_an_untracked_mmsi():
@@ -70,7 +70,7 @@ def test_handle_message_normalises_the_true_heading_511_sentinel_to_none():
     assert client.get("525300321").true_heading is None
 
 
-def test_handle_message_ignores_non_position_report_message_types():
+def test_handle_message_ignores_a_frame_with_no_position():
     client = AisStreamClient()
     client.seed_tracked(["525300321"])
 
@@ -118,7 +118,7 @@ def test_status_reports_connected_and_how_many_ships_are_reporting(monkeypatch):
     client._handle_message(_position_report(525300321))
     st = client.status()
     assert st["status"] == "ok"
-    assert "1/2 ships reporting" in st["detail"]
+    assert "1/2 ships heard since restart" in st["detail"]
 
 
 def test_an_aisstream_error_frame_surfaces_as_an_error_status(monkeypatch):
@@ -179,3 +179,95 @@ def test_create_ship_rejects_an_mmsi_that_is_not_nine_digits():
     for bad in ["12345", "5253003210", "52530O321", ""]:
         with pytest.raises(ValidationError):
             CreateShipRequest(mmsi=bad)
+
+
+# ── Wider coverage: every message type, persisted last-known fixes ─────────
+
+def _frame(msg_type, mmsi, lat=10.0, lon=20.0, body=None):
+    return json.dumps({
+        "MessageType": msg_type,
+        "MetaData": {"MMSI": mmsi, "Latitude": lat, "Longitude": lon, "time_utc": "2026-10-07 13:00:00 UTC"},
+        "Message": {msg_type: body or {}},
+    })
+
+
+def test_class_b_position_reports_count_as_full_fixes():
+    client = AisStreamClient()
+    client.seed_tracked(["525300321"])
+    assert client._handle_message(_frame("StandardClassBPositionReport", 525300321,
+                                         body={"Sog": 4.2, "Cog": 90.0, "TrueHeading": 91})) == "525300321"
+    live = client.get("525300321")
+    assert (live.sog, live.cog, live.true_heading, live.nav_status) == (4.2, 90.0, 91, None)
+
+
+def test_a_static_data_frame_updates_position_but_keeps_last_motion():
+    client = AisStreamClient()
+    client.seed_tracked(["525300321"])
+    client._handle_message(_position_report(525300321, lat=1.0, lon=2.0, sog=11.0, cog=45.0))
+    client._handle_message(_frame("ShipStaticData", 525300321, lat=1.5, lon=2.5))
+    live = client.get("525300321")
+    assert (live.lat, live.lon) == (1.5, 2.5)
+    assert (live.sog, live.cog) == (11.0, 45.0)
+
+
+def test_unavailable_or_null_island_positions_are_ignored():
+    client = AisStreamClient()
+    client.seed_tracked(["525300321"])
+    assert client._handle_message(_frame("PositionReport", 525300321, lat=91, lon=181)) is None
+    assert client._handle_message(_frame("PositionReport", 525300321, lat=0, lon=0)) is None
+    assert client.get("525300321") is None
+
+
+def test_persistence_is_throttled_per_ship(monkeypatch):
+    import asyncio
+    from app.shiptracker import ais_client as mod
+    writes = []
+    monkeypatch.setattr(mod, "persist_last_known", lambda mmsi, live: writes.append((mmsi, live.lat)))
+    client = AisStreamClient()
+    client.seed_tracked(["525300321"])
+
+    async def two_fixes():
+        client._handle_message(_position_report(525300321, lat=1.0))
+        await client._maybe_persist("525300321")
+        client._handle_message(_position_report(525300321, lat=1.1))
+        await client._maybe_persist("525300321")   # inside the window: skipped
+
+    asyncio.run(two_fixes())
+    assert writes == [("525300321", 1.0)]
+
+
+def test_persist_last_known_writes_to_the_stored_ship_and_skips_removed_ones(tmp_path, monkeypatch):
+    from app import data_loader
+    from app.models import TrackedShip, TrackedShipLive
+    from app.shiptracker.ais_client import persist_last_known
+    monkeypatch.setattr(data_loader, "DATA_DIR", tmp_path)
+    data_loader._cache.clear()
+    data_loader.upsert_ship(TrackedShip(mmsi="525300321", name="Teneo", added_at="t"))
+
+    persist_last_known("525300321", TrackedShipLive(lat=1.2, lon=103.9, last_seen_utc="x"))
+    persist_last_known("999999999", TrackedShipLive(lat=5, lon=5))   # not tracked: no-op
+
+    ships = data_loader.load_ships()
+    assert [s.mmsi for s in ships] == ["525300321"]
+    assert ships[0].last_known.lat == 1.2
+    data_loader._cache.clear()
+
+
+def test_api_falls_back_to_last_known_when_nothing_heard_since_restart(monkeypatch):
+    from app.api import shiptracker as api
+    from app.models import TrackedShip, TrackedShipLive
+    fresh = AisStreamClient()
+    monkeypatch.setattr(api, "ais_client", fresh)
+    stored = TrackedShip(mmsi="525300321", name="Teneo", added_at="t",
+                         last_known=TrackedShipLive(lat=1.2, lon=103.9, last_seen_utc="old"))
+    assert api._to_view(stored).live.last_seen_utc == "old"
+
+    fresh.seed_tracked(["525300321"])
+    fresh._handle_message(_position_report(525300321, lat=1.3))
+    assert api._to_view(stored).live.lat == 1.3   # live fix wins over stored
+
+
+def test_aisstream_timestamps_are_normalised_to_iso():
+    from app.shiptracker.ais_client import _iso_from_aisstream
+    assert _iso_from_aisstream("2026-10-07 13:00:00.318353 +0000 UTC") == "2026-10-07T13:00:00Z"
+    assert _iso_from_aisstream(None).endswith("Z")

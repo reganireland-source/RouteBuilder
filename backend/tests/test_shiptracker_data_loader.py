@@ -91,7 +91,7 @@ def test_save_ships_writes_valid_json_matching_the_seed_shape():
     raw = json.loads((data_loader.DATA_DIR / "ships.json").read_text())
     assert raw == [{
         "mmsi": "525300321", "name": "Teneo", "imo": "9019602",
-        "added_at": "2026-10-07T00:00:00Z", "sprite": "teneo",
+        "added_at": "2026-10-07T00:00:00Z", "sprite": "teneo", "last_known": None,
     }]
 
 

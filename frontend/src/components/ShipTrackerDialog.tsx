@@ -42,6 +42,7 @@ import { api } from '../api/client'
 import type { TrackedShip } from '../types'
 import { ShipFullView } from './ShipFullView'
 import { ConfirmDialog } from './ConfirmDialog'
+import { shipFixAge } from '../utils/shipFixAge'
 
 const Z_DIALOG = 11500
 const MMSI_RE = /^\d{9}$/
@@ -255,10 +256,8 @@ function ShipRow({ ship, t, isAdmin, onOpen, onRemove }: {
   ship: TrackedShip; t: ReturnType<typeof useTheme>; isAdmin: boolean
   onOpen: () => void; onRemove: () => void
 }) {
-  const live = ship.live
-  const position = live && live.lat != null && live.lon != null
-    ? `${live.lat.toFixed(2)}, ${live.lon.toFixed(2)}`
-    : 'No live signal yet'
+  const { text: position, tone } = describeFix(ship)
+  const positionColor = { none: t.textFaintest, fresh: t.green, stale: t.orange }[tone]
   return (
     <div
       role="button" tabIndex={0}
@@ -280,7 +279,7 @@ function ShipRow({ ship, t, isAdmin, onOpen, onRemove }: {
           {ship.name}
         </div>
         <div style={{ fontSize: 11, color: t.textFaint }}>
-          MMSI {ship.mmsi} · <span style={{ color: live ? t.green : t.textFaintest }}>{position}</span>
+          MMSI {ship.mmsi} · <span style={{ color: positionColor }}>{position}</span>
         </div>
       </div>
       {isAdmin && (
@@ -348,4 +347,15 @@ function MmsiPanel({ t, isAdmin, value, saving, error, onChange, onAdd, onRemove
       </div>
     </div>
   )
+}
+
+/** The list row's one-line position summary and how to colour it. */
+function describeFix(ship: TrackedShip): { text: string; tone: 'none' | 'fresh' | 'stale' } {
+  const live = ship.live
+  if (!live || live.lat == null || live.lon == null) return { text: 'Not heard yet', tone: 'none' }
+  const coords = `${live.lat.toFixed(2)}, ${live.lon.toFixed(2)}`
+  const age = shipFixAge(live)
+  if (!age) return { text: coords, tone: 'fresh' }
+  if (age.stale) return { text: `Last known ${coords} · ${age.label}`, tone: 'stale' }
+  return { text: `${coords} · ${age.label}`, tone: 'fresh' }
 }
