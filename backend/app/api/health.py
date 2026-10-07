@@ -282,6 +282,50 @@ def admin_dump_to_json():
     return {"status": "ok", "written": results}
 
 
+def _hazard_source_health(source_id: str, label: str) -> dict:
+    """One hazard feed's status from the hazard cache, without rebuilding it."""
+    if os.getenv("HAZARDS_ENABLED", "").strip().lower() == "false":
+        return {"id": source_id, "label": label, "status": "disabled", "detail": "Hazards feature turned off"}
+    from ..hazards.service import service
+    from ..hazards.sources import bushfire_api_key
+    if source_id == "bushfire" and not bushfire_api_key():
+        return {"id": source_id, "label": label, "status": "disabled", "detail": "Not configured (BUSHFIRE_API_KEY)"}
+    feed = service.peek()
+    if feed is None:
+        return {"id": source_id, "label": label, "status": "checking", "detail": "Not fetched yet"}
+    st = next((s for s in feed.sources if s.source == source_id), None)
+    if st is None:
+        return {"id": source_id, "label": label, "status": "checking", "detail": "Not fetched yet"}
+    age = service.cache_age_seconds() or 0
+    mins = int(age // 60)
+    when = "just now" if mins == 0 else f"{mins}m ago"
+    if st.ok:
+        return {"id": source_id, "label": label, "status": "ok", "detail": f"{st.count} hazards · fetched {when}"}
+    return {"id": source_id, "label": label, "status": "error", "detail": f"{st.error or 'Fetch failed'} · {when}"}
+
+
+@router.get("/sources")
+def external_source_health():
+    """GET /api/health/sources — status of the external live-data feeds.
+
+    ShipTracker's aisstream.io connection plus the two Network Hazards
+    feeds (bushfire.io, USGS). Reads only state the backend already holds —
+    the AIS client's connection flags and the hazard cache — so it makes no
+    outbound calls and is cheap enough for the status bar's 30-second poll.
+
+    Response: {"sources": [{id, label, status, detail}]}, where status is
+    "ok" | "error" | "checking" | "disabled" (not configured / turned off).
+
+    Auth: public read endpoint; no token required.
+    """
+    from ..shiptracker.ais_client import client as ais_client
+    return {"sources": [
+        {"id": "ais", "label": "Ship AIS", **ais_client.status()},
+        _hazard_source_health("bushfire", "Bushfire.io"),
+        _hazard_source_health("usgs", "USGS"),
+    ]}
+
+
 @router.get("/nlp")
 def nlp_status():
     """GET /api/health/nlp — report whether natural-language parsing is available.

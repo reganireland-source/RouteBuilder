@@ -59,7 +59,7 @@ class CreateShipRequest(BaseModel):
     resolved from AIS if the ship is currently transmitting and no name is
     given, matching the Cable Import Research pattern of "auto-fill, but the
     caller may always override"."""
-    mmsi: str = Field(min_length=1, max_length=20)
+    mmsi: str = Field(pattern=r"^\d{9}$")  # an MMSI is exactly nine digits
     name: str | None = None
     imo: str | None = None
     sprite: str = "generic"

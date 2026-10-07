@@ -1,7 +1,8 @@
 /**
  * HealthBar — status strip of coloured dots showing the health of every runtime dependency.
  *
- * Renders six indicators (Frontend, Backend, Data, Database, LLM API, Maps) as small
+ * Renders nine indicators (Frontend, Backend, Data, Database, LLM API, Maps, and
+ * the three external live-data feeds: Ship AIS, Bushfire.io, USGS) as small
  * green/red/yellow/grey dots with hover tooltips, plus a version line — build number,
  * short commit hash, branch and build timestamp (injected at build time via the
  * __BUILD_NUMBER__ / __BUILD_COMMIT__ / __BUILD_BRANCH__ / __BUILD_DIRTY__ /
@@ -18,6 +19,10 @@
  * Side effects / polling:
  *   - Calls api.getHealth() (GET /api/health) and api.getNlpHealth() (GET /api/health/nlp)
  *     on mount and every 30 seconds; results drive the Backend, Data, Database and LLM dots.
+ *   - Calls api.getSourceHealth() (GET /api/health/sources) on the same cycle for the
+ *     Ship AIS / Bushfire.io / USGS dots. That endpoint only reads state the backend
+ *     already holds (the AIS connection flags and the hazard cache), so polling it never
+ *     triggers an upstream fetch. "disabled" (grey) means not configured / turned off.
  *   - Maps check: for the free provider it fetches a single Esri basemap tile with a 5 s
  *     timeout — this replaced a check against CARTO's basemaps.cartocdn.com, which now
  *     gates its tiles behind an API key but still returns an HTTP 200 "API KEY REQUIRED"
@@ -67,6 +72,11 @@ export function HealthBar({ dataLoaded, mapsProvider }: Props) {
   const [dbDetail,      setDbDetail]      = useState<string>('')
   const [mapsStatus,    setMapsStatus]    = useState<Status>('checking')
   const [mapsDetail,    setMapsDetail]    = useState<string>('Checking…')
+  const [feeds,         setFeeds]         = useState<Indicator[]>([
+    { label: 'Ship AIS',    status: 'checking', detail: 'Checking…' },
+    { label: 'Bushfire.io', status: 'checking', detail: 'Checking…' },
+    { label: 'USGS',        status: 'checking', detail: 'Checking…' },
+  ])
 
   async function checkBackend() {
     setBackendStatus('checking')
@@ -99,10 +109,20 @@ export function HealthBar({ dataLoaded, mapsProvider }: Props) {
     }
   }
 
+  async function checkFeeds() {
+    try {
+      const { sources } = await api.getSourceHealth()
+      setFeeds(sources.map(s => ({ label: s.label, status: s.status, detail: s.detail })))
+    } catch {
+      setFeeds(prev => prev.map(f => ({ ...f, status: 'error', detail: 'Backend unreachable' })))
+    }
+  }
+
   useEffect(() => {
     checkBackend()
     checkNlp()
-    const interval = setInterval(() => { checkBackend(); checkNlp() }, 30_000)
+    checkFeeds()
+    const interval = setInterval(() => { checkBackend(); checkNlp(); checkFeeds() }, 30_000)
     return () => clearInterval(interval)
   }, [])
 
@@ -184,6 +204,7 @@ export function HealthBar({ dataLoaded, mapsProvider }: Props) {
       status: mapsStatus,
       detail: mapsDetail,
     },
+    ...feeds,
   ]
 
   return (
@@ -195,7 +216,7 @@ export function HealthBar({ dataLoaded, mapsProvider }: Props) {
       gap: 4,
       flexShrink: 0,
     }}>
-      {/* Wraps: six indicators do not fit one line in either layout — the
+      {/* Wraps: nine indicators do not fit one line in either layout — the
           desktop sidebar is 440px and a phone is narrower still, so the last
           one or two were being clipped off the right edge. Two short rows is
           better than a truncated one. */}

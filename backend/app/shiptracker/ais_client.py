@@ -82,6 +82,12 @@ class AisStreamClient:
         self._ws = None  # type: ignore[var-annotated]  # websockets.WebSocketClientProtocol, once connected
         self._reconnect_requested = asyncio.Event()
         self._stopped = False
+        # Connection health, read by GET /api/health/sources for the status
+        # bar. `_started` distinguishes "still connecting" from "never ran".
+        self._started = False
+        self._connected = False
+        self._last_error: Optional[str] = None
+        self._last_report_monotonic: Optional[float] = None
 
     # ── reads (sync — safe to call from a request handler) ────────────────
     def get(self, mmsi: str) -> Optional[TrackedShipLive]:
@@ -89,6 +95,22 @@ class AisStreamClient:
 
     def get_all(self) -> dict[str, TrackedShipLive]:
         return dict(self._cache)
+
+    def status(self) -> dict:
+        """Connection health for the status bar: ok / error / checking /
+        disabled, plus a one-line detail. Reads in-memory state only."""
+        if not aisstream_api_key():
+            return {"status": "disabled", "detail": "Not configured (MARITIME_AISSTREAM_API_KEY)"}
+        if self._connected:
+            reporting = sum(1 for m in self._tracked if m in self._cache)
+            detail = f"Connected · {reporting}/{len(self._tracked)} ships reporting"
+            if self._last_report_monotonic is not None:
+                mins = int((time.monotonic() - self._last_report_monotonic) // 60)
+                detail += " · last report " + ("just now" if mins == 0 else f"{mins}m ago")
+            return {"status": "ok", "detail": detail}
+        if self._last_error:
+            return {"status": "error", "detail": self._last_error}
+        return {"status": "checking", "detail": "Connecting…" if self._started else "Not started"}
 
     # ── tracked-set mutation ───────────────────────────────────────────────
     async def subscribe(self, mmsi: str) -> None:
@@ -125,6 +147,7 @@ class AisStreamClient:
         if not api_key:
             log.info("MARITIME_AISSTREAM_API_KEY not set — ShipTracker live positions disabled.")
             return
+        self._started = True
         while not self._stopped:
             self._reconnect_requested.clear()
             try:
@@ -136,6 +159,7 @@ class AisStreamClient:
                         "FiltersShipMMSI": sorted(self._tracked),
                         "FilterMessageTypes": ["PositionReport"],
                     }))
+                    self._connected = True
                     log.info("aisstream.io connected, tracking %d ship(s).", len(self._tracked))
                     backoff = _INITIAL_BACKOFF_SECONDS  # reset after a successful connect
                     async for raw in ws:
@@ -145,9 +169,11 @@ class AisStreamClient:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001 — any failure here must not crash the app; just retry
+                self._last_error = f"Connection error: {exc}"[:200]
                 log.warning("aisstream.io connection error, retrying in %.0fs: %s", backoff, exc)
             finally:
                 self._ws = None
+                self._connected = False
             if self._stopped:
                 break
             await asyncio.sleep(backoff)
@@ -157,6 +183,12 @@ class AisStreamClient:
         try:
             msg = json.loads(raw)
         except json.JSONDecodeError:
+            return
+        # aisstream.io reports a rejected subscription (e.g. an invalid API
+        # key) as {"error": "..."} and then closes the socket.
+        if isinstance(msg, dict) and msg.get("error"):
+            self._last_error = f"aisstream.io: {msg['error']}"[:200]
+            log.warning("aisstream.io rejected subscription: %s", msg["error"])
             return
         if msg.get("MessageType") != "PositionReport":
             return
@@ -176,6 +208,8 @@ class AisStreamClient:
             nav_status=report.get("NavigationalStatus"),
             last_seen_utc=meta.get("time_utc") or _utc_now_iso(),
         )
+        self._last_report_monotonic = time.monotonic()
+        self._last_error = None
 
     async def stop(self) -> None:
         """Signal run_forever() to stop reconnecting and close the socket.

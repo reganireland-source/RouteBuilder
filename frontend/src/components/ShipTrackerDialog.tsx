@@ -44,6 +44,7 @@ import { ShipFullView } from './ShipFullView'
 import { ConfirmDialog } from './ConfirmDialog'
 
 const Z_DIALOG = 11500
+const MMSI_RE = /^\d{9}$/
 /** A Full View opened from this dialog has to sit ABOVE it, not at
  *  fullViewChrome's Z_FULL_VIEW_BASE (10000), or it opens behind the list
  *  that raised it. Still below ConfirmDialog's 12500. */
@@ -65,7 +66,6 @@ export function ShipTrackerDialog({ onClose, shipsOnMap, onToggleShipsOnMap, onS
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
-  const [adding, setAdding] = useState(false)
   const [addMmsi, setAddMmsi] = useState('')
   const [saving, setSaving] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
@@ -100,16 +100,35 @@ export function ShipTrackerDialog({ onClose, shipsOnMap, onToggleShipsOnMap, onS
     setRefreshing(false)
   }
 
+  /** An MMSI is exactly nine digits; returns an error message, or null. */
+  function mmsiProblem(mmsi: string): string | null {
+    if (!mmsi) return 'Enter an MMSI.'
+    if (!MMSI_RE.test(mmsi)) return 'An MMSI is exactly 9 digits (e.g. 525300321).'
+    return null
+  }
+
   async function addShip() {
     const mmsi = addMmsi.trim()
-    if (!mmsi) { setAddError('Enter an MMSI.'); return }
+    const problem = mmsiProblem(mmsi)
+    if (problem) { setAddError(problem); return }
+    if (ships.some(s => s.mmsi === mmsi)) { setAddError(`MMSI ${mmsi} is already tracked.`); return }
     setSaving(true); setAddError(null)
     try {
       const created = await api.createShip({ mmsi })
       setShips(prev => [...prev, created])
-      setAdding(false); setAddMmsi('')
+      setAddMmsi('')
     } catch (e) { setAddError(String(e)) }
     finally { setSaving(false) }
+  }
+
+  /** Remove by typed MMSI goes through the same confirm as a row's Remove. */
+  function removeByMmsi() {
+    const mmsi = addMmsi.trim()
+    const problem = mmsiProblem(mmsi)
+    if (problem) { setAddError(problem); return }
+    if (!ships.some(s => s.mmsi === mmsi)) { setAddError(`MMSI ${mmsi} isn't being tracked.`); return }
+    setAddError(null)
+    setDelConfirm(mmsi)
   }
 
   async function removeShip(mmsi: string) {
@@ -118,6 +137,7 @@ export function ShipTrackerDialog({ onClose, shipsOnMap, onToggleShipsOnMap, onS
       await api.deleteShip(mmsi)
       setShips(prev => prev.filter(s => s.mmsi !== mmsi))
       setDelConfirm(null)
+      if (addMmsi.trim() === mmsi) setAddMmsi('')
     } catch (e) { setError(String(e)) }
     finally { setSaving(false) }
   }
@@ -203,54 +223,12 @@ export function ShipTrackerDialog({ onClose, shipsOnMap, onToggleShipsOnMap, onS
               ))}
             </div>
 
-            {isAdmin && (
-              <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${t.border}` }}>
-                {!adding ? (
-                  <button
-                    onClick={() => setAdding(true)}
-                    style={{
-                      width: '100%', padding: '9px', borderRadius: 6, cursor: 'pointer',
-                      border: `1px dashed ${t.border}`, background: 'transparent', color: t.textMuted,
-                      fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-                    }}
-                  >+ Track a ship by MMSI</button>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <input
-                        autoFocus
-                        value={addMmsi}
-                        onChange={e => setAddMmsi(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') void addShip() }}
-                        placeholder="MMSI (e.g. 525300321)"
-                        style={{
-                          flex: 1, padding: '7px 9px', borderRadius: 5, fontSize: 12,
-                          border: `1px solid ${t.border}`, background: t.bgInput, color: t.text, fontFamily: 'inherit',
-                        }}
-                      />
-                      <button
-                        onClick={() => void addShip()} disabled={saving}
-                        style={{
-                          padding: '7px 14px', borderRadius: 5, border: 'none', cursor: saving ? 'default' : 'pointer',
-                          background: saving ? t.textFaintest : t.green, color: '#0b1f14', fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
-                        }}
-                      >{saving ? 'Adding…' : 'Add'}</button>
-                      <button
-                        onClick={() => { setAdding(false); setAddMmsi(''); setAddError(null) }} disabled={saving}
-                        style={{
-                          padding: '7px 12px', borderRadius: 5, cursor: 'pointer',
-                          border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted, fontSize: 12, fontFamily: 'inherit',
-                        }}
-                      >Cancel</button>
-                    </div>
-                    {addError && <div style={{ fontSize: 11, color: t.red }}>⚠ {addError}</div>}
-                    <div style={{ fontSize: 10, color: t.textFaintest, lineHeight: 1.5 }}>
-                      The name is looked up from AIS automatically if the ship is currently transmitting — otherwise it's stored as the bare MMSI and you can rename it later.
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+            <MmsiPanel
+              t={t} isAdmin={isAdmin} value={addMmsi} saving={saving} error={addError}
+              onChange={v => { setAddMmsi(v); setAddError(null) }}
+              onAdd={() => void addShip()}
+              onRemove={removeByMmsi}
+            />
           </div>
         </div>
       </div>
@@ -316,6 +294,58 @@ function ShipRow({ ship, t, isAdmin, onOpen, onRemove }: {
           }}
         >Remove</button>
       )}
+    </div>
+  )
+}
+
+/** Add or remove a ship by typing its MMSI. Always shown — not hidden for
+ *  viewers — so the capability is discoverable; when locked it explains that
+ *  admin access is needed instead of silently not being there. The backend
+ *  enforces the same rule regardless (auth_guard gates POST/DELETE). */
+function MmsiPanel({ t, isAdmin, value, saving, error, onChange, onAdd, onRemove }: {
+  t: ReturnType<typeof useTheme>; isAdmin: boolean; value: string; saving: boolean; error: string | null
+  onChange: (v: string) => void; onAdd: () => void; onRemove: () => void
+}) {
+  const disabled = !isAdmin || saving
+  const btn = (bg: string, fg: string, border = 'none') => ({
+    padding: '7px 12px', borderRadius: 5, border, cursor: disabled ? 'default' : 'pointer',
+    background: disabled ? t.bgDeep : bg, color: disabled ? t.textFaintest : fg,
+    fontSize: 12, fontWeight: 700, fontFamily: 'inherit', whiteSpace: 'nowrap' as const,
+  })
+  return (
+    <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${t.border}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        Add or remove by MMSI
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          value={value}
+          disabled={!isAdmin}
+          inputMode="numeric"
+          maxLength={9}
+          aria-label="MMSI"
+          onChange={e => onChange(e.target.value.replace(/\D/g, ''))}
+          onKeyDown={e => { if (e.key === 'Enter' && !disabled) onAdd() }}
+          placeholder="9-digit MMSI, e.g. 525300321"
+          style={{
+            flex: 1, minWidth: 0, padding: '7px 9px', borderRadius: 5, fontSize: 12,
+            border: `1px solid ${error ? t.red : t.border}`, background: t.bgInput, color: t.text,
+            fontFamily: 'ui-monospace, monospace', opacity: isAdmin ? 1 : 0.6,
+          }}
+        />
+        <button onClick={onAdd} disabled={disabled} style={btn(t.green, '#0b1f14')}>
+          {saving ? 'Working…' : '+ Add'}
+        </button>
+        <button onClick={onRemove} disabled={disabled} style={btn(t.red + '18', t.red, `1px solid ${disabled ? t.border : t.red + '66'}`)}>
+          − Remove
+        </button>
+      </div>
+      {error && <div style={{ fontSize: 11, color: t.red }}>⚠ {error}</div>}
+      <div style={{ fontSize: 10, color: t.textFaintest, lineHeight: 1.5 }}>
+        {isAdmin
+          ? "Adding looks the ship's name up from AIS if it's transmitting right now; otherwise it's stored under its MMSI. Find a ship's MMSI on its vessel-tracker page."
+          : '🔒 Adding or removing ships needs admin access — unlock admin mode first.'}
+      </div>
     </div>
   )
 }

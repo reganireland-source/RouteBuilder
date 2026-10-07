@@ -738,7 +738,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
               ))}
             </div>
             <div style={{ marginTop: 10, fontSize: 10, color: t.textFaint, lineHeight: 1.5 }}>
-              Alongside it sit six live status dots — Frontend, Backend, Data, Database, LLM API and Maps — each re-checked every 30 seconds. Quote the build stamp whenever you raise an issue; it identifies the exact code you were running.
+              Alongside it sit nine live status dots — Frontend, Backend, Data, Database, LLM API and Maps, plus the three external live-data feeds: Ship AIS (ShipTracker), Bushfire.io and USGS — each re-checked every 30 seconds. Grey means not configured; hover any dot for detail. Quote the build stamp whenever you raise an issue; it identifies the exact code you were running.
             </div>
           </div>
         </div>

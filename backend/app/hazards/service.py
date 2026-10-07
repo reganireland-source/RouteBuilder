@@ -141,6 +141,12 @@ class HazardService:
             self._cached_at = time.monotonic()
             return feed
 
+    def peek(self) -> HazardFeed | None:
+        """The cached feed as-is, or None if nothing has been built yet —
+        never triggers a rebuild. For the status bar, which polls every 30s
+        and must not set off a ~19s upstream fetch just to colour a dot."""
+        return self._cached
+
     def cache_age_seconds(self) -> float | None:
         """Seconds since the cached feed was built, or None if nothing has
         been built yet. Used by `GET /api/hazards/sources` to report freshness."""
