@@ -884,13 +884,12 @@ export default function App() {
 
   /** Look a node up by id, fly the map to it and open its info panel — the
    *  Network Explorer "type a 4-alpha code" path. */
-  /** Desktop Asset Search / Asset Filter pick: nodes and segments accumulate
-   *  in the highlight list instead of each pick replacing the last, so several
-   *  unrelated cables can be shown at once. Mobile calls handleAssetSelect
-   *  directly and keeps the single transient spotlight. */
-  function handleDesktopAssetPick(hit: AssetHit) {
+  /** Asset Search / Asset Filter pick (desktop and mobile): nodes and segments
+   *  accumulate in the highlight list instead of each pick replacing the last,
+   *  so several unrelated cables can be shown at once. */
+  function handleMultiAssetPick(hit: AssetHit, opts: { openNodePanel?: boolean } = {}) {
     if (hit.kind === 'node' || hit.kind === 'segment') addPickedAsset(hit)
-    handleAssetSelect(hit)
+    handleAssetSelect(hit, opts)
     // The persistent picked glow replaces the transient hover spotlight
     // (batched with the set inside handleAssetSelect, so it never flashes).
     if (hit.kind === 'segment') setHoveredSegmentId(null)
@@ -1554,6 +1553,29 @@ export default function App() {
   // On narrow screens the entire three-panel desktop UI is replaced by a single
   // MobileLayout component. All the same state + handlers are passed down to it,
   // followed by the shared modals (projects, guide, pin-label, manual finish).
+  // Ship Tracker dialog + the Full View opened by tapping a ship on the map —
+  // identical in both layouts, so built once and mounted in each branch.
+  const mapShip = mapShipMmsi ? ships.find(s => s.mmsi === mapShipMmsi) ?? null : null
+  const shipOverlays = (
+    <>
+      {shipTrackerOpen && (
+        <Suspense fallback={null}>
+          <ShipTrackerDialog
+            onClose={() => setShipTrackerOpen(false)}
+            shipsOnMap={shipsOnMap}
+            onToggleShipsOnMap={toggleShipsOnMap}
+            onShipsChanged={setShips}
+          />
+        </Suspense>
+      )}
+      {mapShip && (
+        <Suspense fallback={null}>
+          <ShipFullView ship={mapShip} onClose={() => setMapShipMmsi(null)} />
+        </Suspense>
+      )}
+    </>
+  )
+
   if (isMobile) {
     return (
       <ThemeContext.Provider value={theme}>
@@ -1587,7 +1609,18 @@ export default function App() {
           onToggleKmlMode={toggleKmlMode}
           onGoToNode={handleGoToNode}
           flyToNode={flyToNode}
-          onAssetSelect={hit => handleAssetSelect(hit, { openNodePanel: false })}
+          onAssetSelect={hit => handleMultiAssetPick(hit, { openNodePanel: false })}
+          pickedAssets={pickedListItems}
+          pickedSegmentIds={pickedSegmentIds}
+          pickedNodeIds={pickedNodeIds}
+          onFocusPickedAsset={focusPickedAsset}
+          onRemovePickedAsset={removePickedAsset}
+          onClearPickedAssets={clearPickedAssets}
+          ships={ships}
+          shipsOnMap={shipsOnMap}
+          onToggleShipsOnMap={toggleShipsOnMap}
+          onOpenShipTracker={() => setShipTrackerOpen(true)}
+          onShipClick={setMapShipMmsi}
           serviceChoice={serviceChoice}
           onServiceChoiceChange={setServiceChoice}
           visibleSegments={visibleSegments}
@@ -1792,6 +1825,7 @@ export default function App() {
           </div>,
           document.body
         )}
+        {shipOverlays}
        </HazardProvider>
       </ThemeContext.Provider>
     )
@@ -1988,7 +2022,7 @@ export default function App() {
                   nodes={nodes}
                   segments={visibleSegments}
                   systems={systems}
-                  onSelect={hit => handleDesktopAssetPick(hit)}
+                  onSelect={hit => handleMultiAssetPick(hit)}
                 />
               </div>
               <ServiceDateSelector value={serviceChoice} onChange={setServiceChoice} />
@@ -2371,7 +2405,7 @@ export default function App() {
               systems={systems}
               capacity={capacity}
               onNetOwnership={config.on_net_ownership}
-              onAssetSelect={hit => handleDesktopAssetPick(hit)}
+              onAssetSelect={hit => handleMultiAssetPick(hit)}
               onFilterChange={setAssetFilterMatch}
             />
           </div>
@@ -2579,25 +2613,7 @@ export default function App() {
         </Suspense>
       )}
 
-      {shipTrackerOpen && (
-        <Suspense fallback={null}>
-          <ShipTrackerDialog
-            onClose={() => setShipTrackerOpen(false)}
-            shipsOnMap={shipsOnMap}
-            onToggleShipsOnMap={toggleShipsOnMap}
-            onShipsChanged={setShips}
-          />
-        </Suspense>
-      )}
-
-      {mapShipMmsi && (() => {
-        const ship = ships.find(s => s.mmsi === mapShipMmsi)
-        return ship ? (
-          <Suspense fallback={null}>
-            <ShipFullView ship={ship} onClose={() => setMapShipMmsi(null)} />
-          </Suspense>
-        ) : null
-      })()}
+      {shipOverlays}
 
       {projectsOpen && (
         <ProjectsModal

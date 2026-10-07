@@ -73,6 +73,10 @@ export function ShipFullView({ ship, onClose, zIndex = Z_FULL_VIEW_BASE }: {
           className="rb-anim-pop"
         >
           <div style={headerShell(t, phone)}>
+            {/* headerShell is `display: block` on a phone (Node/Segment Full
+                View lay out their own two lines); this header is one short
+                line, so it keeps its own flex row and the × stays top-right. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%' }}>
             <img
               src={`/ships/${ship.sprite || 'generic'}.png`}
               alt="" width={64} height={40}
@@ -84,6 +88,7 @@ export function ShipFullView({ ship, onClose, zIndex = Z_FULL_VIEW_BASE }: {
               <div style={{ fontSize: 11, color: t.textFaint }}>Cable repair ship — tracked via AIS</div>
             </div>
             <button onClick={onClose} title="Close" aria-label="Close" style={closeBtnStyle(t, phone)}>×</button>
+            </div>
           </div>
 
           <div style={scrollerStyle(phone)}>

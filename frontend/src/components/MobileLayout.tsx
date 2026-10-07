@@ -50,6 +50,7 @@ import { SegmentFullView } from './SegmentFullView'
 import { AssetSearch } from './AssetSearch'
 import { AssetFilterBar } from './AssetFilterBar'
 import type { AssetHit } from '../utils/assetSearch'
+import { PickedAssetsList, type PickedAsset } from './PickedAssetsList'
 import { ServiceDateSelector } from './ServiceDateSelector'
 import { FutureNetworkBanner } from './FutureNetworkBanner'
 import { CURRENT_CHOICE, type ServiceDateChoice } from '../utils/serviceDate'
@@ -60,7 +61,7 @@ import { useTooltipSettings } from '../context/TooltipSettingsContext'
 import type {
   AppConfig, AppMode, AssetFilterMatch, CableNode, CableSegment, CableSystem, CountryHighlight, InterconnectRule,
   NlpSortMode, PinnedRoute, Project, Route, RouteRequest, RouteResponse, SegmentCapacity, SegmentOutage,
-  SelectedSystem, DiversityType, HazardFeed, HazardAssetView, HazardOwnerView, KmlPathInfo,
+  SelectedSystem, DiversityType, HazardFeed, HazardAssetView, HazardOwnerView, KmlPathInfo, TrackedShip,
 } from '../types'
 
 // Lazily, for the same reason App.tsx does: an eager import on EITHER side
@@ -156,6 +157,20 @@ export interface MobileLayoutProps {
   onAssetSelect?:    (hit: AssetHit) => void
   fitBounds?:        { bounds: [[number, number], [number, number]]; key: number }
   spotlightNodeId?:  string | null
+  /** Asset Search multi-pick: everything highlighted, shown in the collapsible
+   *  "Highlighted" panel under the header (same list as desktop's). */
+  pickedAssets?:        PickedAsset[]
+  pickedSegmentIds?:    string[]
+  pickedNodeIds?:       string[]
+  onFocusPickedAsset?:  (item: PickedAsset) => void
+  onRemovePickedAsset?: (item: PickedAsset) => void
+  onClearPickedAssets?: () => void
+  /** ShipTracker: ships for the map layer, its toggle, and the dialog opener. */
+  ships?:               TrackedShip[]
+  shipsOnMap?:          boolean
+  onToggleShipsOnMap?:  () => void
+  onOpenShipTracker?:   () => void
+  onShipClick?:         (mmsi: string) => void
   /** Effective ISO service date, for the route cards' lifecycle badges. */
   serviceDate?:      string | null
   /** Current vs Planned network — see utils/serviceDate.ts. */
@@ -263,6 +278,7 @@ function MobileControlsDrawer({
   onToggleShowNodeLabels, onToggleHideNonActive, onToggleSubseaOnly, onToggleBackhaulOnly,
   onToggleLivingWorld, onToggleHazards, onToggleKmlMode,
   onOpenProjects, onOpenCapacity, onOpenRefData, cycleTheme,
+  shipsOnMap = false, onToggleShipsOnMap, onOpenShipTracker,
 }: {
   open: boolean
   setOpen: Dispatch<SetStateAction<boolean>>
@@ -296,6 +312,9 @@ function MobileControlsDrawer({
   onOpenCapacity: () => void
   onOpenRefData: () => void
   cycleTheme: () => void
+  shipsOnMap?: boolean
+  onToggleShipsOnMap?: () => void
+  onOpenShipTracker?: () => void
 }) {
   const { tooltipsEnabled, setTooltipsEnabled } = useTooltipSettings()
   return (
@@ -435,6 +454,13 @@ function MobileControlsDrawer({
                 color: t.orange,
                 onClick: () => { onToggleHazards(); setOpen(false) },
               },
+              ...(onToggleShipsOnMap ? [{
+                label: 'Ships on Map',
+                icon: '🛳',
+                active: shipsOnMap,
+                color: t.blue,
+                onClick: () => { onToggleShipsOnMap(); setOpen(false) },
+              }] : []),
               {
                 // Coverage in the label for the same reason as desktop: "ON"
                 // alone does not say whether that is 3 cables or 300.
@@ -484,6 +510,11 @@ function MobileControlsDrawer({
                 icon: '⚙',
                 onClick: () => { onOpenRefData(); setOpen(false) },
               },
+              ...(onOpenShipTracker ? [{
+                label: 'Ship Tracker',
+                icon: '⚓',
+                onClick: () => { onOpenShipTracker(); setOpen(false) },
+              }] : []),
             ].map(item => (
               <button
                 key={item.label}
@@ -728,6 +759,8 @@ export function MobileLayout({
   refDataOpen, themeMode, config,
   onSearch, onToggleRoute, onPin, onUnpin, onPinPair, onToggleSystem,
   onSetOrigin, onSetDest, onSetPair, onGoToNode, flyToNode, onAssetSelect, fitBounds, spotlightNodeId, serviceDate,
+  pickedAssets = [], pickedSegmentIds, pickedNodeIds, onFocusPickedAsset, onRemovePickedAsset, onClearPickedAssets,
+  ships, shipsOnMap = false, onToggleShipsOnMap, onOpenShipTracker, onShipClick,
   serviceChoice, onServiceChoiceChange, visibleSegments,
   onNodeClick, onSegmentClick, onCloseSegment, onPinChange,
   onCloseNode, onOpenRefData, onCloseRefData, onDataChange,
@@ -864,6 +897,11 @@ export function MobileLayout({
             flyToNode={flyToNode}
             fitBounds={fitBounds}
             spotlightNodeId={spotlightNodeId}
+            pickedSegmentIds={pickedSegmentIds}
+            pickedNodeIds={pickedNodeIds}
+            ships={ships}
+            shipsOn={shipsOnMap}
+            onShipClick={onShipClick}
             searchPin={searchPin ?? undefined}
             nearestNodeIds={nearestNodeIds}
             hideNonActive={hideNonActive}
@@ -979,8 +1017,25 @@ export function MobileLayout({
           onOpenCapacity={() => setCapDashOpen(true)}
           onOpenRefData={onOpenRefData}
           cycleTheme={cycleTheme}
+          shipsOnMap={shipsOnMap}
+          onToggleShipsOnMap={onToggleShipsOnMap}
+          onOpenShipTracker={onOpenShipTracker}
         />
       </div>
+
+      {/* ── Highlighted assets — desktop shows this list under the search box;
+             on a phone the search is an icon in the header, so the list is a
+             collapsible pill docked top-right under it instead, collapsed by
+             default so it never covers more of the map than it must. ── */}
+      {!drawerOpen && pickedAssets.length > 0 && onFocusPickedAsset && onRemovePickedAsset && onClearPickedAssets && (
+        <MobilePickedPanel
+          t={t}
+          items={pickedAssets}
+          onFocus={item => { doSnap('peek'); onFocusPickedAsset(item) }}
+          onRemove={onRemovePickedAsset}
+          onClear={onClearPickedAssets}
+        />
+      )}
 
       {/* ── Asset Filter — collapsed to an icon (matching AssetSearch's own
              compact convention) and docked below Leaflet's zoom control,
@@ -1443,6 +1498,41 @@ export function MobileLayout({
         document.body
       )}
 
+    </div>
+  )
+}
+
+/** Collapsible "Highlighted · N" pill for phones: tap to expand the same
+ *  PickedAssetsList desktop shows under its search box. */
+function MobilePickedPanel({ t, items, onFocus, onRemove, onClear }: {
+  t: import('../theme').Theme
+  items: PickedAsset[]
+  onFocus: (item: PickedAsset) => void
+  onRemove: (item: PickedAsset) => void
+  onClear: () => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div style={{ position: 'absolute', top: 132, right: 8, zIndex: 1090, width: expanded ? 'min(320px, calc(100vw - 16px))' : 'auto' }}>
+      <button
+        onClick={() => setExpanded(e => !e)}
+        aria-expanded={expanded}
+        style={{
+          marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, minHeight: 36, padding: '6px 12px',
+          borderRadius: 18, border: `1px solid ${t.orange}66`, background: t.bgPanel + 'f2', color: t.text,
+          fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.4)',
+        }}
+      >
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ff4500' }} aria-hidden />
+        {items.length} highlighted
+        <span aria-hidden style={{ color: t.textFaint }}>{expanded ? '▴' : '▾'}</span>
+      </button>
+      {expanded && (
+        <div style={{ boxShadow: '0 6px 20px rgba(0,0,0,0.5)', borderRadius: 8, background: t.bgPanel }}>
+          <PickedAssetsList items={items} onFocus={onFocus} onRemove={onRemove} onClear={() => { onClear(); setExpanded(false) }} />
+        </div>
+      )}
     </div>
   )
 }

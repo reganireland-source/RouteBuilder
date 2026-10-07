@@ -44,6 +44,7 @@ import { ShipFullView } from './ShipFullView'
 import { ConfirmDialog } from './ConfirmDialog'
 import { shipFixAge } from '../utils/shipFixAge'
 import { AisFeedLine, useAisFeed } from './AisFeedLine'
+import { PHONE_PX, useMaxWidth } from './fullViewChrome'
 
 const Z_DIALOG = 11500
 const MMSI_RE = /^\d{9}$/
@@ -64,6 +65,7 @@ export function ShipTrackerDialog({ onClose, shipsOnMap, onToggleShipsOnMap, onS
   const t = useTheme()
   const { isAdmin } = useAuth()
   const aisFeed = useAisFeed()
+  const phone = useMaxWidth(PHONE_PX)
   const [ships, setShips] = useState<TrackedShip[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -147,6 +149,10 @@ export function ShipTrackerDialog({ onClose, shipsOnMap, onToggleShipsOnMap, onS
 
   const openShip = openMmsi ? ships.find(s => s.mmsi === openMmsi) ?? null : null
 
+  const headerActions = (
+    <HeaderActions t={t} phone={phone} shipsOnMap={shipsOnMap} onToggleShipsOnMap={onToggleShipsOnMap} refreshing={refreshing} onRefresh={refresh} />
+  )
+
   return createPortal(
     <>
       <div
@@ -156,7 +162,7 @@ export function ShipTrackerDialog({ onClose, shipsOnMap, onToggleShipsOnMap, onS
         style={{
           position: 'fixed', inset: 0, zIndex: Z_DIALOG,
           background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '0 24px',
+          padding: phone ? '0 8px' : '0 24px',
         }}
       >
         <div
@@ -165,46 +171,12 @@ export function ShipTrackerDialog({ onClose, shipsOnMap, onToggleShipsOnMap, onS
           className="rb-anim-pop"
           style={{
             background: t.bgPanel, border: `1px solid ${t.border}`, borderRadius: 12,
-            padding: 0, width: '100%', maxWidth: 560, maxHeight: '82vh',
+            padding: 0, width: '100%', maxWidth: 560, maxHeight: phone ? '92vh' : '82vh',
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
             boxShadow: '0 24px 64px rgba(0,0,0,0.5)', fontFamily: 'system-ui, sans-serif',
           }}
         >
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px',
-            background: t.bgDeep, borderBottom: `1px solid ${t.border}`,
-          }}>
-            <span style={{ fontSize: 18 }}>🚢</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: t.text }}>Ship Tracker</div>
-              <div style={{ fontSize: 11, color: t.textFaint }}>Cable repair ships being tracked</div>
-            </div>
-            <button
-              onClick={onToggleShipsOnMap}
-              aria-pressed={shipsOnMap}
-              title="Show tracked ships on the map at their live position, with a heading arrow"
-              style={{
-                padding: '6px 10px', borderRadius: 6, cursor: 'pointer',
-                border: `1px solid ${shipsOnMap ? t.blue : t.border}`,
-                background: shipsOnMap ? t.blue + '22' : 'transparent',
-                color: shipsOnMap ? t.blue : t.textMuted,
-                fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-              }}
-            >{shipsOnMap ? '◉ On map' : '◎ Show on map'}</button>
-            <button
-              onClick={refresh} disabled={refreshing}
-              title="Re-check the backend's cached AIS positions"
-              style={{
-                padding: '6px 10px', borderRadius: 6, cursor: refreshing ? 'default' : 'pointer',
-                border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted,
-                fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-              }}
-            >{refreshing ? 'Refreshing…' : '↻ Refresh'}</button>
-            <button
-              onClick={onClose} aria-label="Close"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: t.textMuted, fontSize: 22, lineHeight: 1, padding: '0 2px' }}
-            >×</button>
-          </div>
+          <DialogHeader t={t} phone={phone} actions={headerActions} onClose={onClose} />
 
           <div style={{ padding: '8px 16px', borderBottom: `1px solid ${t.border}`, background: t.bgCard }}>
             <AisFeedLine feed={aisFeed} compact />
@@ -364,4 +336,63 @@ function describeFix(ship: TrackedShip): { text: string; tone: 'none' | 'fresh' 
   if (!age) return { text: coords, tone: 'fresh' }
   if (age.stale) return { text: `Last known ${coords} · ${age.label}`, tone: 'stale' }
   return { text: `${coords} · ${age.label}`, tone: 'fresh' }
+}
+
+/** "Show on map" + "Refresh": inline beside the title on desktop, a
+ *  full-width row of their own on a phone. */
+function HeaderActions({ t, phone, shipsOnMap, onToggleShipsOnMap, refreshing, onRefresh }: {
+  t: ReturnType<typeof useTheme>; phone: boolean; shipsOnMap: boolean; onToggleShipsOnMap: () => void
+  refreshing: boolean; onRefresh: () => void
+}) {
+  const base = {
+    flex: phone ? 1 : undefined, minHeight: phone ? 38 : undefined,
+    padding: '6px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap' as const,
+  }
+  return (
+    <>
+      <button
+        onClick={onToggleShipsOnMap}
+        aria-pressed={shipsOnMap}
+        title="Show tracked ships on the map at their live position, with a heading arrow"
+        style={{
+          ...base, cursor: 'pointer',
+          border: `1px solid ${shipsOnMap ? t.blue : t.border}`,
+          background: shipsOnMap ? t.blue + '22' : 'transparent',
+          color: shipsOnMap ? t.blue : t.textMuted,
+        }}
+      >{shipsOnMap ? '◉ On map' : '◎ Show on map'}</button>
+      <button
+        onClick={onRefresh} disabled={refreshing}
+        title="Re-check the backend's cached AIS positions"
+        style={{ ...base, cursor: refreshing ? 'default' : 'pointer', border: `1px solid ${t.border}`, background: 'transparent', color: t.textMuted }}
+      >{refreshing ? 'Refreshing…' : '↻ Refresh'}</button>
+    </>
+  )
+}
+
+function DialogHeader({ t, phone, actions, onClose }: {
+  t: ReturnType<typeof useTheme>; phone: boolean; actions: React.ReactNode; onClose: () => void
+}) {
+  return (
+    <div style={{ padding: phone ? '12px 12px 10px' : '14px 16px', background: t.bgDeep, borderBottom: `1px solid ${t.border}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 18 }}>🚢</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: t.text }}>Ship Tracker</div>
+          <div style={{ fontSize: 11, color: t.textFaint }}>Cable repair ships being tracked</div>
+        </div>
+        {!phone && actions}
+        <button
+          onClick={onClose} aria-label="Close"
+          style={{
+            background: 'none', border: 'none', cursor: 'pointer', color: t.textMuted, fontSize: phone ? 26 : 22, lineHeight: 1,
+            padding: phone ? 0 : '0 2px', width: phone ? 40 : undefined, height: phone ? 40 : undefined, flexShrink: 0,
+          }}
+        >×</button>
+      </div>
+      {/* On a phone the two actions get their own row, full width, so the
+          title never has to wrap a word per line beside them. */}
+      {phone && <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>{actions}</div>}
+    </div>
+  )
 }
