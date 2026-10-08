@@ -36,22 +36,8 @@ import {
 import { useTheme } from '../theme'
 import { shipFixAge } from '../utils/shipFixAge'
 import { flagFromMmsi } from '../utils/mmsiFlag'
+import { SOURCE_LABEL, navStatusLabel } from '../utils/shipLabels'
 import { AisFeedLine, useAisFeed } from './AisFeedLine'
-
-/** Display names for TrackedShipLive.source (ids from backend shiptracker/hub.py). */
-const SOURCE_LABEL: Record<string, string> = {
-  aisstream: 'aisstream.io',
-  marinesia: 'Marinesia',
-  vesselapi: 'VesselAPI',
-  myshiptracking: 'MyShipTracking',
-}
-
-const NAV_STATUS_LABEL: Record<number, string> = {
-  0: 'Under way using engine', 1: 'At anchor', 2: 'Not under command',
-  3: 'Restricted manoeuvrability', 4: 'Constrained by draught', 5: 'Moored',
-  6: 'Aground', 7: 'Engaged in fishing', 8: 'Under way sailing',
-  15: 'Not defined',
-}
 
 export function ShipFullView({ ship, onClose, zIndex = Z_FULL_VIEW_BASE }: {
   ship: TrackedShip; onClose: () => void; zIndex?: number
@@ -141,7 +127,7 @@ function orEmpty(t: ReturnType<typeof useTheme>, v: string | null, placeholder =
 }
 
 function FixRows({ t, live }: { t: ReturnType<typeof useTheme>; live: TrackedShipLive }) {
-  const status = live.nav_status == null ? null : (NAV_STATUS_LABEL[live.nav_status] ?? `Code ${live.nav_status}`)
+  const status = navStatusLabel(live.nav_status)
   return (
     <>
       <TextRow t={t} label="Speed" value={orEmpty(t, live.sog == null ? null : `${live.sog.toFixed(1)} kn`)} />
