@@ -68,6 +68,9 @@ export interface ActiveLightSegment {
 interface Light {
   marker: L.Marker
   points: [number, number][]
+  /** Cheap fingerprint of `points` (see pathKey) — the sync effect compares
+   *  it to spot a segment whose geometry changed while it stayed active. */
+  pathKey: string
   /** Cumulative distance (km) at each point; cumKm[0] === 0. */
   cumKm: number[]
   totalKm: number
@@ -145,6 +148,51 @@ function pointAt(points: [number, number][], cumKm: number[], totalKm: number, d
   const a = points[i - 1]
   const b = points[i]
   return [a[0] + (b[0] - a[0]) * frac, a[1] + (b[1] - a[1]) * frac]
+}
+
+/** Fingerprint of a point sequence: count plus first, middle and last points.
+ *  Enough to notice a segment switching between its waypoint path and its
+ *  surveyed KML path (KML Mode toggled, or KML paths loading after the light
+ *  started) without comparing every point on every render. */
+function pathKey(points: [number, number][]): string {
+  const at = (i: number) => points[i].join(',')
+  return `${points.length}|${at(0)}|${at(points.length >> 1)}|${at(points.length - 1)}`
+}
+
+/** Cumulative great-circle distance table for a point sequence. */
+function measure(points: [number, number][]): { cumKm: number[]; total: number } {
+  let total = 0
+  const cumKm = [0]
+  for (let i = 1; i < points.length; i++) {
+    total += haversineKm(points[i - 1], points[i])
+    cumKm.push(total)
+  }
+  return { cumKm, total }
+}
+
+/**
+ * A segment that stays active is updated in place rather than torn down, so
+ * its phase in the back-and-forth travel isn't lost to a visible jump:
+ *  - colour, e.g. which system's highlight now owns it;
+ *  - geometry, e.g. KML Mode switched on (or KML paths finished loading) so
+ *    the cable is now drawn along its surveyed route. Without this the light
+ *    kept gliding along the old straight / waypoint path, through open ocean
+ *    beside the drawn cable.
+ */
+function updateLight(light: Light, seg: ActiveLightSegment): void {
+  if (light.color !== seg.color) {
+    light.marker.setIcon(buildIcon(seg.color))
+    light.color = seg.color
+  }
+  const key = pathKey(seg.points)
+  if (light.pathKey === key) return
+  const m = measure(seg.points)
+  light.points = seg.points
+  light.pathKey = key
+  light.cumKm = m.cumKm
+  light.totalKm = m.total
+  light.durationMs = durationForLength(m.total)
+  if (light.static) light.marker.setLatLng(pointAt(seg.points, m.cumKm, m.total, m.total / 2))
 }
 
 /** The glowing dot marker for one traveling light, in the given accent colour
@@ -235,22 +283,10 @@ export function TravelingLightLayer({ segments }: Props) {
       if (seg.points.length < 2) continue
       const existing = current.get(seg.id)
       if (existing) {
-        // Same segment still active — only its color can have changed (e.g.
-        // which system's highlight now owns it). Recolor in place rather
-        // than tearing the marker down, so its current position/phase in
-        // the back-and-forth travel isn't lost to a visible jump/restart.
-        if (existing.color !== seg.color) {
-          existing.marker.setIcon(buildIcon(seg.color))
-          existing.color = seg.color
-        }
+        updateLight(existing, seg)
         continue
       }
-      let total = 0
-      const cumKm = [0]
-      for (let i = 1; i < seg.points.length; i++) {
-        total += haversineKm(seg.points[i - 1], seg.points[i])
-        cumKm.push(total)
-      }
+      const { cumKm, total } = measure(seg.points)
       const durationMs = durationForLength(total)
       // Reduced motion: park the marker at the segment's midpoint instead of
       // its start, and mark it `static` so frame() never touches it — see
@@ -261,7 +297,7 @@ export function TravelingLightLayer({ segments }: Props) {
         icon: buildIcon(seg.color), pane: PANE_NAME, interactive: false, keyboard: false,
       }).addTo(map)
       current.set(seg.id, {
-        marker, points: seg.points, cumKm, totalKm: total,
+        marker, points: seg.points, pathKey: pathKey(seg.points), cumKm, totalKm: total,
         durationMs, phaseOffsetMs: hashOffset(seg.id, durationMs), color: seg.color,
         static: reduced,
       })
