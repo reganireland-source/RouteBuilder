@@ -1,0 +1,14 @@
+# Backstop for docker:S6470 — the Dockerfile copies only the paths it needs,
+# but this ensures nothing sensitive or bulky is ever in the build context even
+# if a future COPY becomes less specific.
+node_modules
+dist
+.env
+.env.*
+!.env.example
+*.log
+*.pem
+*.key
+*.crt
+.git
+.DS_Store

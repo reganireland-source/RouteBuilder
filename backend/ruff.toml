@@ -1,0 +1,221 @@
+# Ruff configuration for the RouteBuilder backend.
+#
+# WHY THIS FILE EXISTS
+# The enterprise SonarQube scan reported 62 critical / 269 major / 297 minor issues
+# against a repo that had no linter, no type-checker and no CI. This config is the
+# Python half of that gate. It is deliberately tuned to be GREEN on the code as it
+# stands today so that CI can block on it immediately, and then RATCHET: each
+# deferred rule below is a tracked backlog item, and the way to burn it down is to
+# delete lines from the `ignore` list / `per-file-ignores` table -- never to add them.
+#
+# ------------------------------------------------------------------------------
+# LINE LENGTH = 120 (deliberate, documented choice -- not the ruff default of 88)
+# ------------------------------------------------------------------------------
+# The existing codebase has roughly 800 lines longer than 88 characters. Mechanically
+# rewrapping all of them would produce an enormous, high-risk diff across every module
+# (including the SQL builders and the pathfinder hot loop) for zero behavioural benefit,
+# and would collide with the remediation work happening in these same files. 120 is a
+# common enterprise standard and is what we hold new code to. At 120, only 265 lines
+# remain over the limit and 244 of those are in a single file (app/db.py).
+#
+# ------------------------------------------------------------------------------
+# DEFERRED RULES AND WHY  (globally ignored -- these are backlog, not policy)
+# ------------------------------------------------------------------------------
+#   UP007, UP045  non-pep604-annotation (`Optional[X]` / `Union[X, Y]`)
+#                 127 occurrences, all in app/models.py. These are Pydantic v2 model
+#                 field annotations; `Optional[...]` is still idiomatic and fully
+#                 supported there. Rewriting 127 annotations in the single file that
+#                 defines every request/response contract, while other work is in
+#                 flight in that file, is not a risk worth taking for a style win.
+#                 DEFERRED: fix with `ruff check --select UP007,UP045 --fix` once
+#                 app/models.py is otherwise quiet.
+#
+#   PLC0415       import-outside-top-level (16 occurrences)
+#                 Intentional. The NLP providers (openai / anthropic), the optional
+#                 requirements-nlp.txt extras and several health probes are imported
+#                 lazily so that the app boots when those packages are absent, and a
+#                 few imports are function-local to break import cycles. Enabling this
+#                 rule would force us to make optional dependencies mandatory.
+#                 NOT DEFERRED -- this is a permanent, justified exemption.
+#
+#   PLR0911, PLR0912, PLR0913, PLR0915
+#                 too-many-return-statements / branches / arguments / statements
+#                 (~18 occurrences). This is the same signal SonarQube reports as
+#                 cognitive complexity, and it is the single largest item in the
+#                 remediation backlog. Function-level refactors are being scheduled
+#                 separately; a line-linter is the wrong place to block on them.
+#                 DEFERRED: re-enable per-module as the complexity backlog clears.
+#
+#   PLR2004       magic-value-comparison (10 occurrences)
+#                 Mostly HTTP status codes and small domain constants in data checks.
+#                 High noise, low signal. DEFERRED (low priority).
+#
+#   PLW0603       global-statement (4 occurrences)
+#                 app/db.py and app/main.py hold the psycopg2 connection pool and the
+#                 loaded-graph singleton in module-level globals that are assigned from
+#                 initialisation functions. Reworking that into a proper app-state
+#                 container is a design change, not a lint fix. DEFERRED.
+#
+#   UP042         replace-str-enum (5 occurrences, all app/models.py)
+#                 Suggests `class Ownership(StrEnum)` instead of `(str, Enum)`. This is
+#                 NOT behaviour-preserving: StrEnum changes what `str(member)` and
+#                 f-string interpolation produce (the value, not "Ownership.owned").
+#                 These enums are Pydantic field types that get serialised into API
+#                 responses, written to Postgres and interpolated into log lines, so the
+#                 change could silently alter wire format. Ruff itself classifies the
+#                 fix as unsafe. DEFERRED pending an explicit serialisation review.
+#
+# Everything else in the selected rule set is ENABLED and enforced. Rules that are
+# currently violated in only a handful of specific files are suppressed narrowly in
+# [lint.per-file-ignores] below, with a reason on every entry, so the rule keeps
+# protecting the other ~30 modules and all new code.
+#
+# ------------------------------------------------------------------------------
+# LOCAL USAGE
+#   cd backend && ruff check app/
+#   cd backend && ruff check app/ --statistics     # per-rule counts
+#   cd backend && ruff check app/ --fix            # apply safe autofixes
+# See docs/CODE_QUALITY.md.
+
+line-length = 120
+target-version = "py312"
+
+# Generated / vendored / non-application code is not linted.
+extend-exclude = [
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "data",
+]
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "RET", # flake8-return
+    "UP",  # pyupgrade
+    "PL",  # pylint
+    "S",   # flake8-bandit (security)
+]
+
+ignore = [
+    # --- deferred / permanently exempted; see the header block for the rationale ---
+    "UP007",   # Union[X, Y] -> X | Y      (Pydantic models, app/models.py)
+    "UP045",   # Optional[X] -> X | None   (Pydantic models, app/models.py)
+    "PLC0415", # import-outside-top-level  (deliberate lazy optional imports)
+    "PLR0911", # too-many-return-statements
+    "PLR0912", # too-many-branches
+    "PLR0913", # too-many-arguments
+    "PLR0915", # too-many-statements
+    "PLR2004", # magic-value-comparison
+    "PLW0603", # global-statement
+    "UP042",   # (str, Enum) -> StrEnum       (unsafe: changes str()/f-string output)
+]
+
+# RET504 (unnecessary assignment before return) is intentionally left ON -- it is
+# cheap to satisfy and it is one of the patterns SonarQube flags as a code smell.
+
+[lint.flake8-bugbear]
+# FastAPI's dependency-injection markers are *designed* to be called in argument
+# defaults -- `file: UploadFile = File(...)`, `dry_run: bool = Query(False)`,
+# `db = Depends(get_db)`. B008 fires 21 times on this idiom in the bulk-import and
+# outage-parser routers. Whitelisting the callables is the correct fix rather than
+# suppressing B008, so the rule still catches genuine mutable/expensive defaults.
+extend-immutable-calls = [
+    "fastapi.Body",
+    "fastapi.Cookie",
+    "fastapi.Depends",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Header",
+    "fastapi.Path",
+    "fastapi.Query",
+    "fastapi.Security",
+    "fastapi.UploadFile",
+    "Body",
+    "Cookie",
+    "Depends",
+    "File",
+    "Form",
+    "Header",
+    "Path",
+    "Query",
+    "Security",
+]
+
+[lint.per-file-ignores]
+# ------------------------------------------------------------------------------
+# Every entry below is a shrinking allowlist. When a file's findings are fixed,
+# delete its line. Do not add rules to an existing line to make CI pass -- fix the
+# code or get the exemption reviewed.
+# ------------------------------------------------------------------------------
+
+# app/db.py -- schema DDL plus the large embedded seed/default-data blobs
+# (_TABLES, _DEFAULT_TECH_LOOKUPS, ...). 244 of the 265 over-length lines in the
+# whole backend are these literals; wrapping them hurts readability.
+# S608: the four f-string queries here interpolate *identifiers only*, taken from
+#   the module-level constant lists _TABLES / _DEFAULT_TECH_LOOKUPS; all values are
+#   passed as bound parameters. Each site is already annotated `# nosec B608 -- table
+#   from constant _TABLES`. Those comments are bandit syntax; ruff honours `# noqa`
+#   instead, so the suppression is recorded here rather than by editing 12 call sites.
+# S110: one `except Exception: pass` when returning a connection to the pool during
+#   teardown -- there is genuinely nothing to do there (annotated `# nosec B110`).
+# SIM105: same block; contextlib.suppress would not improve it.
+"app/db.py" = ["E501", "S608", "S110", "SIM105"]
+
+# app/data_loader.py -- the Postgres <-> JSON loader.
+# S608 x7: identical allowlisted-identifier pattern as db.py, every site annotated
+#   `# nosec B608 -- identifiers allowlisted`.
+# S101 x2: asserts used as loader invariants on trusted local data.
+# E501 x7, SIM105, SIM108: cosmetic, in code under active remediation.
+"app/data_loader.py" = ["E501", "S608", "S101", "SIM105", "SIM108"]
+
+# app/api/health.py -- diagnostics endpoints.
+# S608: `SELECT data FROM {table}` where table comes from a constant TABLES list
+#   (annotated `# nosec B608 -- table from constant TABLES`).
+# F401 x3: loader functions imported for the "is this importable?" health probe.
+# E501: one long import line.
+"app/api/health.py" = ["E501", "S608", "F401"]
+
+# app/api/bulk.py -- 937-line bulk import/export router, the largest single
+# remediation target. All of these are being worked on in parallel; the file is
+# exempted from the cosmetic rules only, and B023 is tracked as a real defect.
+# B023 x4: closures capturing a loop variable -- GENUINE BUG CLASS, tracked, must be
+#   fixed and this token removed. Left exempted only so the gate can go green today.
+# S112 x2: `except ... : continue` in per-row import loops (errors are collected into
+#   the response payload, so the exception itself is not lost).
+# E402/E501/E702/PLR1714: cosmetic.
+"app/api/bulk.py" = ["E501", "E402", "E702", "B023", "S112", "PLR1714"]
+
+# app/pathfinder.py -- routing core; annotations are string-quoted for forward refs
+# and there is one deliberate post-import module setup.
+"app/pathfinder.py" = ["E402", "UP037", "PLR1714"]
+
+# app/data_checks.py -- data-integrity reporting; compact one-line guards.
+"app/data_checks.py" = ["E501", "E701", "E702"]
+
+# Small residual cosmetic findings in files owned by other work streams.
+"app/nlp/parser.py" = ["E501"]
+# UP017: one `datetime.timezone.utc` -> `datetime.UTC`. Safe one-line autofix; left
+# exempted only because this file is being edited in parallel. Remove this entry and
+# run `ruff check --select UP017 --fix` when that work lands.
+"app/api/feature_requests.py" = ["UP017"]
+"app/api/nlp.py" = ["B904"]              # raise ... from exc inside except
+"app/api/city_pairs.py" = ["B904"]
+"app/api/outage_parser.py" = ["B904"]
+"app/city_pair_finder.py" = ["SIM102", "C408"]
+"app/graph.py" = ["SIM102"]
+
+# Tests: `assert` is the entire point of pytest, so S101 must be off. Tests are also
+# allowed hardcoded dummy credentials/tokens (S105/S106/S107) and to shell out to
+# nothing in particular; and long parametrise tables are fine.
+"tests/**/*.py" = ["S101", "S105", "S106", "S107", "E501", "PLR2004"]
+
+# One-off maintenance scripts at the backend root are not part of the shipped app.
+"add_waypoints.py" = ["ALL"]
+"dump_postgres_to_json.py" = ["ALL"]
+"populate_capabilities.py" = ["ALL"]

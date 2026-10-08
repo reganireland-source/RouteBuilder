@@ -1,0 +1,14 @@
+[
+  {
+    "id": "engineering",
+    "label": "Engineering",
+    "applies_to": "segment",
+    "order": 1
+  },
+  {
+    "id": "commercial",
+    "label": "Commercial",
+    "applies_to": "segment",
+    "order": 2
+  }
+]

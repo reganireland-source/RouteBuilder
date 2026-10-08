@@ -1,0 +1,386 @@
+# SonarQube Analysis Report — RouteBuilder
+
+**Purpose:** pre-emptive code-quality and security analysis ahead of enterprise
+IT review, run at deliberately maximal strictness so nothing found later is a
+surprise.
+
+| | |
+|---|---|
+| SonarQube | **26.7.0.124771** (Community), run locally in Docker |
+| Scan date | 2026-07-30 (initial pass); re-verified same day after the Planned Events feature landed |
+| Analysed | **29,468 NCLOC** across the repo (up from 28,961 — the Planned Events feature) |
+| Languages | TypeScript, JavaScript, Python, HTML, CSS, Docker |
+| Quality gate | See §0 below — substantively clean, one configuration gap |
+| Raw data | `sonar-reports/*.json` (committed, so results outlive the container) |
+| Reproduce | see §7 |
+
+---
+
+## 0. Final verification (after the Planned Events feature)
+
+Re-ran the identical scan against the latest commit (`5bb04d4`) after adding
+the Planned Events feature (backend `event_type` support + frontend UI), the
+CORS middleware-ordering fix, and the `fault_id` collision fix. This is the
+state that matters for a go/no-go call.
+
+| Metric | Value |
+|---|---|
+| **Bugs** | **0** |
+| **Vulnerabilities** | **0** |
+| **Security rating** | **A** |
+| **Reliability rating** | **A** |
+| **Maintainability rating** | **A** |
+| Code smells (repo-wide, max-pedantic profile) | 11,847 |
+| Duplication | 3.9% |
+
+Bugs and vulnerabilities are unchanged at zero — the new feature (several
+hundred lines across 6 backend files and 8 frontend files) introduced no new
+defect of either kind.
+
+**The SonarQube quality-gate widget itself shows `ERROR`**, on two conditions
+— worth being precise about rather than glossing over:
+
+| Failing condition | What it actually means |
+|---|---|
+| `new_coverage: 0.0` | No test-coverage report (e.g. `pytest --cov` → `coverage.xml`) has ever been wired into these scans. This has been true since the very first scan — it is a **scan-configuration gap**, not something the new code did. The default gate wants ≥80% coverage on new lines; since we never fed it a coverage file, every scan run so far would show this as failing. Not a code-quality regression — a follow-up worth doing if coverage instrumentation matters to IT. |
+| `new_violations: 258` | 262 issues total in the "new code" period (everything changed since the previous scan). **All 262 are `CODE_SMELL` — zero are `BUG` or `VULNERABILITY`.** Verified via the issue search API, not assumed. Top rules: `S1438` missing semicolons (80), `S1774` ternary operator (48), `S6819` "prefer a real `<button>` tag over `role=\"button\"`" (33 — flagging the accessibility fix from §5.2, an example of two pedantic rules pulling in different directions), `S122`/`S1537`/`S103` (braces/commas/line-length, 44 combined) — the same six formatting-rule groups already characterised in §6 as reasonable to disable. The 24 CRITICAL-severity smells are complexity findings (`S1541`, `S3776`, `S2004`, `S1192`) in the same already-known worst-offender files (`RefDataModal.tsx`, `OutageParserModal.tsx`) — consistent with, not a departure from, the complexity backlog in §6.
+
+**Bottom line:** nothing in the new code is a bug, a vulnerability, or a
+security issue. The gate failure is (a) a missing coverage-report wiring that
+predates this feature and (b) more of the exact same style/complexity
+categories already documented as a deliberate, justified exclusion candidate
+— not new problems requiring new treatment.
+
+---
+
+## 1. Why the numbers here are larger than your baseline
+
+Your IT-run scan reported **62 critical / 269 major / 297 minor = 628**.
+This scan reports **11,759**. That is expected and intentional — the two are not
+comparable:
+
+- We activated **every rule in Sonar's repository**, not the curated default
+  profile. Rule counts per language, `pedantic` vs stock `Sonar way`:
+
+| Language | pedantic | Sonar way | extra |
+|---|---|---|---|
+| TypeScript | 507 | 404 | +103 |
+| JavaScript | 489 | 391 | +98 |
+| Python | 405 | 362 | +43 |
+| HTML | 94 | 61 | +33 |
+| CSS | 43 | 40 | +3 |
+| Docker | 28 | 25 | +3 |
+| **Total** | **1,566** | **1,283** | **+283** |
+
+- **Python was in scope** (405 rules). The 628 baseline was almost certainly
+  frontend-only, so backend findings here are new information rather than a
+  regression.
+
+The point of maximal strictness is not to fix 11,759 items. It is to guarantee
+that any rule IT enables is one we have already seen and consciously decided
+about.
+
+---
+
+## 2. Totals
+
+| Severity | Count |
+|---|---|
+| BLOCKER | 42 |
+| CRITICAL | 663 |
+| MAJOR | 4,365 |
+| MINOR | 6,675 |
+| INFO | 14 |
+| **Total** | **11,759** |
+
+| Type | Count |
+|---|---|
+| Code smell | 11,680 |
+| Bug | 57 |
+| Vulnerability | 22 |
+
+| Rating | Grade | Driven by |
+|---|---|---|
+| Maintainability | **A** | 70 days technical debt over 29k NCLOC |
+| Reliability | **D** | 2 CRITICAL bugs |
+| Security | **E** | 4 BLOCKER vulnerabilities |
+| Security hotspots | 0 | — |
+
+### 2.1 Outcome after remediation (measured, not projected)
+
+Eight successive re-scans were run against the same instance and profile to
+verify each change actually moved the needle, rather than trusting that a fix
+worked:
+
+| Metric | Initial scan | Final |
+|---|---|---|
+| **Security rating** | **E** | **A** ✅ |
+| Vulnerabilities | 22 | **0** ✅ |
+| **Reliability rating** | **D** | **A** ✅ |
+| Bugs | 57 | **0** ✅ |
+| Maintainability | A | A |
+| Total findings | 11,759 | ~11,727 |
+
+Both Security and Reliability now sit at **A** with zero bugs and zero
+vulnerabilities. The last 4 bugs (`Map`-shadows-built-in, §5) were cleared by
+renaming the map-rendering component to `NetworkMap` — Sonar's rating function
+caps below A for any MAJOR-or-above bug regardless of count, so that one
+rename was the entire remaining gap between C and A.
+
+Security went E → D → B → A as each class of finding was cleared. The full
+sequence of scans is reproducible from the commits referenced in §4.
+
+**Remaining 55 bugs at the time of the initial scan** (all MINOR or MAJOR —
+no CRITICAL or BLOCKER at any point):
+
+| Rule | Count | Severity | Outcome |
+|---|---|---|---|
+| `typescript:S1082` | 41 | MINOR — mouse events without keyboard equivalents (accessibility) | **Fixed** — see §5.2 |
+| `Web:InternationalizationCheck` | 10 | MAJOR — i18n, English-only internal tool | **Excluded** — confirmed with product owner, see §5.1 |
+| `typescript:S2424` | 3 | MAJOR — `Map` component shadows the built-in | Open — cosmetic, deferred (see below) |
+| `typescript:S2137` | 1 | MAJOR — same root cause | Open — cosmetic, deferred |
+
+After fixing S1082 and excluding the i18n findings: **bugs 55 → 14 → 4**,
+all MAJOR, all in the `Map`-shadows-built-in group. Reliability moved
+**D → C**; the remaining 4 findings are a cosmetic rename (the component would
+need to be renamed at every import site across the app) rather than a defect,
+and are the only thing between here and an A.
+
+Other measures: cognitive complexity 4,734 · cyclomatic complexity 6,269 ·
+duplicated lines 3.9% · comment density 15.2% · 2,288 functions.
+
+---
+
+## 3. The finding that mattered most (not in any scan report)
+
+While verifying the hardened Dockerfile, `npm ci` failed on a clean checkout:
+
+```
+npm error code ERESOLVE
+While resolving: @eslint/js@10.0.1
+Found: eslint@9.39.5
+```
+
+`package.json` pinned `@eslint/js@^10` against `eslint@^9` — an unsatisfiable
+peer range, so **the lockfile could not be installed at all**. Any fresh CI job
+or container build would have failed immediately. Fixed by pinning
+`@eslint/js@^9.39.5` and regenerating the lockfile; `npm ci` now installs 235
+packages cleanly.
+
+This is worth noting because no static-analysis rule catches it — it only shows
+up when you actually try to build from scratch, which is exactly what an IT
+pipeline does first.
+
+---
+
+## 3.1 Second defect found only by running things: file permissions
+
+A re-scan aborted with `EACCES: permission denied` on
+`backend/data/feature_requests.json`. Cause: `tempfile.mkstemp()` creates files
+with mode **0600**, and both atomic-write helpers (`data_loader._write`,
+`feature_requests._save_file_requests`) `os.replace()`d that temp file over the
+destination without restoring the mode. Every runtime write therefore silently
+tightened a tracked 0644 data file to 0600 — invisible in a git diff, and a
+read failure for any process running as a different user, including the
+non-root `appuser` the backend container runs as. Both helpers now preserve the
+destination's mode, falling back to 0644.
+
+Like the `npm ci` breakage above, no static-analysis rule reports this. It
+surfaced only because the tooling actually tried to read the files.
+
+---
+
+## 4. What drives the two poor ratings — and what we did
+
+Sonar's ratings are threshold-based: **one** BLOCKER vulnerability forces
+Security to E, regardless of everything else. Both ratings were therefore
+controlled by 6 findings, all now addressed.
+
+### Security E ← 4 × BLOCKER, all in `frontend/Dockerfile`
+
+| Rule | Finding | Action |
+|---|---|---|
+| `docker:S6472` ×4 | Secrets handled via `ARG`/`ENV` | **Fixed.** The five `ENV VITE_...=$VITE_...` lines were redundant — `ARG` values are already exposed to `RUN` as env vars — and unlike ARGs in a discarded build stage, `ENV` values persist in image metadata readable via `docker inspect`. Removed. The `VITE_*` values are public by design (Vite inlines them into the client bundle); documented in-file. |
+| `docker:S6470` | Recursive `COPY . .` | **Fixed.** Copies only `tsconfig.json`, `vite.config.ts`, `index.html`, `public/`, `src/`; added `frontend/.dockerignore` as a backstop. Prevents `.env` files or local certs entering the build context. |
+| `docker:S6471` | nginx runs as root | **Fixed.** Runs as the unprivileged `nginx` user on port **8080** (ports <1024 need `CAP_NET_BIND_SERVICE`). `docker-compose` maps host 80 → container 8080, so `http://localhost` is unchanged. |
+
+### Reliability D ← 2 × CRITICAL
+
+| Rule | Finding | Action |
+|---|---|---|
+| `typescript:S2871` ×2 | Bare `.sort()` in `CountryNodeDiagram.tsx` (undirected-edge grouping key) and `RouteList.tsx` (latest ISO repair date) | **Fixed — but not as Sonar suggested.** Neither was a live bug. Sonar recommends `String.localeCompare`, which would have been a **regression**: locale-aware collation is locale-dependent, so the grouping key could vary between runtimes and split groups that must merge, and it could reorder fixed-width ISO dates where we rely on taking the last element. Both now use an explicit locale-*independent* comparator, with the reasoning recorded in comments. |
+
+---
+
+## 5. Remaining genuine defects — final state: zero
+
+Every finding in the original 79-defect set has now been fixed or excluded
+with a recorded, reversible rationale. **0 bugs, 0 vulnerabilities.**
+
+The last 4 (`typescript:S2424` ×3, `S2137` ×1 — the `Map` React component
+shadowing the built-in JS `Map`) were fixed by renaming the component to
+`NetworkMap` across its definition (`Map.tsx`) and both import sites
+(`App.tsx`, `MobileLayout.tsx`). Purely a naming collision — nothing was ever
+functionally broken — but a rename was cheap to do properly rather than
+justify away.
+
+Full resolution history: `typescript:S1082` (41, fixed — §5.2),
+`Web:InternationalizationCheck` (10, excluded — English-only internal tool,
+confirmed with product owner), `docker:S6470/S6471/S6472` (7, fixed),
+`Web:S5725` (1, fixed by bundling Leaflet's CSS), `typescript:S4036` (1,
+excluded — build-time only, no user input), `typescript:S2871` (2, fixed),
+`typescript:S2424`/`S2137` (4, fixed by the `NetworkMap` rename).
+
+### 5.1 Accounting: what was fixed in code vs. assessed and excluded
+
+This distinction matters more than the headline ratings — a reviewer should be
+able to see exactly which improvements are real and which are judgement calls.
+
+**Fixed by changing code** (behaviour genuinely improved):
+
+| Finding | Change |
+|---|---|
+| `docker:S6470` ×2 | Recursive `COPY . .` replaced with explicit paths in **both** Dockerfiles, plus `.dockerignore` in each. The backend one was missed on the first pass and only caught by a later re-scan. |
+| `docker:S6471` | nginx now runs as the unprivileged `nginx` user on port 8080 |
+| `docker:S6472` ×2 | Redundant `ENV VITE_...` lines removed — these persisted values in image metadata readable via `docker inspect` |
+| `Web:S5725` | Leaflet CSS no longer loaded from `unpkg.com`; bundled from the pinned npm dependency, removing the CDN from the trust chain entirely |
+| `typescript:S2871` ×2 | Explicit locale-independent comparators on bare `.sort()` |
+| *(not a Sonar finding)* | `npm ci` was broken by an unsatisfiable `@eslint/js` peer range |
+| *(not a Sonar finding)* | Atomic writes silently tightening data files to 0600 |
+
+**Assessed and excluded** (4 entries in `sonar-project.properties`, each scoped
+to one rule + one file, each with reasoning and an invalidating condition):
+
+| Rule | Count | Basis |
+|---|---|---|
+| `docker:S6472` | 2 | `VITE_*` ARG names match Sonar's secret heuristic, but Vite inlines these values into the browser bundle — the bundle is the disclosure, so no build-time mechanism can make them secret |
+| `javascript/typescript:S2245` | 14 | Every `Math.random()` call site read: decorative canvas animation and synthetic test data. Grepped the whole frontend — no identifier, token, nonce or crypto value derives from it |
+| `typescript:S4036` | 1 | Build-time `git` invocation, no user input, never in the deployed artefact; exploiting it requires write access to the build machine's PATH, where node/npm/vite are equally replaceable |
+
+Exclusions were deliberately encoded **in the repo** rather than marked
+"won't fix" in the local instance, so the decisions travel with the code, your
+own scan inherits them, and any one of them can be revoked by deleting a line.
+
+### Deliberately not fixed — for the IT conversation
+
+| Rule | Count | Why it is not a defect here |
+|---|---|---|
+| `javascript:S2245` | 12 | `Math.random()` flagged as an insecure PRNG. Every instance is in `frontend/public/suite.html`, driving the **decorative pixel-art background animation** (node placement, packet colour/speed). No security decision, token, identifier or crypto depends on it. Would become a real finding if `Math.random()` were ever used for session ids, tokens or nonces. |
+| `typescript:S2245` | 2 | Same, in `AlgoEval.tsx` test-data generation. |
+
+---
+
+## 6. The ~11,680 code smells — and the honest recommendation
+
+**Six rule groups account for roughly 9,000 of the 11,759 findings**, and all
+six are formatting rules that Sonar disables by default:
+
+| Rule | Count | What it flags |
+|---|---|---|
+| `typescript:S1438` | **4,679** | Missing semicolons — this codebase deliberately omits them |
+| `typescript:S1774` | 1,130 | Ternary operator used |
+| `typescript:S1537` | 863 | Trailing commas |
+| `typescript:S109` | 794 | Magic numbers |
+| `typescript:S103` + `python:LineLength` | 845 | Line length |
+| `typescript:S121` + `S122` | 672 | Braces / one statement per line |
+
+`S1438` alone is 40% of the total and is actively *wrong* for this project —
+no-semicolons is the established, consistently applied style.
+
+**The genuinely useful smells** are the complexity and duplication findings,
+which overlap with planned refactoring work:
+
+| Rule | Count | Meaning |
+|---|---|---|
+| `typescript:S3776` + `python:S3776` | 45 | Cognitive complexity too high |
+| `typescript:S1541` + `python:FunctionComplexity` | 93 | Cyclomatic complexity too high |
+| `typescript:S1192` + `python:S1192` | 96 | Duplicated string literals |
+| `typescript:S2004` | 37 | Deeply nested functions |
+| `typescript:S1067` | 33 | Over-complex expressions |
+
+### Worst files by issue count
+
+| File | Issues |
+|---|---|
+| `frontend/src/components/RefDataModal.tsx` | 1,195 |
+| `frontend/src/utils/generateDiagram.ts` | 1,126 |
+| `frontend/src/utils/generateUserGuide.ts` | 1,079 |
+| `frontend/src/App.tsx` | 879 |
+| `frontend/src/components/AlgoEval.tsx` | 668 |
+| `frontend/src/components/CountryNodeDiagram.tsx` | 624 |
+| `frontend/src/components/RouteList.tsx` | 585 |
+| `frontend/src/components/UserGuide.tsx` | 580 |
+| `backend/app/db.py` | 495 |
+| `frontend/src/components/SearchForm.tsx` | 480 |
+
+These are the largest files, so the concentration is mostly a size effect rather
+than a quality signal.
+
+### Recommendation
+
+Do **not** target zero findings. This is the profile actually applied:
+
+1. **Fixed** — all 6 rating-driving findings, the 41 accessibility findings,
+   `Web:S5725` (CDN stylesheet), plus two bugs (`npm ci` breakage, silent
+   0600 permission bug) that no Sonar rule even reports. Done.
+2. **Excluded, with written and dated justification** — the 4
+   `VITE_*` ARG names, 14 decorative `Math.random()` calls, the build-time
+   `git` invocation, and the 10 i18n findings (confirmed English-only with
+   the product owner). All four are one rule scoped to one file in
+   `sonar-project.properties`, each reversible by deleting a line.
+3. **Address** — the ~300 complexity/duplication findings, through the
+   planned refactor of the largest components (§6).
+4. **Disable, with written justification** — the six formatting rule groups
+   (~9,000 findings, §6) that conflict with the project's established style.
+5. **Open, low priority** — the 4 remaining `Map`-shadows-built-in findings
+   (§5), a cosmetic rename touching every import site.
+
+That yields a reviewable position: every finding is fixed, excluded with a
+named and datable reason, or explicitly queued — none are silently ignored.
+
+---
+
+## 7. Reproducing this scan
+
+```bash
+# 1. Server
+docker run -d --name sq --restart unless-stopped -p 9000:9000 \
+  -e SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true sonarqube:community
+
+# 2. If the web process dies with "Background initialization failed" and
+#    GET /_cluster/health returns 408, Elasticsearch is refusing to allocate
+#    shards because it computes the disk above the 90% high watermark (this
+#    happens on hosts where df under-reports usage). Disable the decider:
+docker exec sq curl -s -X PUT localhost:9001/_cluster/settings \
+  -H 'Content-Type: application/json' \
+  -d '{"persistent":{"cluster.routing.allocation.disk.threshold_enabled":false}}'
+docker restart sq        # NB: `docker rm` loses this setting
+
+# 3. Max-pedantic profiles — for each of py, js, ts, css, web, docker:
+#    POST /api/qualityprofiles/create        (name=pedantic, language=$LANG)
+#    POST /api/qualityprofiles/activate_rules (targetKey=$KEY, languages=$LANG,
+#                                              no severity/type filter = ALL rules)
+#    POST /api/qualityprofiles/set_default   (language=$LANG, qualityProfile=pedantic)
+
+# 4. Scan (scan config is committed as sonar-project.properties)
+docker run --rm --network host \
+  -e SONAR_HOST_URL=http://localhost:9000 -e SONAR_TOKEN=<token> \
+  -v "$PWD:/usr/src" sonarsource/sonar-scanner-cli
+```
+
+---
+
+## 8. Related documents
+
+- `SECURITY_REVIEW.md` — separate security review (dependency CVEs, auth model,
+  injection surface, accepted risks incl. the client-side password gate).
+- `docs/okta-security-scan.md` — the same style of pedantic scan, scoped to
+  the Okta SSO feature added after this repo-wide scan was last run, using
+  substitute tooling (this sandbox's Docker daemon could not run the setup
+  in §7) — includes a real dependency CVE finding and fix (PyJWT).
+- `docs/entra-security-scan.md` — the same style of pedantic scan again,
+  scoped to the Microsoft Entra ID SSO addition (a second SSO provider
+  alongside Okta, sharing the same backend JWT verification code) — no
+  dependency CVE or hardening gap found this time.
+- `sonar-reports/` — raw API exports: `facets.json`, `defects.json`,
+  `blockers.json`, `criticals.json`, `measures.json`, `profiles.json`.
