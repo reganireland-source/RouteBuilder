@@ -23,6 +23,8 @@
 import { useMemo, useState } from 'react'
 import type { CableSegment, SegmentCapacity } from '../types'
 import { useTheme } from '../theme'
+import { capacityParts } from '../utils/capacity'
+import { CapacityBar } from './CapacityBreakdown'
 
 /** Props for {@link CapacityDashboard}. See file header for a fuller description of each field. */
 interface Props {
@@ -42,32 +44,20 @@ function pct(used: number, total: number): string {
   return `${Math.round((used / total) * 100)}%`
 }
 
-/**
- * A small horizontal utilisation gauge: a fixed-width track with a filled
- * portion sized to `used/total` (capped at 100%), coloured green/orange/red
- * at the same 60%/85% thresholds used elsewhere in this file.
- */
-function UtilBar({ used, total }: { used: number; total: number }) {
-  const t = useTheme()
-  const ratio = total > 0 ? Math.min(used / total, 1) : 0
-  const color = ratio > 0.85 ? t.red : ratio > 0.6 ? t.orange : t.green
-  return (
-    <div style={{ width: 64, height: 6, borderRadius: 3, background: t.border, flexShrink: 0 }}>
-      <div style={{ width: `${ratio * 100}%`, height: '100%', borderRadius: 3, background: color, transition: 'width 0.3s' }} />
-    </div>
-  )
-}
-
-/** A SegmentCapacity record joined against its parent CableSegment, plus derived used/utilPct figures. */
+/** A SegmentCapacity record joined against its parent CableSegment, plus the
+ *  derived split (see utils/capacity.ts). `committedPct` is Used + Reserved as a
+ *  share of Total — how much is spoken for, i.e. not free to sell. */
 interface EnrichedSeg {
-  id:        string
-  name:      string
-  system_id: string
-  type:      string
-  total:     number
-  avail:     number
-  used:      number
-  utilPct:   number
+  id:           string
+  name:         string
+  system_id:    string
+  type:         string
+  cap:          SegmentCapacity
+  total:        number
+  avail:        number
+  reserved:     number
+  used:         number
+  committedPct: number
 }
 
 /**
@@ -81,7 +71,7 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
   const t = useTheme()
 
   // Join SegmentCapacity rows against their CableSegment (for name/system/type),
-  // and derive `used` (total - available) and `utilPct` once up front so every
+  // and derive the Free / Reserved / Used split once up front so every
   // consumer below (tables, stat cards, sort comparators) can read them directly
   // rather than recomputing. Capacity records with no matching segment (stale
   // data) are silently skipped rather than rendered with blank labels.
@@ -91,17 +81,18 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
     for (const c of capacity) {
       const seg = segById[c.segment_id]
       if (!seg) continue
+      const p = capacityParts(c)
       result.push({
-        id:        c.segment_id,
-        name:      seg.name,
-        system_id: seg.system_id,
-        type:      seg.type,
-        total:     c.total_capacity_t,
-        avail:     c.available_capacity_t,
-        used:      c.total_capacity_t - c.available_capacity_t,
-        utilPct:   c.total_capacity_t > 0
-          ? (c.total_capacity_t - c.available_capacity_t) / c.total_capacity_t
-          : 0,
+        id:           c.segment_id,
+        name:         seg.name,
+        system_id:    seg.system_id,
+        type:         seg.type,
+        cap:          c,
+        total:        p.total,
+        avail:        p.free,
+        reserved:     p.reserved,
+        used:         p.used,
+        committedPct: p.committedPct,
       })
     }
     return result
@@ -114,7 +105,8 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
 
   const totalCap      = enriched.reduce((s: number, e: EnrichedSeg) => s + e.total, 0)
   const totalAvail    = enriched.reduce((s: number, e: EnrichedSeg) => s + e.avail, 0)
-  const totalUsed     = totalCap - totalAvail
+  const totalReserved = enriched.reduce((s: number, e: EnrichedSeg) => s + e.reserved, 0)
+  const totalUsed     = enriched.reduce((s: number, e: EnrichedSeg) => s + e.used, 0)
 
   const wetCap        = wetSegs.reduce((s: number, e: EnrichedSeg) => s + e.total, 0)
   const wetAvail      = wetSegs.reduce((s: number, e: EnrichedSeg) => s + e.avail, 0)
@@ -131,7 +123,13 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
   const topSpare      = [...filtered].sort((a, b) => b.avail - a.avail).slice(0, 15)
   const topCongested  = [...filtered].sort((a, b) => a.avail - b.avail).slice(0, 15)
 
-  const networkUtil   = totalCap > 0 ? Math.round((totalUsed / totalCap) * 100) : 0
+  // Committed = Used + Reserved: everything that isn't free to sell.
+  const networkUtil   = totalCap > 0 ? Math.round(((totalUsed + totalReserved) / totalCap) * 100) : 0
+  const committedColor = (ratio: number) => {
+    if (ratio > 0.85) return t.red
+    if (ratio > 0.6) return t.orange
+    return t.green
+  }
 
   // ── Styles ────────────────────────────────────────────────────────────────
   const statCard = (_accent: string): React.CSSProperties => ({
@@ -169,8 +167,8 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
   /**
    * Renders one ranked table of EnrichedSeg rows (used for both "Top 15 Most
    * Spare" and "Top 15 Most Congested" with different pre-sorted `rows`),
-   * with a rank column, formatted available/total capacity, a colour-coded
-   * used-% cell, and a UtilBar. Defined inside CapacityDashboard so it can
+   * with a rank column, Free / Reserved / Total, a colour-coded committed-%
+   * cell (Used + Reserved) and a stacked Used / Reserved / Free bar. Defined inside CapacityDashboard so it can
    * close over `t` (theme) without threading it through props.
    */
   function SegTable({ rows, label }: { rows: typeof topSpare; label: string }) {
@@ -185,9 +183,10 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
                 <th style={th}>Segment</th>
                 <th style={th}>System</th>
                 <th style={th}>Type</th>
-                <th style={{ ...th, textAlign: 'right' }}>Available</th>
+                <th style={{ ...th, textAlign: 'right' }}>Free</th>
+                <th style={{ ...th, textAlign: 'right' }}>Reserved</th>
                 <th style={{ ...th, textAlign: 'right' }}>Total</th>
-                <th style={{ ...th, textAlign: 'right' }}>Used %</th>
+                <th style={{ ...th, textAlign: 'right' }} title="Used + Reserved, as a share of Total">Committed</th>
                 <th style={th}></th>
               </tr>
             </thead>
@@ -212,16 +211,17 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
                   <td style={{ ...td, textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                     {fmt(r.avail)}
                   </td>
+                  <td style={{ ...td, textAlign: 'right', color: r.reserved > 0 ? t.text : t.textFaintest, fontVariantNumeric: 'tabular-nums' }}>
+                    {r.reserved > 0 ? fmt(r.reserved) : '—'}
+                  </td>
                   <td style={{ ...td, textAlign: 'right', color: t.textMuted, fontVariantNumeric: 'tabular-nums' }}>
                     {fmt(r.total)}
                   </td>
-                  <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums',
-                    color: r.utilPct > 0.85 ? t.red : r.utilPct > 0.6 ? t.orange : t.green
-                  }}>
-                    {pct(r.used, r.total)}
+                  <td style={{ ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: committedColor(r.committedPct) }}>
+                    {pct(r.used + r.reserved, r.total)}
                   </td>
                   <td style={{ ...td, paddingRight: 16 }}>
-                    <UtilBar used={r.used} total={r.total} />
+                    <div style={{ width: 64 }}><CapacityBar cap={r.cap} height={6} /></div>
                   </td>
                 </tr>
               ))}
@@ -295,9 +295,9 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
               {networkUtil}%
             </div>
             <div>
-              <div style={{ fontWeight: 700, color: t.text, fontSize: 14 }}>Overall Network Utilisation</div>
+              <div style={{ fontWeight: 700, color: t.text, fontSize: 14 }}>Overall Network Utilisation (used + reserved)</div>
               <div style={{ fontSize: 12, color: t.textMuted }}>
-                {fmt(totalUsed)} used of {fmt(totalCap)} total · {fmt(totalAvail)} spare
+                {fmt(totalUsed)} used · {fmt(totalReserved)} reserved · {fmt(totalAvail)} free, of {fmt(totalCap)} total
               </div>
             </div>
           </div>
@@ -333,6 +333,11 @@ export function CapacityDashboard({ segments, capacity, onClose }: Props) {
               <span style={subLabel}>Terrestrial Spare</span>
               <span style={{ ...bigNum, color: t.green }}>{fmt(terrAvail)}</span>
               <span style={{ fontSize: 11, color: t.textFaint }}>{pct(terrAvail, terrCap)} of terrestrial total</span>
+            </div>
+            <div style={statCard(t.orange)}>
+              <span style={subLabel}>Total Reserved</span>
+              <span style={{ ...bigNum, color: t.orange }}>{fmt(totalReserved)}</span>
+              <span style={{ fontSize: 11, color: t.textFaint }}>{pct(totalReserved, totalCap)} of total · not free to sell</span>
             </div>
           </div>
 

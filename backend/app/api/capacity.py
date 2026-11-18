@@ -8,8 +8,10 @@
 # Domain: "capacity" = how much bandwidth (available spectrum / wavelengths,
 # measured in Tbps here) exists on a cable segment. A "segment" is one cable hop
 # between two nodes. Each capacity record is keyed by its segment_id (one record
-# per segment) and stores total_capacity_t and available_capacity_t. The
-# route-search pathfinder reads this to know which segments can carry a circuit.
+# per segment) and stores total_capacity_t, available_capacity_t (Free) and
+# reserved_capacity_t; Used is derived (Total - Free - Reserved). The
+# route-search pathfinder reads Free only — reserved capacity can't carry a
+# new circuit.
 #
 # Endpoints:
 #   GET    /api/capacity                — list every segment's capacity record.
@@ -18,6 +20,7 @@
 #   DELETE /api/capacity/{segment_id}   — remove a capacity record.
 # ─────────────────────────────────────────────────────────────────────────────
 from fastapi import APIRouter, HTTPException
+from pydantic import ValidationError
 from ..data_loader import load_capacity, save_capacity
 from ..models import SegmentCapacity, SegmentCapacityUpdate
 
@@ -30,7 +33,8 @@ def get_capacity():
 
     Params: none.
     Response: a JSON array of SegmentCapacity objects, one per segment that has
-    a capacity record (segment_id, total_capacity_t, available_capacity_t).
+    a capacity record (segment_id, total_capacity_t, available_capacity_t,
+    reserved_capacity_t).
 
     Auth: public read endpoint; no token required.
     """
@@ -66,7 +70,8 @@ def update_capacity(segment_id: str, updates: SegmentCapacityUpdate):
       - segment_id (path): which segment's capacity record to update.
       - request body: a SegmentCapacityUpdate with only the fields to change.
     Response: the updated SegmentCapacity. Returns HTTP 404 if no record exists
-    for that segment_id.
+    for that segment_id, HTTP 422 if the merged record breaks Free + Reserved
+    <= Total (e.g. raising Reserved alone past what Total allows).
 
     Auth: requires the x-admin-token header when ADMIN_KEY is set — enforced
     centrally by the admin_write_guard middleware in app/main.py, not here.
@@ -75,8 +80,15 @@ def update_capacity(segment_id: str, updates: SegmentCapacityUpdate):
     for i, cap in enumerate(capacity):
         if cap.segment_id == segment_id:
             # Merge only the explicitly-supplied fields (exclude_unset) onto the
-            # existing record so omitted fields keep their current values.
-            updated = cap.model_copy(update=updates.model_dump(exclude_unset=True))
+            # existing record so omitted fields keep their current values, then
+            # re-validate the result: model_copy() alone does not, so a
+            # one-field change could otherwise break Free + Reserved <= Total
+            # (review finding #11).
+            merged = {**cap.model_dump(), **updates.model_dump(exclude_unset=True)}
+            try:
+                updated = SegmentCapacity.model_validate(merged)
+            except ValidationError as exc:
+                raise HTTPException(status_code=422, detail=exc.errors()[0]["msg"].removeprefix("Value error, ")) from None
             capacity[i] = updated
             save_capacity(capacity)
             return updated

@@ -1253,7 +1253,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {[
               { icon: '◈', name: 'Capacity', color: t.blue,
-                fields: 'segment_id · total_capacity_t · available_capacity_t',
+                fields: 'segment_id · total_capacity_t · available_capacity_t (Free) · reserved_capacity_t — Used = Total − Free − Reserved',
                 role: 'Powers the capacity dashboard. Available Tbps at the bottleneck segment sets the est. capacity shown on each route card.' },
               { icon: '🚨', name: 'Outages', color: t.red,
                 fields: 'segment_id · fault_id · fault_date · repair_start · estimated_repair_date · description · event_type',
@@ -1387,7 +1387,7 @@ export function UserGuide({ nodes, segments, systems }: Props) {
             {[
               { icon: '🏗', color: t.blue,     title: 'Graph Build',            desc: 'On startup, the backend loads all Nodes and Segments from PostgreSQL and builds a weighted NetworkX graph. Edge weights incorporate length, latency, reliability and ownership.' },
               { icon: '⚖️', color: t.orange,   title: 'Constraint Resolution',  desc: 'When a search request arrives, must_include / must_avoid IDs (nodes, segments, systems, countries) are resolved against the live node and segment dataset.' },
-              { icon: '◈',  color: t.green,    title: 'Capacity Overlay',        desc: 'Available capacity per segment is loaded from the Capacity table and applied as a secondary filter when sorting by capacity.' },
+              { icon: '◈',  color: t.green,    title: 'Capacity Overlay',        desc: 'Each segment\'s capacity splits into Free, Reserved (held for a customer, project or restoration but not carrying traffic) and Used, adding up to Total. Route search, capacity sorting and the low-capacity filter use Free only; cable views show the full split.' },
               { icon: '🚨', color: t.red,      title: 'Outage Flagging',         desc: 'Each path is checked against the Outages table. Affected routes receive an outage badge and can be pushed to the bottom of results by the UP sort. Planned Events are checked and shown the same way, with a quieter amber badge — but never filtered, sorted or excluded, since the work has not happened yet.' },
               { icon: '$',  color: '#8b5cf6',  title: 'Margin Scoring',          desc: 'Each segment\'s ownership type and its parent system\'s margin score are combined to compute a weighted route margin (1–10) — the commercial attractiveness indicator.' },
             ].map(({ icon, color, title, desc }) => (

@@ -26,6 +26,8 @@ import type {
 } from '../types'
 import { useTheme } from '../theme'
 import { SegmentFullView } from './SegmentFullView'
+import { CapacityBar } from './CapacityBreakdown'
+import { capacityParts, formatTbps } from '../utils/capacity'
 
 interface Props {
   segment: CableSegment
@@ -129,9 +131,8 @@ export function SegmentInfoPanel({
   const end   = nodesById[segment.end_node_id]
   const system = systems.find(s => s.id === segment.system_id)
   const cap = capacity.find(c => c.segment_id === segment.id)
-  const capPct = cap && cap.total_capacity_t > 0
-    ? Math.round((cap.available_capacity_t / cap.total_capacity_t) * 100)
-    : null
+  const capParts = cap ? capacityParts(cap) : null
+  const capPct = capParts && capParts.total > 0 ? Math.round(capParts.freePct * 100) : null
 
   // Only CURRENT outages, matching the map's own rule — a planned event must
   // never make a segment read as down.
@@ -226,9 +227,8 @@ export function SegmentInfoPanel({
           ))}
         </div>
 
-        {/* Capacity — the one number the hover tooltip already showed, given a
-            bar here because "23% available" reads very differently at a glance
-            from "0.8T of 3.5T". */}
+        {/* Capacity — Free leads (it's what can be sold), then the stacked bar
+            and the Reserved / Used split so the rest of Total is accounted for. */}
         <div style={{ padding: '10px 12px 14px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
             Capacity
@@ -236,14 +236,13 @@ export function SegmentInfoPanel({
           {cap && capPct !== null ? (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
-                <span style={{ color: t.text }}>{cap.available_capacity_t}T of {cap.total_capacity_t}T available</span>
+                <span style={{ color: t.text }}>{formatTbps(capParts!.free)} free of {formatTbps(capParts!.total)}</span>
                 <span style={{ color: capacityColor(capPct, t), fontWeight: 700 }}>{capPct}%</span>
               </div>
-              <div style={{ height: 6, borderRadius: 3, background: t.border, overflow: 'hidden' }}>
-                <div style={{
-                  width: `${Math.max(0, Math.min(100, capPct))}%`, height: '100%',
-                  background: capacityColor(capPct, t),
-                }} />
+              <CapacityBar cap={cap} height={6} />
+              <div style={{ display: 'flex', gap: 12, fontSize: 11, color: t.textMuted, marginTop: 5 }}>
+                <span>Reserved {formatTbps(capParts!.reserved)}</span>
+                <span>Used {formatTbps(capParts!.used)}</span>
               </div>
             </>
           ) : (

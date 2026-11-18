@@ -52,6 +52,7 @@
  */
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
+import { CapacityBreakdown } from './CapacityBreakdown'
 import type {
   CableNode, CableSegment, CableSystem, SegmentCapacity, SegmentOutage,
   SolutionNote, NoteCategory, SegmentType, Ownership, RfsStatus, EolStatus, KmlPathInfo,
@@ -77,7 +78,7 @@ import {
   backdropClose, backdropStyle, dialogStyle, headerShell, scrollerStyle, rowStyle,
   Card, Row, TextRow, Empty, NotFound, EditField, SelectField, ReadOnlyIdField, FullViewColumn,
   EditFormFooter, iconBtn, closeBtnStyle, inputStyle, fieldLabelStyle, Pill,
-  utilisationColor, Z_FULL_VIEW_BASE, nextFullViewLayer,
+  Z_FULL_VIEW_BASE, nextFullViewLayer,
 } from './fullViewChrome'
 
 // The same option sets the Reference Data segment form uses — kept identical on
@@ -732,25 +733,11 @@ function MetricsList({ t, segment }: { t: T; segment: CableSegment }) {
   )
 }
 
-/** Total/available/used figures plus a utilisation bar, or an `Empty` line
+/** Free / Reserved / Used / Total plus a stacked bar, or an `Empty` line
  *  when the segment has no capacity record at all. */
 function CapacityBlock({ t, cap }: { t: T; cap?: SegmentCapacity }) {
   if (!cap) return <Empty t={t}>No capacity record for this segment.</Empty>
-  const total = cap.total_capacity_t
-  const used = total - cap.available_capacity_t
-  const pct = total > 0 ? used / total : 0
-  return (
-    <div>
-      <TextRow t={t} label="Total" value={`${total.toLocaleString()} T`} />
-      <TextRow t={t} label="Available" value={`${cap.available_capacity_t.toLocaleString()} T`} />
-      <TextRow t={t} label="Used" value={`${used.toLocaleString()} T (${Math.round(pct * 100)}%)`} />
-      {total > 0 && (
-        <div style={{ height: 6, borderRadius: 3, background: t.bgDeep, marginTop: 8, overflow: 'hidden' }}>
-          <div style={{ width: `${Math.round(pct * 100)}%`, height: '100%', background: utilisationColor(pct, t) }} />
-        </div>
-      )}
-    </div>
-  )
+  return <CapacityBreakdown cap={cap} />
 }
 
 /**

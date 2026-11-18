@@ -1355,7 +1355,7 @@ function SegInfoPanel({ seg, color, nodesById, systemsById, capMap }: {
         <InfoRow label="Avail."  value={`${(seg.reliability * 100).toFixed(2)}%`} />
         {cap && (
           <InfoRow label="Capacity"
-            value={`${cap.available_capacity_t} T free / ${cap.total_capacity_t} T total`} />
+            value={`${cap.available_capacity_t} T free · ${cap.reserved_capacity_t ?? 0} T reserved / ${cap.total_capacity_t} T total`} />
         )}
         {seg.verification_status && (
           <InfoRow label="Status" value={seg.verification_status.replace('_', ' ')} />

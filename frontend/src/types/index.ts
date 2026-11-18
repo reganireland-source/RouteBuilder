@@ -299,10 +299,18 @@ export interface RouteResponse {
  * Capacity record for one segment (GET /api/capacity), in terabits.
  * Shown in CapacityDashboard and used by capacity-based route sorting.
  */
+/** A segment's capacity, in Tbps. Total = Free + Reserved + Used:
+ *  - available_capacity_t: Free / spare — what route search and every "can I
+ *    sell this" view use;
+ *  - reserved_capacity_t: held back (committed to a customer or project, or
+ *    kept for restoration) but not yet carrying traffic. Older records and
+ *    backends may omit it: treat missing as 0 (see utils/capacity.ts);
+ *  - Used is derived: total − free − reserved. */
 export interface SegmentCapacity {
   segment_id: string
   total_capacity_t: number
   available_capacity_t: number
+  reserved_capacity_t?: number
 }
 
 /**

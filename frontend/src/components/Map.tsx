@@ -73,6 +73,7 @@ import { EditorMapLayer } from './EditorMapLayer'
 import { KmlChopMapLayer, type KmlChopMapLayerProps } from './KmlChopMapLayer'
 import { LivingWorldLayer } from './LivingWorldLayer'
 import { TravelingLightLayer } from './TravelingLightLayer'
+import { capacityParts, formatTbps } from '../utils/capacity'
 import type { ActiveLightSegment } from './TravelingLightLayer'
 import { OutageAlertLayer } from './OutageAlertLayer'
 import type { OutageAlertSegment } from './OutageAlertLayer'
@@ -1224,9 +1225,11 @@ export function NetworkMap({ nodes, segments, selectedRoutes, capacity, pinnedRo
               </span></>
             )}
             {capacityById[seg.id] && (() => {
-              const cap = capacityById[seg.id]
-              const pct = Math.round((cap.available_capacity_t / cap.total_capacity_t) * 100)
-              return <><br />Capacity: {cap.available_capacity_t}T / {cap.total_capacity_t}T available ({pct}%)</>
+              const p = capacityParts(capacityById[seg.id])
+              return <>
+                <br />Capacity: {formatTbps(p.free)} free of {formatTbps(p.total)} ({Math.round(p.freePct * 100)}%)
+                {p.reserved > 0 && <> · {formatTbps(p.reserved)} reserved</>}
+              </>
             })()}
           </Tooltip>
         )

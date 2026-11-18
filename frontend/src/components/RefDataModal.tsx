@@ -70,6 +70,7 @@ import { api } from '../api/client'
 import { ProductCoveragePanel } from './ProductCoveragePanel'
 import { BulkImportPanel } from './BulkImportPanel'
 import { TechEnrichmentPanel } from './TechEnrichmentPanel'
+import { capacityParts, capacitySplitError, formatTbps } from '../utils/capacity'
 
 // Feature flag: the AI Outage Parser (reads a pasted screenshot/table via an
 // LLM vision call — see backend/app/api/outage_parser.py). Disabled when
@@ -1413,27 +1414,57 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
 
   // ── Capacity tab ─────────────────────────────────────────────────────────────
 
-  // ── Capacity tab ── per-segment total/available capacity (in Tbps). ───────
+  // ── Capacity tab ── per-segment Total / Free / Reserved capacity (Tbps). ──
   /**
-   * Renders the Capacity data tab: one row per segment_id with total/available
-   * capacity in Tbps, plus a derived "% Free" column (available/total, colour-
-   * coded red <20%, orange <50%, else green). The "+ Add" form uses a bespoke
+   * Renders the Capacity data tab: one row per segment_id with Total, Free
+   * (available_capacity_t), Reserved and the derived Used (Total − Free −
+   * Reserved) in Tbps, plus "% Free" (free/total, colour-coded red <20%, orange
+   * <50%, else green). The add/edit forms show Used live, or why the split is
+   * impossible (Free + Reserved > Total). The "+ Add" form uses a bespoke
    * inline `segSearchWidget` (not the shared <SegmentSearchField>, which lives
    * outside this closure and can't see `capSegmentOpen`) to look up the
    * segment_id, backed by the modal-level `capSegmentOpen` open/closed state.
    */
   function CapacityTab() {
+    const freePctColor = (pct: number) => {
+      if (pct < 20) return t.red
+      if (pct < 50) return t.orange
+      return t.green
+    }
+    const capEditStart = (c: SegmentCapacity) => ({
+      total_capacity_t: c.total_capacity_t, available_capacity_t: c.available_capacity_t,
+      reserved_capacity_t: c.reserved_capacity_t ?? 0,
+    })
     const filtered = capacity.filter(c =>
       !filter || c.segment_id.toLowerCase().includes(filter.toLowerCase())
     )
     const capSaveVals = (vals: Record<string, unknown>) => ({
       total_capacity_t: parseFloat(String(vals.total_capacity_t)) || 0,
       available_capacity_t: parseFloat(String(vals.available_capacity_t)) || 0,
+      reserved_capacity_t: parseFloat(String(vals.reserved_capacity_t ?? 0)) || 0,
     })
+    // Total = Free + Reserved + Used: the three inputs, then Used (derived) or
+    // why the split is impossible, live as the admin types.
+    const capFields = (src: Record<string, unknown>, setSrc: (v: Record<string, unknown>) => void) => {
+      const v = capSaveVals(src)
+      const err = capacitySplitError(v.total_capacity_t, v.available_capacity_t, v.reserved_capacity_t)
+      return (
+        <>
+          <Field label="Total (T)"    k="total_capacity_t"     src={src} setSrc={setSrc} type="decimal" placeholder="e.g. 4.5" />
+          <Field label="Free (T)"     k="available_capacity_t" src={src} setSrc={setSrc} type="decimal" placeholder="e.g. 2.0" />
+          <Field label="Reserved (T)" k="reserved_capacity_t"  src={src} setSrc={setSrc} type="decimal" placeholder="e.g. 0.5" />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, justifyContent: 'flex-end', minWidth: 120 }}>
+            <span style={{ fontSize: 10, color: t.textFaint, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Used (T)</span>
+            <span style={{ fontSize: 12, padding: '6px 0', color: err ? t.red : t.text, fontWeight: err ? 600 : 500 }}>
+              {err ?? <span title="Total − Free − Reserved">{formatTbps(capacityParts({ segment_id: '', ...v }).used)} <span style={{ color: t.textFaint, fontWeight: 400 }}>· auto</span></span>}
+            </span>
+          </div>
+        </>
+      )
+    }
     const capEditForm = (segId: string) => (
       <div style={{ ...editFormRow }}>
-        <Field label="Total (T)"     k="total_capacity_t"     src={editValues} setSrc={setEditValues} type="decimal" placeholder="e.g. 4.5" />
-        <Field label="Available (T)" k="available_capacity_t" src={editValues} setSrc={setEditValues} type="decimal" placeholder="e.g. 2.0" />
+        {capFields(editValues, setEditValues)}
         <SaveCancel onSave={() => saveEdit(() => api.updateCapacity(segId, capSaveVals(editValues) as Partial<SegmentCapacity>))} onCancel={() => setEditId(null)} />
       </div>
     )
@@ -1468,8 +1499,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         {adding && (
           <div style={{ ...editFormRow, margin: isMobile ? '8px 12px' : undefined }}>
             {segSearchWidget}
-            <Field label="Total (T)"     k="total_capacity_t"    src={addValues} setSrc={setAddValues} type="decimal" placeholder="e.g. 4.5" />
-            <Field label="Available (T)" k="available_capacity_t" src={addValues} setSrc={setAddValues} type="decimal" placeholder="e.g. 2.0" />
+            {capFields(addValues, setAddValues)}
             <SaveCancel
               onSave={() => saveAdd(() => api.createCapacity({ segment_id: String(addValues.segment_id ?? ''), ...capSaveVals(addValues) } as unknown as SegmentCapacity))}
               onCancel={() => { setAdding(false); setAddValues({}) }}
@@ -1479,17 +1509,20 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
         {isMobile ? (
           <div style={{ padding: '8px 0 32px' }}>
             {filtered.map(c => {
-              const pct = Math.round((c.available_capacity_t / c.total_capacity_t) * 100)
-              const pctColor = pct < 20 ? t.red : pct < 50 ? t.orange : t.green
+              const p = capacityParts(c)
+              const pct = Math.round(p.freePct * 100)
+              const pctColor = freePctColor(pct)
               return (
                 <MobileCard key={c.segment_id} id={c.segment_id}
                   title={<code style={{ fontSize: 12 }}>{c.segment_id}</code>}
                   fields={[
-                    { label: 'Total', value: `${c.total_capacity_t}T` },
-                    { label: 'Available', value: `${c.available_capacity_t}T` },
+                    { label: 'Total', value: formatTbps(p.total) },
+                    { label: 'Free', value: formatTbps(p.free) },
+                    { label: 'Reserved', value: formatTbps(p.reserved) },
+                    { label: 'Used', value: formatTbps(p.used) },
                     { label: '% Free', value: <span style={{ color: pctColor, fontWeight: 700 }}>{pct}%</span> },
                   ]}
-                  onEdit={() => editId === c.segment_id ? setEditId(null) : startEdit(c.segment_id, { total_capacity_t: c.total_capacity_t, available_capacity_t: c.available_capacity_t })}
+                  onEdit={() => editId === c.segment_id ? setEditId(null) : startEdit(c.segment_id, capEditStart(c))}
                   onDelete={() => confirmDelete(() => api.deleteCapacity(c.segment_id))}
                 >
                   {editId === c.segment_id && capEditForm(c.segment_id)}
@@ -1501,21 +1534,25 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
           <>
             <div style={{ display: 'flex', padding: '6px 12px', borderBottom: `1px solid ${t.border}`, background: t.bgDeep }}>
               <div style={colH(3)}>Segment ID</div><div style={colH(1.5)}>Total (T)</div>
-              <div style={colH(1.5)}>Available (T)</div><div style={colH(1.5)}>% Free</div>
+              <div style={colH(1.5)}>Free (T)</div><div style={colH(1.5)}>Reserved (T)</div>
+              <div style={colH(1.5)}>Used (T)</div><div style={colH(1.5)}>% Free</div>
               <div style={{ width: 140 }} />
             </div>
             {filtered.map(c => {
-              const pct = Math.round((c.available_capacity_t / c.total_capacity_t) * 100)
-              const pctColor = pct < 20 ? t.red : pct < 50 ? t.orange : t.green
+              const p = capacityParts(c)
+              const pct = Math.round(p.freePct * 100)
+              const pctColor = freePctColor(pct)
               return (
                 <div key={c.segment_id} style={rowStyle(editId === c.segment_id)}>
                   <div style={{ display: 'flex', alignItems: 'center', padding: '7px 12px', minHeight: 36 }}>
                     <div style={cell(3)}><code style={{ fontSize: 11 }}>{c.segment_id}</code></div>
-                    <div style={cell(1.5)}>{c.total_capacity_t}T</div>
-                    <div style={cell(1.5)}>{c.available_capacity_t}T</div>
+                    <div style={cell(1.5)}>{formatTbps(p.total)}</div>
+                    <div style={cell(1.5)}>{formatTbps(p.free)}</div>
+                    <div style={{ ...cell(1.5), color: p.reserved > 0 ? t.text : t.textFaintest }}>{formatTbps(p.reserved)}</div>
+                    <div style={cell(1.5)}>{formatTbps(p.used)}</div>
                     <div style={{ ...cell(1.5), color: pctColor, fontWeight: 600 }}>{pct}%</div>
                     <ActionsCell id={c.segment_id}
-                      onEdit={() => startEdit(c.segment_id, { total_capacity_t: c.total_capacity_t, available_capacity_t: c.available_capacity_t })}
+                      onEdit={() => startEdit(c.segment_id, capEditStart(c))}
                       onDelete={() => confirmDelete(() => api.deleteCapacity(c.segment_id))}
                     />
                   </div>
@@ -2906,7 +2943,7 @@ export function RefDataModal({ nodes, segments, systems, capacity, outages, rule
     nodes:    { id: '', name: '', country: '', type: 'landing_station', lat: 0, lng: 0, owner: 'Telstra', trading_name: '', description: '' },
     segments: { id: '', name: '', system_id: '', start_node_id: '', end_node_id: '', type: 'wet', length_km: 0, latency: 0, cost_weight: 1, reliability: 0.9999, ownership: 'consortium' },
     systems:  { id: '', name: '', description: '', margin: 8 },
-    capacity: { segment_id: '', total_capacity_t: 1.0, available_capacity_t: 1.0 },
+    capacity: { segment_id: '', total_capacity_t: 1.0, available_capacity_t: 1.0, reserved_capacity_t: 0 },
     outages:  { segment_id: '', fault_id: '', fault_date: '', repair_start: '', estimated_repair_date: 'TBC', description: '', event_type: 'outage', service_impact: '' },
     rules:    { node_id: '', kind: 'blacklist', system_a: '', system_b: '', reason: '' },
   }

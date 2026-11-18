@@ -24,6 +24,7 @@ import { useTheme } from '../theme'
 import { nodeLabel } from '../utils/nodeLabel'
 import { pathLengthKm, suggestSegmentDefaults, generateSegmentId, generateSegmentName } from '../utils/editorGeo'
 import { LabeledInput, LabeledSelect, OWNERSHIP_OPTS, actionBtn } from './formFields'
+import { capacitySplitError } from '../utils/capacity'
 
 /** Props for {@link NewSegmentForm}. */
 interface Props {
@@ -80,6 +81,7 @@ export function NewSegmentForm({ startNode, endNode, systems, segments, suggeste
   const [rfsQuarter, setRfsQuarter] = useState('')
   const [totalCap, setTotalCap] = useState('')
   const [availCap, setAvailCap] = useState('')
+  const [reservedCap, setReservedCap] = useState('')
 
   // Terrestrial segments always belong to the synthetic 'TERRESTRIAL' system
   // regardless of whatever `systemId` was last selected while `type` was
@@ -122,7 +124,12 @@ export function NewSegmentForm({ startNode, endNode, systems, segments, suggeste
   const quarterValid = rfsStatus !== 'planned' || /^\d{4}-Q[1-4]$/.test(rfsQuarter)
   const totalNum = parseFloat(totalCap)
   const availNum = parseFloat(availCap)
-  const capValid = !Number.isNaN(totalNum) && !Number.isNaN(availNum) && totalNum >= 0 && availNum >= 0 && availNum <= totalNum
+  // Reserved is optional: blank means none.
+  const reservedNum = reservedCap.trim() === '' ? 0 : parseFloat(reservedCap)
+  const capSplitErr = Number.isNaN(totalNum) || Number.isNaN(availNum) || Number.isNaN(reservedNum)
+    ? 'Total and Free are required; Reserved is optional.'
+    : capacitySplitError(totalNum, availNum, reservedNum)
+  const capValid = capSplitErr === null
   const relNum = parseFloat(reliability)
   const valid = id.trim() !== '' && !idTaken && name.trim() !== '' && effectiveSystemId !== ''
     && !Number.isNaN(parseFloat(lengthKm)) && relNum > 0 && relNum <= 1 && quarterValid && capValid
@@ -176,10 +183,11 @@ export function NewSegmentForm({ startNode, endNode, systems, segments, suggeste
 
       <div style={{ display: 'flex', gap: 6 }}>
         <LabeledInput label="Total capacity (T)" value={totalCap} onChange={setTotalCap} placeholder="2" invalid={totalCap !== '' && Number.isNaN(totalNum)} />
-        <LabeledInput label="Available (T)" value={availCap} onChange={setAvailCap} placeholder="2" invalid={availCap !== '' && (Number.isNaN(availNum) || availNum > totalNum)} />
+        <LabeledInput label="Free (T)" value={availCap} onChange={setAvailCap} placeholder="2" invalid={availCap !== '' && (Number.isNaN(availNum) || !capValid)} />
+        <LabeledInput label="Reserved (T)" value={reservedCap} onChange={setReservedCap} placeholder="0" invalid={reservedCap !== '' && (Number.isNaN(reservedNum) || !capValid)} />
       </div>
-      {!capValid && (totalCap !== '' || availCap !== '') && (
-        <div style={{ fontSize: 11, color: t.red }}>Both capacities are required; available cannot exceed total.</div>
+      {!capValid && (totalCap !== '' || availCap !== '' || reservedCap !== '') && (
+        <div style={{ fontSize: 11, color: t.red }}>{capSplitErr}</div>
       )}
       {idTaken && <div style={{ fontSize: 11, color: t.red }}>That segment id is already taken.</div>}
 
@@ -199,7 +207,7 @@ export function NewSegmentForm({ startNode, endNode, systems, segments, suggeste
                 rfs_status: rfsStatus,
                 rfs_quarter: rfsStatus === 'planned' ? rfsQuarter : null,
               },
-              { segment_id: segId, total_capacity_t: totalNum, available_capacity_t: availNum },
+              { segment_id: segId, total_capacity_t: totalNum, available_capacity_t: availNum, reserved_capacity_t: reservedNum },
             )
           }}
           style={actionBtn(t, 'primary', !valid)}

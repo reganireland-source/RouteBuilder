@@ -57,11 +57,13 @@ import { EntityNotesPanel } from './EntityNotesPanel'
 import { HazardsNearbyCard } from './HazardsNearbyCard'
 import { useHazardsFor } from '../context/HazardContext'
 import { SegmentFullView } from './SegmentFullView'
+import { CapacityBar } from './CapacityBreakdown'
+import { capacityParts } from '../utils/capacity'
 import {
   type T, LayoutContext, useLayout, useFullViewLayout, useEscapeKey,
   backdropClose, backdropStyle, dialogStyle, headerShell, scrollerStyle, rowStyle,
   Card, Row, Empty, NotFound, EditField, SelectField, ReadOnlyIdField, EditFormFooter, FullViewColumn,
-  iconBtn, closeBtnStyle, utilisationColor, Z_FULL_VIEW_BASE, nextFullViewLayer,
+  iconBtn, closeBtnStyle, Z_FULL_VIEW_BASE, nextFullViewLayer,
 } from './fullViewChrome'
 
 // Same option sets the Reference Data node form uses — kept identical on
@@ -637,16 +639,21 @@ function SegmentCapacityList({ t, node, nodeSegments, capacity, nodesById, onOpe
   )
 }
 
+/** "4 / 10 T free · 3 T reserved", or "no capacity record". */
+function capacityReadout(parts: ReturnType<typeof capacityParts> | null): string {
+  if (!parts) return 'no capacity record'
+  const reserved = parts.reserved > 0 ? ` · ${parts.reserved} T reserved` : ''
+  return `${parts.free} / ${parts.total} T free${reserved}`
+}
+
 /** One row of {@link SegmentCapacityList}: the far-end node label, a
- *  used/total capacity readout (or "no capacity record" when none exists),
- *  a thin utilisation bar, and an optional ⛶ button to open that segment's
- *  own Full View. */
+ *  free/total capacity readout (plus reserved when there is any, or "no
+ *  capacity record" when none exists), a thin stacked Used / Reserved / Free
+ *  bar, and an optional ⛶ button to open that segment's own Full View. */
 function CapacityRow({ t, farLabel, cap, onOpenSegment }: {
   t: T; farLabel: string; cap: SegmentCapacity | undefined; onOpenSegment?: () => void
 }) {
-  const total = cap?.total_capacity_t ?? 0
-  const used = total - (cap?.available_capacity_t ?? 0)
-  const pct = total > 0 ? used / total : 0
+  const parts = cap ? capacityParts(cap) : null
 
   return (
     <div style={{ padding: '5px 0', borderBottom: `1px solid ${t.border}55` }}>
@@ -655,7 +662,7 @@ function CapacityRow({ t, farLabel, cap, onOpenSegment }: {
           → {farLabel}
         </span>
         <span style={{ color: t.textFaint, fontFamily: 'ui-monospace, monospace', whiteSpace: 'nowrap' }}>
-          {cap ? `${cap.available_capacity_t} / ${cap.total_capacity_t} T free` : 'no capacity record'}
+          {capacityReadout(parts)}
         </span>
         {/* The far-end NODE is one click away through the fan diagram above;
             this is the other half of the pair — the SEGMENT in between. */}
@@ -671,11 +678,7 @@ function CapacityRow({ t, farLabel, cap, onOpenSegment }: {
           >⛶</button>
         )}
       </div>
-      {total > 0 && (
-        <div style={{ height: 3, borderRadius: 2, background: t.bgDeep, marginTop: 3, overflow: 'hidden' }}>
-          <div style={{ width: `${Math.round(pct * 100)}%`, height: '100%', background: utilisationColor(pct, t) }} />
-        </div>
-      )}
+      {cap && parts && parts.total > 0 && <div style={{ marginTop: 3 }}><CapacityBar cap={cap} height={3} /></div>}
     </div>
   )
 }

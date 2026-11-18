@@ -19,6 +19,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, asdict
 from .data_loader import load_nodes, load_segments, load_systems, load_capacity, load_rules, load_outages
+from .models import capacity_split_error
 
 # Accepts 4-char IATA-style codes, branching-unit IDs (e.g. APRICOTBU1),
 # and vendor-prefixed IDs with a single hyphen separator (e.g. EQ-SY1).
@@ -128,8 +129,9 @@ def run_all_checks() -> list[CheckResult]:
 
     # ── Capacity numeric sanity ────────────────────────────────────────────────
     check("Capacity total > 0",            "error", [c.segment_id for c in capacity if (c.total_capacity_t or 0) <= 0])
-    check("Capacity available ≤ total",    "error", [c.segment_id for c in capacity if c.available_capacity_t > c.total_capacity_t])
+    check("Capacity free + reserved ≤ total", "error", [c.segment_id for c in capacity if capacity_split_error(c.total_capacity_t, c.available_capacity_t, c.reserved_capacity_t)])
     check("Capacity available ≥ 0",        "error", [c.segment_id for c in capacity if c.available_capacity_t < 0])
+    check("Capacity reserved ≥ 0",         "error", [c.segment_id for c in capacity if c.reserved_capacity_t < 0])
 
     # ── Node ID format ────────────────────────────────────────────────────────
     bad_ids = [n.id for n in nodes if not NODE_ID_RE.match(n.id)]

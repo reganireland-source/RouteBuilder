@@ -113,8 +113,8 @@ const TABLE_META: Record<BulkTable, { label: string; icon: string; pk: string; c
   },
   capacity: {
     label: 'Capacity', icon: '◈', pk: 'segment_id',
-    cols: ['segment_id', 'total_capacity_t', 'available_capacity_t'],
-    notes: 'Values in Terabits (T)  ·  available cannot exceed total  ·  segment_id must exist in Segments',
+    cols: ['segment_id', 'total_capacity_t', 'available_capacity_t', 'reserved_capacity_t'],
+    notes: 'Values in Terabits (T)  ·  available = Free  ·  available + reserved cannot exceed total (Used = the rest)  ·  no reserved column keeps current reserved figures  ·  segment_id must exist in Segments',
   },
   coverage: {
     label: 'Coverage', icon: '🟢', pk: 'node_id',

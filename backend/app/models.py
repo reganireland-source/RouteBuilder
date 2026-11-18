@@ -364,28 +364,59 @@ class InterconnectRuleUpdate(BaseModel):
     allowed_handoff_segments: Optional[list[AllowedHandoffSegment]] = None
 
 
+# Float slack for the Free + Reserved <= Total check, so figures typed to a
+# couple of decimals (0.1 + 0.2) don't trip it on rounding alone.
+CAPACITY_EPSILON = 1e-9
+
+
+def capacity_split_error(total: float, available: float, reserved: float) -> Optional[str]:
+    """The user-facing reason a Total / Free / Reserved split is impossible,
+    or None if it is valid. Shared by the models, the PUT merge and bulk import."""
+    if available + reserved > total + CAPACITY_EPSILON:
+        return (
+            f"Free ({available:g} Tbps) + Reserved ({reserved:g} Tbps) cannot exceed "
+            f"Total ({total:g} Tbps)"
+        )
+    return None
+
+
 class SegmentCapacity(BaseModel):
-    """Capacity accounting for one CableSegment (1:1 via segment_id) — total
-    installed capacity vs. what remains available, both in terabits/sec.
-    Kept as a separate model/table from CableSegment itself (rather than
-    inline fields) because capacity changes on a different cadence than the
-    segment's physical attributes; see SegmentCapacityUpdate for the partial-
-    update sibling."""
+    """Capacity accounting for one CableSegment (1:1 via segment_id), in
+    terabits/sec. Total installed capacity splits three ways:
+
+        total_capacity_t = available_capacity_t (Free / spare)
+                         + reserved_capacity_t  (held back: committed to a
+                                                 customer or project, or kept
+                                                 for restoration, but not yet
+                                                 carrying traffic)
+                         + Used                 (derived, not stored:
+                                                 total - free - reserved)
+
+    Route search and every "how much can I sell" view use Free only — reserved
+    capacity is not available to a new circuit. Kept as a separate model/table
+    from CableSegment (rather than inline fields) because capacity changes on
+    a different cadence than the segment's physical attributes; see
+    SegmentCapacityUpdate for the partial-update sibling. Stored as a JSONB
+    document, so rows saved before reserved existed load as 0 reserved."""
     segment_id: str
-    # Review finding #11: capacity is in Tbps — never negative, and you cannot
-    # have more capacity free than the segment physically has.
+    # Review finding #11: capacity is in Tbps — never negative, and the parts
+    # can never add up to more than the segment physically has.
     total_capacity_t: float     = Field(ge=0)
     available_capacity_t: float = Field(ge=0)
+    reserved_capacity_t: float  = Field(default=0, ge=0)
 
     @model_validator(mode="after")
-    def _available_within_total(self):
-        """Cross-field check: available capacity cannot exceed total capacity."""
-        if self.available_capacity_t > self.total_capacity_t:
-            raise ValueError(
-                f"available_capacity_t ({self.available_capacity_t}) cannot exceed "
-                f"total_capacity_t ({self.total_capacity_t})"
-            )
+    def _parts_within_total(self):
+        """Cross-field check: Free + Reserved cannot exceed Total."""
+        err = capacity_split_error(self.total_capacity_t, self.available_capacity_t, self.reserved_capacity_t)
+        if err:
+            raise ValueError(err)
         return self
+
+    @property
+    def used_capacity_t(self) -> float:
+        """Total minus Free minus Reserved (never negative)."""
+        return max(0.0, self.total_capacity_t - self.available_capacity_t - self.reserved_capacity_t)
 
 
 class RouteRequest(BaseModel):
@@ -542,30 +573,13 @@ class CableSystemUpdate(BaseModel):
     consortium_owners: Optional[list[str]] = None
 
 class SegmentCapacityUpdate(BaseModel):
+    """Partial update for SegmentCapacity. The Free + Reserved <= Total rule
+    needs all three figures, so it is checked by the router against the merged
+    record (capacity.py's update_capacity), not here."""
     # Review finding #11: same non-negativity constraints as SegmentCapacity.
     total_capacity_t: Optional[float]     = Field(default=None, ge=0)
     available_capacity_t: Optional[float] = Field(default=None, ge=0)
-
-    @model_validator(mode="after")
-    def _available_within_total(self):
-        """Cross-field check, only enforceable when BOTH fields are supplied.
-
-        This is a PARTIAL update model, so when only one field is sent we cannot
-        compare against the other without loading the stored row. The router
-        merges via model_copy(), which does not re-validate in Pydantic v2, so a
-        single-field update that inverts the invariant is not caught here — see
-        review finding #11; tightening that needs a re-validate in capacity.py.
-        """
-        if (
-            self.total_capacity_t is not None
-            and self.available_capacity_t is not None
-            and self.available_capacity_t > self.total_capacity_t
-        ):
-            raise ValueError(
-                f"available_capacity_t ({self.available_capacity_t}) cannot exceed "
-                f"total_capacity_t ({self.total_capacity_t})"
-            )
-        return self
+    reserved_capacity_t: Optional[float]  = Field(default=None, ge=0)
 
 
 class SegmentOutage(BaseModel):

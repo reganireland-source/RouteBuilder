@@ -68,6 +68,7 @@ from ..models import (
     SegmentType,
     UnderlayCapabilities,
     VerificationStatus,
+    capacity_split_error,
 )
 
 logger = logging.getLogger(__name__)
@@ -88,7 +89,18 @@ SEGMENT_COLS = [
     "verification_status", "last_verified_date",
 ]
 SYSTEM_COLS   = ["id", "name", "description", "margin"]
-CAPACITY_COLS = ["segment_id", "total_capacity_t", "available_capacity_t"]
+CAPACITY_COLS = ["segment_id", "total_capacity_t", "available_capacity_t", "reserved_capacity_t"]
+
+
+def _reserved_from_row(row: dict, existing) -> float:
+    """reserved_capacity_t for a capacity CSV row. A file without the column
+    at all (exported before Reserved existed) keeps the stored figure rather
+    than silently zeroing it; a present-but-blank cell means 0."""
+    if "reserved_capacity_t" not in row:
+        return existing.reserved_capacity_t if existing is not None else 0.0
+    return float(row.get("reserved_capacity_t") or 0)
+
+
 COVERAGE_COLS = [
     "node_id", "ipt_speeds", "epl_speeds", "evpl_speeds",
     "gid_speeds", "ipvpn_speeds", "colocation_category",
@@ -432,6 +444,7 @@ def export_capacity():
             "segment_id": c.segment_id,
             "total_capacity_t": c.total_capacity_t,
             "available_capacity_t": c.available_capacity_t,
+            "reserved_capacity_t": c.reserved_capacity_t,
         })
     return _csv_stream(rows, CAPACITY_COLS, "capacity.csv")
 
@@ -780,10 +793,12 @@ def validate_systems(file: UploadFile = File(...), mode: BulkMode = Query("upser
 def validate_capacity(file: UploadFile = File(...), mode: BulkMode = Query("upsert")):
     """POST /api/bulk/validate/capacity — dry-run validate+diff a capacity
     CSV, keyed by segment_id rather than a standalone id. Per row: segment_id
-    must reference an existing segment; total_capacity_t/available_capacity_t
-    must each parse as a non-negative number, and available must not exceed
+    must reference an existing segment; total/available/reserved must each
+    parse as a non-negative number, and available + reserved must not exceed
     total (checked only when total_val > 0, i.e. skipped for an all-zero/
-    unparsed row rather than reported as an available > 0 > total error)."""
+    unparsed row rather than reported as an over-total error). A file with no
+    reserved_capacity_t column at all (e.g. exported before Reserved existed)
+    keeps each segment's current reserved figure — see _reserved_from_row."""
     rows = _read_csv(file)
     existing = {c.segment_id: c for c in load_capacity()}
     seg_ids  = {s.id for s in load_segments()}
@@ -812,30 +827,33 @@ def validate_capacity(file: UploadFile = File(...), mode: BulkMode = Query("upse
         if rid not in seg_ids:
             errors.append(_err(i, rid, "segment_id", rid, f"'{rid}' not found in Segments"))
 
-        total_val = avail_val = 0.0
-        for fld in ("total_capacity_t", "available_capacity_t"):
+        vals = {"total_capacity_t": 0.0, "available_capacity_t": 0.0, "reserved_capacity_t": 0.0}
+        for fld in vals:
+            if fld == "reserved_capacity_t" and fld not in row:
+                vals[fld] = existing[rid].reserved_capacity_t if rid in existing else 0.0
+                continue
             raw = (row.get(fld) or "").strip()
             try:
                 v = float(raw or 0)
                 if v < 0:
                     errors.append(_err(i, rid, fld, raw, f"{fld} cannot be negative"))
-                if fld == "total_capacity_t":
-                    total_val = v
-                else:
-                    avail_val = v
+                vals[fld] = v
             except ValueError:
                 errors.append(_err(i, rid, fld, raw, f"{fld} must be a number"))
+        total_val, avail_val, resv_val = vals["total_capacity_t"], vals["available_capacity_t"], vals["reserved_capacity_t"]
 
-        if total_val > 0 and avail_val > total_val:
-            errors.append(_err(i, rid, "available_capacity_t", str(avail_val),
-                f"Available ({avail_val}) cannot exceed total ({total_val})"))
+        split_err = capacity_split_error(total_val, avail_val, resv_val) if total_val > 0 else None
+        if split_err:
+            errors.append(_err(i, rid, "available_capacity_t", f"{avail_val} + {resv_val}", split_err))
 
-        new = {"segment_id": rid, "total_capacity_t": total_val, "available_capacity_t": avail_val}
+        new = {"segment_id": rid, "total_capacity_t": total_val, "available_capacity_t": avail_val,
+               "reserved_capacity_t": resv_val}
 
         if rid in existing:
             ex = existing[rid]
             old = {"segment_id": ex.segment_id, "total_capacity_t": ex.total_capacity_t,
-                   "available_capacity_t": ex.available_capacity_t}
+                   "available_capacity_t": ex.available_capacity_t,
+                   "reserved_capacity_t": ex.reserved_capacity_t}
             cf = _changed_fields(new, old)
             if cf:
                 changes.append({"status": "modified", "id": rid, "data": new, "prev_data": old, "changed_fields": cf})
@@ -1188,6 +1206,7 @@ def import_capacity(file: UploadFile = File(...), mode: BulkMode = Query("upsert
                 segment_id=rid,
                 total_capacity_t=float(row.get("total_capacity_t", 0) or 0),
                 available_capacity_t=float(row.get("available_capacity_t", 0) or 0),
+                reserved_capacity_t=_reserved_from_row(row, existing.get(rid)),
             )
         except Exception as exc:
             # Finding #9: report the discarded row instead of swallowing it.
